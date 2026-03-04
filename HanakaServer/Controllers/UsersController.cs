@@ -30,7 +30,7 @@ namespace HanakaServer.Controllers
             return userId;
         }
 
-        // ✅ GET: api/users/me
+        // GET: api/users/me
         [HttpGet("me")]
         public async Task<IActionResult> GetMe()
         {
@@ -63,7 +63,7 @@ namespace HanakaServer.Controllers
             return Ok(user);
         }
 
-        // ✅ PUT: api/users/me  (update profile)
+        //  PUT: api/users/me  (update profile)
         [HttpPut("me")]
         public async Task<IActionResult> UpdateMe([FromBody] UpdateProfileRequest req)
         {
@@ -114,7 +114,7 @@ namespace HanakaServer.Controllers
             });
         }
 
-        // ✅ POST: api/users/me/avatar  (upload avatar)
+        //  POST: api/users/me/avatar  (upload avatar)
         // form-data: file=<image>
         [HttpPost("me/avatar")]
         [RequestSizeLimit(10_000_000)] // 10MB
@@ -193,6 +193,99 @@ namespace HanakaServer.Controllers
             await _db.SaveChangesAsync();
 
             return Ok(new { message = "Đổi mật khẩu thành công." });
+        }
+        // GET: api/users/members?query=abc&page=1&pageSize=20
+        [AllowAnonymous]
+        [HttpGet("members")]
+        public async Task<IActionResult> GetMembers([FromQuery] string? query, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+        {
+            if (page <= 0) page = 1;
+            if (pageSize <= 0) pageSize = 20;
+            if (pageSize > 100) pageSize = 100; // chống load quá lớn
+
+            query = query?.Trim();
+
+            // Lọc role MEMBER
+            var q = _db.Users
+                .AsNoTracking()
+                .Where(u => u.IsActive)
+                .Where(u => u.UserRoles.Any(ur => ur.Role.RoleCode == "MEMBER"));
+
+            // Search theo: tên / id / sdt / email / city / gender
+            if (!string.IsNullOrWhiteSpace(query))
+            {
+                q = q.Where(u =>
+                    u.FullName.Contains(query) ||
+                    (u.Phone != null && u.Phone.Contains(query)) ||
+                    (u.Email != null && u.Email.Contains(query)) ||
+                    (u.City != null && u.City.Contains(query)) ||
+                    (u.Gender != null && u.Gender.Contains(query)) ||
+                    u.UserId.ToString().Contains(query)
+                );
+            }
+
+            // total
+            var total = await q.CountAsync();
+
+            // paging
+            var items = await q
+                .OrderByDescending(u => u.Verified)     // verified lên trước (tuỳ bạn)
+                .ThenBy(u => u.FullName)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(u => new HanakaServer.Dtos.MemberListItemDto
+                {
+                    UserId = u.UserId,
+                    FullName = u.FullName,
+                    City = u.City,
+                    Gender = u.Gender,
+                    Verified = u.Verified,
+                    RatingSingle = u.RatingSingle,
+                    RatingDouble = u.RatingDouble,
+                    AvatarUrl = u.AvatarUrl
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                page,
+                pageSize,
+                total,
+                items
+            });
+        }
+
+        // GET: api/users/{id}
+        // PUBLIC - không cần login
+        [AllowAnonymous]
+        [HttpGet("{id:long}")]
+        public async Task<IActionResult> GetUserDetail(long id)
+        {
+            var user = await _db.Users
+                .AsNoTracking()
+                .Where(u => u.UserId == id && u.UserId != 2 && u.IsActive)
+                .Select(u => new
+                {
+                    u.UserId,
+                    u.FullName,
+                    u.Email,
+                    u.Phone,
+                    u.Gender,
+                    u.City,
+                    u.Verified,
+                    u.RatingSingle,
+                    u.RatingDouble,
+                    u.AvatarUrl,
+                    u.Bio,
+                    u.BirthOfDate,
+                    u.CreatedAt
+                })
+                .FirstOrDefaultAsync();
+
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            return Ok(user);
         }
     }
 }
