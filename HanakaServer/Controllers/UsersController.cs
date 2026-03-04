@@ -4,21 +4,24 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using Microsoft.Extensions.Configuration;
 
 namespace HanakaServer.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    [Authorize(AuthenticationSchemes = "Bearer")] // bắt JWT
+    [Authorize(AuthenticationSchemes = "Bearer")]
     public class UsersController : ControllerBase
     {
         private readonly PickleballDbContext _db;
         private readonly IWebHostEnvironment _env;
+        private readonly IConfiguration _config;
 
-        public UsersController(PickleballDbContext db, IWebHostEnvironment env)
+        public UsersController(PickleballDbContext db, IWebHostEnvironment env, IConfiguration config)
         {
             _db = db;
             _env = env;
+            _config = config;
         }
 
         // Helper: lấy userId từ JWT claim "uid"
@@ -30,40 +33,97 @@ namespace HanakaServer.Controllers
             return userId;
         }
 
+        // Helper: base url
+        private string GetBaseUrl()
+        {
+            // Khuyến nghị: dùng appsettings: _config["AppSettings:PublicBaseUrl"]
+            var baseUrl = "http://192.168.0.101:5062";
+            return baseUrl.TrimEnd('/');
+        }
+
+        // Helper: convert relative -> absolute để trả response
+        private string? ToAbsoluteUrl(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return null;
+
+            // nếu đã absolute thì trả luôn
+            if (Uri.TryCreate(url, UriKind.Absolute, out _)) return url;
+
+            if (!url.StartsWith("/")) url = "/" + url;
+            return GetBaseUrl() + url;
+        }
+
+        // Helper: normalize avatar về relative để lưu DB
+        private string? NormalizeAvatarToRelative(string? avatarUrl)
+        {
+            if (string.IsNullOrWhiteSpace(avatarUrl)) return null;
+
+            avatarUrl = avatarUrl.Trim();
+
+            // relative sẵn
+            if (avatarUrl.StartsWith("/")) return avatarUrl;
+
+            // absolute => lấy path
+            if (Uri.TryCreate(avatarUrl, UriKind.Absolute, out var uri))
+            {
+                // /uploads/avatars/x.png
+                return uri.PathAndQuery;
+            }
+
+            // chuỗi lạ => giữ nguyên (hoặc bạn có thể return null / BadRequest)
+            return avatarUrl;
+        }
+
         // GET: api/users/me
         [HttpGet("me")]
         public async Task<IActionResult> GetMe()
         {
             var userId = GetUserIdFromToken();
 
-            var user = await _db.Users
+            var u = await _db.Users
                 .AsNoTracking()
-                .Where(u => u.UserId == userId && u.IsActive)
-                .Select(u => new
+                .Where(x => x.UserId == userId && x.IsActive)
+                .Select(x => new
                 {
-                    u.UserId,
-                    u.FullName,
-                    u.Email,
-                    u.Phone,
-                    u.Gender,
-                    City = u.City,
-                    u.Verified,
-                    u.RatingSingle,
-                    u.RatingDouble,
-                    u.AvatarUrl,
-                    u.Bio,
-                    u.BirthOfDate,
-                    u.CreatedAt,
-                    u.UpdatedAt
+                    x.UserId,
+                    x.FullName,
+                    x.Email,
+                    x.Phone,
+                    x.Gender,
+                    City = x.City,
+                    x.Verified,
+                    x.RatingSingle,
+                    x.RatingDouble,
+                    x.AvatarUrl,
+                    x.Bio,
+                    x.BirthOfDate,
+                    x.CreatedAt,
+                    x.UpdatedAt
                 })
                 .FirstOrDefaultAsync();
 
-            if (user == null) return NotFound(new { message = "User not found." });
+            if (u == null) return NotFound(new { message = "User not found." });
 
-            return Ok(user);
+            return Ok(new
+            {
+                u.UserId,
+                u.FullName,
+                u.Email,
+                u.Phone,
+                u.Gender,
+                u.City,
+                u.Verified,
+                u.RatingSingle,
+                u.RatingDouble,
+                AvatarUrl = ToAbsoluteUrl(u.AvatarUrl),
+                u.Bio,
+                u.BirthOfDate,
+                u.CreatedAt,
+                u.UpdatedAt
+            });
         }
 
-        //  PUT: api/users/me  (update profile)
+        // PUT: api/users/me
         [HttpPut("me")]
         public async Task<IActionResult> UpdateMe([FromBody] UpdateProfileRequest req)
         {
@@ -72,7 +132,6 @@ namespace HanakaServer.Controllers
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
             if (user == null) return NotFound(new { message = "User not found." });
 
-            // Validate tối thiểu
             if (!string.IsNullOrWhiteSpace(req.FullName))
             {
                 var name = req.FullName.Trim();
@@ -80,21 +139,19 @@ namespace HanakaServer.Controllers
                 user.FullName = name;
             }
 
-            // Optional fields (có thì update, null thì giữ nguyên)
             if (req.Phone != null) user.Phone = req.Phone.Trim();
             if (req.Gender != null) user.Gender = req.Gender.Trim();
             if (req.City != null) user.City = req.City.Trim();
-            if (req.Bio != null) user.Bio = req.Bio; // có thể trim nếu bạn muốn
+            if (req.Bio != null) user.Bio = req.Bio;
             if (req.BirthOfDate.HasValue) user.BirthOfDate = req.BirthOfDate.Value.Date;
 
-            // Nếu bạn muốn cho phép update avatar bằng URL (không upload file)
-            if (req.AvatarUrl != null) user.AvatarUrl = req.AvatarUrl.Trim();
+            // AvatarUrl: normalize về relative để lưu DB
+            if (req.AvatarUrl != null)
+                user.AvatarUrl = NormalizeAvatarToRelative(req.AvatarUrl);
 
             user.UpdatedAt = DateTime.UtcNow;
-
             await _db.SaveChangesAsync();
 
-            // Trả về user sau update
             return Ok(new
             {
                 user.UserId,
@@ -106,7 +163,7 @@ namespace HanakaServer.Controllers
                 user.Verified,
                 user.RatingSingle,
                 user.RatingDouble,
-                user.AvatarUrl,
+                AvatarUrl = ToAbsoluteUrl(user.AvatarUrl),
                 user.Bio,
                 user.BirthOfDate,
                 user.CreatedAt,
@@ -114,10 +171,9 @@ namespace HanakaServer.Controllers
             });
         }
 
-        //  POST: api/users/me/avatar  (upload avatar)
-        // form-data: file=<image>
+        // POST: api/users/me/avatar
         [HttpPost("me/avatar")]
-        [RequestSizeLimit(10_000_000)] // 10MB
+        [RequestSizeLimit(10_000_000)]
         public async Task<IActionResult> UploadAvatar([FromForm] IFormFile file)
         {
             var userId = GetUserIdFromToken();
@@ -130,11 +186,9 @@ namespace HanakaServer.Controllers
             if (!allowed.Contains(ext))
                 return BadRequest(new { message = "Only jpg, jpeg, png, webp are allowed." });
 
-            // Ensure folder
             var uploadsDir = Path.Combine(_env.WebRootPath ?? "wwwroot", "uploads", "avatars");
             Directory.CreateDirectory(uploadsDir);
 
-            // Generate filename: userId_timestamp.ext
             var fileName = $"{userId}_{DateTime.UtcNow:yyyyMMddHHmmssfff}{ext}";
             var filePath = Path.Combine(uploadsDir, fileName);
 
@@ -143,21 +197,24 @@ namespace HanakaServer.Controllers
                 await file.CopyToAsync(stream);
             }
 
-            // Build public URL
-            var scheme = Request.Scheme;
-            var host = Request.Host.Value;
-            var publicUrl = $"{scheme}://{host}/uploads/avatars/{fileName}";
+            // Lưu relative vào DB
+            var relativeUrl = $"/uploads/avatars/{fileName}";
 
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
             if (user == null) return NotFound(new { message = "User not found." });
 
-            user.AvatarUrl = publicUrl;
+            user.AvatarUrl = relativeUrl;
             user.UpdatedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();
 
-            return Ok(new { avatarUrl = publicUrl });
+            // Trả absolute để client dùng luôn
+            return Ok(new
+            {
+                avatarUrl = ToAbsoluteUrl(relativeUrl)
+            });
         }
+
         [HttpPost("me/change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest req)
         {
@@ -194,6 +251,7 @@ namespace HanakaServer.Controllers
 
             return Ok(new { message = "Đổi mật khẩu thành công." });
         }
+
         // GET: api/users/members?query=abc&page=1&pageSize=20
         [AllowAnonymous]
         [HttpGet("members")]
@@ -201,17 +259,15 @@ namespace HanakaServer.Controllers
         {
             if (page <= 0) page = 1;
             if (pageSize <= 0) pageSize = 20;
-            if (pageSize > 100) pageSize = 100; // chống load quá lớn
+            if (pageSize > 100) pageSize = 100;
 
             query = query?.Trim();
 
-            // Lọc role MEMBER
             var q = _db.Users
                 .AsNoTracking()
                 .Where(u => u.IsActive)
                 .Where(u => u.UserRoles.Any(ur => ur.Role.RoleCode == "MEMBER"));
 
-            // Search theo: tên / id / sdt / email / city / gender
             if (!string.IsNullOrWhiteSpace(query))
             {
                 q = q.Where(u =>
@@ -224,68 +280,93 @@ namespace HanakaServer.Controllers
                 );
             }
 
-            // total
             var total = await q.CountAsync();
 
-            // paging
             var items = await q
-                .OrderByDescending(u => u.Verified)     // verified lên trước (tuỳ bạn)
+                .OrderByDescending(u => u.Verified)
                 .ThenBy(u => u.FullName)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(u => new HanakaServer.Dtos.MemberListItemDto
+                .Select(u => new
                 {
-                    UserId = u.UserId,
-                    FullName = u.FullName,
-                    City = u.City,
-                    Gender = u.Gender,
-                    Verified = u.Verified,
-                    RatingSingle = u.RatingSingle,
-                    RatingDouble = u.RatingDouble,
-                    AvatarUrl = u.AvatarUrl
+                    u.UserId,
+                    u.FullName,
+                    u.City,
+                    u.Gender,
+                    u.Verified,
+                    u.RatingSingle,
+                    u.RatingDouble,
+                    u.AvatarUrl
                 })
                 .ToListAsync();
+
+            // Map AvatarUrl => absolute
+            var mappedItems = items.Select(x => new
+            {
+                x.UserId,
+                x.FullName,
+                x.City,
+                x.Gender,
+                x.Verified,
+                x.RatingSingle,
+                x.RatingDouble,
+                AvatarUrl = ToAbsoluteUrl(x.AvatarUrl)
+            });
 
             return Ok(new
             {
                 page,
                 pageSize,
                 total,
-                items
+                items = mappedItems
             });
         }
 
         // GET: api/users/{id}
-        // PUBLIC - không cần login
         [AllowAnonymous]
         [HttpGet("{id:long}")]
         public async Task<IActionResult> GetUserDetail(long id)
         {
-            var user = await _db.Users
+            var u = await _db.Users
                 .AsNoTracking()
-                .Where(u => u.UserId == id && u.UserId != 2 && u.IsActive)
-                .Select(u => new
+                .Where(x => x.UserId == id && x.UserId != 2 && x.IsActive)
+                .Select(x => new
                 {
-                    u.UserId,
-                    u.FullName,
-                    u.Email,
-                    u.Phone,
-                    u.Gender,
-                    u.City,
-                    u.Verified,
-                    u.RatingSingle,
-                    u.RatingDouble,
-                    u.AvatarUrl,
-                    u.Bio,
-                    u.BirthOfDate,
-                    u.CreatedAt
+                    x.UserId,
+                    x.FullName,
+                    x.Email,
+                    x.Phone,
+                    x.Gender,
+                    x.City,
+                    x.Verified,
+                    x.RatingSingle,
+                    x.RatingDouble,
+                    x.AvatarUrl,
+                    x.Bio,
+                    x.BirthOfDate,
+                    x.CreatedAt
                 })
                 .FirstOrDefaultAsync();
 
-            if (user == null)
+            if (u == null)
                 return NotFound(new { message = "User not found." });
 
-            return Ok(user);
+            return Ok(new
+            {
+                u.UserId,
+                u.FullName,
+                u.Email,
+                u.Phone,
+                u.Gender,
+                u.City,
+                u.Verified,
+                u.RatingSingle,
+                u.RatingDouble,
+                AvatarUrl = ToAbsoluteUrl(u.AvatarUrl),
+                u.Bio,
+                u.BirthOfDate,
+                u.CreatedAt
+            });
         }
     }
 }

@@ -10,7 +10,6 @@ namespace HanakaServer.Controllers
 {
     public class HomeController : Controller
     {
-        // Demo: admin cứng (bạn có thể chuyển qua appsettings.json)
         private const string AdminEmail = "admin@hanaka.com";
         private const string AdminPassword = "123456";
 
@@ -20,6 +19,12 @@ namespace HanakaServer.Controllers
             return View();
         }
 
+        //Tournaments
+        [Authorize(Roles = "Admin")]
+        public IActionResult Tournaments()
+        {
+            return View();
+        }
         [HttpGet]
         [AllowAnonymous]
         public IActionResult Login()

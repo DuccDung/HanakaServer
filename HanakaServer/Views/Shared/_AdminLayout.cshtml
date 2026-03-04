@@ -1,0 +1,67 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>@ViewData["Title"] - Hanaka Admin</title>
+
+    <link href="~/vendor/fontawesome-free/css/all.min.css" asp-append-version="true" rel="stylesheet" type="text/css" />
+    <link href="https://fonts.googleapis.com/css?family=Nunito:200,300,400,600,700,800,900" rel="stylesheet" />
+    <link href="~/css/sb-admin-2.min.css" asp-append-version="true" rel="stylesheet" />
+
+    <style>
+        .badge-status {
+            font-size: 12px;
+            padding: 0.35rem 0.6rem;
+        }
+
+        .table td {
+            vertical-align: middle;
+        }
+
+        .banner-thumb {
+            width: 120px;
+            height: 50px;
+            object-fit: cover;
+            border-radius: 8px;
+            border: 1px solid #eee;
+        }
+    </style>
+
+    @RenderSection("Styles", required: false)
+</head>
+
+<body id="page-top">
+    <div id="wrapper">
+        <!-- Sidebar -->
+        @await Html.PartialAsync("_AdminSidebar")
+        <!-- End Sidebar -->
+        <!-- Content Wrapper -->
+        <div id="content-wrapper" class="d-flex flex-column">
+            <div id="content">
+                <!-- Topbar -->
+                @await Html.PartialAsync("_AdminTopbar")
+                <!-- End Topbar -->
+                <!-- Begin Page Content -->
+                <div class="container-fluid">
+                    @RenderBody()
+                </div>
+                <!-- /.container-fluid -->
+            </div>
+
+            @await Html.PartialAsync("_AdminFooter")
+        </div>
+        <!-- End Content Wrapper -->
+    </div>
+
+    @RenderSection("Modals", required: false)
+
+    <script src="~/vendor/jquery/jquery.min.js" asp-append-version="true"></script>
+    <script src="~/vendor/bootstrap/js/bootstrap.bundle.min.js" asp-append-version="true"></script>
+    <script src="~/vendor/jquery-easing/jquery.easing.min.js" asp-append-version="true"></script>
+    <script src="~/js/sb-admin-2.min.js" asp-append-version="true"></script>
+
+    @RenderSection("Scripts", required: false)
+</body>
+</html>
