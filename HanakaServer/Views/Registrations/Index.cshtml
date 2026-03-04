@@ -1,0 +1,711 @@
+﻿@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Registrations";
+    var tid = (long)(ViewBag.TournamentId ?? 0L);
+}
+
+<style>
+    .pill {
+        border-radius: 999px;
+    }
+
+    .player-card {
+        border: 1px solid #eee;
+        border-radius: 12px;
+        padding: 12px;
+        background: #fff;
+    }
+
+    .avatar-preview {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid #ddd;
+    }
+
+    .avatar-placeholder {
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        border: 1px dashed #ccc;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #aaa;
+        font-weight: 700;
+    }
+</style>
+
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-3">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">Registrations</h1>
+            <div class="small text-muted" id="tournamentMeta">Tournament #@tid</div>
+        </div>
+
+        <div class="d-flex" style="gap:8px">
+            <button class="btn btn-sm btn-primary shadow-sm" type="button" id="btnOpenCreate">
+                <i class="fas fa-plus fa-sm text-white-50"></i> Add Registration
+            </button>
+            <a class="btn btn-sm btn-outline-secondary" href="/Home/Tournaments">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <div class="mb-3 d-flex flex-wrap" style="gap:10px">
+        <button class="btn btn-sm pill" id="tabSuccess"></button>
+        <button class="btn btn-sm pill" id="tabWaiting"></button>
+        <button class="btn btn-sm pill" id="tabCapacity"></button>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">List</h6>
+
+            <div class="d-flex" style="gap:8px; align-items:center;">
+                <input id="q" class="form-control form-control-sm" style="width: 260px;"
+                       placeholder="Tìm tên / mã ĐK ..." />
+                <button class="btn btn-sm btn-outline-primary" type="button" id="btnSearch">Search</button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th style="width:60px">#</th>
+                            <th style="width:160px">Mã ĐK</th>
+                            <th style="width:160px">Thời gian</th>
+                            <th>VDV1</th>
+                            <th>VDV2</th>
+                            <th style="width:90px">Điểm</th>
+                            <th style="width:110px">Mã BT</th>
+                            <th style="width:80px">Paid</th>
+                            <th style="width:160px">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="body">
+                        <tr><td colspan="9" class="text-center text-muted">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Create -->
+<div class="modal fade" id="modalCreate" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <form id="formCreate">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add Registration</h5>
+                    <button class="close" type="button" data-dismiss="modal"><span aria-hidden="true">×</span></button>
+                </div>
+
+                <div class="modal-body">
+                    <div id="createErr" class="alert alert-danger d-none"></div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label>GameType</label>
+                            <select class="form-control" id="gameType">
+                                <option value="SINGLE">SINGLE</option>
+                                <option value="DOUBLE" selected>DOUBLE</option>
+                            </select>
+                            <small class="text-muted">Mặc định theo tournament, bạn có thể lock theo server nếu muốn.</small>
+                        </div>
+
+                        <div class="form-group col-md-4">
+                            <label>Mode (DOUBLE)</label>
+                            <select class="form-control" id="doubleMode">
+                                <option value="PAIR" selected>Đủ cặp</option>
+                                <option value="WAITING">Chờ ghép</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group col-md-4">
+                            <label>Paid</label>
+                            <select class="form-control" id="paid">
+                                <option value="false" selected>No</option>
+                                <option value="true">Yes</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Mã BT (optional)</label>
+                            <input class="form-control" id="btCode" placeholder="BT..." />
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <div class="row">
+                        <!-- Player 1 -->
+                        <div class="col-lg-6 mb-3">
+                            <div class="player-card">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <h6 class="text-primary font-weight-bold mb-0">VDV 1</h6>
+
+                                    <div class="d-flex" style="gap:8px;align-items:center;">
+                                        <label class="mb-0 small text-muted">Type</label>
+                                        <select class="form-control form-control-sm" id="p1Type" style="width:120px;">
+                                            <option value="USER" selected>USER</option>
+                                            <option value="GUEST">GUEST</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex" style="gap:12px;align-items:center;">
+                                    <div id="p1AvatarBox">
+                                        <div class="avatar-placeholder">?</div>
+                                    </div>
+
+                                    <div class="flex-grow-1">
+                                        <!-- USER block -->
+                                        <div id="p1UserBlock">
+                                            <div class="form-row">
+                                                <div class="form-group col-md-7 mb-2">
+                                                    <label class="small text-muted">UserId</label>
+                                                    <input class="form-control" id="p1UserId" placeholder="123" />
+                                                </div>
+                                                <div class="form-group col-md-5 mb-2 d-flex align-items-end">
+                                                    <button class="btn btn-outline-primary btn-block" type="button" id="btnP1Check">
+                                                        <i class="fas fa-check"></i> Check
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div class="small text-muted" id="p1UserInfo">Chưa check</div>
+                                            <input type="hidden" id="p1NameHidden" />
+                                            <input type="hidden" id="p1LevelHidden" />
+                                            <input type="hidden" id="p1AvatarHidden" />
+                                        </div>
+
+                                        <!-- GUEST block -->
+                                        <div id="p1GuestBlock" style="display:none;">
+                                            <div class="form-row">
+                                                <div class="form-group col-md-7 mb-2">
+                                                    <label class="small text-muted">Name *</label>
+                                                    <input class="form-control" id="p1GuestName" placeholder="VDV 1 name" />
+                                                </div>
+                                                <div class="form-group col-md-5 mb-2">
+                                                    <label class="small text-muted">Level *</label>
+                                                    <input type="number" step="0.01" class="form-control" id="p1GuestLevel" value="2.50" />
+                                                </div>
+                                            </div>
+
+                                            <div class="form-group mb-0">
+                                                <label class="small text-muted">Avatar (choose file)</label>
+                                                <div class="d-flex" style="gap:8px;align-items:center;">
+                                                    <input type="file" id="p1GuestAvatarFile" accept="image/*" class="form-control" />
+                                                </div>
+                                                <small class="text-muted">jpg/png/webp • max 10MB</small>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                        <!-- Player 2 -->
+                        <div class="col-lg-6 mb-3" id="p2Wrap">
+                            <div class="player-card">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <h6 class="text-primary font-weight-bold mb-0">VDV 2</h6>
+
+                                    <div class="d-flex" style="gap:8px;align-items:center;">
+                                        <label class="mb-0 small text-muted">Type</label>
+                                        <select class="form-control form-control-sm" id="p2Type" style="width:120px;">
+                                            <option value="USER" selected>USER</option>
+                                            <option value="GUEST">GUEST</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex" style="gap:12px;align-items:center;">
+                                    <div id="p2AvatarBox">
+                                        <div class="avatar-placeholder">?</div>
+                                    </div>
+
+                                    <div class="flex-grow-1">
+                                        <!-- USER block -->
+                                        <div id="p2UserBlock">
+                                            <div class="form-row">
+                                                <div class="form-group col-md-7 mb-2">
+                                                    <label class="small text-muted">UserId</label>
+                                                    <input class="form-control" id="p2UserId" placeholder="456" />
+                                                </div>
+                                                <div class="form-group col-md-5 mb-2 d-flex align-items-end">
+                                                    <button class="btn btn-outline-primary btn-block" type="button" id="btnP2Check">
+                                                        <i class="fas fa-check"></i> Check
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <div class="small text-muted" id="p2UserInfo">Chưa check</div>
+                                            <input type="hidden" id="p2NameHidden" />
+                                            <input type="hidden" id="p2LevelHidden" />
+                                            <input type="hidden" id="p2AvatarHidden" />
+                                        </div>
+
+                                        <!-- GUEST block -->
+                                        <div id="p2GuestBlock" style="display:none;">
+                                            <div class="form-row">
+                                                <div class="form-group col-md-7 mb-2">
+                                                    <label class="small text-muted">Name *</label>
+                                                    <input class="form-control" id="p2GuestName" placeholder="VDV 2 name" />
+                                                </div>
+                                                <div class="form-group col-md-5 mb-2">
+                                                    <label class="small text-muted">Level *</label>
+                                                    <input type="number" step="0.01" class="form-control" id="p2GuestLevel" value="2.50" />
+                                                </div>
+                                            </div>
+
+                                            <div class="form-group mb-0">
+                                                <label class="small text-muted">Avatar (choose file)</label>
+                                                <input type="file" id="p2GuestAvatarFile" accept="image/*" class="form-control" />
+                                                <small class="text-muted">jpg/png/webp • max 10MB</small>
+                                            </div>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit" id="btnCreateSubmit">
+                        <i class="fas fa-save"></i> Create
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Pair -->
+<div class="modal fade" id="modalPair" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form id="formPair">
+                <input type="hidden" id="pairBaseId" />
+                <div class="modal-header">
+                    <h5 class="modal-title">Ghép cặp</h5>
+                    <button class="close" type="button" data-dismiss="modal"><span aria-hidden="true">×</span></button>
+                </div>
+                <div class="modal-body">
+                    <div id="pairErr" class="alert alert-danger d-none"></div>
+                    <div class="form-group">
+                        <label>Chọn 1 đăng ký đang chờ ghép</label>
+                        <select class="form-control" id="pairWith"></select>
+                        <small class="text-muted">Chỉ list các item đang WAITING.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit">
+                        <i class="fas fa-link"></i> Pair
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        const TOURNAMENT_ID = @tid;
+        let CURRENT_TAB = "SUCCESS";
+        let CACHE = { items: [], waiting: [] };
+        let TOURNAMENT_GAME_TYPE = null;
+
+        const API_LIST = `/api/admin/tournaments/${TOURNAMENT_ID}/registrations`;
+
+        function esc(s){ return String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); }
+        function fmt(dt){
+          if(!dt) return "—";
+          const d = new Date(dt);
+          if(isNaN(d.getTime())) return "—";
+          const yyyy=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,"0"), dd=String(d.getDate()).padStart(2,"0");
+          const hh=String(d.getHours()).padStart(2,"0"), mi=String(d.getMinutes()).padStart(2,"0");
+          return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+        }
+        function avatarHtml(url){
+          if(!url) return `<div class="avatar-placeholder">?</div>`;
+          return `<img class="avatar-preview" src="${esc(url)}" />`;
+        }
+        function playerCell(name, level, avatar, verified){
+          const badge = verified ? `<span class="badge badge-success ml-2">Verified</span>` : ``;
+          return `
+            <div class="d-flex" style="gap:10px;align-items:center;">
+              ${avatarHtml(avatar)}
+              <div>
+                <div class="font-weight-bold text-gray-900">${esc(name||"—")}${badge}</div>
+                <div class="small text-muted">(${Number(level||0).toFixed(2)})</div>
+              </div>
+            </div>
+          `;
+        }
+        function paidHtml(reg){
+          const checked = reg.paid ? "checked" : "";
+          return `<input type="checkbox" ${checked} onchange="togglePaid(${reg.registrationId}, this.checked)" />`;
+        }
+        function actionsHtml(reg){
+          const pairBtn = reg.waitingPair
+            ? `<button class="btn btn-sm btn-outline-warning" type="button" onclick="openPair(${reg.registrationId})" title="Ghép">
+                 <i class="fas fa-link"></i>
+               </button>`
+            : `<button class="btn btn-sm btn-outline-secondary" type="button" disabled title="Không cần ghép">
+                 <i class="fas fa-link"></i>
+               </button>`;
+
+          return `
+            <div class="d-flex" style="gap:6px">
+              ${pairBtn}
+              <button class="btn btn-sm btn-outline-danger" type="button" onclick="delReg(${reg.registrationId})" title="Xoá">
+                <i class="fas fa-trash"></i>
+              </button>
+            </div>
+          `;
+        }
+        function rowHtml(reg){
+          return `
+            <tr>
+              <td>${reg.regIndex ?? ""}</td>
+              <td><div class="font-weight-bold">${esc(reg.regCode)}</div></td>
+              <td>${fmt(reg.regTime)}</td>
+              <td>${playerCell(reg.player1Name, reg.player1Level, reg.player1Avatar, reg.player1Verified)}</td>
+              <td>${playerCell(reg.player2Name, reg.player2Level, reg.player2Avatar, reg.player2Verified)}</td>
+              <td class="text-right">${Number(reg.points||0).toFixed(2)}</td>
+              <td>${esc(reg.btCode||"")}</td>
+              <td class="text-center">${paidHtml(reg)}</td>
+              <td>${actionsHtml(reg)}</td>
+            </tr>
+          `;
+        }
+
+        function setTabButtons(counts){
+          document.getElementById("tabSuccess").className = `btn btn-sm pill ${CURRENT_TAB==="SUCCESS"?"btn-success":"btn-outline-success"}`;
+          document.getElementById("tabSuccess").textContent = `Thành công (${counts.success})`;
+
+          document.getElementById("tabWaiting").className = `btn btn-sm pill ${CURRENT_TAB==="WAITING"?"btn-warning":"btn-outline-warning"}`;
+          document.getElementById("tabWaiting").textContent = `Chờ ghép (${counts.waiting})`;
+
+          document.getElementById("tabCapacity").className = `btn btn-sm pill btn-outline-secondary`;
+          document.getElementById("tabCapacity").textContent = `Còn chỗ (${counts.capacityLeft})`;
+        }
+
+        async function load(tab){
+          CURRENT_TAB = tab;
+          const body = document.getElementById("body");
+          body.innerHTML = `<tr><td colspan="9" class="text-center text-muted">Loading...</td></tr>`;
+
+          const res = await axios.get(API_LIST, { params: { tab } });
+          const { tournament, counts, items } = res.data;
+
+          TOURNAMENT_GAME_TYPE = (tournament.gameType || "").toUpperCase();
+          document.getElementById("tournamentMeta").textContent = `${tournament.title} • ${tournament.status} • GameType: ${tournament.gameType}`;
+          setTabButtons(counts);
+
+          CACHE.items = items;
+          CACHE.waiting = (await axios.get(API_LIST, { params: { tab: "WAITING" } })).data.items;
+
+          if(!items.length){
+            body.innerHTML = `<tr><td colspan="9" class="text-center text-muted">No registrations</td></tr>`;
+            return;
+          }
+          body.innerHTML = items.map(rowHtml).join("");
+        }
+
+        async function togglePaid(id, paid){
+          await axios.put(`/api/admin/registrations/${id}`, { paid });
+        }
+
+        async function delReg(id){
+          if(!confirm("Xoá đăng ký này?")) return;
+          await axios.delete(`/api/admin/registrations/${id}`);
+          await load(CURRENT_TAB);
+        }
+
+        function openPair(baseId){
+          document.getElementById("pairBaseId").value = String(baseId);
+          document.getElementById("pairErr").classList.add("d-none");
+
+          const sel = document.getElementById("pairWith");
+          const options = CACHE.waiting
+            .filter(x => x.registrationId !== baseId)
+            .map(x => `<option value="${x.registrationId}">${x.regCode} — ${x.player1Name} (${Number(x.player1Level||0).toFixed(2)})</option>`);
+          sel.innerHTML = options.join("");
+
+          $("#modalPair").modal("show");
+        }
+
+        function showCreateErr(msg){
+          const box = document.getElementById("createErr");
+          box.textContent = msg || "Error";
+          box.classList.remove("d-none");
+        }
+        function clearCreateErr(){
+          const box = document.getElementById("createErr");
+          box.classList.add("d-none");
+          box.textContent = "";
+        }
+
+        function setAvatarBox(boxId, url){
+          const box = document.getElementById(boxId);
+          box.innerHTML = url ? `<img class="avatar-preview" src="${esc(url)}" />` : `<div class="avatar-placeholder">?</div>`;
+        }
+
+        function applyModeUI(){
+          const gt = document.getElementById("gameType").value;
+          const dm = document.getElementById("doubleMode").value;
+
+          // lock default theo tournament (optional)
+          if (TOURNAMENT_GAME_TYPE === "SINGLE" || TOURNAMENT_GAME_TYPE === "DOUBLE"){
+            document.getElementById("gameType").value = TOURNAMENT_GAME_TYPE;
+            document.getElementById("gameType").disabled = true;
+          } else {
+            document.getElementById("gameType").disabled = false;
+          }
+
+          const finalGT = document.getElementById("gameType").value;
+
+          const p2Wrap = document.getElementById("p2Wrap");
+          if(finalGT === "SINGLE"){
+            p2Wrap.style.display = "none";
+            document.getElementById("doubleMode").disabled = true;
+          } else {
+            document.getElementById("doubleMode").disabled = false;
+            if(dm === "WAITING"){
+              p2Wrap.style.display = "none";
+            } else {
+              p2Wrap.style.display = "block";
+            }
+          }
+        }
+
+        function applyPlayerTypeUI(pn){ // pn = 1 or 2
+          const type = document.getElementById(`p${pn}Type`).value;
+          const userBlock = document.getElementById(`p${pn}UserBlock`);
+          const guestBlock = document.getElementById(`p${pn}GuestBlock`);
+          const info = document.getElementById(`p${pn}UserInfo`);
+
+          if(type === "USER"){
+            userBlock.style.display = "block";
+            guestBlock.style.display = "none";
+            info.textContent = "Chưa check";
+            setAvatarBox(`p${pn}AvatarBox`, null);
+
+            // clear guest inputs
+            document.getElementById(`p${pn}GuestName`).value = "";
+            document.getElementById(`p${pn}GuestLevel`).value = "2.50";
+            document.getElementById(`p${pn}GuestAvatarFile`).value = "";
+          } else {
+            userBlock.style.display = "none";
+            guestBlock.style.display = "block";
+            setAvatarBox(`p${pn}AvatarBox`, null);
+
+            // clear user inputs
+            document.getElementById(`p${pn}UserId`).value = "";
+            document.getElementById(`p${pn}NameHidden`).value = "";
+            document.getElementById(`p${pn}LevelHidden`).value = "";
+            document.getElementById(`p${pn}AvatarHidden`).value = "";
+          }
+        }
+
+        async function checkUser(pn){
+          const idRaw = (document.getElementById(`p${pn}UserId`).value || "").trim();
+          const id = Number(idRaw);
+          if(!id || id <= 0) return showCreateErr(`VDV ${pn}: nhập UserId hợp lệ.`);
+
+          try{
+            const res = await axios.get(`/api/admin/users/${id}`);
+            const u = res.data;
+
+            document.getElementById(`p${pn}NameHidden`).value = u.name || "";
+            document.getElementById(`p${pn}LevelHidden`).value = u.level ?? 0;
+            document.getElementById(`p${pn}AvatarHidden`).value = u.avatar || "";
+
+            document.getElementById(`p${pn}UserInfo`).textContent =
+              `${u.name} • Level: ${Number(u.level||0).toFixed(2)} • UserId: ${u.userId}`;
+
+            setAvatarBox(`p${pn}AvatarBox`, u.avatar || null);
+          } catch(err){
+            const msg = err?.response?.data?.message || err?.message || "Check user failed.";
+            showCreateErr(`VDV ${pn}: ${msg}`);
+          }
+        }
+
+        function previewGuestAvatar(pn){
+          const input = document.getElementById(`p${pn}GuestAvatarFile`);
+          const f = input.files && input.files[0];
+          if(!f){
+            setAvatarBox(`p${pn}AvatarBox`, null);
+            return;
+          }
+          const url = URL.createObjectURL(f);
+          setAvatarBox(`p${pn}AvatarBox`, url);
+        }
+
+        function buildFormData(){
+          const fd = new FormData();
+
+          const gt = document.getElementById("gameType").value;
+          const dm = document.getElementById("doubleMode").value;
+          const waitingPair = (gt === "DOUBLE" && dm === "WAITING");
+
+          fd.append("gameType", gt);
+          fd.append("waitingPair", String(waitingPair));
+          fd.append("paid", document.getElementById("paid").value);
+          fd.append("btCode", document.getElementById("btCode").value || "");
+
+          // Player1
+          const p1Type = document.getElementById("p1Type").value;
+          if(p1Type === "USER"){
+            const id = (document.getElementById("p1UserId").value || "").trim();
+            if(!id) throw new Error("VDV1: chưa nhập UserId.");
+            fd.append("player1UserId", id);
+          } else {
+            const name = (document.getElementById("p1GuestName").value || "").trim();
+            const level = (document.getElementById("p1GuestLevel").value || "").trim();
+            if(!name) throw new Error("VDV1 (guest): thiếu Name.");
+            if(!level) throw new Error("VDV1 (guest): thiếu Level.");
+            fd.append("player1Name", name);
+            fd.append("player1Level", level);
+
+            const f = document.getElementById("p1GuestAvatarFile").files?.[0];
+            if(f) fd.append("player1AvatarFile", f);
+          }
+
+          // Player2 (only if DOUBLE and not waiting)
+          if(gt === "DOUBLE" && !waitingPair){
+            const p2Type = document.getElementById("p2Type").value;
+            if(p2Type === "USER"){
+              const id = (document.getElementById("p2UserId").value || "").trim();
+              if(!id) throw new Error("VDV2: chưa nhập UserId.");
+              fd.append("player2UserId", id);
+            } else {
+              const name = (document.getElementById("p2GuestName").value || "").trim();
+              const level = (document.getElementById("p2GuestLevel").value || "").trim();
+              if(!name) throw new Error("VDV2 (guest): thiếu Name.");
+              if(!level) throw new Error("VDV2 (guest): thiếu Level.");
+              fd.append("player2Name", name);
+              fd.append("player2Level", level);
+
+              const f = document.getElementById("p2GuestAvatarFile").files?.[0];
+              if(f) fd.append("player2AvatarFile", f);
+            }
+          }
+
+          return fd;
+        }
+
+        document.addEventListener("DOMContentLoaded", async () => {
+          document.getElementById("tabSuccess").addEventListener("click", () => load("SUCCESS"));
+          document.getElementById("tabWaiting").addEventListener("click", () => load("WAITING"));
+          document.getElementById("tabCapacity").addEventListener("click", () => alert("Còn chỗ = ExpectedTeams - SuccessCount (team)."));
+
+          document.getElementById("btnSearch").addEventListener("click", () => {
+            const key = document.getElementById("q").value.trim().toLowerCase();
+            const body = document.getElementById("body");
+            const filtered = CACHE.items.filter(x =>
+              (x.player1Name||"").toLowerCase().includes(key) ||
+              (x.player2Name||"").toLowerCase().includes(key) ||
+              (x.regCode||"").toLowerCase().includes(key)
+            );
+            body.innerHTML = filtered.length
+              ? filtered.map(rowHtml).join("")
+              : `<tr><td colspan="9" class="text-center text-muted">No results</td></tr>`;
+          });
+
+          document.getElementById("btnOpenCreate").addEventListener("click", () => {
+            clearCreateErr();
+            document.getElementById("formCreate").reset();
+
+            // reset types
+            document.getElementById("p1Type").value = "USER";
+            document.getElementById("p2Type").value = "USER";
+            applyPlayerTypeUI(1);
+            applyPlayerTypeUI(2);
+
+            setAvatarBox("p1AvatarBox", null);
+            setAvatarBox("p2AvatarBox", null);
+
+            document.getElementById("doubleMode").value = "PAIR";
+            applyModeUI();
+
+            $("#modalCreate").modal("show");
+          });
+
+          document.getElementById("gameType").addEventListener("change", applyModeUI);
+          document.getElementById("doubleMode").addEventListener("change", applyModeUI);
+
+          document.getElementById("p1Type").addEventListener("change", ()=>applyPlayerTypeUI(1));
+          document.getElementById("p2Type").addEventListener("change", ()=>applyPlayerTypeUI(2));
+
+          document.getElementById("btnP1Check").addEventListener("click", ()=>checkUser(1));
+          document.getElementById("btnP2Check").addEventListener("click", ()=>checkUser(2));
+
+          document.getElementById("p1GuestAvatarFile").addEventListener("change", ()=>previewGuestAvatar(1));
+          document.getElementById("p2GuestAvatarFile").addEventListener("change", ()=>previewGuestAvatar(2));
+
+          document.getElementById("formPair").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const baseId = Number(document.getElementById("pairBaseId").value || 0);
+            const withId = Number(document.getElementById("pairWith").value || 0);
+            try{
+              await axios.post(`/api/admin/registrations/${baseId}/pair`, { withWaitingRegistrationId: withId });
+              $("#modalPair").modal("hide");
+              await load(CURRENT_TAB);
+            } catch(err){
+              const msg = err?.response?.data?.message || err?.message || "Pair failed.";
+              const box = document.getElementById("pairErr");
+              box.textContent = msg;
+              box.classList.remove("d-none");
+            }
+          });
+
+          document.getElementById("formCreate").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            clearCreateErr();
+
+            const btn = document.getElementById("btnCreateSubmit");
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
+
+            try{
+              const fd = buildFormData();
+              await axios.post(`/api/admin/tournaments/${TOURNAMENT_ID}/registrations`, fd, {
+                headers: { "Content-Type": "multipart/form-data" }
+              });
+
+              $("#modalCreate").modal("hide");
+              await load(CURRENT_TAB);
+            } catch(err){
+              const msg = err?.response?.data?.message || err?.message || "Create failed.";
+              showCreateErr(msg);
+            } finally {
+              btn.disabled = false;
+              btn.innerHTML = `<i class="fas fa-save"></i> Create`;
+            }
+          });
+
+          await load("SUCCESS");
+        });
+    </script>
+}

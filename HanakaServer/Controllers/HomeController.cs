@@ -25,6 +25,11 @@ namespace HanakaServer.Controllers
         {
             return View();
         }
+        [Authorize(Roles = "Admin")]
+        public IActionResult Users()
+        {
+            return View();
+        }
         [HttpGet]
         [AllowAnonymous]
         public IActionResult Login()

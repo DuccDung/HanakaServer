@@ -1,0 +1,569 @@
+﻿@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Users";
+}
+
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Users</h1>
+
+        <button id="btnRefresh" class="btn btn-primary btn-sm shadow-sm" type="button">
+            <i class="fas fa-sync fa-sm text-white-50"></i> Refresh
+        </button>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">User List</h6>
+
+            <div class="d-flex flex-wrap" style="gap: 8px; align-items: center;">
+                <input id="keyword" class="form-control form-control-sm" style="width: 220px;"
+                       placeholder="Search name / email / phone" />
+
+                <select id="verifiedFilter" class="form-control form-control-sm" style="width: 140px;">
+                    <option value="ALL" selected>All Verified</option>
+                    <option value="true">Verified</option>
+                    <option value="false">Not verified</option>
+                </select>
+
+                <select id="activeFilter" class="form-control form-control-sm" style="width: 140px;">
+                    <option value="ALL" selected>All Status</option>
+                    <option value="true">Active</option>
+                    <option value="false">Locked</option>
+                </select>
+
+                <button id="btnFilter" class="btn btn-sm btn-outline-primary" type="button">Filter</button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <div id="pageError" class="alert alert-danger d-none"></div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th style="width: 72px;">Avatar</th>
+                            <th>User</th>
+                            <th>City</th>
+                            <th>Verified</th>
+                            <th>Status</th>
+                            <th>Rating (S/D)</th>
+                            <th>Created</th>
+                            <th style="width: 170px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="usersBody">
+                        <tr>
+                            <td colspan="8" class="text-center text-muted">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- paging -->
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div class="text-muted small">
+                    <span id="pagingInfo">—</span>
+                </div>
+
+                <div class="d-flex align-items-center" style="gap: 8px;">
+                    <select id="pageSize" class="form-control form-control-sm" style="width: 90px;">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                    </select>
+
+                    <button id="btnPrev" class="btn btn-sm btn-outline-secondary" type="button">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button id="btnNext" class="btn btn-sm btn-outline-secondary" type="button">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<!-- ===== Modal: Edit/Rating (1 modal dùng chung) ===== -->
+<div class="modal fade" id="modalUser" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <form id="formUser">
+                <input type="hidden" id="editingId" value="" />
+
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">User Detail</h5>
+                    <button class="close" type="button" data-dismiss="modal">
+                        <span aria-hidden="true">×</span>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <div id="formError" class="alert alert-danger d-none"></div>
+
+                    <div class="d-flex align-items-center" style="gap: 12px;">
+                        <img id="uAvatar" src="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid #eee" />
+                        <div>
+                            <div class="font-weight-bold text-gray-900" id="uName">—</div>
+                            <div class="small text-gray-500" id="uSub">—</div>
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Full Name</label>
+                            <input id="fullName" class="form-control" />
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Email</label>
+                            <input id="email" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label>Phone</label>
+                            <input id="phone" class="form-control" />
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label>City</label>
+                            <input id="city" class="form-control" />
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label>Gender</label>
+                            <input id="gender" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Bio</label>
+                        <textarea id="bio" class="form-control" rows="3"></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Rating Single</label>
+                            <input id="ratingSingle" type="number" step="0.01" class="form-control" />
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Rating Double</label>
+                            <input id="ratingDouble" type="number" step="0.01" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap" style="gap: 8px;">
+                        <button id="btnToggleActive" class="btn btn-outline-warning btn-sm" type="button">
+                            <i class="fas fa-lock mr-1"></i> Toggle Active
+                        </button>
+
+                        <button id="btnToggleVerified" class="btn btn-outline-success btn-sm" type="button">
+                            <i class="fas fa-check mr-1"></i> Toggle Verified
+                        </button>
+                    </div>
+
+                    <div class="small text-muted mt-2" id="uMeta">—</div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Close</button>
+                    <button id="btnSubmit" class="btn btn-primary" type="submit">
+                        <span class="mr-1"><i class="fas fa-save"></i></span> Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <script>
+        const API_BASE = "/api/admin/users";
+
+        let state = {
+            page: 1,
+            pageSize: 20,
+            total: 0,
+            items: []
+        };
+
+        function escapeHtml(str) {
+            return String(str || "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function fmtDate(dt) {
+            if (!dt) return "—";
+            const d = new Date(dt);
+            if (isNaN(d.getTime())) return "—";
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const dd = String(d.getDate()).padStart(2, "0");
+            const hh = String(d.getHours()).padStart(2, "0");
+            const mi = String(d.getMinutes()).padStart(2, "0");
+            return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+        }
+
+        function badgeVerified(v) {
+            return v
+                ? `<span class="badge badge-success">Verified</span>`
+                : `<span class="badge badge-secondary">No</span>`;
+        }
+
+        function badgeActive(v) {
+            return v
+                ? `<span class="badge badge-primary">Active</span>`
+                : `<span class="badge badge-danger">Locked</span>`;
+        }
+
+        function avatarHtml(url, name) {
+            const safe = escapeHtml(name || "U");
+            if (url) {
+                return `<img src="${url}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:1px solid #eee" />`;
+            }
+            return `<div style="width:44px;height:44px;border-radius:50%;border:1px dashed #ddd;display:flex;align-items:center;justify-content:center;color:#999;font-weight:700">
+                        ${safe.substring(0,1).toUpperCase()}
+                    </div>`;
+        }
+
+        function showPageError(msg) {
+            const box = document.getElementById("pageError");
+            box.textContent = msg || "Error";
+            box.classList.remove("d-none");
+        }
+
+        function clearPageError() {
+            const box = document.getElementById("pageError");
+            box.classList.add("d-none");
+            box.textContent = "";
+        }
+
+        function showFormError(msg) {
+            const box = document.getElementById("formError");
+            box.textContent = msg || "Error";
+            box.classList.remove("d-none");
+        }
+
+        function clearFormError() {
+            const box = document.getElementById("formError");
+            box.classList.add("d-none");
+            box.textContent = "";
+        }
+
+        function rowHtml(u) {
+            const userLine = `
+                <div class="font-weight-bold text-gray-900">${escapeHtml(u.fullName || "—")}</div>
+                <div class="small text-gray-500">
+                    ${escapeHtml(u.email || "—")}
+                    ${u.phone ? " • " + escapeHtml(u.phone) : ""}
+                </div>`;
+
+            const rs = (u.ratingSingle ?? 0);
+            const rd = (u.ratingDouble ?? 0);
+
+            return `
+                <tr data-id="${u.userId}">
+                    <td>${avatarHtml(u.avatarUrl, u.fullName)}</td>
+                    <td>${userLine}</td>
+                    <td>${escapeHtml(u.city || "—")}</td>
+                    <td>${badgeVerified(!!u.verified)}</td>
+                    <td>${badgeActive(!!u.isActive)}</td>
+                    <td>${Number(rs).toFixed(2)} / ${Number(rd).toFixed(2)}</td>
+                    <td>${fmtDate(u.createdAt)}</td>
+                    <td style="white-space:nowrap">
+                        <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${u.userId})" type="button" title="Edit / Rating">
+                            <i class="fas fa-edit"></i>
+                        </button>
+
+                        <button class="btn btn-sm btn-outline-warning" onclick="toggleActive(${u.userId})" type="button" title="Lock/Unlock">
+                            <i class="fas fa-lock"></i>
+                        </button>
+
+                        <button class="btn btn-sm btn-outline-success" onclick="toggleVerified(${u.userId})" type="button" title="Verify">
+                            <i class="fas fa-check"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function updateRowInTable(u) {
+            const row = document.querySelector(`#usersBody tr[data-id="${u.userId}"]`);
+            if (!row) return;
+            row.outerHTML = rowHtml(u);
+        }
+
+        function getFilters() {
+            const keyword = document.getElementById("keyword").value.trim();
+            const verified = document.getElementById("verifiedFilter").value;
+            const active = document.getElementById("activeFilter").value;
+
+            const params = {
+                page: state.page,
+                pageSize: state.pageSize
+            };
+
+            if (keyword) params.keyword = keyword;
+            if (verified !== "ALL") params.verified = verified; // "true"/"false"
+            if (active !== "ALL") params.active = active;
+
+            return params;
+        }
+
+        async function loadUsers(resetPage = false) {
+            if (resetPage) state.page = 1;
+
+            clearPageError();
+            const body = document.getElementById("usersBody");
+            body.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Loading...</td></tr>`;
+
+            try {
+                const res = await axios.get(API_BASE, { params: getFilters() });
+                const items = res.data?.items || [];
+                state.total = res.data?.total || 0;
+                state.items = items;
+
+                if (!items.length) {
+                    body.innerHTML = `<tr><td colspan="8" class="text-center text-muted">No users</td></tr>`;
+                } else {
+                    body.innerHTML = items.map(rowHtml).join("");
+                }
+
+                renderPaging();
+            } catch (e) {
+                body.innerHTML = `<tr><td colspan="8" class="text-center text-danger">Load failed</td></tr>`;
+                const msg = e?.response?.data?.message || e?.message || "Load failed.";
+                showPageError(String(msg));
+            }
+        }
+
+        function renderPaging() {
+            const info = document.getElementById("pagingInfo");
+            const total = state.total || 0;
+            const page = state.page || 1;
+            const pageSize = state.pageSize || 20;
+            const start = total === 0 ? 0 : ((page - 1) * pageSize + 1);
+            const end = Math.min(page * pageSize, total);
+
+            info.textContent = `Showing ${start}-${end} of ${total}`;
+
+            document.getElementById("btnPrev").disabled = page <= 1;
+            document.getElementById("btnNext").disabled = end >= total;
+        }
+
+        // ===== Modal =====
+        function resetModal() {
+            clearFormError();
+            document.getElementById("formUser").reset();
+            document.getElementById("editingId").value = "";
+
+            document.getElementById("uAvatar").src = "";
+            document.getElementById("uName").textContent = "—";
+            document.getElementById("uSub").textContent = "—";
+            document.getElementById("uMeta").textContent = "—";
+
+            setSubmitText("Save");
+        }
+
+        function setSubmitText(text) {
+            document.getElementById("btnSubmit").innerHTML =
+                `<span class="mr-1"><i class="fas fa-save"></i></span> ${text}`;
+        }
+
+        function fillModal(u) {
+            document.getElementById("editingId").value = String(u.userId);
+
+            document.getElementById("uAvatar").src = u.avatarUrl || "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+            document.getElementById("uName").textContent = u.fullName || "—";
+            document.getElementById("uSub").textContent = `${u.email || "—"}${u.phone ? " • " + u.phone : ""}`;
+
+            document.getElementById("fullName").value = u.fullName || "";
+            document.getElementById("email").value = u.email || "";
+            document.getElementById("phone").value = u.phone || "";
+            document.getElementById("city").value = u.city || "";
+            document.getElementById("gender").value = u.gender || "";
+            document.getElementById("bio").value = u.bio || "";
+
+            if (u.ratingSingle !== undefined && u.ratingSingle !== null)
+                document.getElementById("ratingSingle").value = u.ratingSingle;
+            if (u.ratingDouble !== undefined && u.ratingDouble !== null)
+                document.getElementById("ratingDouble").value = u.ratingDouble;
+
+            const meta = `Verified: ${u.verified ? "Yes" : "No"} • Status: ${u.isActive ? "Active" : "Locked"} • Created: ${fmtDate(u.createdAt)}`;
+            document.getElementById("uMeta").textContent = meta;
+
+            // Button text icon hint
+            const btnA = document.getElementById("btnToggleActive");
+            btnA.innerHTML = u.isActive
+                ? `<i class="fas fa-lock mr-1"></i> Lock User`
+                : `<i class="fas fa-unlock mr-1"></i> Unlock User`;
+
+            const btnV = document.getElementById("btnToggleVerified");
+            btnV.innerHTML = u.verified
+                ? `<i class="fas fa-times mr-1"></i> Unverify`
+                : `<i class="fas fa-check mr-1"></i> Verify`;
+        }
+
+        async function openEdit(id) {
+            resetModal();
+            $("#modalUser").modal("show");
+
+            try {
+                const res = await axios.get(`${API_BASE}/${id}`);
+                fillModal(res.data);
+            } catch (e) {
+                const msg = e?.response?.data?.message || e?.message || "Load user failed.";
+                showFormError(String(msg));
+            }
+        }
+
+        // ===== Actions: toggle active / verified from table =====
+        async function toggleActive(id) {
+            try {
+                const res = await axios.post(`${API_BASE}/${id}/toggle-active`);
+                // refresh row data by re-fetch detail (simple and safe)
+                const d = await axios.get(`${API_BASE}/${id}`);
+                updateRowInTable(d.data);
+            } catch (e) {
+                alert(e?.response?.data?.message || e?.message || "Toggle active failed.");
+            }
+        }
+
+        async function toggleVerified(id) {
+            try {
+                const res = await axios.post(`${API_BASE}/${id}/toggle-verified`);
+                const d = await axios.get(`${API_BASE}/${id}`);
+                updateRowInTable(d.data);
+            } catch (e) {
+                alert(e?.response?.data?.message || e?.message || "Toggle verified failed.");
+            }
+        }
+
+        // ===== Modal button actions =====
+        async function modalToggleActive() {
+            const id = document.getElementById("editingId").value;
+            if (!id) return;
+
+            try {
+                await axios.post(`${API_BASE}/${id}/toggle-active`);
+                const d = await axios.get(`${API_BASE}/${id}`);
+                fillModal(d.data);
+                updateRowInTable(d.data);
+            } catch (e) {
+                showFormError(e?.response?.data?.message || e?.message || "Toggle active failed.");
+            }
+        }
+
+        async function modalToggleVerified() {
+            const id = document.getElementById("editingId").value;
+            if (!id) return;
+
+            try {
+                await axios.post(`${API_BASE}/${id}/toggle-verified`);
+                const d = await axios.get(`${API_BASE}/${id}`);
+                fillModal(d.data);
+                updateRowInTable(d.data);
+            } catch (e) {
+                showFormError(e?.response?.data?.message || e?.message || "Toggle verified failed.");
+            }
+        }
+
+        // ===== Save profile + rating =====
+        function buildUpdatePayload() {
+            return {
+                fullName: document.getElementById("fullName").value || "",
+                email: document.getElementById("email").value || "",
+                phone: document.getElementById("phone").value || "",
+                city: document.getElementById("city").value || "",
+                gender: document.getElementById("gender").value || "",
+                bio: document.getElementById("bio").value || "",
+                ratingSingle: parseFloat(document.getElementById("ratingSingle").value || "0"),
+                ratingDouble: parseFloat(document.getElementById("ratingDouble").value || "0"),
+            };
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // init
+            state.pageSize = parseInt(document.getElementById("pageSize").value, 10) || 20;
+            loadUsers(true);
+
+            // filter
+            document.getElementById("btnFilter").addEventListener("click", () => loadUsers(true));
+            document.getElementById("btnRefresh").addEventListener("click", () => loadUsers(false));
+
+            // Enter to search
+            document.getElementById("keyword").addEventListener("keydown", (e) => {
+                if (e.key === "Enter") loadUsers(true);
+            });
+
+            // page size
+            document.getElementById("pageSize").addEventListener("change", () => {
+                state.pageSize = parseInt(document.getElementById("pageSize").value, 10) || 20;
+                loadUsers(true);
+            });
+
+            // paging buttons
+            document.getElementById("btnPrev").addEventListener("click", () => {
+                if (state.page > 1) {
+                    state.page--;
+                    loadUsers(false);
+                }
+            });
+
+            document.getElementById("btnNext").addEventListener("click", () => {
+                state.page++;
+                loadUsers(false);
+            });
+
+            // modal actions
+            document.getElementById("btnToggleActive").addEventListener("click", modalToggleActive);
+            document.getElementById("btnToggleVerified").addEventListener("click", modalToggleVerified);
+
+            // modal submit
+            document.getElementById("formUser").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                clearFormError();
+
+                const id = document.getElementById("editingId").value;
+                if (!id) {
+                    showFormError("Missing user id.");
+                    return;
+                }
+
+                const btn = document.getElementById("btnSubmit");
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
+
+                try {
+                    const payload = buildUpdatePayload();
+                    const res = await axios.put(`${API_BASE}/${id}`, payload);
+
+                    // backend trả user detail mới => update modal + row
+                    fillModal(res.data);
+                    updateRowInTable(res.data);
+                    $("#modalUser").modal("hide");
+                } catch (err) {
+                    const msg = err?.response?.data?.message || err?.response?.data || err?.message || "Save failed.";
+                    showFormError(String(msg));
+                } finally {
+                    btn.disabled = false;
+                    setSubmitText("Save");
+                }
+            });
+
+            $("#modalUser").on("hidden.bs.modal", function () {
+                resetModal();
+            });
+        });
+    </script>
+}

@@ -69,4 +69,15 @@ namespace HanakaServer.Dtos
 
         public IFormFile? BannerFile { get; set; }
     }
+    public record UserPickDto(long? UserId, string Name, decimal Level, string? Avatar);
+
+    public class CreateRegistrationRequest
+    {
+        public string GameType { get; set; } = "DOUBLE"; // SINGLE/DOUBLE
+        public UserPickDto Player1 { get; set; } = default!;
+        public UserPickDto? Player2 { get; set; } // optional
+        public bool WaitingPair { get; set; }
+        public bool Paid { get; set; }
+        public string? BtCode { get; set; }
+    }
 }

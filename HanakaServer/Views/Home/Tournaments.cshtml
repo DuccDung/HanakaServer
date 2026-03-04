@@ -244,14 +244,17 @@
                 <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${t.tournamentId})" type="button">
                   <i class="fas fa-edit"></i>
                 </button>
-                <button class="btn btn-sm btn-outline-info" onclick="alert('MVP: registrations sau')" type="button">
-                  <i class="fas fa-list"></i>
-                </button>
+                       <button class="btn btn-sm btn-outline-info"
+                onclick="gotoRegs(${t.tournamentId})" type="button" title="Registrations">
+          <i class="fas fa-list"></i>
+        </button>
               </td>
             </tr>
           `;
         }
-
+                function gotoRegs(tournamentId) {
+          window.location.href = `/Registrations/Index?tournamentId=${tournamentId}`;
+        }
         function showError(msg) {
             const box = document.getElementById("formError");
             box.textContent = msg || "Error";
