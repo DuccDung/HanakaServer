@@ -181,5 +181,57 @@ namespace HanakaServer.Controllers
 
             return Ok(new { userId = u.UserId, verified = u.Verified });
         }
+
+        //=================================================================
+        // GET /api/admin/users/123
+        [HttpGet("find/{id:long}")]
+        public async Task<IActionResult> GetById(long id)
+        {
+            try
+            {
+                var u = await _db.Users
+                    .Where(x => x.UserId == id)
+                    .Select(x => new
+                    {
+                        userId = x.UserId,
+                        fullName = x.FullName,
+                        avatarUrl = x.AvatarUrl,
+                        ratingSingle = x.RatingSingle ?? 0m,
+                        ratingDouble = x.RatingDouble ?? 0m
+                    })
+                    .FirstOrDefaultAsync();
+
+                if (u == null) return NotFound(new { message = "User not found." });
+                return Ok(u);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(new { message = "Get user failed.", detail = ex.Message });
+            }
+        }
+
+        // GET /api/admin/users/search?q=...
+        [HttpGet("search/check")]
+        public async Task<IActionResult> SearchCheck([FromQuery] string q)
+        {
+            q = (q ?? "").Trim();
+            if (q.Length < 2) return Ok(Array.Empty<object>());
+
+            var users = await _db.Users
+                .Where(u => u.FullName.Contains(q))
+                .OrderBy(u => u.FullName)
+                .Select(u => new
+                {
+                    userId = u.UserId,
+                    fullName = u.FullName,
+                    avatarUrl = u.AvatarUrl,
+                    ratingSingle = u.RatingSingle ?? 0m,
+                    ratingDouble = u.RatingDouble ?? 0m
+                })
+                .Take(20)
+                .ToListAsync();
+
+            return Ok(users);
+        }
     }
 }

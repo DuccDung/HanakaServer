@@ -1,0 +1,390 @@
+﻿@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Quản lý Banner";
+}
+
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Quản lý Banner</h1>
+
+        <button id="btnOpenCreate"
+                class="btn btn-primary btn-sm shadow-sm"
+                type="button">
+            <i class="fas fa-plus fa-sm text-white-50"></i> Thêm banner
+        </button>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">Danh sách banner</h6>
+            <div class="d-flex" style="gap: 8px">
+                <select id="statusFilter" class="form-control form-control-sm" style="width: 170px;">
+                    <option value="ALL" selected>Tất cả trạng thái</option>
+                    <option value="ACTIVE">Đang hiển thị</option>
+                    <option value="INACTIVE">Đang ẩn</option>
+                </select>
+                <button id="btnFilter" class="btn btn-sm btn-outline-primary" type="button">Lọc</button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Hình ảnh</th>
+                            <th>Mã banner</th>
+                            <th>Tiêu đề</th>
+                            <th>Thứ tự</th>
+                            <th>Trạng thái</th>
+                            <th style="width: 140px;">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="bannersBody">
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">Đang tải...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <small class="text-muted">Gợi ý: Banner nên có kích thước ngang (vd: 1200x400).</small>
+        </div>
+    </div>
+</div>
+
+<!-- ===== Modal Create/Edit Banner ===== -->
+<div class="modal fade" id="modalBanner" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <form id="formBanner">
+                <input type="hidden" id="mode" value="create" />
+                <input type="hidden" id="editingId" value="" />
+
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Thêm banner</h5>
+                    <button class="close" type="button" data-dismiss="modal">
+                        <span aria-hidden="true">×</span>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <div id="formError" class="alert alert-danger d-none"></div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Mã banner (BannerKey) *</label>
+                            <input id="bannerKey" class="form-control" placeholder="HOME_TOP" required />
+                            <small class="text-muted">Mã duy nhất, dùng để map đúng vị trí hiển thị.</small>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Thứ tự (SortOrder)</label>
+                            <input id="sortOrder" type="number" class="form-control" value="0" min="0" />
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Tiêu đề *</label>
+                        <input id="title" class="form-control" placeholder="Banner chương trình..." required />
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Trạng thái</label>
+                            <select id="isActive" class="form-control">
+                                <option value="true" selected>Đang hiển thị</option>
+                                <option value="false">Đang ẩn</option>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>ImageUrl (tuỳ chọn)</label>
+                            <input id="imageUrl" class="form-control" placeholder="https://..." />
+                            <small class="text-muted">Nếu bạn upload ảnh thì không cần nhập.</small>
+                        </div>
+                    </div>
+
+                    <!-- Upload image -->
+                    <div class="form-group">
+                        <label>Ảnh banner</label>
+                        <div class="custom-file">
+                            <input id="imageFile" type="file" class="custom-file-input" accept="image/*" />
+                            <label id="imageLabel" class="custom-file-label" for="imageFile">Chọn ảnh</label>
+                        </div>
+
+                        <div class="mt-3 d-flex" style="gap: 12px; align-items: center;">
+                            <img id="imagePreview"
+                                 src=""
+                                 style="display:none; width: 320px; height: 110px; object-fit: cover; border-radius: 8px; border: 1px solid #eee;" />
+                            <small class="text-muted">jpg / png / webp — tối đa 10MB</small>
+                        </div>
+                    </div>
+
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Huỷ</button>
+                    <button id="btnSubmit" class="btn btn-primary" type="submit">
+                        <span class="mr-1"><i class="fas fa-save"></i></span> Lưu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <!-- axios CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <script>
+        const API_BASE = "/api/admin/banners";
+
+        function escapeHtml(str) {
+            return String(str || "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function badgeActive(isActive) {
+            return isActive
+                ? `<span class="badge badge-success">Đang hiển thị</span>`
+                : `<span class="badge badge-secondary">Đang ẩn</span>`;
+        }
+
+        function thumbHtml(url) {
+            if (!url) {
+                return `<div style="width:140px;height:52px;border:1px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#999">Chưa có ảnh</div>`;
+            }
+            return `<img class="banner-thumb" style="width:140px;height:52px;object-fit:cover;border-radius:6px;border:1px solid #eee" src="${url}" />`;
+        }
+
+        function rowHtml(b) {
+            return `
+                <tr data-id="${b.bannerId}">
+                    <td>${thumbHtml(b.imageUrl)}</td>
+                    <td><span class="font-weight-bold text-gray-900">${escapeHtml(b.bannerKey)}</span></td>
+                    <td>${escapeHtml(b.title)}</td>
+                    <td>${b.sortOrder ?? 0}</td>
+                    <td>${badgeActive(b.isActive)}</td>
+                    <td style="white-space:nowrap">
+                        <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${b.bannerId})" type="button" title="Sửa">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete(${b.bannerId})" type="button" title="Xoá">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function showError(msg) {
+            const box = document.getElementById("formError");
+            box.textContent = msg || "Có lỗi xảy ra.";
+            box.classList.remove("d-none");
+        }
+
+        function clearError() {
+            const box = document.getElementById("formError");
+            box.classList.add("d-none");
+            box.textContent = "";
+        }
+
+        function setSubmitText(text) {
+            document.getElementById("btnSubmit").innerHTML =
+                `<span class="mr-1"><i class="fas fa-save"></i></span> ${text}`;
+        }
+
+        function resetFileUI() {
+            document.getElementById("imageLabel").textContent = "Chọn ảnh";
+            document.getElementById("imageFile").value = "";
+
+            const preview = document.getElementById("imagePreview");
+            preview.style.display = "none";
+            preview.src = "";
+        }
+
+        function resetForm() {
+            document.getElementById("formBanner").reset();
+            resetFileUI();
+            clearError();
+            document.getElementById("imageUrl").value = "";
+            document.getElementById("sortOrder").value = "0";
+            document.getElementById("isActive").value = "true";
+        }
+
+        async function loadBanners() {
+            const body = document.getElementById("bannersBody");
+            body.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Đang tải...</td></tr>`;
+
+            const status = document.getElementById("statusFilter").value;
+
+            try {
+                const res = await axios.get(API_BASE, { params: { status } });
+                const items = res.data?.items || [];
+
+                if (!items.length) {
+                    body.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Chưa có banner</td></tr>`;
+                    return;
+                }
+
+                body.innerHTML = items.map(rowHtml).join("");
+            } catch (e) {
+                body.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Tải danh sách thất bại</td></tr>`;
+            }
+        }
+
+        function openCreate() {
+            resetForm();
+            document.getElementById("mode").value = "create";
+            document.getElementById("editingId").value = "";
+            document.getElementById("modalTitle").textContent = "Thêm banner";
+            setSubmitText("Tạo mới");
+            $("#modalBanner").modal("show");
+        }
+
+        function fillForm(b) {
+            document.getElementById("bannerKey").value = b.bannerKey || "";
+            document.getElementById("title").value = b.title || "";
+            document.getElementById("sortOrder").value = b.sortOrder ?? 0;
+            document.getElementById("isActive").value = b.isActive ? "true" : "false";
+            document.getElementById("imageUrl").value = b.imageUrl || "";
+
+            resetFileUI();
+            const preview = document.getElementById("imagePreview");
+            if (b.imageUrl) {
+                preview.src = b.imageUrl;
+                preview.style.display = "block";
+            }
+        }
+
+        async function openEdit(id) {
+            resetForm();
+            document.getElementById("mode").value = "edit";
+            document.getElementById("editingId").value = String(id);
+
+            document.getElementById("modalTitle").textContent = "Sửa banner";
+            setSubmitText("Lưu thay đổi");
+
+            $("#modalBanner").modal("show");
+
+            try {
+                const res = await axios.get(`${API_BASE}/${id}`);
+                fillForm(res.data);
+            } catch (e) {
+                const msg = e?.response?.data?.message || e?.message || "Tải dữ liệu banner thất bại.";
+                showError(String(msg));
+            }
+        }
+
+        function updateRowInTable(b) {
+            const row = document.querySelector(`#bannersBody tr[data-id="${b.bannerId}"]`);
+            if (!row) return;
+            row.outerHTML = rowHtml(b);
+        }
+
+        function prependRow(b) {
+            const body = document.getElementById("bannersBody");
+            const empty = body.querySelector("tr td[colspan='6']");
+            if (empty) body.innerHTML = "";
+            body.insertAdjacentHTML("afterbegin", rowHtml(b));
+        }
+
+        function buildFormData() {
+            const fd = new FormData();
+
+            fd.append("bannerKey", document.getElementById("bannerKey").value.trim());
+            fd.append("title", document.getElementById("title").value.trim());
+            fd.append("sortOrder", document.getElementById("sortOrder").value || "0");
+            fd.append("isActive", document.getElementById("isActive").value);
+
+            // cho phép nhập url (nếu không upload)
+            fd.append("imageUrl", document.getElementById("imageUrl").value.trim());
+
+            const f = document.getElementById("imageFile").files?.[0];
+            if (f) fd.append("imageFile", f);
+
+            return fd;
+        }
+
+        async function confirmDelete(id) {
+            if (!confirm("Bạn chắc chắn muốn xoá banner này?")) return;
+
+            try {
+                await axios.delete(`${API_BASE}/${id}`);
+                await loadBanners();
+            } catch (e) {
+                alert(e?.response?.data?.message || e?.message || "Xoá thất bại.");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadBanners();
+
+            document.getElementById("btnFilter").addEventListener("click", loadBanners);
+            document.getElementById("btnOpenCreate").addEventListener("click", openCreate);
+
+            // file label + preview
+            const fileInput = document.getElementById("imageFile");
+            const fileLabel = document.getElementById("imageLabel");
+            const preview = document.getElementById("imagePreview");
+
+            fileInput.addEventListener("change", () => {
+                const f = fileInput.files && fileInput.files[0];
+                if (!f) {
+                    fileLabel.textContent = "Chọn ảnh";
+                    preview.style.display = "none";
+                    preview.src = "";
+                    return;
+                }
+                fileLabel.textContent = f.name;
+                const url = URL.createObjectURL(f);
+                preview.src = url;
+                preview.style.display = "block";
+            });
+
+            // submit create/edit
+            document.getElementById("formBanner").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                clearError();
+
+                const mode = document.getElementById("mode").value;
+                const editingId = document.getElementById("editingId").value;
+
+                const btn = document.getElementById("btnSubmit");
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang lưu...`;
+
+                try {
+                    const fd = buildFormData();
+
+                    if (mode === "edit") {
+                        const res = await axios.put(`${API_BASE}/${editingId}`, fd, {
+                            headers: { "Content-Type": "multipart/form-data" }
+                        });
+                        updateRowInTable(res.data);
+                    } else {
+                        const res = await axios.post(API_BASE, fd, {
+                            headers: { "Content-Type": "multipart/form-data" }
+                        });
+                        prependRow(res.data);
+                    }
+
+                    $("#modalBanner").modal("hide");
+                } catch (err) {
+                    const msg = err?.response?.data?.message || err?.response?.data || err?.message || "Lưu thất bại.";
+                    showError(String(msg));
+                } finally {
+                    btn.disabled = false;
+                    setSubmitText(mode === "edit" ? "Lưu thay đổi" : "Tạo mới");
+                }
+            });
+
+            $("#modalBanner").on("hidden.bs.modal", function () {
+                resetForm();
+            });
+        });
+    </script>
+}
