@@ -8,7 +8,7 @@ namespace HanakaServer.Controllers.Admin
 {
     [Route("api/admin/banners")]
     [ApiController]
-    [Authorize(Roles = "Admin")] // dùng cookie Admin MVC của bạn
+    [Authorize(Roles = "Admin")] 
     public class AdminBannersController : ControllerBase
     {
         private readonly PickleballDbContext _db;
