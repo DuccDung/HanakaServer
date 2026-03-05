@@ -1,0 +1,251 @@
+﻿@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Groups";
+    var roundMapId = (long)(ViewBag.RoundMapId ?? 0L);
+    var tournamentId = (long)(ViewBag.TournamentId ?? 0L);
+}
+
+<div class="container-fluid" id="pageRoot"
+     data-round-map-id="@roundMapId"
+     data-tournament-id="@tournamentId">
+    <div class="d-sm-flex align-items-center justify-content-between mb-3">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">Groups</h1>
+            <div class="small text-muted">
+                @ViewBag.TournamentTitle • @ViewBag.TournamentStatus • GameType: @ViewBag.TournamentGameType
+            </div>
+            <div class="small text-muted">
+                Round: <b>@ViewBag.RoundKey</b> • @ViewBag.RoundLabel • RoundMapId: #@roundMapId
+            </div>
+        </div>
+
+        <div class="d-flex" style="gap:8px">
+            <button class="btn btn-sm btn-primary shadow-sm" type="button" id="btnOpenCreate">
+                <i class="fas fa-plus fa-sm text-white-50"></i> Create Group
+            </button>
+            <a class="btn btn-sm btn-outline-secondary" href="/TournamentRounds/Index?tournamentId=@tournamentId">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">Group List</h6>
+        </div>
+
+        <div class="card-body">
+            <div id="errBox" class="alert alert-danger d-none"></div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th style="width:120px">GroupName</th>
+                            <th style="width:110px">SortOrder</th>
+                            <th style="width:180px">CreatedAt</th>
+                            <th style="width:160px">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="body">
+                        <tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Create/Edit -->
+<div class="modal fade" id="modalGroup" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form id="formGroup">
+                <input type="hidden" id="mode" value="create" />
+                <input type="hidden" id="editingId" value="" />
+
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Create Group</h5>
+                    <button class="close" type="button" data-dismiss="modal"><span aria-hidden="true">×</span></button>
+                </div>
+
+                <div class="modal-body">
+                    <div id="formErr" class="alert alert-danger d-none"></div>
+
+                    <div class="form-group">
+                        <label>GroupName *</label>
+                        <input id="groupName" class="form-control" placeholder="A" required />
+                        <small class="text-muted">Ví dụ: A, B, C... hoặc 1,2,3...</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>SortOrder</label>
+                        <input id="sortOrder" type="number" class="form-control" value="0" />
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit" id="btnSubmit">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        (() => {
+          const $id = (id) => document.getElementById(id);
+          const root = $id("pageRoot");
+          const ROUND_MAP_ID = Number(root?.dataset?.roundMapId || 0);
+
+          const API = `/api/admin/round-maps/${ROUND_MAP_ID}/groups`;
+
+          const esc = (s) => String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+          const fmt = (dt) => {
+            if(!dt) return "—";
+            const d = new Date(dt);
+            if(isNaN(d.getTime())) return "—";
+            const yyyy=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,"0"), dd=String(d.getDate()).padStart(2,"0");
+            const hh=String(d.getHours()).padStart(2,"0"), mi=String(d.getMinutes()).padStart(2,"0");
+            return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+          };
+
+          function showErr(msg){
+            const box = $id("errBox");
+            box.textContent = msg || "Error";
+            box.classList.remove("d-none");
+          }
+          function hideErr(){
+            const box = $id("errBox");
+            box.classList.add("d-none");
+            box.textContent = "";
+          }
+
+          function showFormErr(msg){
+            const box = $id("formErr");
+            box.textContent = msg || "Error";
+            box.classList.remove("d-none");
+          }
+          function hideFormErr(){
+            const box = $id("formErr");
+            box.classList.add("d-none");
+            box.textContent = "";
+          }
+
+          function rowHtml(x){
+            return `
+              <tr data-id="${x.tournamentRoundGroupId}">
+                <td><b>${esc(x.groupName)}</b></td>
+                <td>${x.sortOrder ?? 0}</td>
+                <td>${fmt(x.createdAt)}</td>
+                <td style="white-space:nowrap">
+                  <button class="btn btn-sm btn-outline-primary" type="button"
+                          onclick="openEdit(${x.tournamentRoundGroupId}, '${esc(x.groupName)}', ${x.sortOrder ?? 0})">
+                    <i class="fas fa-edit"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger" type="button"
+                          onclick="delGroup(${x.tournamentRoundGroupId})">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            `;
+          }
+
+          async function load(){
+            hideErr();
+            const body = $id("body");
+            body.innerHTML = `<tr><td colspan="4" class="text-center text-muted">Loading...</td></tr>`;
+
+            try{
+              const res = await axios.get(API);
+              const items = res.data?.items || [];
+              if(!items.length){
+                body.innerHTML = `<tr><td colspan="4" class="text-center text-muted">No groups</td></tr>`;
+                return;
+              }
+              body.innerHTML = items.map(rowHtml).join("");
+            }catch(err){
+              showErr(err?.response?.data?.message || err?.message || "Load failed.");
+              body.innerHTML = `<tr><td colspan="4" class="text-center text-danger">Load failed</td></tr>`;
+            }
+          }
+
+          function openCreate(){
+            hideFormErr();
+            $id("mode").value = "create";
+            $id("editingId").value = "";
+            $id("modalTitle").textContent = "Create Group";
+            $id("groupName").disabled = false;
+
+            $id("groupName").value = "A";
+            $id("sortOrder").value = 0;
+
+            $("#modalGroup").modal("show");
+          }
+
+          window.openEdit = (id, name, sortOrder) => {
+            hideFormErr();
+            $id("mode").value = "edit";
+            $id("editingId").value = String(id);
+            $id("modalTitle").textContent = "Edit Group";
+
+            $id("groupName").disabled = false;
+            $id("groupName").value = name || "";
+            $id("sortOrder").value = sortOrder ?? 0;
+
+            $("#modalGroup").modal("show");
+          };
+
+          window.delGroup = async (id) => {
+            if(!confirm("Delete this group? (sẽ xoá match nếu có)")) return;
+            try{
+              await axios.delete(`${API}/${id}`);
+              await load();
+            }catch(err){
+              alert(err?.response?.data?.message || err?.message || "Delete failed.");
+            }
+          };
+
+          $id("btnOpenCreate").addEventListener("click", openCreate);
+
+          $id("formGroup").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            hideFormErr();
+
+            const mode = $id("mode").value;
+            const id = $id("editingId").value;
+
+            const name = $id("groupName").value.trim();
+            const sort = Number($id("sortOrder").value || 0);
+
+            const btn = $id("btnSubmit");
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
+
+            try{
+              if(mode === "create"){
+                await axios.post(API, { groupName: name, sortOrder: sort });
+              }else{
+                await axios.put(`${API}/${id}`, { groupName: name, sortOrder: sort });
+              }
+
+              $("#modalGroup").modal("hide");
+              await load();
+            }catch(err){
+              showFormErr(err?.response?.data?.message || err?.message || "Save failed.");
+            }finally{
+              btn.disabled = false;
+              btn.innerHTML = `<i class="fas fa-save"></i> Save`;
+            }
+          });
+
+          document.addEventListener("DOMContentLoaded", load);
+        })();
+    </script>
+}

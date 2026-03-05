@@ -248,9 +248,20 @@
                 onclick="gotoRegs(${t.tournamentId})" type="button" title="Registrations">
           <i class="fas fa-list"></i>
         </button>
+                <button class="btn btn-sm btn-outline-success"
+                onclick="gotoRounds(${t.tournamentId})"
+                type="button" title="Rounds">
+          <i class="fas fa-layer-group"></i>
+        </button>
               </td>
             </tr>
           `;
+        }
+                function gotoRounds(tournamentId){
+          window.location.href = `/TournamentRounds/Index?tournamentId=${tournamentId}`;
+        }
+                function gotoSchedule(tournamentId){
+          window.location.href = `/GroupsSchedule/Index?tournamentId=${tournamentId}`;
         }
                 function gotoRegs(tournamentId) {
           window.location.href = `/Registrations/Index?tournamentId=${tournamentId}`;
@@ -474,7 +485,7 @@
                     btn.disabled = false;
                     setSubmitText(mode === "edit" ? "Save" : "Create");
                 }
-            });
+            }); 
 
             // đóng modal => reset form + preview
             $("#modalTournament").on("hidden.bs.modal", function () {

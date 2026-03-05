@@ -53,9 +53,144 @@ public partial class PickleballDbContext : DbContext
     public virtual DbSet<Video> Videos { get; set; }
 
     public virtual DbSet<VideoPlayer> VideoPlayers { get; set; }
+    public virtual DbSet<TournamentRoundMap> TournamentRoundMaps { get; set; }
+    public virtual DbSet<TournamentRoundGroup> TournamentRoundGroups { get; set; }
+    public virtual DbSet<TournamentGroupMatch> TournamentGroupMatches { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<TournamentRoundMap>(entity =>
+        {
+            entity.ToTable("TournamentRoundMaps");
+
+            entity.HasKey(e => e.TournamentRoundMapId);
+
+            entity.HasIndex(e => new { e.TournamentId, e.RoundKey })
+                .IsUnique()
+                .HasDatabaseName("UX_TRM_Tournament_RoundKey");
+
+            entity.Property(e => e.RoundKey)
+                .HasMaxLength(20);
+
+            entity.Property(e => e.RoundLabel)
+                .HasMaxLength(50);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.HasOne(d => d.Tournament)
+                .WithMany() // nếu muốn navigation Tournament.TournamentRoundMaps thì thay tại đây
+                .HasForeignKey(d => d.TournamentId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_TRM_Tournament");
+        });
+        modelBuilder.Entity<TournamentRoundGroup>(entity =>
+        {
+            entity.ToTable("TournamentRoundGroups");
+
+            entity.HasKey(e => e.TournamentRoundGroupId);
+
+            entity.HasIndex(e => new { e.TournamentRoundMapId, e.GroupName })
+                .IsUnique()
+                .HasDatabaseName("UX_TRG_RoundMap_GroupName");
+
+            entity.HasIndex(e => e.TournamentRoundMapId)
+                .HasDatabaseName("IX_TRG_RoundMap");
+
+            entity.Property(e => e.GroupName)
+                .HasMaxLength(50);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.Property(e => e.SortOrder)
+                .HasDefaultValue(0);
+
+            entity.HasOne(d => d.TournamentRoundMap)
+                .WithMany(p => p.TournamentRoundGroups)
+                .HasForeignKey(d => d.TournamentRoundMapId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_TRG_RoundMap");
+        });
+        modelBuilder.Entity<TournamentGroupMatch>(entity =>
+        {
+            entity.ToTable("TournamentGroupMatches");
+
+            entity.HasKey(e => e.MatchId);
+
+            entity.HasIndex(e => new { e.TournamentRoundGroupId, e.StartAt })
+                .HasDatabaseName("IX_TGM_Group_StartAt");
+
+            entity.HasIndex(e => e.TournamentId)
+                .HasDatabaseName("IX_TGM_Tournament");
+
+            entity.HasIndex(e => e.Team1RegistrationId)
+                .HasDatabaseName("IX_TGM_Team1");
+
+            entity.HasIndex(e => e.Team2RegistrationId)
+                .HasDatabaseName("IX_TGM_Team2");
+
+            // Unique pair per group (TeamMin/TeamMax)
+            entity.HasIndex(e => new { e.TournamentRoundGroupId, e.TeamMin, e.TeamMax })
+                .IsUnique()
+                .HasDatabaseName("UX_TGM_Group_TeamPair");
+
+            entity.Property(e => e.AddressText).HasMaxLength(400);
+            entity.Property(e => e.CourtText).HasMaxLength(100);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.Property(e => e.UpdatedAt).HasPrecision(0);
+
+            entity.Property(e => e.IsCompleted).HasDefaultValue(false);
+            entity.Property(e => e.ScoreTeam1).HasDefaultValue(0);
+            entity.Property(e => e.ScoreTeam2).HasDefaultValue(0);
+
+            // computed persisted columns
+            entity.Property(e => e.TeamMin)
+                .HasComputedColumnSql("(CASE WHEN [Team1RegistrationId] < [Team2RegistrationId] THEN [Team1RegistrationId] ELSE [Team2RegistrationId] END)", stored: true)
+                .ValueGeneratedOnAddOrUpdate();
+
+            entity.Property(e => e.TeamMax)
+                .HasComputedColumnSql("(CASE WHEN [Team1RegistrationId] > [Team2RegistrationId] THEN [Team1RegistrationId] ELSE [Team2RegistrationId] END)", stored: true)
+                .ValueGeneratedOnAddOrUpdate();
+
+            entity.HasCheckConstraint("CK_TGM_TeamsDifferent", "[Team1RegistrationId] <> [Team2RegistrationId]");
+
+            entity.HasOne(d => d.TournamentRoundGroup)
+                .WithMany(p => p.TournamentGroupMatches)
+                .HasForeignKey(d => d.TournamentRoundGroupId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_TGM_Group");
+
+            entity.HasOne(d => d.Tournament)
+                .WithMany()
+                .HasForeignKey(d => d.TournamentId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_TGM_Tournament");
+
+            entity.HasOne(d => d.Team1Registration)
+                .WithMany()
+                .HasForeignKey(d => d.Team1RegistrationId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_TGM_Team1");
+
+            entity.HasOne(d => d.Team2Registration)
+                .WithMany()
+                .HasForeignKey(d => d.Team2RegistrationId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_TGM_Team2");
+
+            entity.HasOne(d => d.WinnerRegistration)
+                .WithMany()
+                .HasForeignKey(d => d.WinnerRegistrationId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_TGM_Winner");
+        });
         modelBuilder.Entity<Banner>(entity =>
         {
             entity.HasKey(e => e.BannerId).HasName("PK__Banners__32E86AD111175221");
@@ -365,29 +500,37 @@ public partial class PickleballDbContext : DbContext
 
         modelBuilder.Entity<TournamentSchedule>(entity =>
         {
-            entity.HasKey(e => e.ScheduleId).HasName("PK__Tourname__9C8A5B49436032C3");
-
+            entity.HasKey(e => e.ScheduleId);
             entity.ToTable("TournamentSchedule");
 
-            entity.HasIndex(e => new { e.TournamentId, e.RoundKey }, "IX_TournamentSchedule_TournamentRound");
-
-            entity.Property(e => e.Code).HasMaxLength(50);
-            entity.Property(e => e.CourtText).HasMaxLength(100);
-            entity.Property(e => e.ExternalId).HasMaxLength(50);
             entity.Property(e => e.RoundKey).HasMaxLength(20);
+            entity.Property(e => e.Code).HasMaxLength(50);
+
+            // NEW
+            entity.Property(e => e.StandingGroupId);
+
+            entity.Property(e => e.TimeText).HasMaxLength(20);
+            entity.Property(e => e.CourtText).HasMaxLength(100);
             entity.Property(e => e.TeamA).HasMaxLength(200);
             entity.Property(e => e.TeamB).HasMaxLength(200);
-            entity.Property(e => e.TimeText).HasMaxLength(20);
 
-            entity.HasOne(d => d.RoundKeyNavigation).WithMany(p => p.TournamentSchedules)
+            entity.HasOne(d => d.RoundKeyNavigation)
+                .WithMany(p => p.TournamentSchedules)
                 .HasForeignKey(d => d.RoundKey)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_TS_Round");
 
-            entity.HasOne(d => d.Tournament).WithMany(p => p.TournamentSchedules)
+            entity.HasOne(d => d.Tournament)
+                .WithMany(p => p.TournamentSchedules)
                 .HasForeignKey(d => d.TournamentId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_TS_Tournament");
+
+            // optional FK:
+            // entity.HasOne<TournamentStandingGroup>()
+            //   .WithMany()
+            //   .HasForeignKey(x => x.StandingGroupId)
+            //   .HasConstraintName("FK_TS_Group");
         });
 
         modelBuilder.Entity<TournamentStandingGroup>(entity =>
