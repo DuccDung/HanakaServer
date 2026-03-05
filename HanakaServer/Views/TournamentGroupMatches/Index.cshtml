@@ -1,0 +1,518 @@
+﻿@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Matches";
+    var groupId = (long)(ViewBag.GroupId ?? 0L);
+    var tournamentId = (long)(ViewBag.TournamentId ?? 0L);
+}
+
+<style>
+    .match-card {
+        border: 1px solid #eee;
+        border-radius: 14px;
+        padding: 14px;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(0,0,0,.03);
+    }
+
+        .match-card.completed {
+            background: #28a745; /* xanh */
+            border-color: #28a745;
+            color: #fff;
+        }
+
+    .team-name {
+        font-weight: 700;
+        font-size: 15px;
+    }
+
+        .team-name.winner {
+            color: #ffc107; /* vàng */
+        }
+
+    .score {
+        font-weight: 800;
+        font-size: 18px;
+        letter-spacing: .5px;
+    }
+
+    .meta {
+        font-size: 12px;
+        opacity: .9;
+    }
+
+    .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+    }
+
+    @@media (max-width: 992px) {
+        .grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="container-fluid" id="pageRoot"
+     data-group-id="@groupId"
+     data-tournament-id="@tournamentId">
+
+    <div class="d-sm-flex align-items-center justify-content-between mb-3">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">Matches</h1>
+            <div class="small text-muted">
+                @ViewBag.TournamentTitle • @ViewBag.TournamentStatus • GameType: @ViewBag.TournamentGameType
+            </div>
+            <div class="small text-muted">
+                Round: <b>@ViewBag.RoundKey</b> • @ViewBag.RoundLabel • Group: <b>@ViewBag.GroupName</b> • GroupId: #@groupId
+            </div>
+        </div>
+
+        <div class="d-flex" style="gap:8px">
+            <button class="btn btn-sm btn-primary shadow-sm" type="button" id="btnOpenCreate">
+                <i class="fas fa-plus fa-sm text-white-50"></i> Create Match
+            </button>
+
+            <button class="btn btn-sm btn-outline-success" type="button" id="btnFilterCompleted">
+                <i class="fas fa-filter"></i> Winners
+            </button>
+
+            <a class="btn btn-sm btn-outline-secondary" href="/TournamentRoundGroups/Index?roundMapId=@ViewBag.RoundMapId">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
+    </div>
+
+    <div id="errBox" class="alert alert-danger d-none"></div>
+
+    <div id="cards" class="grid">
+        <div class="text-muted">Loading...</div>
+    </div>
+</div>
+
+<!-- Modal Create/Edit match -->
+<div class="modal fade" id="modalMatch" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <form id="formMatch">
+                <input type="hidden" id="mode" value="create" />
+                <input type="hidden" id="editingId" value="" />
+
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Create Match</h5>
+                    <button class="close" type="button" data-dismiss="modal"><span aria-hidden="true">×</span></button>
+                </div>
+
+                <div class="modal-body">
+                    <div id="formErr" class="alert alert-danger d-none"></div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Team 1 (Registration)</label>
+                            <select class="form-control" id="team1"></select>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Team 2 (Registration)</label>
+                            <select class="form-control" id="team2"></select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>StartAt</label>
+                            <input type="datetime-local" class="form-control" id="startAt" />
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Court</label>
+                            <input class="form-control" id="courtText" placeholder="Court 1" />
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Address</label>
+                        <input class="form-control" id="addressText" placeholder="Địa chỉ..." />
+                    </div>
+
+                    <small class="text-muted">Score sẽ set ở nút “Set Score”.</small>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit" id="btnSubmit">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal SetScore -->
+<div class="modal fade" id="modalScore" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form id="formScore">
+                <input type="hidden" id="scoreMatchId" value="" />
+
+                <div class="modal-header">
+                    <h5 class="modal-title">Set Score</h5>
+                    <button class="close" type="button" data-dismiss="modal"><span aria-hidden="true">×</span></button>
+                </div>
+
+                <div class="modal-body">
+                    <div id="scoreErr" class="alert alert-danger d-none"></div>
+
+                    <div class="d-flex justify-content-between mb-2">
+                        <div class="font-weight-bold" id="scoreTeam1Name">Team 1</div>
+                        <div class="font-weight-bold" id="scoreTeam2Name">Team 2</div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Score Team 1</label>
+                            <input type="number" class="form-control" id="score1" value="0" min="0" />
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Score Team 2</label>
+                            <input type="number" class="form-control" id="score2" value="0" min="0" />
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-0">
+                        <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input" id="isCompleted" checked />
+                            <label class="custom-control-label" for="isCompleted">Kết thúc trận (Complete)</label>
+                        </div>
+                    </div>
+
+                    <small class="text-muted">Không hỗ trợ hoà.</small>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                    <button class="btn btn-success" type="submit">
+                        <i class="fas fa-check"></i> Apply
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        (() => {
+          const $id = (id) => document.getElementById(id);
+          const root = $id("pageRoot");
+          const GROUP_ID = Number(root?.dataset?.groupId || 0);
+          const TOURNAMENT_ID = Number(root?.dataset?.tournamentId || 0);
+
+          const API = `/api/admin/groups/${GROUP_ID}/matches`;
+          const API_REGS = `/api/admin/tournaments/${TOURNAMENT_ID}/registrations`;
+
+          let CACHE = { items: [], regs: [] };
+          let SHOW_ONLY_COMPLETED = false;
+
+          const esc = (s) => String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+          const fmt = (dt) => {
+            if(!dt) return "—";
+            const d = new Date(dt);
+            if(isNaN(d.getTime())) return "—";
+            const yyyy=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,"0"), dd=String(d.getDate()).padStart(2,"0");
+            const hh=String(d.getHours()).padStart(2,"0"), mi=String(d.getMinutes()).padStart(2,"0");
+            return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+          };
+          const toLocalInput = (iso) => {
+            if(!iso) return "";
+            const d = new Date(iso);
+            if(isNaN(d.getTime())) return "";
+            const yyyy=d.getFullYear(), mm=String(d.getMonth()+1).padStart(2,"0"), dd=String(d.getDate()).padStart(2,"0");
+            const hh=String(d.getHours()).padStart(2,"0"), mi=String(d.getMinutes()).padStart(2,"0");
+            return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+          };
+
+          function showErr(msg){
+            const box = $id("errBox");
+            box.textContent = msg || "Error";
+            box.classList.remove("d-none");
+          }
+          function hideErr(){
+            const box = $id("errBox");
+            box.classList.add("d-none");
+            box.textContent = "";
+          }
+          function showFormErr(msg, boxId){
+            const box = $id(boxId);
+            box.textContent = msg || "Error";
+            box.classList.remove("d-none");
+          }
+          function hideFormErr(boxId){
+            const box = $id(boxId);
+            box.classList.add("d-none");
+            box.textContent = "";
+          }
+
+          function cardHtml(m){
+            const completed = !!m.isCompleted;
+            const w = m.winnerRegistrationId;
+            const t1Winner = completed && w && w === m.team1RegistrationId;
+            const t2Winner = completed && w && w === m.team2RegistrationId;
+
+            const cardCls = `match-card ${completed ? "completed" : ""}`;
+
+            return `
+              <div class="${cardCls}" data-id="${m.matchId}">
+                <div class="d-flex justify-content-between align-items-start">
+                  <div>
+                    <div class="meta">Start: ${fmt(m.startAt)} ${m.courtText ? " • " + esc(m.courtText) : ""}</div>
+                    <div class="meta">Addr: ${esc(m.addressText || "—")}</div>
+                  </div>
+
+                  <div class="d-flex" style="gap:6px">
+                    <button class="btn btn-sm ${completed ? "btn-light" : "btn-outline-success"}" type="button"
+                            onclick="openScore(${m.matchId})" title="Set Score">
+                      <i class="fas fa-clipboard-check"></i>
+                    </button>
+
+                    <button class="btn btn-sm ${completed ? "btn-light" : "btn-outline-primary"}" type="button"
+                            onclick="openEdit(${m.matchId})" title="Edit">
+                      <i class="fas fa-edit"></i>
+                    </button>
+
+                    <button class="btn btn-sm ${completed ? "btn-light" : "btn-outline-danger"}" type="button"
+                            onclick="delMatch(${m.matchId})" title="Delete">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <hr style="opacity:.35"/>
+
+                <div class="d-flex justify-content-between align-items-center">
+                  <div class="team-name ${t1Winner ? "winner" : ""}">${esc(m.team1Text)}</div>
+                  <div class="score">${Number(m.scoreTeam1||0)} - ${Number(m.scoreTeam2||0)}</div>
+                  <div class="team-name text-right ${t2Winner ? "winner" : ""}">${esc(m.team2Text)}</div>
+                </div>
+
+                <div class="mt-2 meta">
+                  ${completed ? `<span class="badge badge-light">COMPLETED</span>` : `<span class="badge badge-secondary">PENDING</span>`}
+                  ${completed && w ? `<span class="ml-2 badge badge-warning">WINNER: Team ${m.winnerTeam}</span>` : ``}
+                </div>
+              </div>
+            `;
+          }
+
+          function render(){
+            const box = $id("cards");
+            let items = CACHE.items || [];
+
+            if (SHOW_ONLY_COMPLETED)
+              items = items.filter(x => x.isCompleted);
+
+            if (!items.length){
+              box.innerHTML = `<div class="text-muted">No matches</div>`;
+              return;
+            }
+
+            box.innerHTML = items.map(cardHtml).join("");
+          }
+
+          async function load(){
+            hideErr();
+            try{
+              // load matches
+              const res = await axios.get(API);
+              CACHE.items = res.data?.items || [];
+
+              // load SUCCESS registrations for selects
+              const regsRes = await axios.get(API_REGS, { params: { tab: "SUCCESS" } });
+              CACHE.regs = regsRes.data?.items || [];
+
+              render();
+            }catch(err){
+              showErr(err?.response?.data?.message || err?.message || "Load failed.");
+            }
+          }
+
+          function fillTeamsSelects(selected1, selected2){
+            const s1 = $id("team1");
+            const s2 = $id("team2");
+
+            const opts = (CACHE.regs || []).map(r => {
+              const name = r.player2Name ? `${r.player1Name} & ${r.player2Name}` : `${r.player1Name}`;
+              return `<option value="${r.registrationId}">${esc(r.regCode)} — ${esc(name)}</option>`;
+            });
+
+            s1.innerHTML = opts.join("");
+            s2.innerHTML = opts.join("");
+
+            if (selected1) s1.value = String(selected1);
+            if (selected2) s2.value = String(selected2);
+          }
+
+          function openCreate(){
+            hideFormErr("formErr");
+            $id("mode").value = "create";
+            $id("editingId").value = "";
+            $id("modalTitle").textContent = "Create Match";
+
+            fillTeamsSelects(null, null);
+
+            $id("startAt").value = "";
+            $id("addressText").value = "";
+            $id("courtText").value = "";
+
+            $("#modalMatch").modal("show");
+          }
+
+          window.openEdit = (matchId) => {
+            hideFormErr("formErr");
+            const m = (CACHE.items || []).find(x => x.matchId === matchId);
+            if (!m) return;
+
+            $id("mode").value = "edit";
+            $id("editingId").value = String(matchId);
+            $id("modalTitle").textContent = "Edit Match";
+
+            fillTeamsSelects(m.team1RegistrationId, m.team2RegistrationId);
+
+            $id("startAt").value = toLocalInput(m.startAt);
+            $id("addressText").value = m.addressText || "";
+            $id("courtText").value = m.courtText || "";
+
+            $("#modalMatch").modal("show");
+          };
+
+          window.delMatch = async (matchId) => {
+            if(!confirm("Delete this match?")) return;
+            try{
+              await axios.delete(`${API}/${matchId}`);
+              await load();
+            }catch(err){
+              alert(err?.response?.data?.message || err?.message || "Delete failed.");
+            }
+          };
+
+          window.openScore = (matchId) => {
+            hideFormErr("scoreErr");
+            const m = (CACHE.items || []).find(x => x.matchId === matchId);
+            if (!m) return;
+
+            $id("scoreMatchId").value = String(matchId);
+            $id("scoreTeam1Name").textContent = m.team1Text || "Team 1";
+            $id("scoreTeam2Name").textContent = m.team2Text || "Team 2";
+            $id("score1").value = String(m.scoreTeam1 ?? 0);
+            $id("score2").value = String(m.scoreTeam2 ?? 0);
+            $id("isCompleted").checked = true;
+
+            $("#modalScore").modal("show");
+          };
+
+          // create/edit match
+          $id("formMatch").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            hideFormErr("formErr");
+
+            const mode = $id("mode").value;
+            const editingId = $id("editingId").value;
+
+            const team1 = Number($id("team1").value || 0);
+            const team2 = Number($id("team2").value || 0);
+
+            if(!team1 || !team2){
+              showFormErr("Choose both teams.", "formErr"); return;
+            }
+            if(team1 === team2){
+              showFormErr("Team 1 and Team 2 cannot be the same.", "formErr"); return;
+            }
+
+            const startAtLocal = $id("startAt").value;
+            const startAtIso = startAtLocal ? new Date(startAtLocal).toISOString() : null;
+
+            const payloadCreate = {
+              team1RegistrationId: team1,
+              team2RegistrationId: team2,
+              startAt: startAtIso,
+              addressText: $id("addressText").value || null,
+              courtText: $id("courtText").value || null
+            };
+
+            const payloadUpdate = {
+              team1RegistrationId: team1,
+              team2RegistrationId: team2,
+              startAtSet: true,
+              startAt: startAtIso,
+              addressText: $id("addressText").value || null,
+              courtText: $id("courtText").value || null
+            };
+
+            const btn = $id("btnSubmit");
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
+
+            try{
+              if(mode === "create"){
+                await axios.post(API, payloadCreate);
+              }else{
+                await axios.put(`${API}/${editingId}`, payloadUpdate);
+              }
+              $("#modalMatch").modal("hide");
+              await load();
+            }catch(err){
+              showFormErr(err?.response?.data?.message || err?.message || "Save failed.", "formErr");
+            }finally{
+              btn.disabled = false;
+              btn.innerHTML = `<i class="fas fa-save"></i> Save`;
+            }
+          });
+
+          // set score
+          $id("formScore").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            hideFormErr("scoreErr");
+
+            const matchId = Number($id("scoreMatchId").value || 0);
+            const s1 = Number($id("score1").value || 0);
+            const s2 = Number($id("score2").value || 0);
+            const completed = !!$id("isCompleted").checked;
+
+            try{
+              const res = await axios.put(`${API}/${matchId}/score`, {
+                scoreTeam1: s1,
+                scoreTeam2: s2,
+                isCompleted: completed
+              });
+
+              $("#modalScore").modal("hide");
+
+              // update local cache nhanh (không cần reload cũng được)
+              const idx = (CACHE.items || []).findIndex(x => x.matchId === matchId);
+              if(idx >= 0){
+                CACHE.items[idx].scoreTeam1 = res.data.scoreTeam1;
+                CACHE.items[idx].scoreTeam2 = res.data.scoreTeam2;
+                CACHE.items[idx].isCompleted = res.data.isCompleted;
+                CACHE.items[idx].winnerRegistrationId = res.data.winnerRegistrationId;
+                CACHE.items[idx].winnerTeam = res.data.winnerTeam;
+              }
+
+              render();
+            }catch(err){
+              showFormErr(err?.response?.data?.message || err?.message || "Set score failed.", "scoreErr");
+            }
+          });
+
+          $id("btnOpenCreate").addEventListener("click", openCreate);
+
+          $id("btnFilterCompleted").addEventListener("click", () => {
+            SHOW_ONLY_COMPLETED = !SHOW_ONLY_COMPLETED;
+            $id("btnFilterCompleted").className = SHOW_ONLY_COMPLETED
+              ? "btn btn-sm btn-success"
+              : "btn btn-sm btn-outline-success";
+            render();
+          });
+
+          document.addEventListener("DOMContentLoaded", load);
+        })();
+    </script>
+}

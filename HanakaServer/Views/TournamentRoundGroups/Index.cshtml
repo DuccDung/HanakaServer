@@ -137,25 +137,35 @@
             box.textContent = "";
           }
 
-          function rowHtml(x){
-            return `
-              <tr data-id="${x.tournamentRoundGroupId}">
-                <td><b>${esc(x.groupName)}</b></td>
-                <td>${x.sortOrder ?? 0}</td>
-                <td>${fmt(x.createdAt)}</td>
-                <td style="white-space:nowrap">
-                  <button class="btn btn-sm btn-outline-primary" type="button"
-                          onclick="openEdit(${x.tournamentRoundGroupId}, '${esc(x.groupName)}', ${x.sortOrder ?? 0})">
-                    <i class="fas fa-edit"></i>
-                  </button>
-                  <button class="btn btn-sm btn-outline-danger" type="button"
-                          onclick="delGroup(${x.tournamentRoundGroupId})">
-                    <i class="fas fa-trash"></i>
-                  </button>
-                </td>
-              </tr>
-            `;
-          }
+                 function rowHtml(x){
+          return `
+            <tr data-id="${x.tournamentRoundGroupId}">
+              <td><b>${esc(x.groupName)}</b></td>
+              <td>${x.sortOrder ?? 0}</td>
+              <td>${fmt(x.createdAt)}</td>
+              <td style="white-space:nowrap">
+                <button class="btn btn-sm btn-outline-info" type="button"
+                        onclick="gotoMatches(${x.tournamentRoundGroupId})" title="Matches">
+                  <i class="fas fa-futbol"></i>
+                </button>
+
+                <button class="btn btn-sm btn-outline-primary" type="button"
+                        onclick="openEdit(${x.tournamentRoundGroupId}, '${esc(x.groupName)}', ${x.sortOrder ?? 0})">
+                  <i class="fas fa-edit"></i>
+                </button>
+
+                <button class="btn btn-sm btn-outline-danger" type="button"
+                        onclick="delGroup(${x.tournamentRoundGroupId})">
+                  <i class="fas fa-trash"></i>
+                </button>
+              </td>
+            </tr>
+          `;
+        }
+
+        window.gotoMatches = (groupId) => {
+          window.location.href = `/TournamentGroupMatches/Index?groupId=${groupId}`;
+        };
 
           async function load(){
             hideErr();
