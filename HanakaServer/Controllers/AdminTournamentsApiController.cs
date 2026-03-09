@@ -25,25 +25,15 @@ namespace HanakaServer.Controllers
         }
 
         // ===== URL helpers: DB lưu relative, response trả absolute =====
-        private string GetBaseUrl()
-        {
-            // Ưu tiên appsettings nếu bạn bật:
-            // var baseUrl = _config["AppSettings:PublicBaseUrl"]?.Trim();
-            // if (!string.IsNullOrWhiteSpace(baseUrl)) return baseUrl.TrimEnd('/');
-
-            var baseUrl = "http://192.168.0.101:5062";
-            return baseUrl.TrimEnd('/');
-        }
 
         private string? ToAbsoluteUrl(string? url)
         {
             if (string.IsNullOrWhiteSpace(url)) return null;
 
-            // nếu đã absolute thì trả luôn
             if (Uri.TryCreate(url, UriKind.Absolute, out _)) return url;
 
             if (!url.StartsWith("/")) url = "/" + url;
-            return GetBaseUrl() + url;
+            return _config["AppSettings:PublicBaseUrl"] + url;
         }
 
         private string? NormalizeToRelative(string? url)
@@ -52,17 +42,58 @@ namespace HanakaServer.Controllers
 
             url = url.Trim();
 
-            // relative sẵn
             if (url.StartsWith("/")) return url;
 
-            // absolute => lấy path
             if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
-                return uri.PathAndQuery; // thường chỉ cần uri.AbsolutePath
+                return uri.PathAndQuery;
 
             return url;
         }
 
-        // GET: /api/admin/tournaments?status=OPEN&page=1&pageSize=20
+        private static string? TrimToNull(string? s)
+        {
+            if (s == null) return null;
+            var t = s.Trim();
+            return string.IsNullOrWhiteSpace(t) ? null : t;
+        }
+
+        private static string Upper(string? s, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(s) ? fallback : s.Trim().ToUpperInvariant();
+        }
+
+        private TournamentListItemDto MapToDto(HanakaServer.Models.Tournament t)
+        {
+            return new TournamentListItemDto
+            {
+                TournamentId = t.TournamentId,
+                Title = t.Title,
+                Status = t.Status,
+                StartTime = t.StartTime,
+                RegisterDeadline = t.RegisterDeadline,
+                GameType = t.GameType ?? "DOUBLE",
+                ExpectedTeams = t.ExpectedTeams,
+                LocationText = t.LocationText,
+                AreaText = t.AreaText,
+                BannerUrl = ToAbsoluteUrl(t.BannerUrl),
+                CreatedAt = t.CreatedAt,
+                SingleLimit = t.SingleLimit,
+                DoubleLimit = t.DoubleLimit,
+
+                FormatText = t.FormatText,
+                PlayoffType = t.PlayoffType,
+                Organizer = t.Organizer,
+                CreatorName = t.CreatorName,
+                StatusText = t.StatusText,
+                StateText = t.StateText,
+                MatchesCount = t.MatchesCount,
+                RegisteredCount = t.RegisteredCount,
+                PairedCount = t.PairedCount,
+                Content = t.Content
+            };
+        }
+
+        // GET: /api/admin/tournaments?status=OPEN&page=1&pageSize=50
         [AllowAnonymous]
         [HttpGet]
         public async Task<IActionResult> List([FromQuery] string? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 50)
@@ -80,47 +111,46 @@ namespace HanakaServer.Controllers
 
             var total = await q.CountAsync();
 
-            // Query raw (lấy BannerUrl relative từ DB), rồi map sang absolute khi trả
             var raw = await q
                 .OrderByDescending(t => t.CreatedAt)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(t => new
+                .Select(t => new HanakaServer.Models.Tournament
                 {
-                    t.TournamentId,
-                    t.Title,
-                    t.Status,
-                    t.StartTime,
-                    t.RegisterDeadline,
-                    t.GameType,
-                    t.ExpectedTeams,
-                    t.LocationText,
-                    t.AreaText,
-                    t.BannerUrl, // relative
-                    t.CreatedAt,
-                    t.SingleLimit,
-                    t.DoubleLimit
+                    TournamentId = t.TournamentId,
+                    Title = t.Title,
+                    Status = t.Status,
+                    StartTime = t.StartTime,
+                    RegisterDeadline = t.RegisterDeadline,
+                    GameType = t.GameType,
+                    ExpectedTeams = t.ExpectedTeams,
+                    LocationText = t.LocationText,
+                    AreaText = t.AreaText,
+                    BannerUrl = t.BannerUrl,
+                    CreatedAt = t.CreatedAt,
+                    SingleLimit = t.SingleLimit,
+                    DoubleLimit = t.DoubleLimit,
+
+                    Organizer = t.Organizer,
+                    CreatorName = t.CreatorName,
+                    FormatText = t.FormatText,
+                    PlayoffType = t.PlayoffType
                 })
                 .ToListAsync();
 
-            var items = raw.Select(t => new TournamentListItemDto
-            {
-                TournamentId = t.TournamentId,
-                Title = t.Title,
-                Status = t.Status,
-                StartTime = t.StartTime,
-                RegisterDeadline = t.RegisterDeadline,
-                GameType = t.GameType,
-                ExpectedTeams = t.ExpectedTeams,
-                LocationText = t.LocationText,
-                AreaText = t.AreaText,
-                BannerUrl = ToAbsoluteUrl(t.BannerUrl), // trả absolute
-                CreatedAt = t.CreatedAt,
-                SingleLimit = t.SingleLimit,
-                DoubleLimit = t.DoubleLimit
-            });
+            var items = raw.Select(MapToDto);
 
             return Ok(new { page, pageSize, total, items });
+        }
+
+        // GET: /api/admin/tournaments/{id}
+        [HttpGet("{id:long}")]
+        public async Task<IActionResult> GetDetail([FromRoute] long id)
+        {
+            var t = await _db.Tournaments.AsNoTracking().FirstOrDefaultAsync(x => x.TournamentId == id);
+            if (t == null) return NotFound(new { message = "Tournament not found." });
+
+            return Ok(MapToDto(t));
         }
 
         // POST: /api/admin/tournaments (multipart/form-data)
@@ -134,7 +164,7 @@ namespace HanakaServer.Controllers
             if (string.IsNullOrWhiteSpace(req.GameType))
                 return BadRequest(new { message = "GameType is required (SINGLE/DOUBLE/MIXED)." });
 
-            var status = string.IsNullOrWhiteSpace(req.Status) ? "DRAFT" : req.Status.Trim().ToUpperInvariant();
+            var status = Upper(req.Status, "DRAFT");
 
             // ===== Upload banner (nếu có) =====
             string? bannerRelativeUrl = null;
@@ -157,7 +187,6 @@ namespace HanakaServer.Controllers
                     await req.BannerFile.CopyToAsync(stream);
                 }
 
-                // LƯU DB DẠNG RELATIVE
                 bannerRelativeUrl = $"/uploads/tournaments/{fileName}";
             }
 
@@ -165,70 +194,33 @@ namespace HanakaServer.Controllers
             {
                 Status = status,
                 Title = req.Title.Trim(),
-                BannerUrl = bannerRelativeUrl, // relative
+                BannerUrl = bannerRelativeUrl,
                 StartTime = req.StartTime,
                 RegisterDeadline = req.RegisterDeadline,
                 GameType = req.GameType.Trim().ToUpperInvariant(),
                 ExpectedTeams = req.ExpectedTeams ?? 0,
-                LocationText = req.LocationText?.Trim(),
-                AreaText = req.AreaText?.Trim(),
+                LocationText = TrimToNull(req.LocationText),
+                AreaText = TrimToNull(req.AreaText),
                 SingleLimit = req.SingleLimit ?? 0,
                 DoubleLimit = req.DoubleLimit ?? 0,
                 Content = req.Content,
                 CreatedAt = DateTime.UtcNow,
 
-                FormatText = req.FormatText,
-                PlayoffType = req.PlayoffType,
-                StatusText = req.StatusText,
-                StateText = req.StateText,
-                Organizer = req.Organizer,
-                CreatorName = req.CreatorName,
+                // ✅ NEW
+                Organizer = TrimToNull(req.Organizer),
+                CreatorName = TrimToNull(req.CreatorName),
+                FormatText = TrimToNull(req.FormatText),
+                PlayoffType = TrimToNull(req.PlayoffType),
+
+                StatusText = TrimToNull(req.StatusText),
+                StateText = TrimToNull(req.StateText)
             };
 
             _db.Tournaments.Add(t);
             await _db.SaveChangesAsync();
 
-            return Ok(new TournamentListItemDto
-            {
-                TournamentId = t.TournamentId,
-                Title = t.Title,
-                Status = t.Status,
-                StartTime = t.StartTime,
-                RegisterDeadline = t.RegisterDeadline,
-                GameType = t.GameType,
-                ExpectedTeams = t.ExpectedTeams,
-                LocationText = t.LocationText,
-                AreaText = t.AreaText,
-                BannerUrl = ToAbsoluteUrl(t.BannerUrl), // trả absolute
-                CreatedAt = t.CreatedAt,
-                SingleLimit = t.SingleLimit,
-                DoubleLimit = t.DoubleLimit,
-            });
-        }
-
-        // GET: /api/admin/tournaments/{id}
-        [HttpGet("{id:long}")]
-        public async Task<IActionResult> GetDetail([FromRoute] long id)
-        {
-            var t = await _db.Tournaments.AsNoTracking().FirstOrDefaultAsync(x => x.TournamentId == id);
-            if (t == null) return NotFound(new { message = "Tournament not found." });
-
-            return Ok(new TournamentListItemDto
-            {
-                TournamentId = t.TournamentId,
-                Title = t.Title,
-                Status = t.Status,
-                StartTime = t.StartTime,
-                RegisterDeadline = t.RegisterDeadline,
-                GameType = t.GameType,
-                ExpectedTeams = t.ExpectedTeams,
-                LocationText = t.LocationText,
-                AreaText = t.AreaText,
-                BannerUrl = ToAbsoluteUrl(t.BannerUrl), // trả absolute
-                CreatedAt = t.CreatedAt,
-                SingleLimit = t.SingleLimit,
-                DoubleLimit = t.DoubleLimit,
-            });
+            // ✅ trả full dto để UI prepend/update table
+            return Ok(MapToDto(t));
         }
 
         // PUT: /api/admin/tournaments/{id} (multipart/form-data)
@@ -258,14 +250,21 @@ namespace HanakaServer.Controllers
                 t.RegisterDeadline = req.RegisterDeadline.Value;
 
             if (req.LocationText != null)
-                t.LocationText = string.IsNullOrWhiteSpace(req.LocationText) ? null : req.LocationText.Trim();
+                t.LocationText = TrimToNull(req.LocationText);
 
             if (req.AreaText != null)
-                t.AreaText = string.IsNullOrWhiteSpace(req.AreaText) ? null : req.AreaText.Trim();
+                t.AreaText = TrimToNull(req.AreaText);
 
             if (req.SingleLimit.HasValue) t.SingleLimit = req.SingleLimit.Value;
             if (req.DoubleLimit.HasValue) t.DoubleLimit = req.DoubleLimit.Value;
+
             if (req.Content != null) t.Content = req.Content;
+
+            // ✅ NEW: edit các field mở rộng (cho phép clear bằng string rỗng)
+            if (req.Organizer != null) t.Organizer = TrimToNull(req.Organizer);
+            if (req.CreatorName != null) t.CreatorName = TrimToNull(req.CreatorName);
+            if (req.FormatText != null) t.FormatText = TrimToNull(req.FormatText);
+            if (req.PlayoffType != null) t.PlayoffType = TrimToNull(req.PlayoffType);
 
             // ===== nếu có upload banner mới =====
             if (req.BannerFile != null && req.BannerFile.Length > 0)
@@ -286,34 +285,17 @@ namespace HanakaServer.Controllers
                     await req.BannerFile.CopyToAsync(stream);
                 }
 
-                // LƯU DB DẠNG RELATIVE
                 t.BannerUrl = $"/uploads/tournaments/{fileName}";
             }
             else
             {
-                // Nếu nơi nào đó từng lưu absolute trong DB hoặc bạn update từ nguồn khác:
-                // đảm bảo normalize lại (an toàn, không bắt buộc)
                 t.BannerUrl = NormalizeToRelative(t.BannerUrl);
             }
 
             await _db.SaveChangesAsync();
 
-            return Ok(new TournamentListItemDto
-            {
-                TournamentId = t.TournamentId,
-                Title = t.Title,
-                Status = t.Status,
-                StartTime = t.StartTime,
-                RegisterDeadline = t.RegisterDeadline,
-                GameType = t.GameType,
-                ExpectedTeams = t.ExpectedTeams,
-                LocationText = t.LocationText,
-                AreaText = t.AreaText,
-                BannerUrl = ToAbsoluteUrl(t.BannerUrl), // trả absolute
-                CreatedAt = t.CreatedAt,
-                SingleLimit = t.SingleLimit,
-                DoubleLimit = t.DoubleLimit,
-            });
+            // ✅ trả full dto để UI update row
+            return Ok(MapToDto(t));
         }
     }
 }

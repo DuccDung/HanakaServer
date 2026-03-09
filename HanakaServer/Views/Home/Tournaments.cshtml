@@ -135,6 +135,30 @@
                         </div>
                     </div>
 
+                    <!-- ✅ NEW: Organizer + Creator -->
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Organizer (Đơn vị tổ chức)</label>
+                            <input id="organizer" class="form-control" placeholder="CLB / Trung tâm / Nhà tài trợ..." />
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Creator (Người tạo giải)</label>
+                            <input id="creatorName" class="form-control" placeholder="Tên người tạo giải..." />
+                        </div>
+                    </div>
+
+                    <!-- ✅ NEW: FormatText + PlayoffType -->
+                    <div class="form-row">
+                        <div class="form-group col-md-8">
+                            <label>FormatText (Dạng thi đấu - mở rộng)</label>
+                            <input id="formatText" class="form-control" placeholder="VD: Vòng bảng + loại trực tiếp, BO3, 11 điểm..." />
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label>PlayoffType</label>
+                            <input id="playoffType" class="form-control" placeholder="VD: Knockout / RoundRobin / Swiss..." />
+                        </div>
+                    </div>
+
                     <div class="form-group">
                         <label>Content</label>
                         <textarea id="content" class="form-control" rows="3" placeholder="Luật/ghi chú..."></textarea>
@@ -216,56 +240,60 @@
             return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
         }
 
-               function rowHtml(t) {
-          const banner = t.bannerUrl
-            ? `<img style="width:120px;height:44px;object-fit:cover;border-radius:6px" src="${t.bannerUrl}" />`
-            : `<div style="width:120px;height:44px;border:1px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#999">No banner</div>`;
+        function rowHtml(t) {
+            const banner = t.bannerUrl
+                ? `<img style="width:120px;height:44px;object-fit:cover;border-radius:6px" src="${t.bannerUrl}" />`
+                : `<div style="width:120px;height:44px;border:1px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#999">No banner</div>`;
 
-          const sub = `${t.areaText || "—"}${t.locationText ? " • " + t.locationText : ""}`;
+            const sub = `${t.areaText || "—"}${t.locationText ? " • " + t.locationText : ""}`;
 
-          const singleLimit = (t.singleLimit ?? 0);
-          const doubleLimit = (t.doubleLimit ?? 0);
+            const extra1 = `${t.organizer ? "Organizer: " + t.organizer : "Organizer: —"}${t.creatorName ? " • Creator: " + t.creatorName : ""}`;
+            const extra2 = `${t.formatText ? "Format: " + t.formatText : "Format: —"}${t.playoffType ? " • Playoff: " + t.playoffType : ""}`;
 
-          return `
-            <tr data-id="${t.tournamentId}">
-              <td>${banner}</td>
-              <td>
-                <div class="font-weight-bold text-gray-900">${escapeHtml(t.title)}</div>
-                <div class="small text-gray-500">${escapeHtml(sub)}</div>
-              </td>
-              <td>${badgeHtml(t.status)}</td>
-              <td>${fmtDate(t.startTime)}</td>
-              <td>${fmtDate(t.registerDeadline)}</td>
-              <td>${escapeHtml(t.gameType || "—")}</td>
-              <td>${t.expectedTeams ?? 0}</td>
-              <td>${Number(singleLimit).toFixed(2)}</td>
-              <td>${Number(doubleLimit).toFixed(2)}</td>
-              <td style="white-space:nowrap">
-                <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${t.tournamentId})" type="button">
-                  <i class="fas fa-edit"></i>
-                </button>
-                       <button class="btn btn-sm btn-outline-info"
-                onclick="gotoRegs(${t.tournamentId})" type="button" title="Registrations">
-          <i class="fas fa-list"></i>
-        </button>
-                <button class="btn btn-sm btn-outline-success"
-                onclick="gotoRounds(${t.tournamentId})"
-                type="button" title="Rounds">
-          <i class="fas fa-layer-group"></i>
-        </button>
-              </td>
-            </tr>
-          `;
+            const singleLimit = (t.singleLimit ?? 0);
+            const doubleLimit = (t.doubleLimit ?? 0);
+
+            return `
+                <tr data-id="${t.tournamentId}">
+                    <td>${banner}</td>
+                    <td>
+                        <div class="font-weight-bold text-gray-900">${escapeHtml(t.title)}</div>
+                        <div class="small text-gray-500">${escapeHtml(sub)}</div>
+                        <div class="small text-gray-500">${escapeHtml(extra1)}</div>
+                        <div class="small text-gray-500">${escapeHtml(extra2)}</div>
+                    </td>
+                    <td>${badgeHtml(t.status)}</td>
+                    <td>${fmtDate(t.startTime)}</td>
+                    <td>${fmtDate(t.registerDeadline)}</td>
+                    <td>${escapeHtml(t.gameType || "—")}</td>
+                    <td>${t.expectedTeams ?? 0}</td>
+                    <td>${Number(singleLimit).toFixed(2)}</td>
+                    <td>${Number(doubleLimit).toFixed(2)}</td>
+                    <td style="white-space:nowrap">
+                        <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${t.tournamentId})" type="button">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-info"
+                                onclick="gotoRegs(${t.tournamentId})" type="button" title="Registrations">
+                            <i class="fas fa-list"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-success"
+                                onclick="gotoRounds(${t.tournamentId})"
+                                type="button" title="Rounds">
+                            <i class="fas fa-layer-group"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
         }
-                function gotoRounds(tournamentId){
-          window.location.href = `/TournamentRounds/Index?tournamentId=${tournamentId}`;
+
+        function gotoRounds(tournamentId) {
+            window.location.href = `/TournamentRounds/Index?tournamentId=${tournamentId}`;
         }
-                function gotoSchedule(tournamentId){
-          window.location.href = `/GroupsSchedule/Index?tournamentId=${tournamentId}`;
+        function gotoRegs(tournamentId) {
+            window.location.href = `/Registrations/Index?tournamentId=${tournamentId}`;
         }
-                function gotoRegs(tournamentId) {
-          window.location.href = `/Registrations/Index?tournamentId=${tournamentId}`;
-        }
+
         function showError(msg) {
             const box = document.getElementById("formError");
             box.textContent = msg || "Error";
@@ -296,6 +324,12 @@
             document.getElementById("formTournament").reset();
             resetFileUI();
             clearError();
+
+            // reset extra fields
+            document.getElementById("organizer").value = "";
+            document.getElementById("creatorName").value = "";
+            document.getElementById("formatText").value = "";
+            document.getElementById("playoffType").value = "";
         }
 
         async function loadTournaments() {
@@ -344,13 +378,19 @@
             document.getElementById("startTime").value = toDatetimeLocalValue(t.startTime);
             document.getElementById("registerDeadline").value = toDatetimeLocalValue(t.registerDeadline);
 
-                    if (t.singleLimit !== undefined && t.singleLimit !== null)
-          document.getElementById("singleLimit").value = t.singleLimit;
+            if (t.singleLimit !== undefined && t.singleLimit !== null)
+                document.getElementById("singleLimit").value = t.singleLimit;
 
-        if (t.doubleLimit !== undefined && t.doubleLimit !== null)
-          document.getElementById("doubleLimit").value = t.doubleLimit;
+            if (t.doubleLimit !== undefined && t.doubleLimit !== null)
+                document.getElementById("doubleLimit").value = t.doubleLimit;
 
             document.getElementById("content").value = t.content || "";
+
+            // ✅ NEW fields
+            document.getElementById("organizer").value = t.organizer || "";
+            document.getElementById("creatorName").value = t.creatorName || "";
+            document.getElementById("formatText").value = t.formatText || "";
+            document.getElementById("playoffType").value = t.playoffType || "";
 
             // reset file + show preview current banner
             resetFileUI();
@@ -416,6 +456,12 @@
             fd.append("doubleLimit", document.getElementById("doubleLimit").value || "0");
             fd.append("content", document.getElementById("content").value || "");
 
+            // ✅ NEW fields
+            fd.append("organizer", document.getElementById("organizer").value || "");
+            fd.append("creatorName", document.getElementById("creatorName").value || "");
+            fd.append("formatText", document.getElementById("formatText").value || "");
+            fd.append("playoffType", document.getElementById("playoffType").value || "");
+
             const banner = document.getElementById("bannerFile").files?.[0];
             if (banner) fd.append("bannerFile", banner);
 
@@ -467,13 +513,11 @@
                         const res = await axios.put(`${API_BASE}/${editingId}`, fd, {
                             headers: { "Content-Type": "multipart/form-data" }
                         });
-
                         updateRowInTable(res.data);
                     } else {
                         const res = await axios.post(API_BASE, fd, {
                             headers: { "Content-Type": "multipart/form-data" }
                         });
-
                         prependRow(res.data);
                     }
 
@@ -485,7 +529,7 @@
                     btn.disabled = false;
                     setSubmitText(mode === "edit" ? "Save" : "Create");
                 }
-            }); 
+            });
 
             // đóng modal => reset form + preview
             $("#modalTournament").on("hidden.bs.modal", function () {

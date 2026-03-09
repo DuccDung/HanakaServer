@@ -33,24 +33,11 @@ namespace HanakaServer.Controllers
             return userId;
         }
 
-        // Helper: base url
-        private string GetBaseUrl()
-        {
-            // Khuyến nghị: dùng appsettings: _config["AppSettings:PublicBaseUrl"]
-            var baseUrl = "http://192.168.0.101:5062";
-            return baseUrl.TrimEnd('/');
-        }
-
         // Helper: convert relative -> absolute để trả response
         private string? ToAbsoluteUrl(string? url)
         {
             if (string.IsNullOrWhiteSpace(url)) return null;
-
-            // nếu đã absolute thì trả luôn
-            if (Uri.TryCreate(url, UriKind.Absolute, out _)) return url;
-
-            if (!url.StartsWith("/")) url = "/" + url;
-            return GetBaseUrl() + url;
+            return _config["AppSettings:PublicBaseUrl"] ?? "" + url;
         }
 
         // Helper: normalize avatar về relative để lưu DB

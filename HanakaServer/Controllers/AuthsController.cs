@@ -166,9 +166,14 @@ namespace HanakaServer.Controllers
                     Verified = user.Verified,
                     RatingSingle = user.RatingSingle,
                     RatingDouble = user.RatingDouble,
-                    AvatarUrl = user.AvatarUrl
+                    AvatarUrl =GetBaseUrl() + user.AvatarUrl
                 }
             };
+        }
+        private string GetBaseUrl()
+        {
+            var baseUrl = "http://192.168.0.101:5062";
+            return baseUrl;
         }
     }
 }
