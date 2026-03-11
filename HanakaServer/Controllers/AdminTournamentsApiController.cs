@@ -29,11 +29,7 @@ namespace HanakaServer.Controllers
         private string? ToAbsoluteUrl(string? url)
         {
             if (string.IsNullOrWhiteSpace(url)) return null;
-
-            if (Uri.TryCreate(url, UriKind.Absolute, out _)) return url;
-
-            if (!url.StartsWith("/")) url = "/" + url;
-            return _config["AppSettings:PublicBaseUrl"] + url;
+            return _config["PublicBaseUrl"] + url;
         }
 
         private string? NormalizeToRelative(string? url)

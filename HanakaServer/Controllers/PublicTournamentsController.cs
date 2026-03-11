@@ -24,7 +24,7 @@ namespace HanakaServer.Controllers
         private string? ToAbsoluteUrl(string? url)
         {
             if (string.IsNullOrWhiteSpace(url)) return null;
-            return _config["AppSettings:PublicBaseUrl"] + url;
+            return _config["PublicBaseUrl"] + url;
         }
 
         // GET: /api/public/tournaments/{id}

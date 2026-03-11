@@ -10,4 +10,9 @@
         public DateTime? BirthOfDate { get; set; }  // yyyy-MM-dd
         public string? AvatarUrl { get; set; }      // nếu bạn update bằng url
     }
+    public class UpdateSelfRatingRequestDto
+    {
+        public decimal RatingSingle { get; set; }
+        public decimal RatingDouble { get; set; }
+    }
 }

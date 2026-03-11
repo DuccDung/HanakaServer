@@ -37,7 +37,7 @@ namespace HanakaServer.Controllers
         private string? ToAbsoluteUrl(string? url)
         {
             if (string.IsNullOrWhiteSpace(url)) return null;
-            return _config["AppSettings:PublicBaseUrl"] ?? "" + url;
+            return _config["PublicBaseUrl"] + url;
         }
 
         // Helper: normalize avatar về relative để lưu DB
@@ -353,6 +353,41 @@ namespace HanakaServer.Controllers
                 u.Bio,
                 u.BirthOfDate,
                 u.CreatedAt
+            });
+        }
+        // PUT: api/users/me/self-rating
+        [HttpPut("me/self-rating")]
+        public async Task<IActionResult> UpdateMySelfRating([FromBody] UpdateSelfRatingRequestDto req)
+        {
+            var userId = GetUserIdFromToken();
+
+            if (req == null)
+                return BadRequest(new { message = "Invalid request." });
+
+            // Nếu bạn muốn thang 0-5
+            if (req.RatingSingle < 0 || req.RatingSingle > 5)
+                return BadRequest(new { message = "RatingSingle must be between 0 and 5." });
+
+            if (req.RatingDouble < 0 || req.RatingDouble > 5)
+                return BadRequest(new { message = "RatingDouble must be between 0 and 5." });
+
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            user.RatingSingle = Math.Round(req.RatingSingle, 1);
+            user.RatingDouble = Math.Round(req.RatingDouble, 1);
+            user.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Cập nhật điểm tự chấm trình thành công.",
+                userId = user.UserId,
+                ratingSingle = user.RatingSingle,
+                ratingDouble = user.RatingDouble,
+                updatedAt = user.UpdatedAt
             });
         }
     }

@@ -3,21 +3,54 @@ using HanakaServer.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace HanakaServer.Controllers.Admin
 {
     [Route("api/admin/banners")]
     [ApiController]
-    [Authorize(Roles = "Admin")] 
+    [Authorize(Roles = "Admin")]
     public class AdminBannersController : ControllerBase
     {
         private readonly PickleballDbContext _db;
         private readonly IWebHostEnvironment _env;
+        private readonly IConfiguration _config;
 
-        public AdminBannersController(PickleballDbContext db, IWebHostEnvironment env)
+        public AdminBannersController(
+            PickleballDbContext db,
+            IWebHostEnvironment env,
+            IConfiguration config)
         {
             _db = db;
             _env = env;
+            _config = config;
+        }
+
+        // Helper: convert relative -> absolute để trả response
+        private string? ToAbsoluteUrl(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return null;
+            return _config["PublicBaseUrl"] + url;
+        }
+
+        // Helper: normalize imageUrl về relative để lưu DB
+        private string? NormalizeImageToRelative(string? imageUrl)
+        {
+            if (string.IsNullOrWhiteSpace(imageUrl)) return null;
+
+            imageUrl = imageUrl.Trim();
+
+            // relative sẵn
+            if (imageUrl.StartsWith("/")) return imageUrl;
+
+            // absolute => lấy path
+            if (Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri))
+            {
+                return uri.PathAndQuery;
+            }
+
+            // chuỗi lạ => giữ nguyên
+            return imageUrl;
         }
 
         // GET: /api/admin/banners?status=ALL|ACTIVE|INACTIVE
@@ -26,11 +59,16 @@ namespace HanakaServer.Controllers.Admin
         {
             var q = _db.Banners.AsNoTracking().AsQueryable();
 
-            status = (status ?? "ALL").ToUpperInvariant();
-            if (status == "ACTIVE") q = q.Where(x => x.IsActive);
-            if (status == "INACTIVE") q = q.Where(x => !x.IsActive);
+            status = (status ?? "ALL").Trim().ToUpperInvariant();
 
-            var items = await q.OrderBy(x => x.SortOrder).ThenByDescending(x => x.BannerId)
+            if (status == "ACTIVE")
+                q = q.Where(x => x.IsActive);
+            else if (status == "INACTIVE")
+                q = q.Where(x => !x.IsActive);
+
+            var items = await q
+                .OrderBy(x => x.SortOrder)
+                .ThenByDescending(x => x.BannerId)
                 .Select(x => new
                 {
                     x.BannerId,
@@ -42,14 +80,25 @@ namespace HanakaServer.Controllers.Admin
                 })
                 .ToListAsync();
 
-            return Ok(new { items });
+            var mappedItems = items.Select(x => new
+            {
+                x.BannerId,
+                x.BannerKey,
+                x.Title,
+                ImageUrl = ToAbsoluteUrl(x.ImageUrl),
+                x.IsActive,
+                x.SortOrder
+            });
+
+            return Ok(new { items = mappedItems });
         }
 
         // GET: /api/admin/banners/{id}
         [HttpGet("{id:long}")]
         public async Task<IActionResult> GetDetail(long id)
         {
-            var x = await _db.Banners.AsNoTracking()
+            var x = await _db.Banners
+                .AsNoTracking()
                 .Where(b => b.BannerId == id)
                 .Select(b => new
                 {
@@ -62,8 +111,18 @@ namespace HanakaServer.Controllers.Admin
                 })
                 .FirstOrDefaultAsync();
 
-            if (x == null) return NotFound(new { message = "Không tìm thấy banner." });
-            return Ok(x);
+            if (x == null)
+                return NotFound(new { message = "Không tìm thấy banner." });
+
+            return Ok(new
+            {
+                x.BannerId,
+                x.BannerKey,
+                x.Title,
+                ImageUrl = ToAbsoluteUrl(x.ImageUrl),
+                x.IsActive,
+                x.SortOrder
+            });
         }
 
         // POST: /api/admin/banners (multipart/form-data)
@@ -87,12 +146,14 @@ namespace HanakaServer.Controllers.Admin
             if (string.IsNullOrWhiteSpace(title))
                 return BadRequest(new { message = "Vui lòng nhập Tiêu đề." });
 
-            // Unique key (khuyên)
             var exists = await _db.Banners.AnyAsync(x => x.BannerKey == bannerKey);
-            if (exists) return BadRequest(new { message = "BannerKey đã tồn tại. Vui lòng chọn mã khác." });
+            if (exists)
+                return BadRequest(new { message = "BannerKey đã tồn tại. Vui lòng chọn mã khác." });
 
-            string finalUrl = (imageUrl ?? "").Trim();
+            // Ưu tiên normalize imageUrl về relative
+            string? finalUrl = NormalizeImageToRelative(imageUrl);
 
+            // Nếu có upload file thì ưu tiên file
             if (imageFile != null && imageFile.Length > 0)
             {
                 finalUrl = await SaveBannerImage(imageFile);
@@ -118,7 +179,7 @@ namespace HanakaServer.Controllers.Admin
                 entity.BannerId,
                 entity.BannerKey,
                 entity.Title,
-                entity.ImageUrl,
+                ImageUrl = ToAbsoluteUrl(entity.ImageUrl),
                 entity.IsActive,
                 entity.SortOrder
             });
@@ -138,7 +199,8 @@ namespace HanakaServer.Controllers.Admin
         )
         {
             var entity = await _db.Banners.FirstOrDefaultAsync(x => x.BannerId == id);
-            if (entity == null) return NotFound(new { message = "Không tìm thấy banner." });
+            if (entity == null)
+                return NotFound(new { message = "Không tìm thấy banner." });
 
             bannerKey = (bannerKey ?? "").Trim();
             title = (title ?? "").Trim();
@@ -149,27 +211,29 @@ namespace HanakaServer.Controllers.Admin
             if (string.IsNullOrWhiteSpace(title))
                 return BadRequest(new { message = "Vui lòng nhập Tiêu đề." });
 
-            // Unique key check (trừ chính nó)
             var exists = await _db.Banners.AnyAsync(x => x.BannerKey == bannerKey && x.BannerId != id);
-            if (exists) return BadRequest(new { message = "BannerKey đã tồn tại. Vui lòng chọn mã khác." });
+            if (exists)
+                return BadRequest(new { message = "BannerKey đã tồn tại. Vui lòng chọn mã khác." });
 
             entity.BannerKey = bannerKey;
             entity.Title = title;
             entity.SortOrder = sortOrder;
             entity.IsActive = isActive;
 
-            // Image update:
-            // - Nếu upload file mới: ưu tiên file
-            // - Nếu không upload: nếu có imageUrl form thì set
+            // Cập nhật ảnh:
+            // - có file mới => ưu tiên file
+            // - không có file => nếu có imageUrl thì normalize rồi lưu
             if (imageFile != null && imageFile.Length > 0)
             {
                 entity.ImageUrl = await SaveBannerImage(imageFile);
             }
-            else if (imageUrl != null) // cho phép cập nhật url thủ công
+            else if (imageUrl != null)
             {
-                var url = imageUrl.Trim();
-                if (!string.IsNullOrWhiteSpace(url))
-                    entity.ImageUrl = url;
+                var normalized = NormalizeImageToRelative(imageUrl);
+                if (!string.IsNullOrWhiteSpace(normalized))
+                {
+                    entity.ImageUrl = normalized;
+                }
             }
 
             await _db.SaveChangesAsync();
@@ -179,7 +243,7 @@ namespace HanakaServer.Controllers.Admin
                 entity.BannerId,
                 entity.BannerKey,
                 entity.Title,
-                entity.ImageUrl,
+                ImageUrl = ToAbsoluteUrl(entity.ImageUrl),
                 entity.IsActive,
                 entity.SortOrder
             });
@@ -190,7 +254,8 @@ namespace HanakaServer.Controllers.Admin
         public async Task<IActionResult> Delete(long id)
         {
             var entity = await _db.Banners.FirstOrDefaultAsync(x => x.BannerId == id);
-            if (entity == null) return NotFound(new { message = "Không tìm thấy banner." });
+            if (entity == null)
+                return NotFound(new { message = "Không tìm thấy banner." });
 
             _db.Banners.Remove(entity);
             await _db.SaveChangesAsync();
@@ -202,6 +267,7 @@ namespace HanakaServer.Controllers.Admin
         {
             var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
             var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+
             if (!allowed.Contains(ext))
                 throw new InvalidOperationException("Chỉ cho phép jpg, jpeg, png, webp.");
 
@@ -216,10 +282,8 @@ namespace HanakaServer.Controllers.Admin
                 await file.CopyToAsync(stream);
             }
 
-            // tạo link public
-            var scheme = Request.Scheme;
-            var host = Request.Host.Value;
-            return $"{scheme}://{host}/uploads/banners/{fileName}";
+            // Lưu relative vào DB
+            return $"/uploads/banners/{fileName}";
         }
     }
 }
