@@ -18,4 +18,9 @@
         public string? PlayTime { get; set; }
         public string? AvatarUrl { get; set; }
     }
+
+    public class UpdateClubChallengeRequestDto
+    {
+        public bool AllowChallenge { get; set; }
+    }
 }

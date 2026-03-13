@@ -21,13 +21,14 @@ namespace HanakaServer.Models
 
         public bool IsCompleted { get; set; }
         public long? WinnerRegistrationId { get; set; }
-
+        
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
 
         // computed columns (persisted)
         public long TeamMin { get; set; }
         public long TeamMax { get; set; }
+        public string? VideoUrl { get; set; }
 
         // navigation (optional)
         public virtual TournamentRoundGroup TournamentRoundGroup { get; set; } = null!;

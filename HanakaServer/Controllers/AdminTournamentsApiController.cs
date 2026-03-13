@@ -202,7 +202,7 @@ namespace HanakaServer.Controllers
                 Content = req.Content,
                 CreatedAt = DateTime.UtcNow,
 
-                // ✅ NEW
+                //  NEW
                 Organizer = TrimToNull(req.Organizer),
                 CreatorName = TrimToNull(req.CreatorName),
                 FormatText = TrimToNull(req.FormatText),
@@ -215,7 +215,7 @@ namespace HanakaServer.Controllers
             _db.Tournaments.Add(t);
             await _db.SaveChangesAsync();
 
-            // ✅ trả full dto để UI prepend/update table
+            //  trả full dto để UI prepend/update table
             return Ok(MapToDto(t));
         }
 
@@ -256,7 +256,7 @@ namespace HanakaServer.Controllers
 
             if (req.Content != null) t.Content = req.Content;
 
-            // ✅ NEW: edit các field mở rộng (cho phép clear bằng string rỗng)
+            // edit các field mở rộng (cho phép clear bằng string rỗng)
             if (req.Organizer != null) t.Organizer = TrimToNull(req.Organizer);
             if (req.CreatorName != null) t.CreatorName = TrimToNull(req.CreatorName);
             if (req.FormatText != null) t.FormatText = TrimToNull(req.FormatText);
@@ -290,7 +290,7 @@ namespace HanakaServer.Controllers
 
             await _db.SaveChangesAsync();
 
-            // ✅ trả full dto để UI update row
+            // trả full dto để UI update row
             return Ok(MapToDto(t));
         }
     }

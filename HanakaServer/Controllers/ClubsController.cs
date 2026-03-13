@@ -1,6 +1,8 @@
 ﻿using HanakaServer.Data;
 using HanakaServer.Dtos;
 using HanakaServer.Models;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -31,6 +33,27 @@ namespace HanakaServer.Controllers
             var uid = User.FindFirstValue("uid") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(uid) || !long.TryParse(uid, out var userId))
                 throw new UnauthorizedAccessException("Invalid token: missing uid.");
+            return userId;
+        }
+
+        private async Task<long?> TryGetUserIdFromToken()
+        {
+            var uid = User.FindFirstValue("uid") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!string.IsNullOrWhiteSpace(uid) && long.TryParse(uid, out var parsedUserId))
+                return parsedUserId;
+
+            var authResult = await HttpContext.AuthenticateAsync(JwtBearerDefaults.AuthenticationScheme);
+
+            if (!authResult.Succeeded || authResult.Principal == null)
+                return null;
+
+            var principalUid =
+                authResult.Principal.FindFirstValue("uid") ??
+                authResult.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (string.IsNullOrWhiteSpace(principalUid) || !long.TryParse(principalUid, out var userId))
+                return null;
+
             return userId;
         }
 
@@ -74,7 +97,38 @@ namespace HanakaServer.Controllers
 
         private async Task<bool> IsClubOwner(long clubId, long userId)
         {
-            return await _db.Clubs.AnyAsync(x => x.ClubId == clubId && x.OwId == userId);
+            return await _db.ClubMembers.AnyAsync(x =>
+                x.ClubId == clubId &&
+                x.UserId == userId &&
+                x.IsActive &&
+                x.MemberRole == "OWNER");
+        }
+
+        private async Task<(string MyClubStatus, string? MyMemberRole, bool CanManage)> GetMyClubRelation(long clubId, long? userId)
+        {
+            if (!userId.HasValue)
+                return ("NONE", null, false);
+
+            var member = await _db.ClubMembers
+                .AsNoTracking()
+                .Where(x => x.ClubId == clubId && x.UserId == userId.Value)
+                .Select(x => new
+                {
+                    x.MemberRole,
+                    x.IsActive
+                })
+                .FirstOrDefaultAsync();
+
+            if (member == null)
+                return ("NONE", null, false);
+
+            if (!member.IsActive)
+                return ("PENDING", member.MemberRole, false);
+
+            if (member.MemberRole == "OWNER")
+                return ("MANAGER", member.MemberRole, true);
+
+            return ("MEMBER", member.MemberRole, false);
         }
 
         // =========================================================
@@ -114,6 +168,7 @@ namespace HanakaServer.Controllers
                 MatchesWin = 0,
                 MatchesDraw = 0,
                 MatchesLoss = 0,
+                AllowChallenge = false,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = null
             };
@@ -140,6 +195,7 @@ namespace HanakaServer.Controllers
                 clubName = club.ClubName,
                 areaText = club.AreaText,
                 coverUrl = ToAbsoluteUrl(club.CoverUrl),
+                allowChallenge = club.AllowChallenge,
                 owner = new
                 {
                     userId = owner.UserId,
@@ -152,14 +208,7 @@ namespace HanakaServer.Controllers
                 matchesWin = club.MatchesWin,
                 matchesDraw = club.MatchesDraw,
                 matchesLoss = club.MatchesLoss,
-                createdAt = club.CreatedAt,
-                extra = new
-                {
-                    description = req.Description,
-                    foundedDate = req.FoundedDate,
-                    playTime = req.PlayTime,
-                    avatarUrl = req.AvatarUrl
-                }
+                createdAt = club.CreatedAt
             });
         }
 
@@ -217,6 +266,8 @@ namespace HanakaServer.Controllers
             if (pageSize < 1) pageSize = 10;
             if (pageSize > 100) pageSize = 100;
 
+            var currentUserId = await TryGetUserIdFromToken();
+
             var q = _db.Clubs
                 .AsNoTracking()
                 .Where(x => x.IsActive);
@@ -247,82 +298,102 @@ namespace HanakaServer.Controllers
                     matchesWin = x.MatchesWin,
                     matchesDraw = x.MatchesDraw,
                     matchesLoss = x.MatchesLoss,
+                    allowChallenge = x.AllowChallenge,
                     owId = x.OwId,
                     createdAt = x.CreatedAt,
                     membersCount = x.ClubMembers.Count(cm => cm.IsActive)
                 })
                 .ToListAsync();
 
-            var mappedItems = items.Select(x => new
+            var result = new List<object>();
+
+            foreach (var item in items)
             {
-                x.clubId,
-                x.clubName,
-                x.areaText,
-                coverUrl = ToAbsoluteUrl(x.coverUrl),
-                x.ratingAvg,
-                x.reviewsCount,
-                x.matchesPlayed,
-                x.matchesWin,
-                x.matchesDraw,
-                x.matchesLoss,
-                x.owId,
-                x.createdAt,
-                x.membersCount
-            });
+                var relation = await GetMyClubRelation(item.clubId, currentUserId);
+
+                result.Add(new
+                {
+                    item.clubId,
+                    item.clubName,
+                    item.areaText,
+                    coverUrl = ToAbsoluteUrl(item.coverUrl),
+                    item.ratingAvg,
+                    item.reviewsCount,
+                    item.matchesPlayed,
+                    item.matchesWin,
+                    item.matchesDraw,
+                    item.matchesLoss,
+                    item.allowChallenge,
+                    item.owId,
+                    item.createdAt,
+                    item.membersCount,
+                    myClubStatus = relation.MyClubStatus,
+                    myMemberRole = relation.MyMemberRole,
+                    canManage = relation.CanManage
+                });
+            }
 
             return Ok(new
             {
                 total,
                 page,
                 pageSize,
-                items = mappedItems
+                items = result
             });
         }
 
         // =========================================================
-        // GET: api/clubs/my
+        // POST: api/clubs/{id}/join
         [Authorize(AuthenticationSchemes = "Bearer")]
-        [HttpGet("my")]
-        public async Task<IActionResult> GetMyClubs()
+        [HttpPost("{id:long}/join")]
+        public async Task<IActionResult> JoinClub(long id)
         {
             var userId = GetUserIdFromToken();
 
-            var items = await _db.Clubs
-                .AsNoTracking()
-                .Where(x => x.OwId == userId && x.IsActive)
-                .OrderByDescending(x => x.CreatedAt)
-                .Select(x => new
-                {
-                    x.ClubId,
-                    x.ClubName,
-                    x.AreaText,
-                    x.CoverUrl,
-                    x.RatingAvg,
-                    x.ReviewsCount,
-                    x.MatchesPlayed,
-                    x.MatchesWin,
-                    x.MatchesDraw,
-                    x.MatchesLoss,
-                    x.CreatedAt,
-                    membersCount = x.ClubMembers.Count(cm => cm.IsActive)
-                })
-                .ToListAsync();
+            var club = await _db.Clubs.FirstOrDefaultAsync(x => x.ClubId == id && x.IsActive);
+            if (club == null)
+                return NotFound(new { message = "Club not found." });
 
-            return Ok(items.Select(x => new
+            var existing = await _db.ClubMembers
+                .FirstOrDefaultAsync(x => x.ClubId == id && x.UserId == userId);
+
+            if (existing != null)
             {
-                x.ClubId,
-                x.ClubName,
-                x.AreaText,
-                coverUrl = ToAbsoluteUrl(x.CoverUrl),
-                x.RatingAvg,
-                x.ReviewsCount,
-                x.MatchesPlayed,
-                x.MatchesWin,
-                x.MatchesDraw,
-                x.MatchesLoss,
-                x.CreatedAt,
-                x.membersCount
-            }));
+                if (existing.IsActive)
+                {
+                    return BadRequest(new
+                    {
+                        message = existing.MemberRole == "OWNER"
+                            ? "Bạn là chủ CLB."
+                            : "Bạn đã là thành viên của CLB.",
+                        myClubStatus = existing.MemberRole == "OWNER" ? "MANAGER" : "MEMBER"
+                    });
+                }
+
+                return BadRequest(new
+                {
+                    message = "Yêu cầu tham gia của bạn đang chờ duyệt.",
+                    myClubStatus = "PENDING"
+                });
+            }
+
+            var member = new ClubMember
+            {
+                ClubId = id,
+                UserId = userId,
+                MemberRole = "MEMBER",
+                JoinedAt = DateTime.UtcNow,
+                IsActive = false
+            };
+
+            _db.ClubMembers.Add(member);
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Đã gửi yêu cầu tham gia CLB. Vui lòng chờ duyệt.",
+                myClubStatus = "PENDING"
+            });
         }
 
         // =========================================================
@@ -331,6 +402,8 @@ namespace HanakaServer.Controllers
         [HttpGet("{id:long}")]
         public async Task<IActionResult> GetClubDetail(long id)
         {
+            var currentUserId = await TryGetUserIdFromToken();
+
             var club = await _db.Clubs
                 .AsNoTracking()
                 .Where(x => x.ClubId == id && x.IsActive)
@@ -346,6 +419,7 @@ namespace HanakaServer.Controllers
                     x.MatchesWin,
                     x.MatchesDraw,
                     x.MatchesLoss,
+                    x.AllowChallenge,
                     x.OwId,
                     x.CreatedAt,
                     membersCount = x.ClubMembers.Count(cm => cm.IsActive),
@@ -356,16 +430,18 @@ namespace HanakaServer.Controllers
             if (club == null)
                 return NotFound(new { message = "Club not found." });
 
-            var owner = await _db.Users
+            var owner = await _db.ClubMembers
                 .AsNoTracking()
-                .Where(x => x.UserId == club.OwId)
+                .Where(x => x.ClubId == id && x.IsActive && x.MemberRole == "OWNER")
                 .Select(x => new
                 {
-                    x.UserId,
-                    x.FullName,
-                    x.AvatarUrl
+                    x.User.UserId,
+                    x.User.FullName,
+                    x.User.AvatarUrl
                 })
                 .FirstOrDefaultAsync();
+
+            var relation = await GetMyClubRelation(club.ClubId, currentUserId);
 
             return Ok(new
             {
@@ -379,9 +455,13 @@ namespace HanakaServer.Controllers
                 club.MatchesWin,
                 club.MatchesDraw,
                 club.MatchesLoss,
+                allowChallenge = club.AllowChallenge,
                 club.CreatedAt,
                 club.membersCount,
                 club.pendingMembersCount,
+                myClubStatus = relation.MyClubStatus,
+                myMemberRole = relation.MyMemberRole,
+                canManage = relation.CanManage,
                 owner = owner == null ? null : new
                 {
                     owner.UserId,
@@ -397,6 +477,8 @@ namespace HanakaServer.Controllers
         [HttpGet("{id:long}/overview")]
         public async Task<IActionResult> GetClubOverview(long id)
         {
+            var currentUserId = await TryGetUserIdFromToken();
+
             var club = await _db.Clubs
                 .AsNoTracking()
                 .Where(x => x.ClubId == id && x.IsActive)
@@ -412,8 +494,8 @@ namespace HanakaServer.Controllers
                     matchesWin = x.MatchesWin,
                     matchesDraw = x.MatchesDraw,
                     matchesLoss = x.MatchesLoss,
+                    allowChallenge = x.AllowChallenge,
                     createdAt = x.CreatedAt,
-                    owId = x.OwId,
                     membersCount = x.ClubMembers.Count(cm => cm.IsActive),
                     pendingMembersCount = x.ClubMembers.Count(cm => !cm.IsActive)
                 })
@@ -422,18 +504,20 @@ namespace HanakaServer.Controllers
             if (club == null)
                 return NotFound(new { message = "Club not found." });
 
-            var owner = await _db.Users
+            var owner = await _db.ClubMembers
                 .AsNoTracking()
-                .Where(x => x.UserId == club.owId)
+                .Where(x => x.ClubId == id && x.IsActive && x.MemberRole == "OWNER")
                 .Select(x => new
                 {
-                    userId = x.UserId,
-                    fullName = x.FullName,
-                    avatarUrl = x.AvatarUrl,
-                    ratingSingle = x.RatingSingle,
-                    ratingDouble = x.RatingDouble
+                    userId = x.User.UserId,
+                    fullName = x.User.FullName,
+                    avatarUrl = x.User.AvatarUrl,
+                    ratingSingle = x.User.RatingSingle,
+                    ratingDouble = x.User.RatingDouble
                 })
                 .FirstOrDefaultAsync();
+
+            var relation = await GetMyClubRelation(club.clubId, currentUserId);
 
             return Ok(new
             {
@@ -447,12 +531,13 @@ namespace HanakaServer.Controllers
                 club.matchesWin,
                 club.matchesDraw,
                 club.matchesLoss,
+                club.allowChallenge,
                 club.createdAt,
                 club.membersCount,
                 club.pendingMembersCount,
-
-                // vì model chưa có description/foundedDate/playTime/address riêng
-                // tạm dùng thông tin khả dụng hiện tại
+                myClubStatus = relation.MyClubStatus,
+                myMemberRole = relation.MyMemberRole,
+                canManage = relation.CanManage,
                 overview = new
                 {
                     title = club.clubName,
@@ -461,7 +546,6 @@ namespace HanakaServer.Controllers
                     addressText = club.areaText,
                     level = owner?.ratingDouble ?? owner?.ratingSingle ?? 0m
                 },
-
                 owner = owner == null ? null : new
                 {
                     owner.userId,
@@ -540,7 +624,6 @@ namespace HanakaServer.Controllers
 
         // =========================================================
         // GET: api/clubs/{id}/pending-members?page=1&pageSize=20
-        // Chỉ owner xem được
         [Authorize(AuthenticationSchemes = "Bearer")]
         [HttpGet("{id:long}/pending-members")]
         public async Task<IActionResult> GetPendingClubMembers(
@@ -554,20 +637,12 @@ namespace HanakaServer.Controllers
 
             var userId = GetUserIdFromToken();
 
-            var club = await _db.Clubs
-                .AsNoTracking()
-                .Where(x => x.ClubId == id && x.IsActive)
-                .Select(x => new
-                {
-                    x.ClubId,
-                    x.OwId
-                })
-                .FirstOrDefaultAsync();
-
-            if (club == null)
+            var clubExists = await _db.Clubs.AnyAsync(x => x.ClubId == id && x.IsActive);
+            if (!clubExists)
                 return NotFound(new { message = "Club not found." });
 
-            if (club.OwId != userId)
+            var isOwner = await IsClubOwner(id, userId);
+            if (!isOwner)
                 return Forbid();
 
             var q = _db.ClubMembers
@@ -614,6 +689,228 @@ namespace HanakaServer.Controllers
                     x.memberRole,
                     x.joinedAt
                 })
+            });
+        }
+
+        // =========================================================
+        // POST: api/clubs/{id}/pending-members/{memberUserId}/approve
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpPost("{id:long}/pending-members/{memberUserId:long}/approve")]
+        public async Task<IActionResult> ApprovePendingMember(long id, long memberUserId)
+        {
+            var userId = GetUserIdFromToken();
+
+            var isOwner = await IsClubOwner(id, userId);
+            if (!isOwner)
+                return Forbid();
+
+            var member = await _db.ClubMembers
+                .FirstOrDefaultAsync(x => x.ClubId == id && x.UserId == memberUserId);
+
+            if (member == null)
+                return NotFound(new { message = "Member request not found." });
+
+            if (member.IsActive)
+                return BadRequest(new { message = "Member is already active." });
+
+            member.IsActive = true;
+            member.MemberRole = "MEMBER";
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Duyệt thành viên thành công.",
+                clubId = id,
+                userId = memberUserId,
+                status = "MEMBER"
+            });
+        }
+
+        // =========================================================
+        // DELETE: api/clubs/{id}/pending-members/{memberUserId}
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpDelete("{id:long}/pending-members/{memberUserId:long}")]
+        public async Task<IActionResult> RejectPendingMember(long id, long memberUserId)
+        {
+            var userId = GetUserIdFromToken();
+
+            var isOwner = await IsClubOwner(id, userId);
+            if (!isOwner)
+                return Forbid();
+
+            var member = await _db.ClubMembers
+                .FirstOrDefaultAsync(x => x.ClubId == id && x.UserId == memberUserId && !x.IsActive);
+
+            if (member == null)
+                return NotFound(new { message = "Pending member not found." });
+
+            _db.ClubMembers.Remove(member);
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Đã từ chối yêu cầu tham gia.",
+                clubId = id,
+                userId = memberUserId
+            });
+        }
+
+        // =========================================================
+        // DELETE: api/clubs/{id}/members/{memberUserId}
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpDelete("{id:long}/members/{memberUserId:long}")]
+        public async Task<IActionResult> RemoveMember(long id, long memberUserId)
+        {
+            var userId = GetUserIdFromToken();
+
+            var isOwner = await IsClubOwner(id, userId);
+            if (!isOwner)
+                return Forbid();
+
+            var member = await _db.ClubMembers
+                .FirstOrDefaultAsync(x => x.ClubId == id && x.UserId == memberUserId && x.IsActive);
+
+            if (member == null)
+                return NotFound(new { message = "Member not found." });
+
+            if (member.MemberRole == "OWNER")
+                return BadRequest(new { message = "Không thể xóa chủ CLB." });
+
+            _db.ClubMembers.Remove(member);
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Xóa thành viên thành công.",
+                clubId = id,
+                userId = memberUserId
+            });
+        }
+
+        // =========================================================
+        // PUT: api/clubs/{id}/challenge-mode
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpPut("{id:long}/challenge-mode")]
+        public async Task<IActionResult> UpdateChallengeMode(long id, [FromBody] UpdateClubChallengeRequestDto req)
+        {
+            var userId = GetUserIdFromToken();
+
+            var club = await _db.Clubs.FirstOrDefaultAsync(x => x.ClubId == id && x.IsActive);
+            if (club == null)
+                return NotFound(new { message = "Club not found." });
+
+            var isOwner = await IsClubOwner(id, userId);
+            if (!isOwner)
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    message = "Chỉ OWNER mới được bật hoặc tắt chế độ khiêu chiến."
+                });
+
+            club.AllowChallenge = req.AllowChallenge;
+            club.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = req.AllowChallenge
+                    ? "Đã bật chế độ khiêu chiến cho CLB."
+                    : "Đã tắt chế độ khiêu chiến cho CLB.",
+                clubId = club.ClubId,
+                allowChallenge = club.AllowChallenge,
+                updatedAt = club.UpdatedAt
+            });
+        }
+        // =========================================================
+        // GET: api/clubs/challenging?keyword=&page=1&pageSize=10
+        [AllowAnonymous]
+        [HttpGet("challenging")]
+        public async Task<IActionResult> GetChallengingClubs(
+            [FromQuery] string? keyword,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10)
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 10;
+            if (pageSize > 100) pageSize = 100;
+
+            var currentUserId = await TryGetUserIdFromToken();
+
+            var q = _db.Clubs
+                .AsNoTracking()
+                .Where(x => x.IsActive && x.AllowChallenge);
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                var k = keyword.Trim();
+                q = q.Where(x =>
+                    x.ClubName.Contains(k) ||
+                    (x.AreaText != null && x.AreaText.Contains(k)));
+            }
+
+            var total = await q.CountAsync();
+
+            var items = await q
+                .OrderByDescending(x => x.UpdatedAt ?? x.CreatedAt)
+                .ThenByDescending(x => x.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => new
+                {
+                    clubId = x.ClubId,
+                    clubName = x.ClubName,
+                    areaText = x.AreaText,
+                    coverUrl = x.CoverUrl,
+                    ratingAvg = x.RatingAvg,
+                    reviewsCount = x.ReviewsCount,
+                    matchesPlayed = x.MatchesPlayed,
+                    matchesWin = x.MatchesWin,
+                    matchesDraw = x.MatchesDraw,
+                    matchesLoss = x.MatchesLoss,
+                    allowChallenge = x.AllowChallenge,
+                    owId = x.OwId,
+                    createdAt = x.CreatedAt,
+                    updatedAt = x.UpdatedAt,
+                    membersCount = x.ClubMembers.Count(cm => cm.IsActive)
+                })
+                .ToListAsync();
+
+            var result = new List<object>();
+
+            foreach (var item in items)
+            {
+                var relation = await GetMyClubRelation(item.clubId, currentUserId);
+
+                result.Add(new
+                {
+                    item.clubId,
+                    item.clubName,
+                    item.areaText,
+                    coverUrl = ToAbsoluteUrl(item.coverUrl),
+                    item.ratingAvg,
+                    item.reviewsCount,
+                    item.matchesPlayed,
+                    item.matchesWin,
+                    item.matchesDraw,
+                    item.matchesLoss,
+                    item.allowChallenge,
+                    item.owId,
+                    item.createdAt,
+                    item.updatedAt,
+                    item.membersCount,
+                    myClubStatus = relation.MyClubStatus,
+                    myMemberRole = relation.MyMemberRole,
+                    canManage = relation.CanManage
+                });
+            }
+
+            return Ok(new
+            {
+                total,
+                page,
+                pageSize,
+                items = result
             });
         }
     }

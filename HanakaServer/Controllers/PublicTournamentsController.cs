@@ -1,5 +1,6 @@
 ﻿using HanakaServer.Data;
 using HanakaServer.Dtos;
+using HanakaServer.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -280,6 +281,134 @@ namespace HanakaServer.Controllers
                 },
                 SuccessItems = successItems,
                 WaitingItems = waitingItems
+            });
+        }
+        private static string? TrimToNull(string? s)
+        {
+            if (s == null) return null;
+            var t = s.Trim();
+            return string.IsNullOrWhiteSpace(t) ? null : t;
+        }
+        public class TournamentMobileListItemDto
+        {
+            public long TournamentId { get; set; }
+
+            public string Title { get; set; } = null!;
+            public string Status { get; set; } = null!;
+            public string? StatusText { get; set; }
+            public string? StateText { get; set; }
+
+            public DateTime? StartTime { get; set; }
+            public DateTime? RegisterDeadline { get; set; }
+
+            public string GameType { get; set; } = "DOUBLE";
+            public int ExpectedTeams { get; set; }
+            public int RegisteredCount { get; set; }
+            public int PairedCount { get; set; }
+            public int MatchesCount { get; set; }
+
+            public string? LocationText { get; set; }
+            public string? AreaText { get; set; }
+            public string? Organizer { get; set; }
+            public string? CreatorName { get; set; }
+            public string? FormatText { get; set; }
+            public string? PlayoffType { get; set; }
+
+            public string? BannerUrl { get; set; }
+            public string? Content { get; set; }
+
+            public DateTime CreatedAt { get; set; }
+        }
+        private TournamentMobileListItemDto MapToDto(Tournament t)
+        {
+            return new TournamentMobileListItemDto
+            {
+                TournamentId = t.TournamentId,
+                Title = t.Title,
+                Status = t.Status,
+                StatusText = t.StatusText,
+                StateText = t.StateText,
+
+                StartTime = t.StartTime,
+                RegisterDeadline = t.RegisterDeadline,
+
+                GameType = t.GameType ?? "DOUBLE",
+                ExpectedTeams = t.ExpectedTeams,
+                RegisteredCount = t.RegisteredCount,
+                PairedCount = t.PairedCount,
+                MatchesCount = t.MatchesCount,
+
+                LocationText = t.LocationText,
+                AreaText = t.AreaText,
+                Organizer = t.Organizer,
+                CreatorName = t.CreatorName,
+                FormatText = t.FormatText,
+                PlayoffType = t.PlayoffType,
+                BannerUrl = ToAbsoluteUrl(t.BannerUrl),
+
+                Content = t.Content,
+                CreatedAt = t.CreatedAt
+            };
+        }
+
+        // GET: /api/tournaments?page=1&pageSize=10&status=OPEN&query=abc
+        [HttpGet]
+        public async Task<IActionResult> List(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 10,
+            [FromQuery] string? status = null,
+            [FromQuery] string? query = null)
+        {
+            if (page <= 0) page = 1;
+            if (pageSize <= 0) pageSize = 10;
+            if (pageSize > 50) pageSize = 50;
+
+            status = TrimToNull(status)?.ToUpperInvariant();
+            query = TrimToNull(query);
+
+            var q = _db.Tournaments.AsNoTracking().AsQueryable();
+
+            // filter status nếu có
+            if (!string.IsNullOrWhiteSpace(status) && status != "ALL")
+            {
+                q = q.Where(x => x.Status == status);
+            }
+
+            // filter query theo tên giải / khu vực / địa điểm / organizer
+            if (!string.IsNullOrWhiteSpace(query))
+            {
+                q = q.Where(x =>
+                    x.Title.Contains(query) ||
+                    (x.LocationText != null && x.LocationText.Contains(query)) ||
+                    (x.AreaText != null && x.AreaText.Contains(query)) ||
+                    (x.Organizer != null && x.Organizer.Contains(query)) ||
+                    (x.CreatorName != null && x.CreatorName.Contains(query))
+                );
+            }
+
+            var total = await q.CountAsync();
+
+            // mới đến cũ
+            var raw = await q
+                .OrderByDescending(x => x.CreatedAt)
+                .ThenByDescending(x => x.TournamentId)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var items = raw.Select(MapToDto).ToList();
+
+            var totalPages = total == 0 ? 0 : (int)Math.Ceiling(total / (double)pageSize);
+            var hasNextPage = page < totalPages;
+
+            return Ok(new
+            {
+                page,
+                pageSize,
+                total,
+                totalPages,
+                hasNextPage,
+                items
             });
         }
     }

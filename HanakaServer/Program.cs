@@ -65,7 +65,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-// ✅ Cho phép load CSS/JS/IMG trong wwwroot
+// Cho phép load CSS/JS/IMG trong wwwroot
 app.UseStaticFiles();
 
 app.UseRouting();

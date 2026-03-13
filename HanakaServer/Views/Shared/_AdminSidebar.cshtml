@@ -24,24 +24,20 @@
     </li>
 
     <li class="nav-item">
-        <a class="nav-link" asp-controller="Registrations" asp-action="Index">
-            <i class="fas fa-fw fa-clipboard-list"></i><span>Registrations</span>
-        </a>
+        @* <a class="nav-link" asp-controller="Registrations" asp-action="Index"> *@
+        @*     <i class="fas fa-fw fa-clipboard-list"></i><span>Registrations</span> *@
+        @* </a> *@
+    </li>
+        <hr class="sidebar-divider d-none d-md-block" />
+        <div class="text-center d-none d-md-inline">
+            <button class="rounded-circle border-0" id="sidebarToggle"></button>
+        </div>
+        <hr class="sidebar-divider" />
+
+    <li>
+        <div class="sidebar-heading">User</div>
     </li>
 
-    <li class="nav-item">
-        <a class="nav-link" asp-controller="GroupsSchedule" asp-action="Index">
-            <i class="fas fa-fw fa-stream"></i><span>Groups & Schedule</span>
-        </a>
-    </li>
-
-    <hr class="sidebar-divider d-none d-md-block" />
-    <div class="text-center d-none d-md-inline">
-        <button class="rounded-circle border-0" id="sidebarToggle"></button>
-    </div>
-
-    <hr class="sidebar-divider" />
-    <div class="sidebar-heading">User</div>
 
     <li class="nav-item">
         <a class="nav-link" asp-controller="Home" asp-action="Users">
@@ -51,6 +47,11 @@
     <li class="nav-item">
         <a class="nav-link" asp-controller="Banners" asp-action="Index">
             <i class="fas fa-fw fa-images"></i><span>Banner</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" asp-controller="Courts" asp-action="Index">
+            <i class="fas fa-fw fa-map-marker-alt"></i><span>Sân Bãi</span>
         </a>
     </li>
 </ul>

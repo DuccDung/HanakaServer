@@ -1,0 +1,460 @@
+﻿@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Courts";
+}
+
+<style>
+    .court-thumb {
+        width: 90px;
+        height: 60px;
+        object-fit: cover;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+        background: #f8f9fc;
+    }
+
+    .thumb-box {
+        position: relative;
+        display: inline-block;
+        margin-right: 8px;
+        margin-bottom: 8px;
+    }
+
+    .thumb-remove {
+        position: absolute;
+        top: -6px;
+        right: -6px;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 0;
+        background: #e74a3b;
+        color: #fff;
+        font-size: 12px;
+        line-height: 22px;
+        text-align: center;
+        cursor: pointer;
+    }
+
+    .upload-preview-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .empty-img {
+        width: 90px;
+        height: 60px;
+        border: 1px dashed #ccc;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #aaa;
+        background: #fafafa;
+    }
+</style>
+
+<div class="container-fluid" id="pageRoot">
+    <div class="d-sm-flex align-items-center justify-content-between mb-3">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">Courts</h1>
+            <div class="small text-muted">Quản lý sân và nhiều ảnh sân</div>
+        </div>
+
+        <div class="d-flex" style="gap:8px">
+            <button class="btn btn-sm btn-primary shadow-sm" type="button" id="btnOpenCreate">
+                <i class="fas fa-plus fa-sm text-white-50"></i> Add Court
+            </button>
+        </div>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">List</h6>
+
+            <div class="d-flex" style="gap:8px; align-items:center;">
+                <input id="q" class="form-control form-control-sm" style="width: 280px;" placeholder="Tìm tên sân / khu vực / quản lý / SĐT..." />
+                <button class="btn btn-sm btn-outline-primary" type="button" id="btnSearch">Search</button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th style="width:80px">ID</th>
+                            <th style="width:110px">Ảnh</th>
+                            <th>Tên sân</th>
+                            <th style="width:180px">Khu vực</th>
+                            <th style="width:180px">Quản lý</th>
+                            <th style="width:140px">SĐT</th>
+                            <th style="width:100px">Số ảnh</th>
+                            <th style="width:180px">Created</th>
+                            <th style="width:140px">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="body">
+                        <tr><td colspan="9" class="text-center text-muted">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Create/Edit -->
+<div class="modal fade" id="modalCourt" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <form id="formCourt">
+                <input type="hidden" id="courtId" />
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Add Court</h5>
+                    <button class="close" type="button" data-dismiss="modal"><span aria-hidden="true">×</span></button>
+                </div>
+
+                <div class="modal-body">
+                    <div id="formErr" class="alert alert-danger d-none"></div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Tên sân *</label>
+                            <input class="form-control" id="courtName" />
+                        </div>
+
+                        <div class="form-group col-md-6">
+                            <label>ExternalId</label>
+                            <input class="form-control" id="externalId" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label>Khu vực</label>
+                            <input class="form-control" id="areaText" />
+                        </div>
+
+                        <div class="form-group col-md-4">
+                            <label>Người quản lý</label>
+                            <input class="form-control" id="managerName" />
+                        </div>
+
+                        <div class="form-group col-md-4">
+                            <label>Số điện thoại</label>
+                            <input class="form-control" id="phone" />
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <div class="form-group">
+                        <label>Ảnh hiện có</label>
+                        <div id="existingImages" class="upload-preview-wrap">
+                            <div class="text-muted small">Chưa có ảnh</div>
+                        </div>
+                        <small class="text-muted">Khi sửa, bấm dấu × để bỏ ảnh cũ.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Chọn thêm ảnh từ máy tính</label>
+                        <input type="file" id="imageFiles" multiple accept="image/*" class="form-control" />
+                        <small class="text-muted">Có thể chọn nhiều ảnh cùng lúc: jpg, jpeg, png, webp.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Ảnh mới sẽ upload</label>
+                        <div id="newImagesPreview" class="upload-preview-wrap">
+                            <div class="text-muted small">Chưa chọn ảnh mới</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit" id="btnSubmit">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        (() => {
+            const $id = (id) => document.getElementById(id);
+            const on = (id, evt, handler) => {
+                const el = $id(id);
+                if (el) el.addEventListener(evt, handler);
+            };
+
+            const API = "/api/admin/courts";
+
+            let CACHE = [];
+            let KEEP_IMAGE_IDS = [];
+            let NEW_FILES = [];
+
+            const esc = (s) => String(s || "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;");
+
+            const fmt = (dt) => {
+                if (!dt) return "—";
+                const d = new Date(dt);
+                if (isNaN(d.getTime())) return "—";
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const dd = String(d.getDate()).padStart(2, "0");
+                const hh = String(d.getHours()).padStart(2, "0");
+                const mi = String(d.getMinutes()).padStart(2, "0");
+                return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+            };
+
+            function showErr(msg) {
+                const box = $id("formErr");
+                if (!box) return;
+                box.textContent = msg || "Error";
+                box.classList.remove("d-none");
+            }
+
+            function clearErr() {
+                const box = $id("formErr");
+                if (!box) return;
+                box.textContent = "";
+                box.classList.add("d-none");
+            }
+
+            function thumbHtml(url) {
+                if (!url) return `<div class="empty-img">No image</div>`;
+                return `<img src="${esc(url)}" class="court-thumb" />`;
+            }
+
+            function rowHtml(x) {
+                return `
+                    <tr>
+                        <td>${x.courtId}</td>
+                        <td>${thumbHtml(x.firstImage)}</td>
+                        <td><div class="font-weight-bold">${esc(x.courtName)}</div></td>
+                        <td>${esc(x.areaText || "")}</td>
+                        <td>${esc(x.managerName || "")}</td>
+                        <td>${esc(x.phone || "")}</td>
+                        <td class="text-center">${x.imageCount || 0}</td>
+                        <td>${fmt(x.createdAt)}</td>
+                        <td>
+                            <div class="d-flex" style="gap:6px">
+                                <button class="btn btn-sm btn-outline-primary" type="button" onclick="editCourt(${x.courtId})" title="Sửa">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" type="button" onclick="deleteCourt(${x.courtId})" title="Xoá">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+
+            async function load(q = "") {
+                const body = $id("body");
+                if (body) {
+                    body.innerHTML = `<tr><td colspan="9" class="text-center text-muted">Loading...</td></tr>`;
+                }
+
+                const res = await axios.get(API, { params: { q } });
+                CACHE = res.data.items || [];
+
+                if (!body) return;
+                if (!CACHE.length) {
+                    body.innerHTML = `<tr><td colspan="9" class="text-center text-muted">No courts</td></tr>`;
+                    return;
+                }
+
+                body.innerHTML = CACHE.map(rowHtml).join("");
+            }
+
+            function resetForm() {
+                $id("courtId").value = "";
+                $id("courtName").value = "";
+                $id("externalId").value = "";
+                $id("areaText").value = "";
+                $id("managerName").value = "";
+                $id("phone").value = "";
+                $id("imageFiles").value = "";
+
+                KEEP_IMAGE_IDS = [];
+                NEW_FILES = [];
+
+                $id("existingImages").innerHTML = `<div class="text-muted small">Chưa có ảnh</div>`;
+                $id("newImagesPreview").innerHTML = `<div class="text-muted small">Chưa chọn ảnh mới</div>`;
+                clearErr();
+            }
+
+            function renderExistingImages(images) {
+                const wrap = $id("existingImages");
+                if (!wrap) return;
+
+                if (!images || !images.length) {
+                    wrap.innerHTML = `<div class="text-muted small">Chưa có ảnh</div>`;
+                    return;
+                }
+
+                wrap.innerHTML = images.map(img => `
+                    <div class="thumb-box" data-id="${img.courtImageId}">
+                        <img src="${esc(img.imageUrl)}" class="court-thumb" />
+                        <button type="button" class="thumb-remove" onclick="removeExistingImage(${img.courtImageId})">×</button>
+                    </div>
+                `).join("");
+            }
+
+            function renderNewImages() {
+                const wrap = $id("newImagesPreview");
+                if (!wrap) return;
+
+                if (!NEW_FILES.length) {
+                    wrap.innerHTML = `<div class="text-muted small">Chưa chọn ảnh mới</div>`;
+                    return;
+                }
+
+                wrap.innerHTML = NEW_FILES.map((file, index) => {
+                    const url = URL.createObjectURL(file);
+                    return `
+                        <div class="thumb-box">
+                            <img src="${esc(url)}" class="court-thumb" />
+                            <button type="button" class="thumb-remove" onclick="removeNewFile(${index})">×</button>
+                        </div>
+                    `;
+                }).join("");
+            }
+
+            function buildFormData() {
+                const fd = new FormData();
+
+                fd.append("courtName", $id("courtName").value || "");
+                fd.append("externalId", $id("externalId").value || "");
+                fd.append("areaText", $id("areaText").value || "");
+                fd.append("managerName", $id("managerName").value || "");
+                fd.append("phone", $id("phone").value || "");
+                fd.append("keepImageIdsCsv", KEEP_IMAGE_IDS.join(","));
+
+                NEW_FILES.forEach(file => {
+                    fd.append("imageFiles", file);
+                });
+
+                return fd;
+            }
+
+            async function openCreate() {
+                resetForm();
+                $id("modalTitle").textContent = "Add Court";
+                $("#modalCourt").modal("show");
+            }
+
+            async function editCourt(id) {
+                resetForm();
+
+                const res = await axios.get(`${API}/${id}`);
+                const x = res.data;
+
+                $id("modalTitle").textContent = `Edit Court #${x.courtId}`;
+                $id("courtId").value = x.courtId;
+                $id("courtName").value = x.courtName || "";
+                $id("externalId").value = x.externalId || "";
+                $id("areaText").value = x.areaText || "";
+                $id("managerName").value = x.managerName || "";
+                $id("phone").value = x.phone || "";
+
+                KEEP_IMAGE_IDS = (x.images || []).map(i => i.courtImageId);
+                renderExistingImages(x.images || []);
+                renderNewImages();
+
+                $("#modalCourt").modal("show");
+            }
+
+            async function deleteCourt(id) {
+                if (!confirm("Bạn chắc chắn muốn xoá sân này?")) return;
+                await axios.delete(`${API}/${id}`);
+                await load($id("q")?.value || "");
+            }
+
+            function removeExistingImage(imageId) {
+                KEEP_IMAGE_IDS = KEEP_IMAGE_IDS.filter(x => x !== imageId);
+                const el = document.querySelector(`#existingImages .thumb-box[data-id="${imageId}"]`);
+                if (el) el.remove();
+
+                const wrap = $id("existingImages");
+                if (wrap && !wrap.querySelector(".thumb-box")) {
+                    wrap.innerHTML = `<div class="text-muted small">Chưa có ảnh</div>`;
+                }
+            }
+
+            function removeNewFile(index) {
+                NEW_FILES.splice(index, 1);
+                renderNewImages();
+            }
+
+            window.editCourt = editCourt;
+            window.deleteCourt = deleteCourt;
+            window.removeExistingImage = removeExistingImage;
+            window.removeNewFile = removeNewFile;
+
+            document.addEventListener("DOMContentLoaded", async () => {
+                on("btnOpenCreate", "click", openCreate);
+
+                on("btnSearch", "click", async () => {
+                    await load($id("q")?.value || "");
+                });
+
+                on("imageFiles", "change", (e) => {
+                    const files = Array.from(e.target.files || []);
+                    NEW_FILES = files;
+                    renderNewImages();
+                });
+
+                on("formCourt", "submit", async (e) => {
+                    e.preventDefault();
+                    clearErr();
+
+                    const btn = $id("btnSubmit");
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
+                    }
+
+                    try {
+                        const id = Number($id("courtId").value || 0);
+                        const fd = buildFormData();
+
+                        if (!($id("courtName").value || "").trim()) {
+                            throw new Error("Vui lòng nhập tên sân.");
+                        }
+
+                        if (id > 0) {
+                            await axios.put(`${API}/${id}`, fd);
+                        } else {
+                            await axios.post(API, fd);
+                        }
+
+                        $("#modalCourt").modal("hide");
+                        await load($id("q")?.value || "");
+                    } catch (err) {
+                        const msg = err?.response?.data?.message || err?.message || "Save failed.";
+                        showErr(msg);
+                    } finally {
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.innerHTML = `<i class="fas fa-save"></i> Save`;
+                        }
+                    }
+                });
+
+                await load();
+            });
+        })();
+    </script>
+}

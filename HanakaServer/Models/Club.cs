@@ -35,6 +35,8 @@ public partial class Club
 
     public DateTime? UpdatedAt { get; set; }
 
+    public bool AllowChallenge { get; set; }
+
     public virtual ICollection<ClubMember> ClubMembers { get; set; } = new List<ClubMember>();
 
     public virtual ICollection<ClubMessage> ClubMessages { get; set; } = new List<ClubMessage>();

@@ -23,7 +23,10 @@ namespace HanakaServer.Controllers
             _db = db;
             _config = config;
         }
-
+        private string GetBaseUrl()
+        {
+            return _config["PublicBaseUrl"] ?? "";
+        }
         [HttpPost("register")]
         public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterRequestDto dto)
         {
@@ -170,10 +173,6 @@ namespace HanakaServer.Controllers
                 }
             };
         }
-        private string GetBaseUrl()
-        {
-            var baseUrl = "http://192.168.0.101:5062";
-            return baseUrl;
-        }
+       
     }
 }

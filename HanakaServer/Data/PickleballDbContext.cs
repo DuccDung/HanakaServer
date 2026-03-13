@@ -56,9 +56,54 @@ public partial class PickleballDbContext : DbContext
     public virtual DbSet<TournamentRoundMap> TournamentRoundMaps { get; set; }
     public virtual DbSet<TournamentRoundGroup> TournamentRoundGroups { get; set; }
     public virtual DbSet<TournamentGroupMatch> TournamentGroupMatches { get; set; }
-
+    public virtual DbSet<Referee> Referees { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+
+        modelBuilder.Entity<Referee>(entity =>
+        {
+            entity.HasKey(e => e.RefereeId).HasName("PK_Referees");
+
+            entity.ToTable("Referees");
+
+            entity.HasIndex(e => e.ExternalId, "IX_Referees_ExternalId")
+                .IsUnique()
+                .HasFilter("([ExternalId] IS NOT NULL)");
+
+            entity.HasIndex(e => e.City, "IX_Referees_City");
+
+            entity.Property(e => e.ExternalId).HasMaxLength(50);
+
+            entity.Property(e => e.FullName).HasMaxLength(150);
+
+            entity.Property(e => e.City).HasMaxLength(100);
+
+            entity.Property(e => e.LevelSingle).HasColumnType("decimal(4, 2)");
+
+            entity.Property(e => e.LevelDouble).HasColumnType("decimal(4, 2)");
+
+            entity.Property(e => e.AvatarUrl).HasMaxLength(500);
+
+            entity.Property(e => e.RefereeType)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("REFEREE");
+
+            entity.Property(e => e.Introduction).HasColumnType("nvarchar(max)");
+
+            entity.Property(e => e.WorkingArea).HasColumnType("nvarchar(max)");
+
+            entity.Property(e => e.Achievements).HasColumnType("nvarchar(max)");
+
+            entity.Property(e => e.Verified).HasDefaultValue(false);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasPrecision(0);
+        });
         modelBuilder.Entity<TournamentRoundMap>(entity =>
         {
             entity.ToTable("TournamentRoundMaps");
@@ -224,6 +269,9 @@ public partial class PickleballDbContext : DbContext
             entity.Property(e => e.RatingAvg).HasColumnType("decimal(3, 2)");
             entity.Property(e => e.UpdatedAt).HasPrecision(0);
 
+            entity.Property(e => e.AllowChallenge)
+                .HasDefaultValue(false);
+
             entity.HasOne(d => d.Ow).WithMany(p => p.Clubs)
                 .HasForeignKey(d => d.OwId)
                 .HasConstraintName("FK_Clubs_Owner");
@@ -305,6 +353,9 @@ public partial class PickleballDbContext : DbContext
             entity.Property(e => e.FullName).HasMaxLength(150);
             entity.Property(e => e.LevelDouble).HasColumnType("decimal(4, 2)");
             entity.Property(e => e.LevelSingle).HasColumnType("decimal(4, 2)");
+            entity.Property(e => e.Introduction).HasColumnType("nvarchar(max)");
+            entity.Property(e => e.TeachingArea).HasColumnType("nvarchar(max)");
+            entity.Property(e => e.Achievements).HasColumnType("nvarchar(max)");
         });
 
         modelBuilder.Entity<Court>(entity =>

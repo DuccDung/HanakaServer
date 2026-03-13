@@ -3,9 +3,9 @@ using System.Collections.Generic;
 
 namespace HanakaServer.Models;
 
-public partial class Coach
+public partial class Referee
 {
-    public long CoachId { get; set; }
+    public long RefereeId { get; set; }
 
     public string? ExternalId { get; set; }
 
@@ -21,11 +21,15 @@ public partial class Coach
 
     public string? AvatarUrl { get; set; }
 
-    public string CoachType { get; set; } = null!;
+    public string RefereeType { get; set; } = null!;
 
     public string? Introduction { get; set; }
 
-    public string? TeachingArea { get; set; }
+    public string? WorkingArea { get; set; }
 
     public string? Achievements { get; set; }
+
+    public DateTime CreatedAt { get; set; }
+
+    public DateTime? UpdatedAt { get; set; }
 }
