@@ -110,6 +110,7 @@ namespace HanakaServer.Controllers
                     x.StartAt,
                     x.AddressText,
                     x.CourtText,
+                    x.VideoUrl,
                     x.ScoreTeam1,
                     x.ScoreTeam2,
                     x.IsCompleted,
@@ -194,6 +195,7 @@ namespace HanakaServer.Controllers
                                 StartAt = m.StartAt,
                                 AddressText = m.AddressText,
                                 CourtText = m.CourtText,
+                                VideoUrl = m.VideoUrl,
 
                                 ScoreTeam1 = m.ScoreTeam1,
                                 ScoreTeam2 = m.ScoreTeam2,
@@ -254,6 +256,7 @@ namespace HanakaServer.Controllers
                     x.StartAt,
                     x.AddressText,
                     x.CourtText,
+                    x.VideoUrl,
                     x.ScoreTeam1,
                     x.ScoreTeam2,
                     x.IsCompleted,
@@ -414,6 +417,7 @@ namespace HanakaServer.Controllers
                     StartAt = match.StartAt,
                     AddressText = match.AddressText,
                     CourtText = match.CourtText,
+                    VideoUrl = match.VideoUrl,
 
                     ScoreTeam1 = match.ScoreTeam1,
                     ScoreTeam2 = match.ScoreTeam2,
@@ -494,6 +498,7 @@ namespace HanakaServer.Controllers
 
             return null;
         }
+
         // GET /api/tournaments/{tournamentId}/round-maps/{roundMapId}/standings
         [HttpGet("{tournamentId:long}/round-maps/{roundMapId:long}/standings")]
         public async Task<IActionResult> GetRoundStandings(long tournamentId, long roundMapId)
@@ -685,6 +690,7 @@ namespace HanakaServer.Controllers
 
             return $"{p1}/{p2}";
         }
+
         /// <summary>
         /// GET: /api/tournaments/{tournamentId}/rule
         /// Lấy riêng thể lệ giải của tournament
@@ -711,12 +717,14 @@ namespace HanakaServer.Controllers
     }
 
     #region Response DTOs
+
     public class TournamentRuleResponseDto
     {
         public long TournamentId { get; set; }
         public string Title { get; set; } = null!;
         public string? TournamentRule { get; set; }
     }
+
     public class TournamentRoundsWithMatchesResponseDto
     {
         public TournamentClientDto Tournament { get; set; } = null!;
@@ -796,6 +804,7 @@ namespace HanakaServer.Controllers
         public DateTime? StartAt { get; set; }
         public string? AddressText { get; set; }
         public string? CourtText { get; set; }
+        public string? VideoUrl { get; set; }
 
         public int ScoreTeam1 { get; set; }
         public int ScoreTeam2 { get; set; }
@@ -865,6 +874,4 @@ namespace HanakaServer.Controllers
     }
 
     #endregion
-
-
 }
