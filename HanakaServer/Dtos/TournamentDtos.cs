@@ -18,7 +18,7 @@ namespace HanakaServer.Dtos
 
         public decimal? SingleLimit { get; set; }
         public decimal? DoubleLimit { get; set; }
-
+        public string? TournamentRule { get; set; }
         public string? Content { get; set; }
 
         // Optional (mở rộng)
@@ -49,7 +49,6 @@ namespace HanakaServer.Dtos
         public decimal? SingleLimit { get; set; }
         public decimal? DoubleLimit { get; set; }
 
-        // ✅ Fields mở rộng
         public string? FormatText { get; set; }
         public string? PlayoffType { get; set; }
         public string? Organizer { get; set; }
@@ -60,6 +59,7 @@ namespace HanakaServer.Dtos
         public int? RegisteredCount { get; set; }
         public int? PairedCount { get; set; }
         public string? Content { get; set; }
+        public string? TournamentRule { get; set; }
     }
 
     public class UpdateTournamentRequest
@@ -79,8 +79,7 @@ namespace HanakaServer.Dtos
         public decimal? DoubleLimit { get; set; }
 
         public string? Content { get; set; }
-
-        // ✅ NEW: cho edit các field mở rộng
+        public string? TournamentRule { get; set; }
         public string? FormatText { get; set; }
         public string? PlayoffType { get; set; }
         public string? Organizer { get; set; }
@@ -99,5 +98,36 @@ namespace HanakaServer.Dtos
         public bool WaitingPair { get; set; }
         public bool Paid { get; set; }
         public string? BtCode { get; set; }
+    }
+    public class GroupStandingRowDto
+    {
+        public long RegistrationId { get; set; }
+        public string TeamName { get; set; } = null!;
+
+        public int Played { get; set; }
+        public int Wins { get; set; }
+        public int Points { get; set; }
+        public int ScoreDiff { get; set; }
+
+        public int ScoreFor { get; set; }
+        public int ScoreAgainst { get; set; }
+
+        public int Rank { get; set; }
+    }
+
+    public class GroupStandingDto
+    {
+        public long GroupId { get; set; }
+        public string GroupName { get; set; } = null!;
+        public List<GroupStandingRowDto> Rows { get; set; } = new();
+    }
+
+    public class RoundStandingResponseDto
+    {
+        public long TournamentId { get; set; }
+        public long RoundMapId { get; set; }
+        public string RoundKey { get; set; } = null!;
+        public string RoundLabel { get; set; } = null!;
+        public List<GroupStandingDto> Groups { get; set; } = new();
     }
 }

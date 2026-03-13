@@ -1,4 +1,5 @@
 ﻿using HanakaServer.Data;
+using HanakaServer.Dtos;
 using HanakaServer.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -493,10 +494,229 @@ namespace HanakaServer.Controllers
 
             return null;
         }
+        // GET /api/tournaments/{tournamentId}/round-maps/{roundMapId}/standings
+        [HttpGet("{tournamentId:long}/round-maps/{roundMapId:long}/standings")]
+        public async Task<IActionResult> GetRoundStandings(long tournamentId, long roundMapId)
+        {
+            var roundMap = await _db.TournamentRoundMaps
+                .AsNoTracking()
+                .Where(x => x.TournamentRoundMapId == roundMapId && x.TournamentId == tournamentId)
+                .Select(x => new
+                {
+                    x.TournamentRoundMapId,
+                    x.TournamentId,
+                    x.RoundKey,
+                    x.RoundLabel
+                })
+                .FirstOrDefaultAsync();
+
+            if (roundMap == null)
+                return NotFound(new { message = "Round not found." });
+
+            var tournament = await _db.Tournaments
+                .AsNoTracking()
+                .Where(x => x.TournamentId == tournamentId)
+                .Select(x => new
+                {
+                    x.TournamentId,
+                    x.GameType
+                })
+                .FirstOrDefaultAsync();
+
+            if (tournament == null)
+                return NotFound(new { message = "Tournament not found." });
+
+            var groups = await _db.TournamentRoundGroups
+                .AsNoTracking()
+                .Where(x => x.TournamentRoundMapId == roundMapId)
+                .OrderBy(x => x.SortOrder)
+                .ThenBy(x => x.GroupName)
+                .Select(x => new
+                {
+                    x.TournamentRoundGroupId,
+                    x.GroupName,
+                    x.SortOrder
+                })
+                .ToListAsync();
+
+            var groupIds = groups.Select(x => x.TournamentRoundGroupId).ToList();
+
+            var matches = await _db.TournamentGroupMatches
+                .AsNoTracking()
+                .Where(x => groupIds.Contains(x.TournamentRoundGroupId) && x.IsCompleted)
+                .Select(x => new
+                {
+                    x.MatchId,
+                    x.TournamentRoundGroupId,
+                    x.Team1RegistrationId,
+                    x.Team2RegistrationId,
+                    x.ScoreTeam1,
+                    x.ScoreTeam2,
+                    x.WinnerRegistrationId
+                })
+                .ToListAsync();
+
+            var registrationIds = matches
+                .SelectMany(x => new[] { x.Team1RegistrationId, x.Team2RegistrationId })
+                .Distinct()
+                .ToList();
+
+            var registrations = await _db.TournamentRegistrations
+                .AsNoTracking()
+                .Where(x => registrationIds.Contains(x.RegistrationId))
+                .Select(x => new
+                {
+                    x.RegistrationId,
+                    x.RegIndex,
+                    x.Player1Name,
+                    x.Player2Name
+                })
+                .ToListAsync();
+
+            var regMap = registrations.ToDictionary(
+                x => x.RegistrationId,
+                x => new
+                {
+                    x.RegIndex,
+                    TeamName = BuildTeamName(tournament.GameType, x.Player1Name, x.Player2Name)
+                });
+
+            var result = new RoundStandingResponseDto
+            {
+                TournamentId = tournamentId,
+                RoundMapId = roundMap.TournamentRoundMapId,
+                RoundKey = roundMap.RoundKey,
+                RoundLabel = roundMap.RoundLabel,
+                Groups = new List<GroupStandingDto>()
+            };
+
+            foreach (var g in groups)
+            {
+                var groupMatches = matches
+                    .Where(m => m.TournamentRoundGroupId == g.TournamentRoundGroupId)
+                    .ToList();
+
+                var stats = new Dictionary<long, GroupStandingRowDto>();
+
+                void EnsureTeam(long registrationId)
+                {
+                    if (!stats.ContainsKey(registrationId))
+                    {
+                        var reg = regMap[registrationId];
+                        stats[registrationId] = new GroupStandingRowDto
+                        {
+                            RegistrationId = registrationId,
+                            TeamName = reg.TeamName,
+                            Played = 0,
+                            Wins = 0,
+                            Points = 0,
+                            ScoreDiff = 0,
+                            ScoreFor = 0,
+                            ScoreAgainst = 0,
+                            Rank = 0
+                        };
+                    }
+                }
+
+                foreach (var m in groupMatches)
+                {
+                    EnsureTeam(m.Team1RegistrationId);
+                    EnsureTeam(m.Team2RegistrationId);
+
+                    var team1 = stats[m.Team1RegistrationId];
+                    var team2 = stats[m.Team2RegistrationId];
+
+                    team1.Played++;
+                    team2.Played++;
+
+                    team1.ScoreFor += m.ScoreTeam1;
+                    team1.ScoreAgainst += m.ScoreTeam2;
+                    team1.ScoreDiff = team1.ScoreFor - team1.ScoreAgainst;
+
+                    team2.ScoreFor += m.ScoreTeam2;
+                    team2.ScoreAgainst += m.ScoreTeam1;
+                    team2.ScoreDiff = team2.ScoreFor - team2.ScoreAgainst;
+
+                    if (m.ScoreTeam1 > m.ScoreTeam2)
+                    {
+                        team1.Wins++;
+                        team1.Points += 1;
+                    }
+                    else if (m.ScoreTeam2 > m.ScoreTeam1)
+                    {
+                        team2.Wins++;
+                        team2.Points += 1;
+                    }
+                }
+
+                var ordered = stats.Values
+                    .OrderByDescending(x => x.Points)
+                    .ThenByDescending(x => x.Wins)
+                    .ThenByDescending(x => x.ScoreDiff)
+                    .ThenByDescending(x => x.ScoreFor)
+                    .ThenBy(x => regMap[x.RegistrationId].RegIndex)
+                    .ToList();
+
+                for (int i = 0; i < ordered.Count; i++)
+                    ordered[i].Rank = i + 1;
+
+                result.Groups.Add(new GroupStandingDto
+                {
+                    GroupId = g.TournamentRoundGroupId,
+                    GroupName = g.GroupName,
+                    Rows = ordered
+                });
+            }
+
+            return Ok(result);
+        }
+
+        private static string BuildTeamName(string? gameType, string? player1Name, string? player2Name)
+        {
+            var gt = (gameType ?? "DOUBLE").Trim().ToUpperInvariant();
+            var p1 = (player1Name ?? "").Trim();
+            var p2 = (player2Name ?? "").Trim();
+
+            if (gt == "SINGLE")
+                return p1;
+
+            if (string.IsNullOrWhiteSpace(p2))
+                return p1;
+
+            return $"{p1}/{p2}";
+        }
+        /// <summary>
+        /// GET: /api/tournaments/{tournamentId}/rule
+        /// Lấy riêng thể lệ giải của tournament
+        /// </summary>
+        [HttpGet("{tournamentId:long}/rule")]
+        public async Task<IActionResult> GetTournamentRule(long tournamentId)
+        {
+            var item = await _db.Tournaments
+                .AsNoTracking()
+                .Where(x => x.TournamentId == tournamentId)
+                .Select(x => new TournamentRuleResponseDto
+                {
+                    TournamentId = x.TournamentId,
+                    Title = x.Title,
+                    TournamentRule = x.TournamentRule
+                })
+                .FirstOrDefaultAsync();
+
+            if (item == null)
+                return NotFound(new { message = "Tournament not found." });
+
+            return Ok(item);
+        }
     }
 
     #region Response DTOs
-
+    public class TournamentRuleResponseDto
+    {
+        public long TournamentId { get; set; }
+        public string Title { get; set; } = null!;
+        public string? TournamentRule { get; set; }
+    }
     public class TournamentRoundsWithMatchesResponseDto
     {
         public TournamentClientDto Tournament { get; set; } = null!;
@@ -645,4 +865,6 @@ namespace HanakaServer.Controllers
     }
 
     #endregion
+
+
 }

@@ -501,6 +501,7 @@ public partial class PickleballDbContext : DbContext
                 .IsUnicode(false);
             entity.Property(e => e.StatusText).HasMaxLength(50);
             entity.Property(e => e.Title).HasMaxLength(300);
+            entity.Property(e => e.TournamentRule).HasColumnType("nvarchar(max)");
         });
 
         modelBuilder.Entity<TournamentRegistration>(entity =>

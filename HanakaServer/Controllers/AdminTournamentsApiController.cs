@@ -85,10 +85,10 @@ namespace HanakaServer.Controllers
                 MatchesCount = t.MatchesCount,
                 RegisteredCount = t.RegisteredCount,
                 PairedCount = t.PairedCount,
-                Content = t.Content
+                Content = t.Content,
+                TournamentRule = t.TournamentRule
             };
         }
-
         // GET: /api/admin/tournaments?status=OPEN&page=1&pageSize=50
         [AllowAnonymous]
         [HttpGet]
@@ -200,7 +200,9 @@ namespace HanakaServer.Controllers
                 SingleLimit = req.SingleLimit ?? 0,
                 DoubleLimit = req.DoubleLimit ?? 0,
                 Content = req.Content,
+                TournamentRule = req.TournamentRule,
                 CreatedAt = DateTime.UtcNow,
+
 
                 //  NEW
                 Organizer = TrimToNull(req.Organizer),
@@ -261,7 +263,7 @@ namespace HanakaServer.Controllers
             if (req.CreatorName != null) t.CreatorName = TrimToNull(req.CreatorName);
             if (req.FormatText != null) t.FormatText = TrimToNull(req.FormatText);
             if (req.PlayoffType != null) t.PlayoffType = TrimToNull(req.PlayoffType);
-
+            if (req.TournamentRule != null) t.TournamentRule = req.TournamentRule;
             // ===== nếu có upload banner mới =====
             if (req.BannerFile != null && req.BannerFile.Length > 0)
             {

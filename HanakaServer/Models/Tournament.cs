@@ -56,6 +56,7 @@ public partial class Tournament
     public string? Content { get; set; }
 
     public DateTime CreatedAt { get; set; }
+    public string? TournamentRule { get; set; }
 
     public virtual ICollection<TournamentRegistration> TournamentRegistrations { get; set; } = new List<TournamentRegistration>();
 
