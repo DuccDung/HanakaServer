@@ -913,5 +913,543 @@ namespace HanakaServer.Controllers
                 items = result
             });
         }
+        // =========================================================
+        // GET: api/clubs/my?keyword=&status=ALL&page=1&pageSize=20
+        // status:
+        // - ALL       : tất cả club liên quan tới tôi
+        // - MEMBER    : club tôi là thành viên đã duyệt
+        // - MANAGER   : club tôi là OWNER / quản lý
+        // - PENDING   : club tôi đã gửi yêu cầu tham gia nhưng chưa duyệt
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpGet("my")]
+        public async Task<IActionResult> GetMyClubs(
+            [FromQuery] string? keyword,
+            [FromQuery] string status = "ALL",
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20)
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 100) pageSize = 100;
+
+            var userId = GetUserIdFromToken();
+
+            status = (status ?? "ALL").Trim().ToUpperInvariant();
+            var allowedStatus = new[] { "ALL", "MEMBER", "MANAGER", "PENDING" };
+            if (!allowedStatus.Contains(status))
+            {
+                return BadRequest(new
+                {
+                    message = "status không hợp lệ. Chỉ nhận: ALL, MEMBER, MANAGER, PENDING."
+                });
+            }
+
+            var q = _db.ClubMembers
+                .AsNoTracking()
+                .Where(x => x.UserId == userId && x.Club.IsActive);
+
+            if (!string.IsNullOrWhiteSpace(keyword))
+            {
+                var k = keyword.Trim();
+                q = q.Where(x =>
+                    x.Club.ClubName.Contains(k) ||
+                    (x.Club.AreaText != null && x.Club.AreaText.Contains(k)));
+            }
+
+            switch (status)
+            {
+                case "MEMBER":
+                    q = q.Where(x => x.IsActive && x.MemberRole != "OWNER");
+                    break;
+
+                case "MANAGER":
+                    q = q.Where(x => x.IsActive && x.MemberRole == "OWNER");
+                    break;
+
+                case "PENDING":
+                    q = q.Where(x => !x.IsActive);
+                    break;
+
+                case "ALL":
+                default:
+                    break;
+            }
+
+            var total = await q.CountAsync();
+
+            var items = await q
+                .OrderByDescending(x => x.IsActive) // active trước
+                .ThenByDescending(x => x.MemberRole == "OWNER") // OWNER trước
+                .ThenByDescending(x => x.Club.UpdatedAt ?? x.Club.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => new
+                {
+                    clubId = x.Club.ClubId,
+                    clubName = x.Club.ClubName,
+                    areaText = x.Club.AreaText,
+                    coverUrl = x.Club.CoverUrl,
+                    ratingAvg = x.Club.RatingAvg,
+                    reviewsCount = x.Club.ReviewsCount,
+                    matchesPlayed = x.Club.MatchesPlayed,
+                    matchesWin = x.Club.MatchesWin,
+                    matchesDraw = x.Club.MatchesDraw,
+                    matchesLoss = x.Club.MatchesLoss,
+                    allowChallenge = x.Club.AllowChallenge,
+                    createdAt = x.Club.CreatedAt,
+                    updatedAt = x.Club.UpdatedAt,
+
+                    myMemberRole = x.MemberRole,
+                    isMembershipActive = x.IsActive,
+                    joinedAt = x.JoinedAt,
+
+                    membersCount = x.Club.ClubMembers.Count(cm => cm.IsActive),
+
+                    owner = x.Club.ClubMembers
+                        .Where(cm => cm.IsActive && cm.MemberRole == "OWNER")
+                        .Select(cm => new
+                        {
+                            userId = cm.User.UserId,
+                            fullName = cm.User.FullName,
+                            avatarUrl = cm.User.AvatarUrl
+                        })
+                        .FirstOrDefault()
+                })
+                .ToListAsync();
+
+            var result = items.Select(x =>
+            {
+                string myClubStatus;
+                bool canManage = false;
+
+                if (!x.isMembershipActive)
+                {
+                    myClubStatus = "PENDING";
+                }
+                else if (x.myMemberRole == "OWNER")
+                {
+                    myClubStatus = "MANAGER";
+                    canManage = true;
+                }
+                else
+                {
+                    myClubStatus = "MEMBER";
+                }
+
+                return new
+                {
+                    x.clubId,
+                    x.clubName,
+                    x.areaText,
+                    coverUrl = ToAbsoluteUrl(x.coverUrl),
+                    x.ratingAvg,
+                    x.reviewsCount,
+                    x.matchesPlayed,
+                    x.matchesWin,
+                    x.matchesDraw,
+                    x.matchesLoss,
+                    x.allowChallenge,
+                    x.createdAt,
+                    x.updatedAt,
+                    x.joinedAt,
+                    x.membersCount,
+                    myClubStatus,
+                    myMemberRole = x.myMemberRole,
+                    canManage,
+                    owner = x.owner == null ? null : new
+                    {
+                        x.owner.userId,
+                        x.owner.fullName,
+                        avatarUrl = ToAbsoluteUrl(x.owner.avatarUrl)
+                    }
+                };
+            });
+
+            var summaryBase = await _db.ClubMembers
+                .AsNoTracking()
+                .Where(x => x.UserId == userId && x.Club.IsActive)
+                .GroupBy(x => 1)
+                .Select(g => new
+                {
+                    totalAll = g.Count(),
+                    totalManager = g.Count(x => x.IsActive && x.MemberRole == "OWNER"),
+                    totalMember = g.Count(x => x.IsActive && x.MemberRole != "OWNER"),
+                    totalPending = g.Count(x => !x.IsActive)
+                })
+                .FirstOrDefaultAsync();
+
+            return Ok(new
+            {
+                total,
+                page,
+                pageSize,
+                filter = status,
+                summary = new
+                {
+                    totalAll = summaryBase?.totalAll ?? 0,
+                    totalManager = summaryBase?.totalManager ?? 0,
+                    totalMember = summaryBase?.totalMember ?? 0,
+                    totalPending = summaryBase?.totalPending ?? 0
+                },
+                items = result
+            });
+        }
+        // =========================================================
+        // GET: api/clubs/chat-rooms?page=1&pageSize=20
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpGet("chat-rooms")]
+        public async Task<IActionResult> GetMyClubChatRooms(
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20)
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 20;
+            if (pageSize > 100) pageSize = 100;
+
+            var userId = GetUserIdFromToken();
+
+            var memberClubIds = await _db.ClubMembers
+                .AsNoTracking()
+                .Where(x => x.UserId == userId && x.IsActive && x.Club.IsActive)
+                .Select(x => x.ClubId)
+                .ToListAsync();
+
+            var q = _db.Clubs
+                .AsNoTracking()
+                .Where(x => memberClubIds.Contains(x.ClubId));
+
+            var total = await q.CountAsync();
+
+            var clubs = await q
+                .OrderByDescending(x => x.UpdatedAt ?? x.CreatedAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => new
+                {
+                    x.ClubId,
+                    x.ClubName,
+                    x.CoverUrl,
+                    x.AreaText,
+                    membersCount = x.ClubMembers.Count(cm => cm.IsActive),
+                    lastMessage = x.ClubMessages
+                        .Where(m => !m.IsDeleted)
+                        .OrderByDescending(m => m.SentAt)
+                        .Select(m => new
+                        {
+                            m.MessageId,
+                            m.MessageType,
+                            m.Content,
+                            m.MediaUrl,
+                            m.SentAt,
+                            m.SenderUserId,
+                            senderName = m.SenderUser.FullName,
+                            senderAvatarUrl = m.SenderUser.AvatarUrl
+                        })
+                        .FirstOrDefault()
+                })
+                .ToListAsync();
+
+            var items = clubs
+                .Select(x => new
+                {
+                    clubId = x.ClubId,
+                    clubName = x.ClubName,
+                    clubCoverUrl = ToAbsoluteUrl(x.CoverUrl),
+                    areaText = x.AreaText,
+                    x.membersCount,
+                    lastMessagePreview = x.lastMessage == null
+                        ? null
+                        : x.lastMessage.MessageType == "TEXT"
+                            ? x.lastMessage.Content
+                            : "[Tệp đính kèm]",
+                    lastMessageType = x.lastMessage?.MessageType,
+                    lastMessageAt = x.lastMessage?.SentAt,
+                    lastSenderUserId = x.lastMessage?.SenderUserId,
+                    lastSenderName = x.lastMessage?.senderName,
+                    lastSenderAvatarUrl = ToAbsoluteUrl(x.lastMessage?.senderAvatarUrl)
+                })
+                .OrderByDescending(x => x.lastMessageAt ?? DateTime.MinValue)
+                .ThenBy(x => x.clubName)
+                .ToList();
+
+            return Ok(new
+            {
+                total,
+                page,
+                pageSize,
+                items
+            });
+        }
+        // =========================================================
+        // GET: api/clubs/{id}/messages?page=1&pageSize=30
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpGet("{id:long}/messages")]
+        public async Task<IActionResult> GetClubMessages(
+            long id,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 30)
+        {
+            if (page < 1) page = 1;
+            if (pageSize < 1) pageSize = 30;
+            if (pageSize > 100) pageSize = 100;
+
+            var userId = GetUserIdFromToken();
+
+            var clubExists = await _db.Clubs.AnyAsync(x => x.ClubId == id && x.IsActive);
+            if (!clubExists)
+                return NotFound(new { message = "Club not found." });
+
+            var isMember = await IsActiveClubMember(id, userId);
+            if (!isMember)
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    message = "Bạn phải là thành viên CLB mới xem được tin nhắn."
+                });
+
+            var q = _db.ClubMessages
+                .AsNoTracking()
+                .Where(x => x.ClubId == id && !x.IsDeleted);
+
+            var total = await q.CountAsync();
+
+            var items = await q
+                .OrderByDescending(x => x.SentAt)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => new
+                {
+                    x.MessageId,
+                    x.ClubId,
+                    x.SenderUserId,
+                    x.MessageType,
+                    x.Content,
+                    x.MediaUrl,
+                    x.ReplyToId,
+                    x.SentAt,
+                    sender = new
+                    {
+                        userId = x.SenderUser.UserId,
+                        fullName = x.SenderUser.FullName,
+                        avatarUrl = x.SenderUser.AvatarUrl
+                    },
+                    replyTo = x.ReplyTo == null ? null : new
+                    {
+                        messageId = x.ReplyTo.MessageId,
+                        content = x.ReplyTo.Content,
+                        messageType = x.ReplyTo.MessageType,
+                        senderUserId = x.ReplyTo.SenderUserId
+                    }
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                clubId = id,
+                total,
+                page,
+                pageSize,
+                items = items
+                    .Select(x => new
+                    {
+                        messageId = x.MessageId,
+                        clubId = x.ClubId,
+                        senderUserId = x.SenderUserId,
+                        messageType = x.MessageType,
+                        content = x.Content,
+                        mediaUrl = ToAbsoluteUrl(x.MediaUrl),
+                        replyToId = x.ReplyToId,
+                        sentAt = x.SentAt,
+                        sender = new
+                        {
+                            x.sender.userId,
+                            x.sender.fullName,
+                            avatarUrl = ToAbsoluteUrl(x.sender.avatarUrl)
+                        },
+                        x.replyTo
+                    })
+                    .OrderBy(x => x.sentAt)
+                    .ToList()
+            });
+        }
+        // =========================================================
+        // POST: api/clubs/{id}/messages
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpPost("{id:long}/messages")]
+        public async Task<IActionResult> SendClubMessage(long id, [FromBody] SendClubMessageRequestDto req)
+        {
+            var userId = GetUserIdFromToken();
+
+            var club = await _db.Clubs.FirstOrDefaultAsync(x => x.ClubId == id && x.IsActive);
+            if (club == null)
+                return NotFound(new { message = "Club not found." });
+
+            var isMember = await IsActiveClubMember(id, userId);
+            if (!isMember)
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    message = "Bạn phải là thành viên CLB mới được nhắn tin."
+                });
+
+            var messageType = (req.MessageType ?? "TEXT").Trim().ToUpperInvariant();
+            if (messageType != "TEXT" && messageType != "IMAGE")
+            {
+                return BadRequest(new { message = "MessageType chỉ hỗ trợ TEXT hoặc IMAGE." });
+            }
+
+            if (messageType == "TEXT" && string.IsNullOrWhiteSpace(req.Content))
+            {
+                return BadRequest(new { message = "Nội dung tin nhắn không được để trống." });
+            }
+
+            if (req.ReplyToId.HasValue)
+            {
+                var replyExists = await _db.ClubMessages.AnyAsync(x =>
+                    x.MessageId == req.ReplyToId.Value &&
+                    x.ClubId == id &&
+                    !x.IsDeleted);
+
+                if (!replyExists)
+                    return BadRequest(new { message = "Tin nhắn được trả lời không tồn tại." });
+            }
+
+            var entity = new ClubMessage
+            {
+                ClubId = id,
+                SenderUserId = userId,
+                MessageType = messageType,
+                Content = string.IsNullOrWhiteSpace(req.Content) ? null : req.Content.Trim(),
+                MediaUrl = NormalizeToRelative(req.MediaUrl),
+                ReplyToId = req.ReplyToId,
+                SentAt = DateTime.UtcNow,
+                IsDeleted = false
+            };
+
+            _db.ClubMessages.Add(entity);
+
+            club.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync();
+
+            var saved = await _db.ClubMessages
+                .AsNoTracking()
+                .Where(x => x.MessageId == entity.MessageId)
+                .Select(x => new
+                {
+                    x.MessageId,
+                    x.ClubId,
+                    x.SenderUserId,
+                    x.MessageType,
+                    x.Content,
+                    x.MediaUrl,
+                    x.ReplyToId,
+                    x.SentAt,
+                    sender = new
+                    {
+                        userId = x.SenderUser.UserId,
+                        fullName = x.SenderUser.FullName,
+                        avatarUrl = x.SenderUser.AvatarUrl
+                    }
+                })
+                .FirstAsync();
+
+            return Ok(new
+            {
+                message = "Gửi tin nhắn thành công.",
+                item = new
+                {
+                    messageId = saved.MessageId,
+                    clubId = saved.ClubId,
+                    senderUserId = saved.SenderUserId,
+                    messageType = saved.MessageType,
+                    content = saved.Content,
+                    mediaUrl = ToAbsoluteUrl(saved.MediaUrl),
+                    replyToId = saved.ReplyToId,
+                    sentAt = saved.SentAt,
+                    sender = new
+                    {
+                        saved.sender.userId,
+                        saved.sender.fullName,
+                        avatarUrl = ToAbsoluteUrl(saved.sender.avatarUrl)
+                    }
+                }
+            });
+        }
+        // =========================================================
+        // DELETE: api/clubs/{id}/messages/{messageId}
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpDelete("{id:long}/messages/{messageId:long}")]
+        public async Task<IActionResult> DeleteClubMessage(long id, long messageId)
+        {
+            var userId = GetUserIdFromToken();
+
+            var msg = await _db.ClubMessages.FirstOrDefaultAsync(x =>
+                x.MessageId == messageId &&
+                x.ClubId == id &&
+                !x.IsDeleted);
+
+            if (msg == null)
+                return NotFound(new { message = "Tin nhắn không tồn tại." });
+
+            if (msg.SenderUserId != userId)
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    message = "Bạn chỉ có thể xoá tin nhắn của chính mình."
+                });
+
+            msg.IsDeleted = true;
+            msg.Content = null;
+            msg.MediaUrl = null;
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Đã xoá tin nhắn.",
+                messageId
+            });
+        }
+        // =========================================================
+        // POST: api/clubs/message-media
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpPost("message-media")]
+        [RequestSizeLimit(10_000_000)]
+        public async Task<IActionResult> UploadClubMessageMedia([FromForm] IFormFile file)
+        {
+            var userId = GetUserIdFromToken();
+
+            if (file == null || file.Length == 0)
+                return BadRequest(new { message = "File is required." });
+
+            var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
+            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+            if (!allowed.Contains(ext))
+                return BadRequest(new { message = "Only jpg, jpeg, png, webp are allowed." });
+
+            var uploadsDir = Path.Combine(_env.WebRootPath ?? "wwwroot", "uploads", "club-messages");
+            Directory.CreateDirectory(uploadsDir);
+
+            var fileName = $"club_msg_{userId}_{DateTime.UtcNow:yyyyMMddHHmmssfff}{ext}";
+            var filePath = Path.Combine(uploadsDir, fileName);
+
+            await using (var stream = System.IO.File.Create(filePath))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            var relativeUrl = $"/uploads/club-messages/{fileName}";
+
+            return Ok(new
+            {
+                mediaUrl = ToAbsoluteUrl(relativeUrl),
+                relativeUrl
+            });
+        }
+        private async Task<bool> IsActiveClubMember(long clubId, long userId)
+        {
+            return await _db.ClubMembers.AnyAsync(x =>
+                x.ClubId == clubId &&
+                x.UserId == userId &&
+                x.IsActive);
+        }
     }
 }
