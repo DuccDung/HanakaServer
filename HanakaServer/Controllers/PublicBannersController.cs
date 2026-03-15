@@ -68,5 +68,25 @@ namespace HanakaServer.Controllers.Public
 
             return Ok(new { items = mappedItems });
         }
+        [HttpGet("/api/links")]
+        public async Task<IActionResult> GetLinks([FromQuery] string? type = null)
+        {
+            var q = _db.Links.AsNoTracking().AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(type))
+                q = q.Where(x => x.Type == type);
+
+            var items = await q
+                .OrderByDescending(x => x.LinkId)
+                .Select(x => new
+                {
+                    x.LinkId,
+                    Link = x.Url,
+                    x.Type
+                })
+                .ToListAsync();
+
+            return Ok(new { items });
+        }
     }
 }

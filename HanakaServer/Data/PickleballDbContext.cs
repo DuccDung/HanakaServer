@@ -57,9 +57,57 @@ public partial class PickleballDbContext : DbContext
     public virtual DbSet<TournamentRoundGroup> TournamentRoundGroups { get; set; }
     public virtual DbSet<TournamentGroupMatch> TournamentGroupMatches { get; set; }
     public virtual DbSet<Referee> Referees { get; set; }
+    public virtual DbSet<Link> Links { get; set; }
+    public virtual DbSet<UserOtp> UserOtps { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<UserOtp>(entity =>
+        {
+            entity.HasKey(e => e.UserOtpId).HasName("PK_UserOtp");
 
+            entity.ToTable("UserOtp");
+
+            entity.Property(e => e.UserOtpId).HasColumnName("user_otp_id");
+            entity.Property(e => e.UserId).HasColumnName("user_id");
+            entity.Property(e => e.Email)
+                .HasMaxLength(255)
+                .HasColumnName("email");
+            entity.Property(e => e.OtpCode)
+                .HasMaxLength(10)
+                .HasColumnName("otp_code");
+            entity.Property(e => e.ExpiredAt)
+                .HasColumnType("datetime")
+                .HasColumnName("expired_at");
+            entity.Property(e => e.IsUsed).HasColumnName("is_used");
+            entity.Property(e => e.CreatedAt)
+                .HasColumnType("datetime")
+                .HasColumnName("created_at");
+            entity.Property(e => e.UsedAt)
+                .HasColumnType("datetime")
+                .HasColumnName("used_at");
+
+            entity.HasOne(d => d.User)
+                .WithMany(p => p.UserOtps)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_UserOtp_User");
+        });
+        modelBuilder.Entity<Link>(entity =>
+        {
+            entity.HasKey(e => e.LinkId);
+
+            entity.ToTable("Links");
+
+            entity.Property(e => e.LinkId)
+                .HasColumnName("LinkId");
+
+            entity.Property(e => e.Url)
+                .HasColumnName("Link")
+                .HasMaxLength(1000);
+
+            entity.Property(e => e.Type)
+                .HasMaxLength(50);
+        });
         modelBuilder.Entity<Referee>(entity =>
         {
             entity.HasKey(e => e.RefereeId).HasName("PK_Referees");

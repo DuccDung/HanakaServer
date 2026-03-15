@@ -1,4 +1,6 @@
 ﻿using HanakaServer.Data;
+using mail_service.Internal;
+using mail_service.service;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +23,10 @@ builder.Services.AddCors(options =>
 // JWT config
 var jwtSection = builder.Configuration.GetSection("Jwt");
 var jwtKey = jwtSection["Key"] ?? throw new Exception("Jwt:Key is missing");
-
+builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+builder.Services.AddScoped<IOtpEmailService, OtpEmailService>();
+builder.Services.AddScoped<IOtpGenerator, OtpGenerator>();
+builder.Services.AddScoped<IUserOtpService, UserOtpService>();
 // Authentication: Cookie (MVC) + JWT (API)
 builder.Services.AddAuthentication(options =>
 {

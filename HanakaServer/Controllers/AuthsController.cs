@@ -5,6 +5,7 @@ using BCrypt.Net;
 using HanakaServer.Data;
 using HanakaServer.Dtos;
 using HanakaServer.Models;
+using mail_service.Internal;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -17,42 +18,68 @@ namespace HanakaServer.Controllers
     {
         private readonly PickleballDbContext _db;
         private readonly IConfiguration _config;
+        private readonly IOtpEmailService _otpEmailService;
+        private readonly IUserOtpService _userOtpService;
 
-        public AuthsController(PickleballDbContext db, IConfiguration config)
+        public AuthsController(
+            PickleballDbContext db,
+            IConfiguration config,
+            IOtpEmailService otpEmailService,
+            IUserOtpService userOtpService)
         {
             _db = db;
             _config = config;
+            _otpEmailService = otpEmailService;
+            _userOtpService = userOtpService;
         }
+
         private string GetBaseUrl()
         {
             return _config["PublicBaseUrl"] ?? "";
         }
+
         [HttpPost("register")]
-        public async Task<ActionResult<AuthResponseDto>> Register([FromBody] RegisterRequestDto dto)
+        public async Task<ActionResult<RegisterResponseDto>> Register([FromBody] RegisterRequestDto dto, CancellationToken ct)
         {
-            // Validate cơ bản
             if (string.IsNullOrWhiteSpace(dto.FullName))
                 return BadRequest("FullName is required.");
 
             if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6)
                 return BadRequest("Password must be at least 6 characters.");
 
-            if (string.IsNullOrWhiteSpace(dto.Email) && string.IsNullOrWhiteSpace(dto.Phone))
-                return BadRequest("Email or Phone is required.");
+            if (string.IsNullOrWhiteSpace(dto.Email))
+                return BadRequest("Email is required.");
 
-            var email = dto.Email?.Trim();
+            var email = dto.Email.Trim().ToLowerInvariant();
             var phone = dto.Phone?.Trim();
 
-            // Check trùng Email/Phone (nếu có)
-            if (!string.IsNullOrEmpty(email))
+            var existedByEmail = await _db.Users.FirstOrDefaultAsync(x => x.Email == email, ct);
+            if (existedByEmail != null)
             {
-                var existsEmail = await _db.Users.AnyAsync(x => x.Email == email);
-                if (existsEmail) return Conflict("Email already exists.");
+                if (existedByEmail.IsActive)
+                    return Conflict("Email already exists.");
+
+                existedByEmail.FullName = dto.FullName.Trim();
+                existedByEmail.City = dto.City?.Trim();
+                existedByEmail.Gender = dto.Gender?.Trim();
+                existedByEmail.Phone = phone;
+                existedByEmail.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
+                existedByEmail.UpdatedAt = DateTime.UtcNow;
+
+                var resend = await _userOtpService.CreateOtpAsync(existedByEmail, ct);
+                await _otpEmailService.SendOtpAsync(email, existedByEmail.FullName, resend.otp, ct);
+
+                return Ok(new RegisterResponseDto
+                {
+                    Message = "Tài khoản chưa kích hoạt. Hệ thống đã gửi lại OTP.",
+                    Email = email,
+                    OtpExpiredAtUtc = resend.expiredAtUtc
+                });
             }
 
             if (!string.IsNullOrEmpty(phone))
             {
-                var existsPhone = await _db.Users.AnyAsync(x => x.Phone == phone);
+                var existsPhone = await _db.Users.AnyAsync(x => x.Phone == phone, ct);
                 if (existsPhone) return Conflict("Phone already exists.");
             }
 
@@ -67,19 +94,19 @@ namespace HanakaServer.Controllers
                 RatingSingle = 0,
                 RatingDouble = 0,
                 AvatarUrl = null,
-                IsActive = true,
+                IsActive = false,
                 CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
             };
 
             _db.Users.Add(user);
-            await _db.SaveChangesAsync();
+            await _db.SaveChangesAsync(ct);
 
-            // (Optional) auto gán role MEMBER
             var memberRoleId = await _db.Roles
                 .Where(r => r.RoleCode == "MEMBER")
                 .Select(r => (int?)r.RoleId)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(ct);
 
             if (memberRoleId.HasValue)
             {
@@ -89,15 +116,88 @@ namespace HanakaServer.Controllers
                     RoleId = memberRoleId.Value,
                     CreatedAt = DateTime.UtcNow
                 });
-                await _db.SaveChangesAsync();
+                await _db.SaveChangesAsync(ct);
             }
+
+            var otpResult = await _userOtpService.CreateOtpAsync(user, ct);
+            await _otpEmailService.SendOtpAsync(email, user.FullName, otpResult.otp, ct);
+
+            return Ok(new RegisterResponseDto
+            {
+                Message = "Đăng ký thành công. Vui lòng kiểm tra email để lấy mã OTP.",
+                Email = email,
+                OtpExpiredAtUtc = otpResult.expiredAtUtc
+            });
+        }
+
+        [HttpPost("confirm-otp")]
+        public async Task<ActionResult<AuthResponseDto>> ConfirmOtp([FromBody] ConfirmOtpRequestDto dto, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Otp))
+                return BadRequest("Email and OTP are required.");
+
+            var email = dto.Email.Trim().ToLowerInvariant();
+            var otp = dto.Otp.Trim();
+
+            var user = await _db.Users.FirstOrDefaultAsync(x => x.Email == email, ct);
+            if (user == null)
+                return NotFound("User not found.");
+
+            var otpEntity = await _db.UserOtps
+                .Where(x => x.UserId == user.UserId
+                            && x.Email == email
+                            && !x.IsUsed
+                            && x.OtpCode == otp)
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync(ct);
+
+            if (otpEntity == null)
+                return BadRequest("OTP không đúng hoặc đã được sử dụng.");
+
+            if (otpEntity.ExpiredAt < DateTime.UtcNow)
+                return BadRequest("OTP đã hết hạn.");
+
+            otpEntity.IsUsed = true;
+            otpEntity.UsedAt = DateTime.UtcNow;
+
+            user.IsActive = true;
+            user.UpdatedAt = DateTime.UtcNow;
+            // Verified giữ nguyên false
+
+            await _db.SaveChangesAsync(ct);
 
             var auth = CreateAuthResponse(user);
             return Ok(auth);
         }
 
+        [HttpPost("resend-otp")]
+        public async Task<ActionResult<RegisterResponseDto>> ResendOtp([FromBody] ResendOtpRequestDto dto, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Email))
+                return BadRequest("Email is required.");
+
+            var email = dto.Email.Trim().ToLowerInvariant();
+
+            var user = await _db.Users.FirstOrDefaultAsync(x => x.Email == email, ct);
+            if (user == null)
+                return NotFound("User not found.");
+
+            if (user.IsActive)
+                return BadRequest("Tài khoản đã được kích hoạt.");
+
+            var otpResult = await _userOtpService.CreateOtpAsync(user, ct);
+            await _otpEmailService.SendOtpAsync(email, user.FullName, otpResult.otp, ct);
+
+            return Ok(new RegisterResponseDto
+            {
+                Message = "OTP mới đã được gửi.",
+                Email = email,
+                OtpExpiredAtUtc = otpResult.expiredAtUtc
+            });
+        }
+
         [HttpPost("login")]
-        public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginRequestDto dto)
+        public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginRequestDto dto, CancellationToken ct)
         {
             var identifier = dto.Identifier?.Trim();
             if (string.IsNullOrWhiteSpace(identifier) || string.IsNullOrWhiteSpace(dto.Password))
@@ -105,10 +205,12 @@ namespace HanakaServer.Controllers
 
             var user = await _db.Users.FirstOrDefaultAsync(x =>
                 (x.Email != null && x.Email == identifier) ||
-                (x.Phone != null && x.Phone == identifier));
+                (x.Phone != null && x.Phone == identifier), ct);
 
             if (user == null) return Unauthorized("Invalid credentials.");
-            if (!user.IsActive) return Unauthorized("User is inactive.");
+
+            if (!user.IsActive)
+                return Unauthorized("Tài khoản chưa được kích hoạt. Vui lòng xác thực OTP.");
 
             var ok = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
             if (!ok) return Unauthorized("Invalid credentials.");
@@ -133,15 +235,6 @@ namespace HanakaServer.Controllers
                 new Claim(JwtRegisteredClaimNames.UniqueName, user.FullName ?? ""),
                 new Claim("uid", user.UserId.ToString()),
             };
-
-            // Nếu muốn nhét roles vào token:
-            // (load role codes)
-            // NOTE: Nếu không cần thì bỏ để login nhanh hơn
-            // var roles = _db.UserRoles
-            //     .Where(ur => ur.UserId == user.UserId)
-            //     .Select(ur => ur.Role.RoleCode)
-            //     .ToList();
-            // roles.ForEach(rc => claims.Add(new Claim(ClaimTypes.Role, rc)));
 
             var signingKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key));
             var creds = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
@@ -169,10 +262,11 @@ namespace HanakaServer.Controllers
                     Verified = user.Verified,
                     RatingSingle = user.RatingSingle,
                     RatingDouble = user.RatingDouble,
-                    AvatarUrl =GetBaseUrl() + user.AvatarUrl
+                    AvatarUrl = string.IsNullOrWhiteSpace(user.AvatarUrl)
+                        ? null
+                        : GetBaseUrl() + user.AvatarUrl
                 }
             };
         }
-       
     }
 }

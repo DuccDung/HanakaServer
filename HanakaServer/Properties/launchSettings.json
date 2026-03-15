@@ -7,7 +7,7 @@
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
       "dotnetRunMessages": true,
-      "applicationUrl": "http://192.168.137.1:5062"
+      "applicationUrl": "http://192.168.0.100:5062"
     },
     "https": {
       "commandName": "Project",
@@ -16,7 +16,7 @@
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
       "dotnetRunMessages": true,
-      "applicationUrl": "https://192.168.137.1:7156;http://192.168.137.1:5062"
+      "applicationUrl": "https://192.168.0.100:7156;http://192.168.0.100:5062"
     },
     "Container (Dockerfile)": {
       "commandName": "Docker",

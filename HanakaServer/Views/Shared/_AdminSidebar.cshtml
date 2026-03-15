@@ -6,13 +6,12 @@
         <div class="sidebar-brand-text mx-3">Hanaka Admin</div>
     </a>
 
-    <hr class="sidebar-divider my-0" />
 
-    <li class="nav-item">
-        <a class="nav-link" asp-controller="Dashboard" asp-action="Index">
-            <i class="fas fa-fw fa-tachometer-alt"></i><span>Dashboard</span>
-        </a>
-    </li>
+    @* <li class="nav-item"> *@
+    @*     <a class="nav-link" asp-controller="Dashboard" asp-action="Index"> *@
+    @*         <i class="fas fa-fw fa-tachometer-alt"></i><span>Dashboard</span> *@
+    @*     </a> *@
+    @* </li> *@
 
     <hr class="sidebar-divider" />
     <div class="sidebar-heading">Tournament</div>
@@ -52,6 +51,11 @@
     <li class="nav-item">
         <a class="nav-link" asp-controller="Courts" asp-action="Index">
             <i class="fas fa-fw fa-map-marker-alt"></i><span>Sân Bãi</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" asp-controller="Links" asp-action="Index">
+            <i class="fas fa-fw fa-link"></i><span>Links</span>
         </a>
     </li>
 </ul>

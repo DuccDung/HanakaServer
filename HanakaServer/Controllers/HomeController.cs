@@ -36,8 +36,8 @@ namespace HanakaServer.Controllers
         {
             // Nếu đã login thì vào thẳng Index
             if (User?.Identity?.IsAuthenticated == true)
-                return RedirectToAction(nameof(Index));
-
+                return RedirectToAction(nameof(Tournaments));
+            //Tournaments
             return View(new LoginViewModel());
         }
 

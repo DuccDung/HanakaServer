@@ -52,4 +52,5 @@ public partial class User
     public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 
     public virtual ICollection<VideoPlayer> VideoPlayers { get; set; } = new List<VideoPlayer>();
+    public virtual ICollection<UserOtp> UserOtps { get; set; } = new List<UserOtp>();
 }
