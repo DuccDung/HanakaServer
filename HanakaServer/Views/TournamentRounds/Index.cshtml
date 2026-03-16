@@ -1,31 +1,31 @@
 ﻿@{
     Layout = "_AdminLayout";
-    ViewData["Title"] = "Rounds";
+    ViewData["Title"] = "Vòng đấu";
     var tid = (long)(ViewBag.TournamentId ?? 0L);
 }
 
 <div class="container-fluid" id="pageRoot" data-tournament-id="@tid">
     <div class="d-sm-flex align-items-center justify-content-between mb-3">
         <div>
-            <h1 class="h3 mb-0 text-gray-800">Rounds</h1>
+            <h1 class="h3 mb-0 text-gray-800">Vòng đấu</h1>
             <div class="small text-muted">
-                @ViewBag.TournamentTitle • @ViewBag.TournamentStatus • GameType: @ViewBag.TournamentGameType • #@tid
+                @ViewBag.TournamentTitle • @ViewBag.TournamentStatus • Loại game: @ViewBag.TournamentGameType • #@tid
             </div>
         </div>
 
         <div class="d-flex" style="gap:8px">
             <button class="btn btn-sm btn-primary shadow-sm" type="button" id="btnOpenCreate">
-                <i class="fas fa-plus fa-sm text-white-50"></i> Create Round
+                <i class="fas fa-plus fa-sm text-white-50"></i> Tạo vòng đấu
             </button>
             <a class="btn btn-sm btn-outline-secondary" href="/Home/Tournaments">
-                <i class="fas fa-arrow-left"></i> Back
+                <i class="fas fa-arrow-left"></i> Quay lại
             </a>
         </div>
     </div>
 
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex align-items-center justify-content-between">
-            <h6 class="m-0 font-weight-bold text-primary">Round List</h6>
+            <h6 class="m-0 font-weight-bold text-primary">Danh sách vòng đấu</h6>
         </div>
 
         <div class="card-body">
@@ -35,15 +35,15 @@
                 <table class="table table-bordered" width="100%" cellspacing="0">
                     <thead>
                         <tr>
-                            <th style="width:120px">RoundKey</th>
-                            <th>RoundLabel</th>
-                            <th style="width:110px">SortOrder</th>
-                            <th style="width:160px">CreatedAt</th>
-                            <th style="width:140px">Actions</th>
+                            <th style="width:120px">Mã vòng</th>
+                            <th>Tên vòng</th>
+                            <th style="width:110px">Thứ tự sắp xếp</th>
+                            <th style="width:160px">Ngày tạo</th>
+                            <th style="width:140px">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody id="body">
-                        <tr><td colspan="5" class="text-center text-muted">Loading...</td></tr>
+                        <tr><td colspan="5" class="text-center text-muted">Đang tải...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -51,7 +51,7 @@
     </div>
 </div>
 
-<!-- Modal Create/Edit -->
+<!-- Modal Tạo/Sửa -->
 <div class="modal fade" id="modalRound" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -60,7 +60,7 @@
                 <input type="hidden" id="editingId" value="" />
 
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modalTitle">Create Round</h5>
+                    <h5 class="modal-title" id="modalTitle">Tạo vòng đấu</h5>
                     <button class="close" type="button" data-dismiss="modal"><span aria-hidden="true">×</span></button>
                 </div>
 
@@ -68,26 +68,26 @@
                     <div id="formErr" class="alert alert-danger d-none"></div>
 
                     <div class="form-group">
-                        <label>RoundKey *</label>
+                        <label>Mã vòng *</label>
                         <input id="roundKey" class="form-control" placeholder="R1" required />
                         <small class="text-muted">Ví dụ: R1, R2, QF, SF, F...</small>
                     </div>
 
                     <div class="form-group">
-                        <label>RoundLabel</label>
+                        <label>Tên vòng</label>
                         <input id="roundLabel" class="form-control" placeholder="Vòng 1" />
                     </div>
 
                     <div class="form-group">
-                        <label>SortOrder</label>
+                        <label>Thứ tự sắp xếp</label>
                         <input id="sortOrder" type="number" class="form-control" value="0" />
                     </div>
                 </div>
 
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Hủy</button>
                     <button class="btn btn-primary" type="submit" id="btnSubmit">
-                        <i class="fas fa-save"></i> Save
+                        <i class="fas fa-save"></i> Lưu
                     </button>
                 </div>
             </form>
@@ -117,7 +117,7 @@
 
           function showErr(msg){
             const box = $id("errBox");
-            box.textContent = msg || "Error";
+            box.textContent = msg || "Đã xảy ra lỗi";
             box.classList.remove("d-none");
           }
           function hideErr(){
@@ -128,7 +128,7 @@
 
           function showFormErr(msg){
             const box = $id("formErr");
-            box.textContent = msg || "Error";
+            box.textContent = msg || "Đã xảy ra lỗi";
             box.classList.remove("d-none");
           }
           function hideFormErr(){
@@ -146,40 +146,44 @@
                 <td>${fmt(x.createdAt)}</td>
                 <td style="white-space:nowrap">
                   <button class="btn btn-sm btn-outline-primary" type="button"
-                          onclick="openEdit(${x.tournamentRoundMapId}, '${esc(x.roundKey)}', '${esc(x.roundLabel)}', ${x.sortOrder ?? 0})">
+                          onclick="openEdit(${x.tournamentRoundMapId}, '${esc(x.roundKey)}', '${esc(x.roundLabel)}', ${x.sortOrder ?? 0})"
+                          title="Chỉnh sửa">
                     <i class="fas fa-edit"></i>
                   </button>
                   <button class="btn btn-sm btn-outline-danger" type="button"
-                          onclick="delRound(${x.tournamentRoundMapId})">
+                          onclick="delRound(${x.tournamentRoundMapId})"
+                          title="Xóa">
                     <i class="fas fa-trash"></i>
                   </button>
-                          <button class="btn btn-sm btn-outline-info" type="button"
-                onclick="gotoGroups(${x.tournamentRoundMapId})"
-                title="Groups">
-          <i class="fas fa-th-large"></i>
-        </button>
+                  <button class="btn btn-sm btn-outline-info" type="button"
+                          onclick="gotoGroups(${x.tournamentRoundMapId})"
+                          title="Bảng đấu">
+                    <i class="fas fa-th-large"></i>
+                  </button>
                 </td>
               </tr>
             `;
           }
-                  window.gotoGroups = (roundMapId) => {
-          window.location.href = `/TournamentRoundGroups/Index?roundMapId=${roundMapId}`;
-        };
+
+          window.gotoGroups = (roundMapId) => {
+            window.location.href = `/TournamentRoundGroups/Index?roundMapId=${roundMapId}`;
+          };
+
           async function load(){
             hideErr();
             const body = $id("body");
-            body.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Loading...</td></tr>`;
+            body.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Đang tải...</td></tr>`;
             try{
               const res = await axios.get(API);
               const items = res.data?.items || [];
               if(!items.length){
-                body.innerHTML = `<tr><td colspan="5" class="text-center text-muted">No rounds</td></tr>`;
+                body.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Không có vòng đấu nào</td></tr>`;
                 return;
               }
               body.innerHTML = items.map(rowHtml).join("");
             }catch(err){
-              showErr(err?.response?.data?.message || err?.message || "Load failed.");
-              body.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Load failed</td></tr>`;
+              showErr(err?.response?.data?.message || err?.message || "Tải dữ liệu thất bại.");
+              body.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Tải dữ liệu thất bại</td></tr>`;
             }
           }
 
@@ -187,7 +191,7 @@
             hideFormErr();
             $id("mode").value = "create";
             $id("editingId").value = "";
-            $id("modalTitle").textContent = "Create Round";
+            $id("modalTitle").textContent = "Tạo vòng đấu";
 
             $id("roundKey").disabled = false;
             $id("roundKey").value = "R1";
@@ -201,7 +205,7 @@
             hideFormErr();
             $id("mode").value = "edit";
             $id("editingId").value = String(id);
-            $id("modalTitle").textContent = "Edit Round";
+            $id("modalTitle").textContent = "Chỉnh sửa vòng đấu";
 
             $id("roundKey").value = key || "";
             $id("roundKey").disabled = true; // tránh đổi key để không vỡ link group/match
@@ -212,12 +216,12 @@
           };
 
           window.delRound = async (id) => {
-            if(!confirm("Delete this round? (sẽ xoá luôn group/match nếu có)")) return;
+            if(!confirm("Bạn có chắc muốn xóa vòng đấu này không? (sẽ xóa luôn bảng đấu/trận đấu nếu có)")) return;
             try{
               await axios.delete(`${API}/${id}`);
               await load();
             }catch(err){
-              alert(err?.response?.data?.message || err?.message || "Delete failed.");
+              alert(err?.response?.data?.message || err?.message || "Xóa thất bại.");
             }
           };
 
@@ -236,7 +240,7 @@
 
             const btn = $id("btnSubmit");
             btn.disabled = true;
-            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang lưu...`;
 
             try{
               if(mode === "create"){
@@ -248,10 +252,10 @@
               $("#modalRound").modal("hide");
               await load();
             }catch(err){
-              showFormErr(err?.response?.data?.message || err?.message || "Save failed.");
+              showFormErr(err?.response?.data?.message || err?.message || "Lưu thất bại.");
             }finally{
               btn.disabled = false;
-              btn.innerHTML = `<i class="fas fa-save"></i> Save`;
+              btn.innerHTML = `<i class="fas fa-save"></i> Lưu`;
             }
           });
 

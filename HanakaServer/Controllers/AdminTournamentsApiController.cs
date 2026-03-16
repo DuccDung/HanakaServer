@@ -10,7 +10,6 @@ namespace HanakaServer.Controllers
     [Route("api/admin/tournaments")]
     [ApiController]
     [Authorize(Roles = "Admin")]
-    [IgnoreAntiforgeryToken]
     public class AdminTournamentsApiController : ControllerBase
     {
         private readonly PickleballDbContext _db;

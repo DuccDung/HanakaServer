@@ -1,6 +1,6 @@
 ﻿@{
     Layout = "_AdminLayout";
-    ViewData["Title"] = "Registrations";
+    ViewData["Title"] = "Danh Sách Đăng Kí";
     var tid = (long)(ViewBag.TournamentId ?? 0L);
 }
 
@@ -14,6 +14,7 @@
         border-radius: 12px;
         padding: 12px;
         background: #fff;
+        height: 100%;
     }
 
     .avatar-preview {
@@ -35,39 +36,176 @@
         color: #aaa;
         font-weight: 700;
     }
+
+    .registration-toolbar {
+        gap: 8px;
+    }
+
+    .registration-filter-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        width: 100%;
+    }
+
+        .registration-filter-toolbar .filter-keyword {
+            flex: 1 1 320px;
+            min-width: 220px;
+        }
+
+        .registration-filter-toolbar .filter-action {
+            flex: 0 0 auto;
+        }
+
+    .player-head-tools {
+        gap: 8px;
+        align-items: center;
+    }
+
+    .player-body-wrap {
+        gap: 12px;
+        align-items: center;
+    }
+
+    .player-avatar-col {
+        flex: 0 0 auto;
+    }
+
+    .player-form-col {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    @@media (max-width: 991.98px) {
+        .card-header-responsive {
+            flex-direction: column;
+            align-items: stretch !important;
+            gap: 12px;
+        }
+
+            .card-header-responsive h6 {
+                margin-bottom: 0;
+            }
+
+        .registration-filter-toolbar .filter-keyword,
+        .registration-filter-toolbar .filter-action {
+            flex: 1 1 100%;
+            min-width: 100%;
+        }
+
+        .registration-filter-toolbar .btn {
+            width: 100%;
+        }
+    }
+
+    @@media (max-width: 767.98px) {
+        .player-head {
+            flex-direction: column;
+            align-items: stretch !important;
+            gap: 10px;
+        }
+
+        .player-head-tools {
+            width: 100%;
+            justify-content: space-between;
+        }
+
+            .player-head-tools label {
+                margin-bottom: 0;
+            }
+
+            .player-head-tools select {
+                flex: 1 1 auto;
+                max-width: 180px;
+            }
+
+        .player-body-wrap {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .player-form-col {
+            width: 100%;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .page-title-bar {
+            gap: 12px;
+        }
+
+            .page-title-bar > div:last-child {
+                width: 100%;
+            }
+
+        .registration-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+            .registration-toolbar > * {
+                flex: 1 1 calc(50% - 4px);
+            }
+
+        .tabs-toolbar {
+            gap: 8px !important;
+        }
+
+            .tabs-toolbar .btn {
+                flex: 1 1 100%;
+            }
+
+        .player-head-tools {
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+            .player-head-tools select {
+                flex: 1 1 100%;
+                max-width: 100%;
+            }
+    }
 </style>
 
 <div class="container-fluid" id="pageRoot" data-tournament-id="@tid">
-    <div class="d-sm-flex align-items-center justify-content-between mb-3">
+    <div class="d-sm-flex align-items-center justify-content-between mb-3 page-title-bar">
         <div>
-            <h1 class="h3 mb-0 text-gray-800">Registrations</h1>
+            <h1 class="h3 mb-0 text-gray-800">Danh Sách Đăng Kí</h1>
             <div class="small text-muted" id="tournamentMeta">Tournament #@tid</div>
         </div>
 
-        <div class="d-flex" style="gap:8px">
-            <button class="btn btn-sm btn-primary shadow-sm" type="button" id="btnOpenCreate">
-                <i class="fas fa-plus fa-sm text-white-50"></i> Add Registration
-            </button>
-            <a class="btn btn-sm btn-outline-secondary" href="/Home/Tournaments">
-                <i class="fas fa-arrow-left"></i> Back
-            </a>
+        <div>
+            <div class="d-flex registration-toolbar">
+                <button class="btn btn-sm btn-primary shadow-sm" type="button" id="btnOpenCreate">
+                    <i class="fas fa-plus fa-sm text-white-50"></i> Đăng Kí Cho VDV
+                </button>
+                <a class="btn btn-sm btn-outline-secondary" href="/Home/Tournaments">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
+            </div>
         </div>
     </div>
 
     <!-- Tabs counts -->
-    <div class="mb-3 d-flex flex-wrap" style="gap:10px">
+    <div class="mb-3 d-flex flex-wrap tabs-toolbar" style="gap:10px">
         <button class="btn btn-sm pill" id="tabSuccess">Thành công</button>
         <button class="btn btn-sm pill" id="tabWaiting">Chờ ghép</button>
         <button class="btn btn-sm pill btn-outline-secondary" id="tabCapacity">Còn chỗ</button>
     </div>
 
     <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex align-items-center justify-content-between">
+        <div class="card-header py-3 d-flex align-items-center justify-content-between card-header-responsive">
             <h6 class="m-0 font-weight-bold text-primary">List</h6>
 
-            <div class="d-flex" style="gap:8px; align-items:center;">
-                <input id="q" class="form-control form-control-sm" style="width: 260px;" placeholder="Tìm tên / mã ĐK ..." />
-                <button class="btn btn-sm btn-outline-primary" type="button" id="btnSearch">Search</button>
+            <div class="registration-filter-toolbar">
+                <div class="filter-keyword">
+                    <input id="q" class="form-control form-control-sm w-100" placeholder="Tìm tên / mã ĐK ..." />
+                </div>
+                <div class="filter-action">
+                    <button class="btn btn-sm btn-outline-primary" type="button" id="btnSearch">Search</button>
+                </div>
             </div>
         </div>
 
@@ -113,14 +251,14 @@
                         <div class="form-group col-md-4">
                             <label>GameType</label>
                             <select class="form-control" id="gameType">
-                                <option value="SINGLE">SINGLE</option>
-                                <option value="DOUBLE" selected>DOUBLE</option>
+                                <option value="SINGLE">ĐẤU ĐƠN</option>
+                                <option value="DOUBLE" selected>ĐẤU ĐÔI</option>
                             </select>
                             <small class="text-muted">Sẽ tự lock theo Tournament.GameType nếu có.</small>
                         </div>
 
                         <div class="form-group col-md-4">
-                            <label>Mode (DOUBLE)</label>
+                            <label>Trạng thái (Đủ - Chờ Ghép)</label>
                             <select class="form-control" id="doubleMode">
                                 <option value="PAIR" selected>Đủ cặp</option>
                                 <option value="WAITING">Chờ ghép</option>
@@ -128,10 +266,10 @@
                         </div>
 
                         <div class="form-group col-md-4">
-                            <label>Paid</label>
+                            <label>Thanh Toán</label>
                             <select class="form-control" id="paid">
-                                <option value="false" selected>No</option>
-                                <option value="true">Yes</option>
+                                <option value="false" selected>Chưa Thanh Toán</option>
+                                <option value="true">Đã Thanh Toán</option>
                             </select>
                         </div>
                     </div>
@@ -149,9 +287,9 @@
                         <!-- Player 1 -->
                         <div class="col-lg-6 mb-3">
                             <div class="player-card">
-                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div class="d-flex align-items-center justify-content-between mb-2 player-head">
                                     <h6 class="text-primary font-weight-bold mb-0">VDV 1</h6>
-                                    <div class="d-flex" style="gap:8px;align-items:center;">
+                                    <div class="d-flex player-head-tools">
                                         <label class="mb-0 small text-muted">Type</label>
                                         <select class="form-control form-control-sm" id="p1Type" style="width:120px;">
                                             <option value="USER" selected>USER</option>
@@ -160,10 +298,10 @@
                                     </div>
                                 </div>
 
-                                <div class="d-flex" style="gap:12px;align-items:center;">
-                                    <div id="p1AvatarBox"><div class="avatar-placeholder">?</div></div>
+                                <div class="d-flex player-body-wrap">
+                                    <div class="player-avatar-col" id="p1AvatarBox"><div class="avatar-placeholder">?</div></div>
 
-                                    <div class="flex-grow-1">
+                                    <div class="player-form-col">
                                         <!-- USER block -->
                                         <div id="p1UserBlock">
                                             <div class="form-row">
@@ -209,9 +347,9 @@
                         <!-- Player 2 -->
                         <div class="col-lg-6 mb-3" id="p2Wrap">
                             <div class="player-card">
-                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                <div class="d-flex align-items-center justify-content-between mb-2 player-head">
                                     <h6 class="text-primary font-weight-bold mb-0">VDV 2</h6>
-                                    <div class="d-flex" style="gap:8px;align-items:center;">
+                                    <div class="d-flex player-head-tools">
                                         <label class="mb-0 small text-muted">Type</label>
                                         <select class="form-control form-control-sm" id="p2Type" style="width:120px;">
                                             <option value="USER" selected>USER</option>
@@ -220,10 +358,10 @@
                                     </div>
                                 </div>
 
-                                <div class="d-flex" style="gap:12px;align-items:center;">
-                                    <div id="p2AvatarBox"><div class="avatar-placeholder">?</div></div>
+                                <div class="d-flex player-body-wrap">
+                                    <div class="player-avatar-col" id="p2AvatarBox"><div class="avatar-placeholder">?</div></div>
 
-                                    <div class="flex-grow-1">
+                                    <div class="player-form-col">
                                         <!-- USER block -->
                                         <div id="p2UserBlock">
                                             <div class="form-row">
@@ -273,7 +411,7 @@
                 <div class="modal-footer">
                     <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
                     <button class="btn btn-primary" type="submit" id="btnCreateSubmit">
-                        <i class="fas fa-save"></i> Create
+                        <i class="fas fa-save"></i> Đăng Kí
                     </button>
                 </div>
             </form>
@@ -341,24 +479,24 @@
             return `<img class="avatar-preview" src="${esc(url)}" />`;
           }
 
-                  function playerCell(name, singleLevel, doubleLevel, pickedLevel, avatar, verified){
-          const badge = verified ? `<span class="badge badge-success ml-2">Verified</span>` : ``;
+          function playerCell(name, singleLevel, doubleLevel, pickedLevel, avatar, verified){
+            const badge = verified ? `<span class="badge badge-success ml-2">Verified</span>` : ``;
 
-          const s = (singleLevel === null || singleLevel === undefined) ? "—" : Number(singleLevel||0).toFixed(2);
-          const d = (doubleLevel === null || doubleLevel === undefined) ? "—" : Number(doubleLevel||0).toFixed(2);
-          const p = (pickedLevel === null || pickedLevel === undefined) ? "—" : Number(pickedLevel||0).toFixed(2);
+            const s = (singleLevel === null || singleLevel === undefined) ? "—" : Number(singleLevel||0).toFixed(2);
+            const d = (doubleLevel === null || doubleLevel === undefined) ? "—" : Number(doubleLevel||0).toFixed(2);
+            const p = (pickedLevel === null || pickedLevel === undefined) ? "—" : Number(pickedLevel||0).toFixed(2);
 
-          return `
-            <div class="d-flex" style="gap:10px;align-items:center;">
-              ${avatarHtml(avatar)}
-              <div>
-                <div class="font-weight-bold text-gray-900">${esc(name||"—")}${badge}</div>
-                <div class="small text-muted">S: ${s} • D: ${d}</div>
-                <div class="small text-muted">Pick: ${p}</div>
+            return `
+              <div class="d-flex" style="gap:10px;align-items:center;">
+                ${avatarHtml(avatar)}
+                <div>
+                  <div class="font-weight-bold text-gray-900">${esc(name||"—")}${badge}</div>
+                  <div class="small text-muted">S: ${s} • D: ${d}</div>
+                  <div class="small text-muted">Pick: ${p}</div>
+                </div>
               </div>
-            </div>
-          `;
-        }
+            `;
+          }
 
           async function togglePaid(id, paid){
             await axios.put(`/api/admin/registrations/${id}`, { paid });
@@ -401,23 +539,23 @@
                 <td>${reg.regIndex ?? ""}</td>
                 <td><div class="font-weight-bold">${esc(reg.regCode)}</div></td>
                 <td>${fmt(reg.regTime)}</td>
-        <td>${playerCell(
-          reg.player1Name,
-          reg.player1LevelSingle,
-          reg.player1LevelDouble,
-          reg.player1Level, // pickedLevel hiện tại
-          reg.player1Avatar,
-          reg.player1Verified
-        )}</td>
+                <td>${playerCell(
+                  reg.player1Name,
+                  reg.player1LevelSingle,
+                  reg.player1LevelDouble,
+                  reg.player1Level,
+                  reg.player1Avatar,
+                  reg.player1Verified
+                )}</td>
 
-        <td>${playerCell(
-          reg.player2Name,
-          reg.player2LevelSingle,
-          reg.player2LevelDouble,
-          reg.player2Level,
-          reg.player2Avatar,
-          reg.player2Verified
-        )}</td>
+                <td>${playerCell(
+                  reg.player2Name,
+                  reg.player2LevelSingle,
+                  reg.player2LevelDouble,
+                  reg.player2Level,
+                  reg.player2Avatar,
+                  reg.player2Verified
+                )}</td>
                 <td class="text-right">${Number(reg.points||0).toFixed(2)}</td>
                 <td>${esc(reg.btCode||"")}</td>
                 <td class="text-center">${paidHtml(reg)}</td>
@@ -474,7 +612,6 @@
             body.innerHTML = CACHE.items.map(rowHtml).join("");
           }
 
-          // expose for inline onclick
           window.togglePaid = togglePaid;
           window.delReg = delReg;
 
@@ -487,20 +624,18 @@
             $id("pairBaseId").value = String(baseId);
             $id("pairErr")?.classList.add("d-none");
 
-            // sort waiting by regIndex desc => newest first
             const waiting = (CACHE.waiting || [])
               .filter(x => x.registrationId !== baseId)
               .sort((a,b) => (b.regIndex||0) - (a.regIndex||0));
 
             const sel = $id("pairWith");
-                   const options = waiting.map(x => {
-          const s = (x.player1LevelSingle ?? x.player1Level ?? 0).toFixed(2);
-          const d = (x.player1LevelDouble ?? x.player1Level ?? 0).toFixed(2);
-          return `<option value="${x.registrationId}">${x.regCode} — ${esc(x.player1Name)} (S:${s} D:${d})</option>`;
-        });
+            const options = waiting.map(x => {
+              const s = (x.player1LevelSingle ?? x.player1Level ?? 0).toFixed(2);
+              const d = (x.player1LevelDouble ?? x.player1Level ?? 0).toFixed(2);
+              return `<option value="${x.registrationId}">${x.regCode} — ${esc(x.player1Name)} (S:${s} D:${d})</option>`;
+            });
             sel.innerHTML = options.join("");
 
-            // auto-select newest (first option)
             if(sel.options.length > 0) sel.selectedIndex = 0;
 
             $("#modalPair").modal("show");
@@ -529,7 +664,6 @@
           function applyModeUI(){
             const dm = $id("doubleMode")?.value || "PAIR";
 
-            // lock theo tournament
             if (TOURNAMENT_GAME_TYPE === "SINGLE" || TOURNAMENT_GAME_TYPE === "DOUBLE"){
               $id("gameType").value = TOURNAMENT_GAME_TYPE;
               $id("gameType").disabled = true;
@@ -580,15 +714,12 @@
             if(!id || id <= 0) return showCreateErr(`VDV ${pn}: nhập UserId hợp lệ.`);
 
             try{
-              // route đúng của bạn: /api/admin/users/find/{id}
               const res = await axios.get(`/api/admin/users/find/${id}`);
               const u = res.data;
 
-              // u: { userId, fullName, avatarUrl, ratingSingle, ratingDouble }
               const single = Number(u.ratingSingle || 0);
               const dbl = Number(u.ratingDouble || 0);
 
-              // lấy level theo gameType giải (DOUBLE => ratingDouble, SINGLE => ratingSingle)
               const pickedLevel = (TOURNAMENT_GAME_TYPE === "DOUBLE") ? dbl : single;
 
               const info = $id(`p${pn}UserInfo`);
@@ -625,7 +756,6 @@
             fd.append("paid", String(($id("paid")?.value || "false") === "true"));
             fd.append("btCode", $id("btCode")?.value || "");
 
-            // Player1
             const p1Type = $id("p1Type")?.value || "USER";
             if(p1Type === "USER"){
               const id = ($id("p1UserId")?.value || "").trim();
@@ -643,7 +773,6 @@
               if(f) fd.append("player1AvatarFile", f);
             }
 
-            // Player2 only if DOUBLE and not waiting
             if(gt === "DOUBLE" && !waitingPair){
               const p2Type = $id("p2Type")?.value || "USER";
               if(p2Type === "USER"){
@@ -666,7 +795,6 @@
             return fd;
           }
 
-          // Wire events
           document.addEventListener("DOMContentLoaded", async () => {
             if(!TOURNAMENT_ID){
               console.error("TOURNAMENT_ID missing. Check ViewBag.TournamentId.");
@@ -741,40 +869,35 @@
               }
             });
 
-                   on("formCreate","submit", async (e) => {
-          e.preventDefault();
-          clearCreateErr();
+            on("formCreate","submit", async (e) => {
+              e.preventDefault();
+              clearCreateErr();
 
-          const btn = $id("btnCreateSubmit");
-          if(btn){
-            btn.disabled = true;
-            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
-          }
+              const btn = $id("btnCreateSubmit");
+              if(btn){
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
+              }
 
-          try{
-            const fd = buildFormData();
+              try{
+                const fd = buildFormData();
 
-            await axios.post(`/api/admin/tournaments/${TOURNAMENT_ID}/registrations`, fd, {
-              // axios tự set boundary khi gửi FormData, KHÔNG cần set Content-Type
-              // headers: { "Content-Type": "multipart/form-data" }
+                await axios.post(`/api/admin/tournaments/${TOURNAMENT_ID}/registrations`, fd, {
+                });
+
+                $("#modalCreate").modal("hide");
+                window.location.reload();
+
+              } catch(err){
+                const msg = err?.response?.data?.message || err?.message || "Create failed.";
+                showCreateErr(msg);
+              } finally {
+                if(btn){
+                  btn.disabled = false;
+                  btn.innerHTML = `<i class="fas fa-save"></i> Create`;
+                }
+              }
             });
-
-            // đóng modal cho đẹp (optional)
-            $("#modalCreate").modal("hide");
-
-            // refresh trang luôn
-            window.location.reload();
-
-          } catch(err){
-            const msg = err?.response?.data?.message || err?.message || "Create failed.";
-            showCreateErr(msg);
-          } finally {
-            if(btn){
-              btn.disabled = false;
-              btn.innerHTML = `<i class="fas fa-save"></i> Create`;
-            }
-          }
-        });
 
             await load("SUCCESS");
           });

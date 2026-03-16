@@ -1,38 +1,151 @@
 ﻿@{
     Layout = "_AdminLayout";
-    ViewData["Title"] = "Users";
+    ViewData["Title"] = "Người dùng";
 }
 
-<div class="container-fluid">
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">Users</h1>
+<style>
+    .users-page-toolbar {
+        gap: 8px;
+    }
 
-        <button id="btnRefresh" class="btn btn-primary btn-sm shadow-sm" type="button">
-            <i class="fas fa-sync fa-sm text-white-50"></i> Refresh
-        </button>
+    .users-filter-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        width: 100%;
+    }
+
+        .users-filter-toolbar .filter-keyword {
+            flex: 1 1 260px;
+            min-width: 220px;
+        }
+
+        .users-filter-toolbar .filter-verified,
+        .users-filter-toolbar .filter-active {
+            flex: 0 0 140px;
+            min-width: 140px;
+        }
+
+        .users-filter-toolbar .filter-action {
+            flex: 0 0 auto;
+        }
+
+    .user-avatar-lg {
+        width: 64px;
+        height: 64px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid #eee;
+    }
+
+    .user-avatar-sm {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid #eee;
+    }
+
+    .user-avatar-fallback {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 1px dashed #ddd;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #999;
+        font-weight: 700;
+    }
+
+    @@media (max-width: 991.98px) {
+        .users-card-header-responsive {
+            flex-direction: column;
+            align-items: stretch !important;
+            gap: 12px;
+        }
+
+            .users-card-header-responsive h6 {
+                margin-bottom: 0;
+            }
+
+        .users-filter-toolbar .filter-keyword,
+        .users-filter-toolbar .filter-verified,
+        .users-filter-toolbar .filter-active,
+        .users-filter-toolbar .filter-action {
+            flex: 1 1 100%;
+            min-width: 100%;
+        }
+
+        .users-filter-toolbar .btn {
+            width: 100%;
+        }
+    }
+
+    @@media (max-width: 575.98px) {
+        .users-page-title-bar {
+            gap: 12px;
+        }
+
+            .users-page-title-bar > div:last-child {
+                width: 100%;
+            }
+
+        .users-page-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+            .users-page-toolbar > * {
+                flex: 1 1 100%;
+            }
+    }
+</style>
+
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4 users-page-title-bar">
+        <h1 class="h3 mb-0 text-gray-800">Người dùng</h1>
+
+        <div>
+            <div class="d-flex users-page-toolbar">
+                <button id="btnRefresh" class="btn btn-primary btn-sm shadow-sm" type="button">
+                    <i class="fas fa-sync fa-sm text-white-50"></i> Làm mới
+                </button>
+            </div>
+        </div>
     </div>
 
     <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex align-items-center justify-content-between">
-            <h6 class="m-0 font-weight-bold text-primary">User List</h6>
+        <div class="card-header py-3 d-flex align-items-center justify-content-between users-card-header-responsive">
+            <h6 class="m-0 font-weight-bold text-primary">Danh sách người dùng</h6>
 
-            <div class="d-flex flex-wrap" style="gap: 8px; align-items: center;">
-                <input id="keyword" class="form-control form-control-sm" style="width: 220px;"
-                       placeholder="Search name / email / phone" />
+            <div class="users-filter-toolbar">
+                <div class="filter-keyword">
+                    <input id="keyword" class="form-control form-control-sm w-100"
+                           placeholder="Tìm tên / email / số điện thoại" />
+                </div>
 
-                <select id="verifiedFilter" class="form-control form-control-sm" style="width: 140px;">
-                    <option value="ALL" selected>All Verified</option>
-                    <option value="true">Verified</option>
-                    <option value="false">Not verified</option>
-                </select>
+                <div class="filter-verified">
+                    <select id="verifiedFilter" class="form-control form-control-sm w-100">
+                        <option value="ALL" selected>Tất cả xác minh</option>
+                        <option value="true">Đã xác minh</option>
+                        <option value="false">Chưa xác minh</option>
+                    </select>
+                </div>
 
-                <select id="activeFilter" class="form-control form-control-sm" style="width: 140px;">
-                    <option value="ALL" selected>All Status</option>
-                    <option value="true">Active</option>
-                    <option value="false">Locked</option>
-                </select>
+                <div class="filter-active">
+                    <select id="activeFilter" class="form-control form-control-sm w-100">
+                        <option value="ALL" selected>Tất cả trạng thái</option>
+                        <option value="true">Đang hoạt động</option>
+                        <option value="false">Đã khóa</option>
+                    </select>
+                </div>
 
-                <button id="btnFilter" class="btn btn-sm btn-outline-primary" type="button">Filter</button>
+                <div class="filter-action">
+                    <button id="btnFilter" class="btn btn-sm btn-outline-primary" type="button">Lọc</button>
+                </div>
             </div>
         </div>
 
@@ -43,31 +156,30 @@
                 <table class="table table-bordered" width="100%" cellspacing="0">
                     <thead>
                         <tr>
-                            <th style="width: 72px;">Avatar</th>
-                            <th>User</th>
-                            <th>City</th>
-                            <th>Verified</th>
-                            <th>Status</th>
-                            <th>Rating (S/D)</th>
-                            <th>Created</th>
-                            <th style="width: 170px;">Actions</th>
+                            <th style="width: 72px;">Ảnh đại diện</th>
+                            <th>Người dùng</th>
+                            <th>Thành phố</th>
+                            <th>Xác minh</th>
+                            <th>Trạng thái</th>
+                            <th>Điểm trình độ (Đơn/Đôi)</th>
+                            <th>Ngày tạo</th>
+                            <th style="width: 170px;">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody id="usersBody">
                         <tr>
-                            <td colspan="8" class="text-center text-muted">Loading...</td>
+                            <td colspan="8" class="text-center text-muted">Đang tải...</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- paging -->
-            <div class="d-flex justify-content-between align-items-center mt-3">
+            <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap" style="gap: 8px;">
                 <div class="text-muted small">
                     <span id="pagingInfo">—</span>
                 </div>
 
-                <div class="d-flex align-items-center" style="gap: 8px;">
+                <div class="d-flex align-items-center flex-wrap" style="gap: 8px;">
                     <select id="pageSize" class="form-control form-control-sm" style="width: 90px;">
                         <option value="10">10</option>
                         <option value="20" selected>20</option>
@@ -95,7 +207,7 @@
                 <input type="hidden" id="editingId" value="" />
 
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modalTitle">User Detail</h5>
+                    <h5 class="modal-title" id="modalTitle">Chi tiết người dùng</h5>
                     <button class="close" type="button" data-dismiss="modal">
                         <span aria-hidden="true">×</span>
                     </button>
@@ -105,7 +217,7 @@
                     <div id="formError" class="alert alert-danger d-none"></div>
 
                     <div class="d-flex align-items-center" style="gap: 12px;">
-                        <img id="uAvatar" src="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid #eee" />
+                        <img id="uAvatar" src="" class="user-avatar-lg" />
                         <div>
                             <div class="font-weight-bold text-gray-900" id="uName">—</div>
                             <div class="small text-gray-500" id="uSub">—</div>
@@ -116,7 +228,7 @@
 
                     <div class="form-row">
                         <div class="form-group col-md-6">
-                            <label>Full Name</label>
+                            <label>Họ và tên</label>
                             <input id="fullName" class="form-control" />
                         </div>
                         <div class="form-group col-md-6">
@@ -127,42 +239,42 @@
 
                     <div class="form-row">
                         <div class="form-group col-md-4">
-                            <label>Phone</label>
+                            <label>Số điện thoại</label>
                             <input id="phone" class="form-control" />
                         </div>
                         <div class="form-group col-md-4">
-                            <label>City</label>
+                            <label>Thành phố</label>
                             <input id="city" class="form-control" />
                         </div>
                         <div class="form-group col-md-4">
-                            <label>Gender</label>
+                            <label>Giới tính</label>
                             <input id="gender" class="form-control" />
                         </div>
                     </div>
 
                     <div class="form-group">
-                        <label>Bio</label>
+                        <label>Giới thiệu</label>
                         <textarea id="bio" class="form-control" rows="3"></textarea>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group col-md-6">
-                            <label>Rating Single</label>
+                            <label>Điểm đơn</label>
                             <input id="ratingSingle" type="number" step="0.01" class="form-control" />
                         </div>
                         <div class="form-group col-md-6">
-                            <label>Rating Double</label>
+                            <label>Điểm đôi</label>
                             <input id="ratingDouble" type="number" step="0.01" class="form-control" />
                         </div>
                     </div>
 
                     <div class="d-flex flex-wrap" style="gap: 8px;">
                         <button id="btnToggleActive" class="btn btn-outline-warning btn-sm" type="button">
-                            <i class="fas fa-lock mr-1"></i> Toggle Active
+                            <i class="fas fa-lock mr-1"></i> Chuyển trạng thái hoạt động
                         </button>
 
                         <button id="btnToggleVerified" class="btn btn-outline-success btn-sm" type="button">
-                            <i class="fas fa-check mr-1"></i> Toggle Verified
+                            <i class="fas fa-check mr-1"></i> Chuyển trạng thái xác minh
                         </button>
                     </div>
 
@@ -170,9 +282,9 @@
                 </div>
 
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Close</button>
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Đóng</button>
                     <button id="btnSubmit" class="btn btn-primary" type="submit">
-                        <span class="mr-1"><i class="fas fa-save"></i></span> Save
+                        <span class="mr-1"><i class="fas fa-save"></i></span> Lưu
                     </button>
                 </div>
             </form>
@@ -216,29 +328,29 @@
 
         function badgeVerified(v) {
             return v
-                ? `<span class="badge badge-success">Verified</span>`
-                : `<span class="badge badge-secondary">No</span>`;
+                ? `<span class="badge badge-success">Đã xác minh</span>`
+                : `<span class="badge badge-secondary">Chưa</span>`;
         }
 
         function badgeActive(v) {
             return v
-                ? `<span class="badge badge-primary">Active</span>`
-                : `<span class="badge badge-danger">Locked</span>`;
+                ? `<span class="badge badge-primary">Hoạt động</span>`
+                : `<span class="badge badge-danger">Đã khóa</span>`;
         }
 
         function avatarHtml(url, name) {
             const safe = escapeHtml(name || "U");
             if (url) {
-                return `<img src="${url}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:1px solid #eee" />`;
+                return `<img src="${url}" class="user-avatar-sm" />`;
             }
-            return `<div style="width:44px;height:44px;border-radius:50%;border:1px dashed #ddd;display:flex;align-items:center;justify-content:center;color:#999;font-weight:700">
+            return `<div class="user-avatar-fallback">
                         ${safe.substring(0,1).toUpperCase()}
                     </div>`;
         }
 
         function showPageError(msg) {
             const box = document.getElementById("pageError");
-            box.textContent = msg || "Error";
+            box.textContent = msg || "Đã xảy ra lỗi";
             box.classList.remove("d-none");
         }
 
@@ -250,7 +362,7 @@
 
         function showFormError(msg) {
             const box = document.getElementById("formError");
-            box.textContent = msg || "Error";
+            box.textContent = msg || "Đã xảy ra lỗi";
             box.classList.remove("d-none");
         }
 
@@ -281,15 +393,15 @@
                     <td>${Number(rs).toFixed(2)} / ${Number(rd).toFixed(2)}</td>
                     <td>${fmtDate(u.createdAt)}</td>
                     <td style="white-space:nowrap">
-                        <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${u.userId})" type="button" title="Edit / Rating">
+                        <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${u.userId})" type="button" title="Chỉnh sửa / Điểm trình độ">
                             <i class="fas fa-edit"></i>
                         </button>
 
-                        <button class="btn btn-sm btn-outline-warning" onclick="toggleActive(${u.userId})" type="button" title="Lock/Unlock">
+                        <button class="btn btn-sm btn-outline-warning" onclick="toggleActive(${u.userId})" type="button" title="Khóa/Mở khóa">
                             <i class="fas fa-lock"></i>
                         </button>
 
-                        <button class="btn btn-sm btn-outline-success" onclick="toggleVerified(${u.userId})" type="button" title="Verify">
+                        <button class="btn btn-sm btn-outline-success" onclick="toggleVerified(${u.userId})" type="button" title="Xác minh">
                             <i class="fas fa-check"></i>
                         </button>
                     </td>
@@ -314,7 +426,7 @@
             };
 
             if (keyword) params.keyword = keyword;
-            if (verified !== "ALL") params.verified = verified; // "true"/"false"
+            if (verified !== "ALL") params.verified = verified;
             if (active !== "ALL") params.active = active;
 
             return params;
@@ -325,7 +437,7 @@
 
             clearPageError();
             const body = document.getElementById("usersBody");
-            body.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Loading...</td></tr>`;
+            body.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Đang tải...</td></tr>`;
 
             try {
                 const res = await axios.get(API_BASE, { params: getFilters() });
@@ -334,15 +446,15 @@
                 state.items = items;
 
                 if (!items.length) {
-                    body.innerHTML = `<tr><td colspan="8" class="text-center text-muted">No users</td></tr>`;
+                    body.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Không có người dùng</td></tr>`;
                 } else {
                     body.innerHTML = items.map(rowHtml).join("");
                 }
 
                 renderPaging();
             } catch (e) {
-                body.innerHTML = `<tr><td colspan="8" class="text-center text-danger">Load failed</td></tr>`;
-                const msg = e?.response?.data?.message || e?.message || "Load failed.";
+                body.innerHTML = `<tr><td colspan="8" class="text-center text-danger">Tải dữ liệu thất bại</td></tr>`;
+                const msg = e?.response?.data?.message || e?.message || "Tải dữ liệu thất bại.";
                 showPageError(String(msg));
             }
         }
@@ -355,13 +467,12 @@
             const start = total === 0 ? 0 : ((page - 1) * pageSize + 1);
             const end = Math.min(page * pageSize, total);
 
-            info.textContent = `Showing ${start}-${end} of ${total}`;
+            info.textContent = `Hiển thị ${start}-${end} trên tổng ${total}`;
 
             document.getElementById("btnPrev").disabled = page <= 1;
             document.getElementById("btnNext").disabled = end >= total;
         }
 
-        // ===== Modal =====
         function resetModal() {
             clearFormError();
             document.getElementById("formUser").reset();
@@ -372,7 +483,7 @@
             document.getElementById("uSub").textContent = "—";
             document.getElementById("uMeta").textContent = "—";
 
-            setSubmitText("Save");
+            setSubmitText("Lưu");
         }
 
         function setSubmitText(text) {
@@ -399,19 +510,18 @@
             if (u.ratingDouble !== undefined && u.ratingDouble !== null)
                 document.getElementById("ratingDouble").value = u.ratingDouble;
 
-            const meta = `Verified: ${u.verified ? "Yes" : "No"} • Status: ${u.isActive ? "Active" : "Locked"} • Created: ${fmtDate(u.createdAt)}`;
+            const meta = `Xác minh: ${u.verified ? "Có" : "Không"} • Trạng thái: ${u.isActive ? "Hoạt động" : "Đã khóa"} • Ngày tạo: ${fmtDate(u.createdAt)}`;
             document.getElementById("uMeta").textContent = meta;
 
-            // Button text icon hint
             const btnA = document.getElementById("btnToggleActive");
             btnA.innerHTML = u.isActive
-                ? `<i class="fas fa-lock mr-1"></i> Lock User`
-                : `<i class="fas fa-unlock mr-1"></i> Unlock User`;
+                ? `<i class="fas fa-lock mr-1"></i> Khóa người dùng`
+                : `<i class="fas fa-unlock mr-1"></i> Mở khóa người dùng`;
 
             const btnV = document.getElementById("btnToggleVerified");
             btnV.innerHTML = u.verified
-                ? `<i class="fas fa-times mr-1"></i> Unverify`
-                : `<i class="fas fa-check mr-1"></i> Verify`;
+                ? `<i class="fas fa-times mr-1"></i> Bỏ xác minh`
+                : `<i class="fas fa-check mr-1"></i> Xác minh`;
         }
 
         async function openEdit(id) {
@@ -422,34 +532,31 @@
                 const res = await axios.get(`${API_BASE}/${id}`);
                 fillModal(res.data);
             } catch (e) {
-                const msg = e?.response?.data?.message || e?.message || "Load user failed.";
+                const msg = e?.response?.data?.message || e?.message || "Tải thông tin người dùng thất bại.";
                 showFormError(String(msg));
             }
         }
 
-        // ===== Actions: toggle active / verified from table =====
         async function toggleActive(id) {
             try {
-                const res = await axios.post(`${API_BASE}/${id}/toggle-active`);
-                // refresh row data by re-fetch detail (simple and safe)
+                await axios.post(`${API_BASE}/${id}/toggle-active`);
                 const d = await axios.get(`${API_BASE}/${id}`);
                 updateRowInTable(d.data);
             } catch (e) {
-                alert(e?.response?.data?.message || e?.message || "Toggle active failed.");
+                alert(e?.response?.data?.message || e?.message || "Chuyển trạng thái hoạt động thất bại.");
             }
         }
 
         async function toggleVerified(id) {
             try {
-                const res = await axios.post(`${API_BASE}/${id}/toggle-verified`);
+                await axios.post(`${API_BASE}/${id}/toggle-verified`);
                 const d = await axios.get(`${API_BASE}/${id}`);
                 updateRowInTable(d.data);
             } catch (e) {
-                alert(e?.response?.data?.message || e?.message || "Toggle verified failed.");
+                alert(e?.response?.data?.message || e?.message || "Chuyển trạng thái xác minh thất bại.");
             }
         }
 
-        // ===== Modal button actions =====
         async function modalToggleActive() {
             const id = document.getElementById("editingId").value;
             if (!id) return;
@@ -460,7 +567,7 @@
                 fillModal(d.data);
                 updateRowInTable(d.data);
             } catch (e) {
-                showFormError(e?.response?.data?.message || e?.message || "Toggle active failed.");
+                showFormError(e?.response?.data?.message || e?.message || "Chuyển trạng thái hoạt động thất bại.");
             }
         }
 
@@ -474,11 +581,10 @@
                 fillModal(d.data);
                 updateRowInTable(d.data);
             } catch (e) {
-                showFormError(e?.response?.data?.message || e?.message || "Toggle verified failed.");
+                showFormError(e?.response?.data?.message || e?.message || "Chuyển trạng thái xác minh thất bại.");
             }
         }
 
-        // ===== Save profile + rating =====
         function buildUpdatePayload() {
             return {
                 fullName: document.getElementById("fullName").value || "",
@@ -493,26 +599,21 @@
         }
 
         document.addEventListener("DOMContentLoaded", () => {
-            // init
             state.pageSize = parseInt(document.getElementById("pageSize").value, 10) || 20;
             loadUsers(true);
 
-            // filter
             document.getElementById("btnFilter").addEventListener("click", () => loadUsers(true));
             document.getElementById("btnRefresh").addEventListener("click", () => loadUsers(false));
 
-            // Enter to search
             document.getElementById("keyword").addEventListener("keydown", (e) => {
                 if (e.key === "Enter") loadUsers(true);
             });
 
-            // page size
             document.getElementById("pageSize").addEventListener("change", () => {
                 state.pageSize = parseInt(document.getElementById("pageSize").value, 10) || 20;
                 loadUsers(true);
             });
 
-            // paging buttons
             document.getElementById("btnPrev").addEventListener("click", () => {
                 if (state.page > 1) {
                     state.page--;
@@ -525,39 +626,36 @@
                 loadUsers(false);
             });
 
-            // modal actions
             document.getElementById("btnToggleActive").addEventListener("click", modalToggleActive);
             document.getElementById("btnToggleVerified").addEventListener("click", modalToggleVerified);
 
-            // modal submit
             document.getElementById("formUser").addEventListener("submit", async (e) => {
                 e.preventDefault();
                 clearFormError();
 
                 const id = document.getElementById("editingId").value;
                 if (!id) {
-                    showFormError("Missing user id.");
+                    showFormError("Thiếu mã người dùng.");
                     return;
                 }
 
                 const btn = document.getElementById("btnSubmit");
                 btn.disabled = true;
-                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang lưu...`;
 
                 try {
                     const payload = buildUpdatePayload();
                     const res = await axios.put(`${API_BASE}/${id}`, payload);
 
-                    // backend trả user detail mới => update modal + row
                     fillModal(res.data);
                     updateRowInTable(res.data);
                     $("#modalUser").modal("hide");
                 } catch (err) {
-                    const msg = err?.response?.data?.message || err?.response?.data || err?.message || "Save failed.";
+                    const msg = err?.response?.data?.message || err?.response?.data || err?.message || "Lưu thất bại.";
                     showFormError(String(msg));
                 } finally {
                     btn.disabled = false;
-                    setSubmitText("Save");
+                    setSubmitText("Lưu");
                 }
             });
 
