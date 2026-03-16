@@ -1,22 +1,22 @@
 ﻿@{
     Layout = "_AdminLayout";
-    ViewData["Title"] = "Quản lý Banner";
+    ViewData["Title"] = "Quản lý biểu ngữ";
 }
 
 <div class="container-fluid">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h1 class="h3 mb-0 text-gray-800">Quản lý Banner</h1>
+        <h1 class="h3 mb-0 text-gray-800">Quản lý biểu ngữ</h1>
 
         <button id="btnOpenCreate"
                 class="btn btn-primary btn-sm shadow-sm"
                 type="button">
-            <i class="fas fa-plus fa-sm text-white-50"></i> Thêm banner
+            <i class="fas fa-plus fa-sm text-white-50"></i> Thêm biểu ngữ
         </button>
     </div>
 
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex align-items-center justify-content-between">
-            <h6 class="m-0 font-weight-bold text-primary">Danh sách banner</h6>
+            <h6 class="m-0 font-weight-bold text-primary">Danh sách biểu ngữ</h6>
             <div class="d-flex" style="gap: 8px">
                 <select id="statusFilter" class="form-control form-control-sm" style="width: 170px;">
                     <option value="ALL" selected>Tất cả trạng thái</option>
@@ -33,7 +33,7 @@
                     <thead>
                         <tr>
                             <th>Hình ảnh</th>
-                            <th>Mã banner</th>
+                            <th>Mã biểu ngữ</th>
                             <th>Tiêu đề</th>
                             <th>Thứ tự</th>
                             <th>Trạng thái</th>
@@ -47,12 +47,12 @@
                     </tbody>
                 </table>
             </div>
-            <small class="text-muted">Gợi ý: Banner nên có kích thước ngang (vd: 1200x400).</small>
+            <small class="text-muted">Gợi ý: Biểu ngữ nên có kích thước ngang (ví dụ: 1200x400).</small>
         </div>
     </div>
 </div>
 
-<!-- ===== Modal Create/Edit Banner ===== -->
+<!-- ===== Hộp thoại thêm/sửa biểu ngữ ===== -->
 <div class="modal fade" id="modalBanner" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
@@ -61,7 +61,7 @@
                 <input type="hidden" id="editingId" value="" />
 
                 <div class="modal-header">
-                    <h5 class="modal-title" id="modalTitle">Thêm banner</h5>
+                    <h5 class="modal-title" id="modalTitle">Thêm biểu ngữ</h5>
                     <button class="close" type="button" data-dismiss="modal">
                         <span aria-hidden="true">×</span>
                     </button>
@@ -72,19 +72,19 @@
 
                     <div class="form-row">
                         <div class="form-group col-md-6">
-                            <label>Mã banner (BannerKey) *</label>
+                            <label>Mã biểu ngữ *</label>
                             <input id="bannerKey" class="form-control" placeholder="HOME_TOP" required />
-                            <small class="text-muted">Mã duy nhất, dùng để map đúng vị trí hiển thị.</small>
+                            <small class="text-muted">Mã duy nhất, dùng để ánh xạ đúng vị trí hiển thị.</small>
                         </div>
                         <div class="form-group col-md-6">
-                            <label>Thứ tự (SortOrder)</label>
+                            <label>Thứ tự hiển thị</label>
                             <input id="sortOrder" type="number" class="form-control" value="0" min="0" />
                         </div>
                     </div>
 
                     <div class="form-group">
                         <label>Tiêu đề *</label>
-                        <input id="title" class="form-control" placeholder="Banner chương trình..." required />
+                        <input id="title" class="form-control" placeholder="Biểu ngữ chương trình..." required />
                     </div>
 
                     <div class="form-row">
@@ -96,15 +96,15 @@
                             </select>
                         </div>
                         <div class="form-group col-md-6">
-                            <label>ImageUrl (tuỳ chọn)</label>
+                            <label>Liên kết ảnh (tuỳ chọn)</label>
                             <input id="imageUrl" class="form-control" placeholder="https://..." />
-                            <small class="text-muted">Nếu bạn upload ảnh thì không cần nhập.</small>
+                            <small class="text-muted">Nếu bạn tải ảnh lên thì không cần nhập.</small>
                         </div>
                     </div>
 
-                    <!-- Upload image -->
+                    <!-- Tải ảnh lên -->
                     <div class="form-group">
-                        <label>Ảnh banner</label>
+                        <label>Ảnh biểu ngữ</label>
                         <div class="custom-file">
                             <input id="imageFile" type="file" class="custom-file-input" accept="image/*" />
                             <label id="imageLabel" class="custom-file-label" for="imageFile">Chọn ảnh</label>
@@ -169,7 +169,7 @@
                     <td>${b.sortOrder ?? 0}</td>
                     <td>${badgeActive(b.isActive)}</td>
                     <td style="white-space:nowrap">
-                        <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${b.bannerId})" type="button" title="Sửa">
+                        <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${b.bannerId})" type="button" title="Chỉnh sửa">
                             <i class="fas fa-edit"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-danger" onclick="confirmDelete(${b.bannerId})" type="button" title="Xoá">
@@ -182,7 +182,7 @@
 
         function showError(msg) {
             const box = document.getElementById("formError");
-            box.textContent = msg || "Có lỗi xảy ra.";
+            box.textContent = msg || "Đã xảy ra lỗi.";
             box.classList.remove("d-none");
         }
 
@@ -226,7 +226,7 @@
                 const items = res.data?.items || [];
 
                 if (!items.length) {
-                    body.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Chưa có banner</td></tr>`;
+                    body.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Chưa có biểu ngữ</td></tr>`;
                     return;
                 }
 
@@ -240,7 +240,7 @@
             resetForm();
             document.getElementById("mode").value = "create";
             document.getElementById("editingId").value = "";
-            document.getElementById("modalTitle").textContent = "Thêm banner";
+            document.getElementById("modalTitle").textContent = "Thêm biểu ngữ";
             setSubmitText("Tạo mới");
             $("#modalBanner").modal("show");
         }
@@ -265,7 +265,7 @@
             document.getElementById("mode").value = "edit";
             document.getElementById("editingId").value = String(id);
 
-            document.getElementById("modalTitle").textContent = "Sửa banner";
+            document.getElementById("modalTitle").textContent = "Sửa biểu ngữ";
             setSubmitText("Lưu thay đổi");
 
             $("#modalBanner").modal("show");
@@ -274,7 +274,7 @@
                 const res = await axios.get(`${API_BASE}/${id}`);
                 fillForm(res.data);
             } catch (e) {
-                const msg = e?.response?.data?.message || e?.message || "Tải dữ liệu banner thất bại.";
+                const msg = e?.response?.data?.message || e?.message || "Tải dữ liệu biểu ngữ thất bại.";
                 showError(String(msg));
             }
         }
@@ -300,7 +300,7 @@
             fd.append("sortOrder", document.getElementById("sortOrder").value || "0");
             fd.append("isActive", document.getElementById("isActive").value);
 
-            // cho phép nhập url (nếu không upload)
+            // cho phép nhập liên kết ảnh (nếu không tải ảnh lên)
             fd.append("imageUrl", document.getElementById("imageUrl").value.trim());
 
             const f = document.getElementById("imageFile").files?.[0];
@@ -310,7 +310,7 @@
         }
 
         async function confirmDelete(id) {
-            if (!confirm("Bạn chắc chắn muốn xoá banner này?")) return;
+            if (!confirm("Bạn chắc chắn muốn xoá biểu ngữ này?")) return;
 
             try {
                 await axios.delete(`${API_BASE}/${id}`);
@@ -326,7 +326,7 @@
             document.getElementById("btnFilter").addEventListener("click", loadBanners);
             document.getElementById("btnOpenCreate").addEventListener("click", openCreate);
 
-            // file label + preview
+            // tên tệp + xem trước ảnh
             const fileInput = document.getElementById("imageFile");
             const fileLabel = document.getElementById("imageLabel");
             const preview = document.getElementById("imagePreview");
@@ -345,7 +345,7 @@
                 preview.style.display = "block";
             });
 
-            // submit create/edit
+            // gửi biểu mẫu thêm/sửa
             document.getElementById("formBanner").addEventListener("submit", async (e) => {
                 e.preventDefault();
                 clearError();

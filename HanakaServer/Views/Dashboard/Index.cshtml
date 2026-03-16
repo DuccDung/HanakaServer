@@ -1,0 +1,347 @@
+﻿@model HanakaServer.ViewModels.Admin.DashboardViewModel
+
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Bảng điều khiển";
+
+    string GetTournamentStatusText(string status)
+    {
+        return status switch
+        {
+            "OPEN" => "Mở đăng ký",
+            "ACTIVE" => "Đang diễn ra",
+            "CLOSED" => "Đã đóng",
+            "COMPLETED" => "Đã hoàn thành",
+            "CANCELLED" => "Đã hủy",
+            _ => status
+        };
+    }
+}
+
+@section Styles {
+    <style>
+        .dashboard-card {
+            border: 0;
+            border-radius: 14px;
+            box-shadow: 0 0.15rem 1rem rgba(58, 59, 69, 0.12);
+            transition: all 0.2s ease;
+        }
+
+            .dashboard-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 0.35rem 1.2rem rgba(58, 59, 69, 0.18);
+            }
+
+        .stat-icon {
+            font-size: 2rem;
+            opacity: 0.3;
+        }
+
+        .stat-title {
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .04em;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 800;
+            color: #2e2e2e;
+        }
+
+        .section-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #4e73df;
+            margin-bottom: 1rem;
+        }
+
+        .table td, .table th {
+            vertical-align: middle;
+        }
+
+        .badge-soft {
+            padding: .45rem .65rem;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+    </style>
+}
+
+<div class="d-sm-flex align-items-center justify-content-between mb-4">
+    <h1 class="h3 mb-0 text-gray-800">Bảng điều khiển</h1>
+</div>
+
+<div class="row">
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card dashboard-card border-left-primary h-100 py-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title text-primary">Tổng số người dùng</div>
+                        <div class="stat-value">@Model.TotalUsers</div>
+                    </div>
+                    <div class="text-primary stat-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card dashboard-card border-left-danger h-100 py-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title text-danger">Người dùng chưa kích hoạt</div>
+                        <div class="stat-value">@Model.InactiveUsers</div>
+                    </div>
+                    <div class="text-danger stat-icon">
+                        <i class="fas fa-user-slash"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card dashboard-card border-left-success h-100 py-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title text-success">Người dùng đã xác minh</div>
+                        <div class="stat-value">@Model.VerifiedUsers</div>
+                    </div>
+                    <div class="text-success stat-icon">
+                        <i class="fas fa-user-check"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card dashboard-card border-left-warning h-100 py-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title text-warning">Người dùng chưa xác minh</div>
+                        <div class="stat-value">@Model.UnverifiedUsers</div>
+                    </div>
+                    <div class="text-warning stat-icon">
+                        <i class="fas fa-user-clock"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="row">
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card dashboard-card border-left-info h-100 py-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title text-info">Giải đấu</div>
+                        <div class="stat-value">@Model.TotalTournaments</div>
+                        <div class="small text-muted">Đang hoạt động: @Model.ActiveTournaments</div>
+                    </div>
+                    <div class="text-info stat-icon">
+                        <i class="fas fa-trophy"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card dashboard-card border-left-secondary h-100 py-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title text-secondary">Biểu ngữ</div>
+                        <div class="stat-value">@Model.TotalBanners</div>
+                        <div class="small text-muted">Đang hoạt động: @Model.ActiveBanners</div>
+                    </div>
+                    <div class="text-secondary stat-icon">
+                        <i class="fas fa-images"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card dashboard-card border-left-dark h-100 py-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title text-dark">Câu lạc bộ</div>
+                        <div class="stat-value">@Model.TotalClubs</div>
+                        <div class="small text-muted">Đang hoạt động: @Model.ActiveClubs</div>
+                    </div>
+                    <div class="text-dark stat-icon">
+                        <i class="fas fa-users-cog"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card dashboard-card border-left-primary h-100 py-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title text-primary">Sân đấu</div>
+                        <div class="stat-value">@Model.TotalCourts</div>
+                    </div>
+                    <div class="text-primary stat-icon">
+                        <i class="fas fa-map-marker-alt"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="row">
+
+    <div class="col-xl-6 col-md-6 mb-4">
+        <div class="card dashboard-card border-left-success h-100 py-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title text-success">Huấn luyện viên</div>
+                        <div class="stat-value">@Model.TotalCoaches</div>
+                        <div class="small text-muted">Đã xác minh: @Model.VerifiedCoaches</div>
+                    </div>
+                    <div class="text-success stat-icon">
+                        <i class="fas fa-chalkboard-teacher"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-6 col-md-6 mb-4">
+        <div class="card dashboard-card border-left-warning h-100 py-2">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="stat-title text-warning">Trọng tài</div>
+                        <div class="stat-value">@Model.TotalReferees</div>
+                        <div class="small text-muted">Đã xác minh: @Model.VerifiedReferees</div>
+                    </div>
+                    <div class="text-warning stat-icon">
+                        <i class="fas fa-gavel"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<div class="row">
+
+    <div class="col-lg-5 mb-4">
+        <div class="card shadow dashboard-card">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Thống kê quyền người dùng</h6>
+            </div>
+            <div class="card-body">
+                @if (Model.RoleStats != null && Model.RoleStats.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover mb-0">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th style="width: 80px;">Mã quyền</th>
+                                    <th>Tên quyền</th>
+                                    <th style="width: 120px;">Số người dùng</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in Model.RoleStats)
+                                {
+                                    <tr>
+                                        <td>@item.RoleId</td>
+                                        <td>@item.RoleName</td>
+                                        <td>
+                                            <span class="badge badge-primary badge-soft">@item.UserCount</span>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-muted">Chưa có dữ liệu quyền.</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-7 mb-4">
+        <div class="card shadow dashboard-card">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">Các giải đấu mới nhất</h6>
+            </div>
+            <div class="card-body">
+                @if (Model.RecentTournaments != null && Model.RecentTournaments.Any())
+                {
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover mb-0">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th>Tiêu đề</th>
+                                    <th>Trạng thái</th>
+                                    <th>Số đăng ký</th>
+                                    <th>Số trận đấu</th>
+                                    <th>Ngày tạo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in Model.RecentTournaments)
+                                {
+                                    <tr>
+                                        <td>@item.Title</td>
+                                        <td>
+                                            @if (item.Status == "OPEN" || item.Status == "ACTIVE")
+                                            {
+                                                <span class="badge badge-success badge-soft">@GetTournamentStatusText(item.Status)</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge badge-secondary badge-soft">@GetTournamentStatusText(item.Status)</span>
+                                            }
+                                        </td>
+                                        <td>@item.RegisteredCount</td>
+                                        <td>@item.MatchesCount</td>
+                                        <td>@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-muted">Chưa có dữ liệu giải đấu.</div>
+                }
+            </div>
+        </div>
+    </div>
+
+</div>

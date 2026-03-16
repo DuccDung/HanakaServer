@@ -1,0 +1,547 @@
+﻿@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Huấn luyện viên";
+}
+
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800">Huấn luyện viên</h1>
+
+        <div>
+            <button id="btnAdd" class="btn btn-success btn-sm shadow-sm" type="button">
+                <i class="fas fa-plus fa-sm text-white-50"></i> Thêm huấn luyện viên
+            </button>
+            <button id="btnRefresh" class="btn btn-primary btn-sm shadow-sm" type="button">
+                <i class="fas fa-sync fa-sm text-white-50"></i> Làm mới
+            </button>
+        </div>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">Danh sách huấn luyện viên</h6>
+
+            <div class="d-flex flex-wrap" style="gap: 8px; align-items: center;">
+                <input id="keyword" class="form-control form-control-sm" style="width: 240px;"
+                       placeholder="Tìm theo tên / thành phố / loại / mã ngoài" />
+
+                <select id="verifiedFilter" class="form-control form-control-sm" style="width: 170px;">
+                    <option value="ALL" selected>Tất cả xác minh</option>
+                    <option value="true">Đã xác minh</option>
+                    <option value="false">Chưa xác minh</option>
+                </select>
+
+                <button id="btnFilter" class="btn btn-sm btn-outline-primary" type="button">Lọc</button>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <div id="pageError" class="alert alert-danger d-none"></div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th style="width: 72px;">Ảnh đại diện</th>
+                            <th>Huấn luyện viên</th>
+                            <th>Thành phố</th>
+                            <th>Xác minh</th>
+                            <th>Trình độ (Đơn/Đôi)</th>
+                            <th>Loại</th>
+                            <th style="width: 170px;">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">Đang tải...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div class="text-muted small">
+                    <span id="pagingInfo">—</span>
+                </div>
+
+                <div class="d-flex align-items-center" style="gap: 8px;">
+                    <select id="pageSize" class="form-control form-control-sm" style="width: 90px;">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                    </select>
+
+                    <button id="btnPrev" class="btn btn-sm btn-outline-secondary" type="button">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <button id="btnNext" class="btn btn-sm btn-outline-secondary" type="button">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalItem" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <form id="formItem">
+                <input type="hidden" id="editingId" value="" />
+
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Chi tiết huấn luyện viên</h5>
+                    <button class="close" type="button" data-dismiss="modal">
+                        <span aria-hidden="true">×</span>
+                    </button>
+                </div>
+
+                <div class="modal-body">
+                    <div id="formError" class="alert alert-danger d-none"></div>
+
+                    <div class="d-flex align-items-center" style="gap: 12px;">
+                        <img id="uAvatar" src="" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:1px solid #eee" />
+                        <div>
+                            <div class="font-weight-bold text-gray-900" id="uName">—</div>
+                            <div class="small text-gray-500" id="uSub">—</div>
+                        </div>
+                    </div>
+
+                    <hr />
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Mã ngoài</label>
+                            <input id="externalId" class="form-control" />
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Họ và tên</label>
+                            <input id="fullName" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label>Thành phố</label>
+                            <input id="city" class="form-control" />
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label>Loại huấn luyện viên</label>
+                            <input id="coachType" class="form-control" value="Huấn luyện viên" />
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label>URL ảnh đại diện</label>
+                            <input id="avatarUrl" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label>Trình độ đơn</label>
+                            <input id="levelSingle" type="number" step="0.01" class="form-control" />
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label>Trình độ đôi</label>
+                            <input id="levelDouble" type="number" step="0.01" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Giới thiệu</label>
+                        <textarea id="introduction" class="form-control" rows="3"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Khu vực giảng dạy</label>
+                        <textarea id="teachingArea" class="form-control" rows="2"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Thành tích</label>
+                        <textarea id="achievements" class="form-control" rows="3"></textarea>
+                    </div>
+
+                    <div class="d-flex flex-wrap align-items-center" style="gap: 12px;">
+                        <div class="custom-control custom-switch">
+                            <input type="checkbox" class="custom-control-input" id="verified">
+                            <label class="custom-control-label" for="verified">Đã xác minh</label>
+                        </div>
+
+                        <button id="btnToggleVerified" class="btn btn-outline-success btn-sm" type="button">
+                            <i class="fas fa-check mr-1"></i> Chuyển trạng thái xác minh
+                        </button>
+
+                        <button id="btnDelete" class="btn btn-outline-danger btn-sm ml-auto" type="button">
+                            <i class="fas fa-trash mr-1"></i> Xóa
+                        </button>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Đóng</button>
+                    <button id="btnSubmit" class="btn btn-primary" type="submit">
+                        <span class="mr-1"><i class="fas fa-save"></i></span> Lưu
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        const API_BASE = "/api/admin/coaches";
+
+        let state = {
+            page: 1,
+            pageSize: 20,
+            total: 0,
+            items: []
+        };
+
+        function escapeHtml(str) {
+            return String(str || "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function getCoachTypeLabel(type) {
+            const value = String(type || "COACH").trim().toUpperCase();
+
+            switch (value) {
+                case "COACH":
+                    return "Huấn luyện viên";
+                default:
+                    return type || "Huấn luyện viên";
+            }
+        }
+
+        function normalizeCoachTypeForApi(value) {
+            const raw = String(value || "").trim();
+            if (!raw) return "COACH";
+
+            const normalized = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+
+            if (normalized === "HUAN LUYEN VIEN" || normalized === "COACH") {
+                return "COACH";
+            }
+
+            return raw;
+        }
+
+        function badgeVerified(v) {
+            return v
+                ? `<span class="badge badge-success">Đã xác minh</span>`
+                : `<span class="badge badge-secondary">Chưa</span>`;
+        }
+
+        function avatarHtml(url, name) {
+            const safe = escapeHtml(name || "C");
+            if (url) {
+                return `<img src="${url}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;border:1px solid #eee" />`;
+            }
+            return `<div style="width:44px;height:44px;border-radius:50%;border:1px dashed #ddd;display:flex;align-items:center;justify-content:center;color:#999;font-weight:700">
+                        ${safe.substring(0,1).toUpperCase()}
+                    </div>`;
+        }
+
+        function showPageError(msg) {
+            const box = document.getElementById("pageError");
+            box.textContent = msg || "Có lỗi xảy ra";
+            box.classList.remove("d-none");
+        }
+
+        function clearPageError() {
+            const box = document.getElementById("pageError");
+            box.classList.add("d-none");
+            box.textContent = "";
+        }
+
+        function showFormError(msg) {
+            const box = document.getElementById("formError");
+            box.textContent = msg || "Có lỗi xảy ra";
+            box.classList.remove("d-none");
+        }
+
+        function clearFormError() {
+            const box = document.getElementById("formError");
+            box.classList.add("d-none");
+            box.textContent = "";
+        }
+
+        function rowHtml(u) {
+            const userLine = `
+                <div class="font-weight-bold text-gray-900">${escapeHtml(u.fullName || "—")}</div>
+                <div class="small text-gray-500">${escapeHtml(u.externalId || "—")}</div>`;
+
+            return `
+                <tr data-id="${u.coachId}">
+                    <td>${avatarHtml(u.avatarUrl, u.fullName)}</td>
+                    <td>${userLine}</td>
+                    <td>${escapeHtml(u.city || "—")}</td>
+                    <td>${badgeVerified(!!u.verified)}</td>
+                    <td>${Number(u.levelSingle ?? 0).toFixed(2)} / ${Number(u.levelDouble ?? 0).toFixed(2)}</td>
+                    <td>${escapeHtml(getCoachTypeLabel(u.coachType))}</td>
+                    <td style="white-space:nowrap">
+                        <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${u.coachId})" type="button">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-success" onclick="toggleVerified(${u.coachId})" type="button">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${u.coachId})" type="button">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function updateRowInTable(u) {
+            const row = document.querySelector(`#itemsBody tr[data-id="${u.coachId}"]`);
+            if (!row) return;
+            row.outerHTML = rowHtml(u);
+        }
+
+        function getFilters() {
+            const keyword = document.getElementById("keyword").value.trim();
+            const verified = document.getElementById("verifiedFilter").value;
+
+            const params = {
+                page: state.page,
+                pageSize: state.pageSize
+            };
+
+            if (keyword) params.keyword = keyword;
+            if (verified !== "ALL") params.verified = verified;
+            return params;
+        }
+
+        async function loadItems(resetPage = false) {
+            if (resetPage) state.page = 1;
+            clearPageError();
+
+            const body = document.getElementById("itemsBody");
+            body.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Đang tải...</td></tr>`;
+
+            try {
+                const res = await axios.get(API_BASE, { params: getFilters() });
+                const items = res.data?.items || [];
+                state.total = res.data?.total || 0;
+                state.items = items;
+
+                if (!items.length) {
+                    body.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Không có huấn luyện viên</td></tr>`;
+                } else {
+                    body.innerHTML = items.map(rowHtml).join("");
+                }
+
+                renderPaging();
+            } catch (e) {
+                body.innerHTML = `<tr><td colspan="7" class="text-center text-danger">Tải dữ liệu thất bại</td></tr>`;
+                showPageError(e?.response?.data?.message || e?.message || "Tải dữ liệu thất bại.");
+            }
+        }
+
+        function renderPaging() {
+            const info = document.getElementById("pagingInfo");
+            const total = state.total || 0;
+            const page = state.page || 1;
+            const pageSize = state.pageSize || 20;
+            const start = total === 0 ? 0 : ((page - 1) * pageSize + 1);
+            const end = Math.min(page * pageSize, total);
+
+            info.textContent = `Hiển thị ${start}-${end} trên tổng ${total}`;
+            document.getElementById("btnPrev").disabled = page <= 1;
+            document.getElementById("btnNext").disabled = end >= total;
+        }
+
+        function resetModal() {
+            clearFormError();
+            document.getElementById("formItem").reset();
+            document.getElementById("editingId").value = "";
+            document.getElementById("uAvatar").src = "";
+            document.getElementById("uName").textContent = "—";
+            document.getElementById("uSub").textContent = "—";
+            document.getElementById("coachType").value = "Huấn luyện viên";
+            document.getElementById("btnDelete").classList.add("d-none");
+            document.getElementById("btnToggleVerified").classList.add("d-none");
+            document.getElementById("modalTitle").textContent = "Thêm huấn luyện viên";
+        }
+
+        function fillModal(u) {
+            document.getElementById("editingId").value = String(u.coachId);
+            document.getElementById("externalId").value = u.externalId || "";
+            document.getElementById("fullName").value = u.fullName || "";
+            document.getElementById("city").value = u.city || "";
+            document.getElementById("coachType").value = getCoachTypeLabel(u.coachType);
+            document.getElementById("avatarUrl").value = u.avatarUrl || "";
+            document.getElementById("levelSingle").value = u.levelSingle ?? 0;
+            document.getElementById("levelDouble").value = u.levelDouble ?? 0;
+            document.getElementById("introduction").value = u.introduction || "";
+            document.getElementById("teachingArea").value = u.teachingArea || "";
+            document.getElementById("achievements").value = u.achievements || "";
+            document.getElementById("verified").checked = !!u.verified;
+
+            document.getElementById("uAvatar").src = u.avatarUrl || "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+            document.getElementById("uName").textContent = u.fullName || "—";
+            document.getElementById("uSub").textContent = `${u.city || "—"} • ${getCoachTypeLabel(u.coachType)}`;
+
+            document.getElementById("btnDelete").classList.remove("d-none");
+            document.getElementById("btnToggleVerified").classList.remove("d-none");
+            document.getElementById("modalTitle").textContent = "Chi tiết huấn luyện viên";
+        }
+
+        function buildPayload() {
+            return {
+                externalId: document.getElementById("externalId").value || null,
+                fullName: document.getElementById("fullName").value || "",
+                city: document.getElementById("city").value || null,
+                verified: document.getElementById("verified").checked,
+                levelSingle: parseFloat(document.getElementById("levelSingle").value || "0"),
+                levelDouble: parseFloat(document.getElementById("levelDouble").value || "0"),
+                avatarUrl: document.getElementById("avatarUrl").value || null,
+                coachType: normalizeCoachTypeForApi(document.getElementById("coachType").value),
+                introduction: document.getElementById("introduction").value || null,
+                teachingArea: document.getElementById("teachingArea").value || null,
+                achievements: document.getElementById("achievements").value || null
+            };
+        }
+
+        async function openCreate() {
+            resetModal();
+            $("#modalItem").modal("show");
+        }
+
+        async function openEdit(id) {
+            resetModal();
+            $("#modalItem").modal("show");
+            try {
+                const res = await axios.get(`${API_BASE}/${id}`);
+                fillModal(res.data);
+            } catch (e) {
+                showFormError(e?.response?.data?.message || e?.message || "Tải chi tiết thất bại.");
+            }
+        }
+
+        async function toggleVerified(id) {
+            try {
+                await axios.post(`${API_BASE}/${id}/toggle-verified`);
+                const d = await axios.get(`${API_BASE}/${id}`);
+                updateRowInTable(d.data);
+            } catch (e) {
+                alert(e?.response?.data?.message || e?.message || "Chuyển trạng thái xác minh thất bại.");
+            }
+        }
+
+        async function modalToggleVerified() {
+            const id = document.getElementById("editingId").value;
+            if (!id) return;
+
+            try {
+                await axios.post(`${API_BASE}/${id}/toggle-verified`);
+                const d = await axios.get(`${API_BASE}/${id}`);
+                fillModal(d.data);
+                updateRowInTable(d.data);
+            } catch (e) {
+                showFormError(e?.response?.data?.message || e?.message || "Chuyển trạng thái xác minh thất bại.");
+            }
+        }
+
+        async function deleteItem(id) {
+            if (!confirm("Bạn có chắc muốn xóa huấn luyện viên này?")) return;
+
+            try {
+                await axios.delete(`${API_BASE}/${id}`);
+                loadItems(false);
+            } catch (e) {
+                alert(e?.response?.data?.message || e?.message || "Xóa thất bại.");
+            }
+        }
+
+        async function modalDelete() {
+            const id = document.getElementById("editingId").value;
+            if (!id) return;
+            if (!confirm("Bạn có chắc muốn xóa huấn luyện viên này?")) return;
+
+            try {
+                await axios.delete(`${API_BASE}/${id}`);
+                $("#modalItem").modal("hide");
+                loadItems(false);
+            } catch (e) {
+                showFormError(e?.response?.data?.message || e?.message || "Xóa thất bại.");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            state.pageSize = parseInt(document.getElementById("pageSize").value, 10) || 20;
+            loadItems(true);
+
+            document.getElementById("btnAdd").addEventListener("click", openCreate);
+            document.getElementById("btnRefresh").addEventListener("click", () => loadItems(false));
+            document.getElementById("btnFilter").addEventListener("click", () => loadItems(true));
+            document.getElementById("keyword").addEventListener("keydown", (e) => {
+                if (e.key === "Enter") loadItems(true);
+            });
+
+            document.getElementById("pageSize").addEventListener("change", () => {
+                state.pageSize = parseInt(document.getElementById("pageSize").value, 10) || 20;
+                loadItems(true);
+            });
+
+            document.getElementById("btnPrev").addEventListener("click", () => {
+                if (state.page > 1) {
+                    state.page--;
+                    loadItems(false);
+                }
+            });
+
+            document.getElementById("btnNext").addEventListener("click", () => {
+                state.page++;
+                loadItems(false);
+            });
+
+            document.getElementById("btnToggleVerified").addEventListener("click", modalToggleVerified);
+            document.getElementById("btnDelete").addEventListener("click", modalDelete);
+
+            document.getElementById("formItem").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                clearFormError();
+
+                const id = document.getElementById("editingId").value;
+                const payload = buildPayload();
+
+                const btn = document.getElementById("btnSubmit");
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang lưu...`;
+
+                try {
+                    let res;
+                    if (id) {
+                        res = await axios.put(`${API_BASE}/${id}`, payload);
+                        updateRowInTable(res.data);
+                    } else {
+                        res = await axios.post(API_BASE, payload);
+                    }
+
+                    $("#modalItem").modal("hide");
+                    loadItems(false);
+                } catch (err) {
+                    showFormError(err?.response?.data?.message || err?.message || "Lưu thất bại.");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `<span class="mr-1"><i class="fas fa-save"></i></span> Lưu`;
+                }
+            });
+
+            $("#modalItem").on("hidden.bs.modal", function () {
+                resetModal();
+            });
+        });
+    </script>
+}

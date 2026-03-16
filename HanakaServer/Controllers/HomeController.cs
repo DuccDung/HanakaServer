@@ -78,7 +78,7 @@ namespace HanakaServer.Controllers
 
             await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, authProps);
 
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction("Index" ,"Dashboard");
         }
 
         [HttpPost]
@@ -88,6 +88,18 @@ namespace HanakaServer.Controllers
         {
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return RedirectToAction(nameof(Login));
+        }
+
+        [Authorize(Roles = "Admin")]
+        public IActionResult Coaches()
+        {
+            return View();
+        }
+
+        [Authorize(Roles = "Admin")]
+        public IActionResult Referees()
+        {
+            return View();
         }
     }
 }
