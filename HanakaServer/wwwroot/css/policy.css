@@ -1,0 +1,138 @@
+﻿:root {
+    --primary-color: #0d6efd;
+    --dark-color: #0f172a;
+    --muted-color: #64748b;
+    --soft-bg: #f8fafc;
+    --border-color: #e2e8f0;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 50%, #eef2ff 100%);
+    color: #1e293b;
+}
+
+.hero-section {
+    padding: 64px 0 32px;
+}
+
+.hero-card {
+    background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
+    color: white;
+    border: none;
+    border-radius: 24px;
+    overflow: hidden;
+    position: relative;
+}
+
+    .hero-card::after {
+        content: "";
+        position: absolute;
+        top: -60px;
+        right: -60px;
+        width: 220px;
+        height: 220px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 50%;
+    }
+
+    .hero-card .card-body {
+        padding: 2rem;
+        position: relative;
+        z-index: 1;
+    }
+
+.badge-soft {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+    font-weight: 600;
+    padding: 0.6rem 0.9rem;
+    border-radius: 999px;
+}
+
+.sidebar-card,
+.content-card {
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+}
+
+.sidebar-card {
+    position: sticky;
+    top: 20px;
+}
+
+.toc-link {
+    display: block;
+    padding: 0.7rem 0.9rem;
+    margin-bottom: 0.35rem;
+    border-radius: 12px;
+    color: #475569;
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+    .toc-link:hover,
+    .toc-link.active {
+        background: #e7f1ff;
+        color: var(--primary-color);
+    }
+
+.section-block {
+    padding: 1.75rem 0;
+    border-bottom: 1px solid var(--border-color);
+    scroll-margin-top: 90px;
+}
+
+    .section-block:last-child {
+        border-bottom: none;
+    }
+
+.section-title {
+    font-size: 1.7rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 1rem;
+}
+
+.info-box {
+    border: 1px solid var(--border-color);
+    border-radius: 18px;
+    background: #fff;
+    height: 100%;
+}
+
+.notice-box {
+    border: 1px solid #bfdbfe;
+    background: #eff6ff;
+    color: #1e3a8a;
+    border-radius: 16px;
+}
+
+.contact-box {
+    border: 1px solid #cbd5e1;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #eff6ff, #f8fafc);
+}
+
+.footer {
+    color: var(--muted-color);
+}
+
+@media (max-width: 991.98px) {
+    .sidebar-card {
+        position: static;
+    }
+
+    .hero-card .card-body {
+        padding: 1.5rem;
+    }
+}
+

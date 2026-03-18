@@ -390,5 +390,28 @@ namespace HanakaServer.Controllers
                 updatedAt = user.UpdatedAt
             });
         }
+        // DELETE: api/users/me
+        [HttpDelete("me")]
+        public async Task<IActionResult> DeleteMe()
+        {
+            var userId = GetUserIdFromToken();
+
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            user.IsActive = false;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Tài khoản đã được xóa.",
+                userId = user.UserId,
+                isActive = user.IsActive,
+                updatedAt = user.UpdatedAt
+            });
+        }
     }
 }

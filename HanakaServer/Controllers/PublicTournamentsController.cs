@@ -70,7 +70,7 @@ namespace HanakaServer.Controllers
                     Organizer = x.Organizer,
                     CreatorName = x.CreatorName,
 
-                    // ✅ IMPORTANT: ở đây CHƯA set RegisteredCount/PairedCount
+                    //  IMPORTANT: ở đây CHƯA set RegisteredCount/PairedCount
                     // vì sẽ đếm từ bảng TournamentRegistrations phía dưới
                     RegisteredCount = null,
                     PairedCount = null,

@@ -1,6 +1,7 @@
 ﻿using HanakaServer.Data;
 using HanakaServer.Dtos;
 using HanakaServer.Models;
+using HanakaServer.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -18,14 +19,18 @@ namespace HanakaServer.Controllers
         private readonly IWebHostEnvironment _env;
         private readonly IConfiguration _config;
 
+        private readonly RealtimeHub _realtimeHub;
+
         public ClubsController(
             PickleballDbContext db,
             IWebHostEnvironment env,
-            IConfiguration config)
+            IConfiguration config,
+            RealtimeHub realtimeHub)
         {
             _db = db;
             _env = env;
             _config = config;
+            _realtimeHub = realtimeHub;
         }
 
         private long GetUserIdFromToken()
@@ -1285,21 +1290,19 @@ namespace HanakaServer.Controllers
 
             var isMember = await IsActiveClubMember(id, userId);
             if (!isMember)
+            {
                 return StatusCode(StatusCodes.Status403Forbidden, new
                 {
                     message = "Bạn phải là thành viên CLB mới được nhắn tin."
                 });
+            }
 
             var messageType = (req.MessageType ?? "TEXT").Trim().ToUpperInvariant();
             if (messageType != "TEXT" && messageType != "IMAGE")
-            {
                 return BadRequest(new { message = "MessageType chỉ hỗ trợ TEXT hoặc IMAGE." });
-            }
 
             if (messageType == "TEXT" && string.IsNullOrWhiteSpace(req.Content))
-            {
                 return BadRequest(new { message = "Nội dung tin nhắn không được để trống." });
-            }
 
             if (req.ReplyToId.HasValue)
             {
@@ -1325,7 +1328,6 @@ namespace HanakaServer.Controllers
             };
 
             _db.ClubMessages.Add(entity);
-
             club.UpdatedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync();
@@ -1335,14 +1337,14 @@ namespace HanakaServer.Controllers
                 .Where(x => x.MessageId == entity.MessageId)
                 .Select(x => new
                 {
-                    x.MessageId,
-                    x.ClubId,
-                    x.SenderUserId,
-                    x.MessageType,
-                    x.Content,
-                    x.MediaUrl,
-                    x.ReplyToId,
-                    x.SentAt,
+                    messageId = x.MessageId,
+                    clubId = x.ClubId,
+                    senderUserId = x.SenderUserId,
+                    messageType = x.MessageType,
+                    content = x.Content,
+                    mediaUrl = x.MediaUrl,
+                    replyToId = x.ReplyToId,
+                    sentAt = x.SentAt,
                     sender = new
                     {
                         userId = x.SenderUser.UserId,
@@ -1352,26 +1354,52 @@ namespace HanakaServer.Controllers
                 })
                 .FirstAsync();
 
+            var realtimeItem = new
+            {
+                saved.messageId,
+                saved.clubId,
+                saved.senderUserId,
+                saved.messageType,
+                saved.content,
+                mediaUrl = ToAbsoluteUrl(saved.mediaUrl),
+                saved.replyToId,
+                saved.sentAt,
+                sender = new
+                {
+                    saved.sender.userId,
+                    saved.sender.fullName,
+                    avatarUrl = ToAbsoluteUrl(saved.sender.avatarUrl)
+                }
+            };
+
+            // 1) broadcast cho ai đang mở room
+            await _realtimeHub.SendClubMessageCreatedAsync(id, realtimeItem);
+
+            // 2) gửi notification cho các thành viên khác đang online
+            var memberUserIds = await _db.ClubMembers
+                .AsNoTracking()
+                .Where(x => x.ClubId == id && x.IsActive && x.UserId != userId)
+                .Select(x => x.UserId)
+                .ToListAsync();
+
+            foreach (var memberUserId in memberUserIds)
+            {
+                await _realtimeHub.SendNotificationToUserAsync(memberUserId.ToString(), new
+                {
+                    kind = "new_message",
+                    clubId = id,
+                    clubName = club.ClubName,
+                    senderUserId = saved.senderUserId,
+                    senderName = saved.sender.fullName,
+                    messagePreview = saved.messageType == "TEXT" ? saved.content : "[Hình ảnh]",
+                    sentAt = saved.sentAt
+                });
+            }
+
             return Ok(new
             {
                 message = "Gửi tin nhắn thành công.",
-                item = new
-                {
-                    messageId = saved.MessageId,
-                    clubId = saved.ClubId,
-                    senderUserId = saved.SenderUserId,
-                    messageType = saved.MessageType,
-                    content = saved.Content,
-                    mediaUrl = ToAbsoluteUrl(saved.MediaUrl),
-                    replyToId = saved.ReplyToId,
-                    sentAt = saved.SentAt,
-                    sender = new
-                    {
-                        saved.sender.userId,
-                        saved.sender.fullName,
-                        avatarUrl = ToAbsoluteUrl(saved.sender.avatarUrl)
-                    }
-                }
+                item = realtimeItem
             });
         }
         // =========================================================
@@ -1391,16 +1419,20 @@ namespace HanakaServer.Controllers
                 return NotFound(new { message = "Tin nhắn không tồn tại." });
 
             if (msg.SenderUserId != userId)
+            {
                 return StatusCode(StatusCodes.Status403Forbidden, new
                 {
                     message = "Bạn chỉ có thể xoá tin nhắn của chính mình."
                 });
+            }
 
             msg.IsDeleted = true;
             msg.Content = null;
             msg.MediaUrl = null;
 
             await _db.SaveChangesAsync();
+
+            await _realtimeHub.SendClubMessageDeletedAsync(id, messageId);
 
             return Ok(new
             {
