@@ -60,7 +60,4 @@ public partial class Tournament
 
     public virtual ICollection<TournamentRegistration> TournamentRegistrations { get; set; } = new List<TournamentRegistration>();
 
-    public virtual ICollection<TournamentSchedule> TournamentSchedules { get; set; } = new List<TournamentSchedule>();
-
-    public virtual ICollection<TournamentStandingGroup> TournamentStandingGroups { get; set; } = new List<TournamentStandingGroup>();
 }

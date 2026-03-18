@@ -43,14 +43,11 @@ public partial class User
 
     public virtual ICollection<Club> Clubs { get; set; } = new List<Club>();
 
-    public virtual ICollection<MatchPlayer> MatchPlayers { get; set; } = new List<MatchPlayer>();
-
     public virtual ICollection<TournamentRegistration> TournamentRegistrationPlayer1Users { get; set; } = new List<TournamentRegistration>();
 
     public virtual ICollection<TournamentRegistration> TournamentRegistrationPlayer2Users { get; set; } = new List<TournamentRegistration>();
 
     public virtual ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
 
-    public virtual ICollection<VideoPlayer> VideoPlayers { get; set; } = new List<VideoPlayer>();
     public virtual ICollection<UserOtp> UserOtps { get; set; } = new List<UserOtp>();
 }

@@ -28,10 +28,6 @@ public partial class PickleballDbContext : DbContext
 
     public virtual DbSet<Exchange> Exchanges { get; set; }
 
-    public virtual DbSet<Match> Matches { get; set; }
-
-    public virtual DbSet<MatchPlayer> MatchPlayers { get; set; }
-
     public virtual DbSet<Role> Roles { get; set; }
 
     public virtual DbSet<Tournament> Tournaments { get; set; }
@@ -40,19 +36,10 @@ public partial class PickleballDbContext : DbContext
 
     public virtual DbSet<TournamentRound> TournamentRounds { get; set; }
 
-    public virtual DbSet<TournamentSchedule> TournamentSchedules { get; set; }
-
-    public virtual DbSet<TournamentStandingGroup> TournamentStandingGroups { get; set; }
-
-    public virtual DbSet<TournamentStandingRow> TournamentStandingRows { get; set; }
-
     public virtual DbSet<User> Users { get; set; }
 
     public virtual DbSet<UserRole> UserRoles { get; set; }
 
-    public virtual DbSet<Video> Videos { get; set; }
-
-    public virtual DbSet<VideoPlayer> VideoPlayers { get; set; }
     public virtual DbSet<TournamentRoundMap> TournamentRoundMaps { get; set; }
     public virtual DbSet<TournamentRoundGroup> TournamentRoundGroups { get; set; }
     public virtual DbSet<TournamentGroupMatch> TournamentGroupMatches { get; set; }
@@ -461,48 +448,6 @@ public partial class PickleballDbContext : DbContext
             entity.Property(e => e.TimeTextRaw).HasMaxLength(30);
         });
 
-        modelBuilder.Entity<Match>(entity =>
-        {
-            entity.HasKey(e => e.MatchId).HasName("PK__Matches__4218C8176792A2AF");
-
-            entity.HasIndex(e => e.ExternalId, "IX_Matches_ExternalId")
-                .IsUnique()
-                .HasFilter("([ExternalId] IS NOT NULL)");
-
-            entity.HasIndex(e => e.MatchTime, "IX_Matches_Time").IsDescending();
-
-            entity.Property(e => e.CreatedAt)
-                .HasPrecision(0)
-                .HasDefaultValueSql("(sysdatetime())");
-            entity.Property(e => e.ExternalId).HasMaxLength(50);
-            entity.Property(e => e.MatchTime).HasPrecision(0);
-            entity.Property(e => e.MatchTimeRaw).HasMaxLength(30);
-            entity.Property(e => e.MatchType)
-                .HasMaxLength(10)
-                .IsUnicode(false);
-        });
-
-        modelBuilder.Entity<MatchPlayer>(entity =>
-        {
-            entity.HasKey(e => new { e.MatchId, e.Side, e.Slot });
-
-            entity.Property(e => e.Side)
-                .HasMaxLength(1)
-                .IsUnicode(false)
-                .IsFixedLength();
-            entity.Property(e => e.AvatarUrl).HasMaxLength(500);
-            entity.Property(e => e.DisplayName).HasMaxLength(150);
-
-            entity.HasOne(d => d.Match).WithMany(p => p.MatchPlayers)
-                .HasForeignKey(d => d.MatchId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_MatchPlayers_Matches");
-
-            entity.HasOne(d => d.User).WithMany(p => p.MatchPlayers)
-                .HasForeignKey(d => d.UserId)
-                .HasConstraintName("FK_MatchPlayers_Users");
-        });
-
         modelBuilder.Entity<Role>(entity =>
         {
             entity.HasKey(e => e.RoleId).HasName("PK__Roles__8AFACE1A599A826A");
@@ -598,75 +543,6 @@ public partial class PickleballDbContext : DbContext
             entity.Property(e => e.RoundLabel).HasMaxLength(50);
         });
 
-        modelBuilder.Entity<TournamentSchedule>(entity =>
-        {
-            entity.HasKey(e => e.ScheduleId);
-            entity.ToTable("TournamentSchedule");
-
-            entity.Property(e => e.RoundKey).HasMaxLength(20);
-            entity.Property(e => e.Code).HasMaxLength(50);
-
-            // NEW
-            entity.Property(e => e.StandingGroupId);
-
-            entity.Property(e => e.TimeText).HasMaxLength(20);
-            entity.Property(e => e.CourtText).HasMaxLength(100);
-            entity.Property(e => e.TeamA).HasMaxLength(200);
-            entity.Property(e => e.TeamB).HasMaxLength(200);
-
-            entity.HasOne(d => d.RoundKeyNavigation)
-                .WithMany(p => p.TournamentSchedules)
-                .HasForeignKey(d => d.RoundKey)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_TS_Round");
-
-            entity.HasOne(d => d.Tournament)
-                .WithMany(p => p.TournamentSchedules)
-                .HasForeignKey(d => d.TournamentId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_TS_Tournament");
-
-            // optional FK:
-            // entity.HasOne<TournamentStandingGroup>()
-            //   .WithMany()
-            //   .HasForeignKey(x => x.StandingGroupId)
-            //   .HasConstraintName("FK_TS_Group");
-        });
-
-        modelBuilder.Entity<TournamentStandingGroup>(entity =>
-        {
-            entity.HasKey(e => e.StandingGroupId).HasName("PK__Tourname__DFD000C172358169");
-
-            entity.HasIndex(e => new { e.TournamentId, e.RoundKey }, "IX_TournamentStandingGroups_TR");
-
-            entity.Property(e => e.ExternalId).HasMaxLength(50);
-            entity.Property(e => e.GroupName).HasMaxLength(100);
-            entity.Property(e => e.RoundKey).HasMaxLength(20);
-
-            entity.HasOne(d => d.RoundKeyNavigation).WithMany(p => p.TournamentStandingGroups)
-                .HasForeignKey(d => d.RoundKey)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_TSG_Round");
-
-            entity.HasOne(d => d.Tournament).WithMany(p => p.TournamentStandingGroups)
-                .HasForeignKey(d => d.TournamentId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_TSG_Tournament");
-        });
-
-        modelBuilder.Entity<TournamentStandingRow>(entity =>
-        {
-            entity.HasKey(e => e.StandingRowId).HasName("PK__Tourname__F7BF140CAD47FB10");
-
-            entity.HasIndex(e => new { e.StandingGroupId, e.Rank }, "IX_TournamentStandingRows_Group");
-
-            entity.Property(e => e.TeamText).HasMaxLength(250);
-
-            entity.HasOne(d => d.StandingGroup).WithMany(p => p.TournamentStandingRows)
-                .HasForeignKey(d => d.StandingGroupId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_TSR_Group");
-        });
 
         modelBuilder.Entity<User>(entity =>
         {
@@ -712,44 +588,6 @@ public partial class PickleballDbContext : DbContext
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_UserRoles_Users");
-        });
-
-        modelBuilder.Entity<Video>(entity =>
-        {
-            entity.HasKey(e => e.VideoId).HasName("PK__Videos__BAE5126AEDEE3982");
-
-            entity.HasIndex(e => e.ExternalId, "IX_Videos_ExternalId")
-                .IsUnique()
-                .HasFilter("([ExternalId] IS NOT NULL)");
-
-            entity.HasIndex(e => e.VideoTime, "IX_Videos_Time").IsDescending();
-
-            entity.Property(e => e.BannerUrl).HasMaxLength(500);
-            entity.Property(e => e.Code).HasMaxLength(50);
-            entity.Property(e => e.DateTimeRaw).HasMaxLength(30);
-            entity.Property(e => e.ExternalId).HasMaxLength(50);
-            entity.Property(e => e.Title).HasMaxLength(250);
-            entity.Property(e => e.VideoTime).HasPrecision(0);
-            entity.Property(e => e.VideoType)
-                .HasMaxLength(20)
-                .IsUnicode(false);
-        });
-
-        modelBuilder.Entity<VideoPlayer>(entity =>
-        {
-            entity.HasKey(e => new { e.VideoId, e.Slot });
-
-            entity.Property(e => e.AvatarUrl).HasMaxLength(500);
-            entity.Property(e => e.DisplayName).HasMaxLength(150);
-
-            entity.HasOne(d => d.User).WithMany(p => p.VideoPlayers)
-                .HasForeignKey(d => d.UserId)
-                .HasConstraintName("FK_VideoPlayers_Users");
-
-            entity.HasOne(d => d.Video).WithMany(p => p.VideoPlayers)
-                .HasForeignKey(d => d.VideoId)
-                .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_VideoPlayers_Videos");
         });
 
         OnModelCreatingPartial(modelBuilder);
