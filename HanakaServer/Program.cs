@@ -19,16 +19,20 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddDbContext<PickleballDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("PickleballDb")));
 
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", p =>
-        p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod());
+        p.AllowAnyOrigin()
+         .AllowAnyHeader()
+         .AllowAnyMethod());
 });
 
 // JWT config
 var jwtSection = builder.Configuration.GetSection("Jwt");
 var jwtKey = jwtSection["Key"] ?? throw new Exception("Jwt:Key is missing");
 
+// Services
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<IOtpEmailService, OtpEmailService>();
 builder.Services.AddScoped<IOtpGenerator, OtpGenerator>();
@@ -37,18 +41,27 @@ builder.Services.AddScoped<IUserOtpService, UserOtpService>();
 builder.Services.AddSingleton<RealtimeHub>();
 builder.Services.AddScoped<WebSocketHandler>();
 
-// Authentication: giữ nguyên logic Cookie (MVC) + JWT (API)
+// Authentication
 builder.Services.AddAuthentication(options =>
 {
+    // Web MVC / Referee Portal dùng Cookie mặc định
     options.DefaultScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme = CookieAuthenticationDefaults.AuthenticationScheme;
     options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
 })
 .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
 {
-    options.LoginPath = "/Home/Login";
-    options.AccessDeniedPath = "/Home/Login";
+    // Login mặc định cho web
+    options.LoginPath = "/RefereePortal/Login";
+    options.AccessDeniedPath = "/RefereePortal/Login";
+
     options.ExpireTimeSpan = TimeSpan.FromHours(8);
     options.SlidingExpiration = true;
+
+    options.Cookie.Name = "Hanaka.Auth";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 })
 .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
 {
@@ -64,7 +77,6 @@ builder.Services.AddAuthentication(options =>
         ClockSkew = TimeSpan.FromSeconds(30)
     };
 
-    // FIX 1: đọc access_token từ query string cho websocket
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
@@ -82,7 +94,17 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddAuthorization();
+// Authorization
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("RefereeOnly", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireRole("REFEREE", "Admin"));
+
+    options.AddPolicy("AdminOnly", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireRole("Admin"));
+});
 
 var app = builder.Build();
 
@@ -99,14 +121,22 @@ app.UseStaticFiles();
 app.UseRouting();
 app.UseCors("AllowAll");
 app.UseWebSockets();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Route
+// Route mặc định
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Login}/{id?}");
 
+// Portal trọng tài
+app.MapControllerRoute(
+    name: "referee_portal",
+    pattern: "RefereePortal/{action=Login}/{id?}",
+    defaults: new { controller = "RefereePortal" });
+
+// WebSocket endpoint
 app.Map("/ws", async httpContext =>
 {
     if (!httpContext.WebSockets.IsWebSocketRequest)
@@ -116,7 +146,7 @@ app.Map("/ws", async httpContext =>
         return;
     }
 
-    // FIX 2: ép authenticate bằng JWT thay vì dùng httpContext.User mặc định
+    // Authenticate bằng JWT cho websocket
     var authResult = await httpContext.AuthenticateAsync(JwtBearerDefaults.AuthenticationScheme);
 
     if (!authResult.Succeeded || authResult.Principal == null)
@@ -130,6 +160,7 @@ app.Map("/ws", async httpContext =>
 
     var userId =
         httpContext.User.FindFirstValue("uid") ??
+        httpContext.User.FindFirstValue("UserId") ??
         httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
 
     if (string.IsNullOrWhiteSpace(userId))

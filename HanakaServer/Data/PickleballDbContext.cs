@@ -49,8 +49,58 @@ public partial class PickleballDbContext : DbContext
     public virtual DbSet<UserRatingHistory> UserRatingHistories { get; set; }
     public virtual DbSet<UserAchievement> UserAchievements { get; set; }
     public virtual DbSet<TournamentPrize> TournamentPrizes { get; set; }
+    public virtual DbSet<TournamentMatchScoreHistory> TournamentMatchScoreHistories { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<TournamentMatchScoreHistory>(entity =>
+        {
+            entity.ToTable("TournamentMatchScoreHistories");
+
+            entity.HasKey(e => e.ScoreHistoryId);
+
+            entity.HasIndex(e => e.MatchId)
+                .HasDatabaseName("IX_TMSH_MatchId");
+
+            entity.HasIndex(e => e.RefereeUserId)
+                .HasDatabaseName("IX_TMSH_RefereeUserId");
+
+            entity.HasIndex(e => new { e.MatchId, e.CreatedAt })
+                .HasDatabaseName("IX_TMSH_Match_CreatedAt");
+
+            entity.Property(e => e.Note)
+                .HasMaxLength(500);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.Property(e => e.ScoreTeam1)
+                .HasDefaultValue(0);
+
+            entity.Property(e => e.ScoreTeam2)
+                .HasDefaultValue(0);
+
+            entity.Property(e => e.IsCompleted)
+                .HasDefaultValue(false);
+
+            entity.HasOne(d => d.Match)
+                .WithMany(p => p.TournamentMatchScoreHistories)
+                .HasForeignKey(d => d.MatchId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_TMSH_Match");
+
+            entity.HasOne(d => d.RefereeUser)
+                .WithMany(p => p.RefereeScoreHistories)
+                .HasForeignKey(d => d.RefereeUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_TMSH_RefereeUser");
+
+            entity.HasOne(d => d.WinnerRegistration)
+                .WithMany()
+                .HasForeignKey(d => d.WinnerRegistrationId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_TMSH_WinnerRegistration");
+        });
         modelBuilder.Entity<TournamentPrize>(entity =>
         {
             entity.ToTable("TournamentPrizes", "dbo");
@@ -347,7 +397,13 @@ public partial class PickleballDbContext : DbContext
 
             entity.HasIndex(e => e.Team2RegistrationId)
                 .HasDatabaseName("IX_TGM_Team2");
-
+            entity.HasIndex(e => e.RefereeUserId)
+                .HasDatabaseName("IX_TGM_RefereeUserId");
+            entity.HasOne(d => d.RefereeUser)
+                .WithMany(p => p.RefereeTournamentGroupMatches)
+                .HasForeignKey(d => d.RefereeUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_TGM_RefereeUser");
             // Unique pair per group (TeamMin/TeamMax)
             entity.HasIndex(e => new { e.TournamentRoundGroupId, e.TeamMin, e.TeamMax })
                 .IsUnique()

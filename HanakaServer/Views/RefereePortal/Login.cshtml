@@ -1,0 +1,146 @@
+﻿@{
+    Layout = null;
+    ViewData["Title"] = "Đăng nhập trọng tài";
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>@ViewData["Title"]</title>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+    <style>
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f172a, #1d4ed8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: Arial, sans-serif;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 12px 40px rgba(0,0,0,.18);
+            padding: 28px;
+        }
+
+        .login-title {
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 6px;
+            color: #111827;
+        }
+
+        .login-subtitle {
+            color: #6b7280;
+            margin-bottom: 20px;
+        }
+
+        .brand-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #eff6ff;
+            color: #2563eb;
+            font-size: 24px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <div class="brand-icon">
+            <i class="fas fa-gavel"></i>
+        </div>
+
+        <div class="login-title">Đăng nhập trọng tài</div>
+        <div class="login-subtitle">Đăng nhập để xem và chấm điểm các trận được phân công.</div>
+
+        <div id="errBox" class="alert alert-danger d-none"></div>
+
+        <form id="loginForm">
+            <div class="form-group">
+                <label>Email</label>
+                <input class="form-control" id="email" type="email" placeholder="you@example.com" />
+            </div>
+
+            <div class="form-group">
+                <label>Mật khẩu</label>
+                <input class="form-control" id="password" type="password" placeholder="Nhập mật khẩu" />
+            </div>
+
+            <div class="form-group form-check">
+                <input type="checkbox" class="form-check-input" id="rememberMe" />
+                <label class="form-check-label" for="rememberMe">Ghi nhớ đăng nhập</label>
+            </div>
+
+            <button class="btn btn-primary btn-block" type="submit" id="btnLogin">
+                <i class="fas fa-sign-in-alt"></i> Đăng nhập
+            </button>
+        </form>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        (() => {
+            const $id = (id) => document.getElementById(id);
+
+            function showErr(msg) {
+                const box = $id("errBox");
+                box.textContent = msg || "Đăng nhập thất bại.";
+                box.classList.remove("d-none");
+            }
+
+            function hideErr() {
+                const box = $id("errBox");
+                box.classList.add("d-none");
+                box.textContent = "";
+            }
+
+            $id("loginForm").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                hideErr();
+
+                const email = ($id("email").value || "").trim();
+                const password = ($id("password").value || "").trim();
+                const rememberMe = !!$id("rememberMe").checked;
+
+                if (!email || !password) {
+                    showErr("Vui lòng nhập đầy đủ email và mật khẩu.");
+                    return;
+                }
+
+                const btn = $id("btnLogin");
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang đăng nhập...`;
+
+                try {
+                    const res = await axios.post("/api/referee-auth/login", {
+                        email,
+                        password,
+                        rememberMe
+                    });
+
+                    window.location.href = res.data?.redirectUrl || "/RefereePortal/Matches";
+                } catch (err) {
+                    showErr(err?.response?.data?.message || err?.message || "Đăng nhập thất bại.");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fas fa-sign-in-alt"></i> Đăng nhập`;
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

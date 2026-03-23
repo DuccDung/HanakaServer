@@ -51,6 +51,13 @@
         text-decoration: underline;
     }
 
+    .referee-box {
+        border: 1px dashed #ced4da;
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: #fafafa;
+    }
+
     @@media (max-width: 992px) {
         .grid {
             grid-template-columns: 1fr;
@@ -105,7 +112,9 @@
 
                 <div class="modal-header">
                     <h5 class="modal-title" id="modalTitle">Tạo trận đấu</h5>
-                    <button class="close" type="button" data-dismiss="modal"><span aria-hidden="true">×</span></button>
+                    <button class="close" type="button" data-dismiss="modal">
+                        <span aria-hidden="true">×</span>
+                    </button>
                 </div>
 
                 <div class="modal-body">
@@ -144,6 +153,28 @@
                         <small class="text-muted">Dán liên kết video trận đấu nếu có.</small>
                     </div>
 
+                    <hr />
+
+                    <div class="form-group mb-2">
+                        <label>Gán trọng tài theo UserId</label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="refereeUserIdInput" placeholder="Nhập UserId trọng tài" min="1" />
+                            <div class="input-group-append">
+                                <button class="btn btn-outline-info" type="button" id="btnFindReferee">
+                                    <i class="fas fa-search"></i> Tìm
+                                </button>
+                                <button class="btn btn-outline-secondary" type="button" id="btnClearReferee">
+                                    Bỏ chọn
+                                </button>
+                            </div>
+                        </div>
+                        <input type="hidden" id="refereeUserId" />
+                    </div>
+
+                    <div id="refereeInfo" class="referee-box small text-muted mb-2">
+                        Chưa chọn trọng tài.
+                    </div>
+
                     <small class="text-muted">Tỷ số sẽ được cập nhật ở nút “Nhập tỷ số”.</small>
                 </div>
 
@@ -167,7 +198,9 @@
 
                 <div class="modal-header">
                     <h5 class="modal-title">Nhập tỷ số</h5>
-                    <button class="close" type="button" data-dismiss="modal"><span aria-hidden="true">×</span></button>
+                    <button class="close" type="button" data-dismiss="modal">
+                        <span aria-hidden="true">×</span>
+                    </button>
                 </div>
 
                 <div class="modal-body">
@@ -216,13 +249,19 @@
         (() => {
             const $id = (id) => document.getElementById(id);
             const root = $id("pageRoot");
+
             const GROUP_ID = Number(root?.dataset?.groupId || 0);
             const TOURNAMENT_ID = Number(root?.dataset?.tournamentId || 0);
 
             const API = `/api/admin/groups/${GROUP_ID}/matches`;
             const API_REGS = `/api/admin/tournaments/${TOURNAMENT_ID}/registrations`;
+            const API_FIND_REFEREE = `/api/admin/referees/find-by-user-id`;
 
-            let CACHE = { items: [], regs: [] };
+            let CACHE = {
+                items: [],
+                regs: []
+            };
+
             let SHOW_ONLY_COMPLETED = false;
 
             const esc = (s) => String(s || "")
@@ -234,25 +273,31 @@
 
             const fmt = (dt) => {
                 if (!dt) return "—";
+
                 const d = new Date(dt);
                 if (isNaN(d.getTime())) return "—";
+
                 const yyyy = d.getFullYear();
                 const mm = String(d.getMonth() + 1).padStart(2, "0");
                 const dd = String(d.getDate()).padStart(2, "0");
                 const hh = String(d.getHours()).padStart(2, "0");
                 const mi = String(d.getMinutes()).padStart(2, "0");
+
                 return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
             };
 
             const toLocalInput = (iso) => {
                 if (!iso) return "";
+
                 const d = new Date(iso);
                 if (isNaN(d.getTime())) return "";
+
                 const yyyy = d.getFullYear();
                 const mm = String(d.getMonth() + 1).padStart(2, "0");
                 const dd = String(d.getDate()).padStart(2, "0");
                 const hh = String(d.getHours()).padStart(2, "0");
                 const mi = String(d.getMinutes()).padStart(2, "0");
+
                 return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
             };
 
@@ -280,50 +325,123 @@
                 box.textContent = "";
             }
 
+            function setRefereeInfo(u) {
+                if (!u) {
+                    $id("refereeUserId").value = "";
+                    $id("refereeInfo").innerHTML = `Chưa chọn trọng tài.`;
+                    return;
+                }
+
+                $id("refereeUserId").value = String(u.userId);
+                $id("refereeInfo").innerHTML = `
+                    <div><b>${esc(u.fullName)}</b> (UserId: ${u.userId})</div>
+                    <div>${esc(u.phone || "—")} • ${esc(u.email || "—")} • ${esc(u.city || "—")}</div>
+                    <div>Xác minh: ${u.verified ? "Có" : "Không"} • Hoạt động: ${u.isActive ? "Có" : "Không"}</div>
+                `;
+            }
+
+            async function findRefereeByUserId() {
+                hideFormErr("formErr");
+
+                const userId = Number($id("refereeUserIdInput").value || 0);
+                if (!userId) {
+                    showFormErr("Vui lòng nhập UserId trọng tài.", "formErr");
+                    return;
+                }
+
+                try {
+                    const res = await axios.get(`${API_FIND_REFEREE}/${userId}`);
+                    setRefereeInfo(res.data);
+                } catch (err) {
+                    setRefereeInfo(null);
+                    showFormErr(
+                        err?.response?.data?.message || err?.message || "Không tìm thấy trọng tài.",
+                        "formErr"
+                    );
+                }
+            }
+
+            function buildTeamText(reg) {
+                if (!reg) return "";
+                return reg.player2Name
+                    ? `${reg.player1Name} & ${reg.player2Name}`
+                    : `${reg.player1Name}`;
+            }
+
+            function fillTeamsSelects(selected1, selected2) {
+                const s1 = $id("team1");
+                const s2 = $id("team2");
+
+                const opts = (CACHE.regs || []).map(r => {
+                    const name = buildTeamText(r);
+                    return `<option value="${r.registrationId}">${esc(r.regCode)} — ${esc(name)}</option>`;
+                });
+
+                s1.innerHTML = opts.join("");
+                s2.innerHTML = opts.join("");
+
+                if (selected1) s1.value = String(selected1);
+                if (selected2) s2.value = String(selected2);
+            }
+
             function cardHtml(m) {
                 const completed = !!m.isCompleted;
-                const w = m.winnerRegistrationId;
-                const t1Winner = completed && w && w === m.team1RegistrationId;
-                const t2Winner = completed && w && w === m.team2RegistrationId;
+                const winnerId = m.winnerRegistrationId;
+                const t1Winner = completed && winnerId && winnerId === m.team1RegistrationId;
+                const t2Winner = completed && winnerId && winnerId === m.team2RegistrationId;
                 const cardCls = `match-card ${completed ? "completed" : ""}`;
 
                 const videoLine = m.videoUrl
                     ? `<div class="meta mt-1 ${completed ? "video-link-light" : ""}">
-                         Video:
-                         <a href="${esc(m.videoUrl)}" target="_blank" rel="noopener noreferrer">
-                           Mở liên kết
-                         </a>
+                            Video:
+                            <a href="${esc(m.videoUrl)}" target="_blank" rel="noopener noreferrer">Mở liên kết</a>
                        </div>`
                     : "";
+
+                const refereeLine = m.refereeUserId
+                    ? `<div class="meta mt-1">
+                            Trọng tài: <b>${esc(m.refereeName || ("User #" + m.refereeUserId))}</b>
+                            ${m.refereePhone ? " • " + esc(m.refereePhone) : ""}
+                       </div>`
+                    : `<div class="meta mt-1">Trọng tài: <span class="text-warning">Chưa gán</span></div>`;
 
                 return `
                     <div class="${cardCls}" data-id="${m.matchId}">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
-                                <div class="meta">Bắt đầu: ${fmt(m.startAt)}${m.courtText ? " • " + esc(m.courtText) : ""}</div>
+                                <div class="meta">
+                                    Bắt đầu: ${fmt(m.startAt)}${m.courtText ? " • " + esc(m.courtText) : ""}
+                                </div>
                                 <div class="meta">Địa chỉ: ${esc(m.addressText || "—")}</div>
                                 ${videoLine}
+                                ${refereeLine}
                             </div>
 
                             <div class="d-flex" style="gap:6px">
-                                <button class="btn btn-sm ${completed ? "btn-light" : "btn-outline-success"}" type="button"
-                                        onclick="openScore(${m.matchId})" title="Nhập tỷ số">
+                                <button class="btn btn-sm ${completed ? "btn-light" : "btn-outline-success"}"
+                                        type="button"
+                                        onclick="openScore(${m.matchId})"
+                                        title="Nhập tỷ số">
                                     <i class="fas fa-clipboard-check"></i>
                                 </button>
 
-                                <button class="btn btn-sm ${completed ? "btn-light" : "btn-outline-primary"}" type="button"
-                                        onclick="openEdit(${m.matchId})" title="Chỉnh sửa">
+                                <button class="btn btn-sm ${completed ? "btn-light" : "btn-outline-primary"}"
+                                        type="button"
+                                        onclick="openEdit(${m.matchId})"
+                                        title="Chỉnh sửa">
                                     <i class="fas fa-edit"></i>
                                 </button>
 
-                                <button class="btn btn-sm ${completed ? "btn-light" : "btn-outline-danger"}" type="button"
-                                        onclick="delMatch(${m.matchId})" title="Xóa">
+                                <button class="btn btn-sm ${completed ? "btn-light" : "btn-outline-danger"}"
+                                        type="button"
+                                        onclick="delMatch(${m.matchId})"
+                                        title="Xóa">
                                     <i class="fas fa-trash"></i>
                                 </button>
                             </div>
                         </div>
 
-                        <hr style="opacity:.35"/>
+                        <hr style="opacity:.35" />
 
                         <div class="d-flex justify-content-between align-items-center">
                             <div class="team-name ${t1Winner ? "winner" : ""}">${esc(m.team1Text)}</div>
@@ -335,7 +453,7 @@
                             ${completed
                                 ? `<span class="badge badge-light">ĐÃ KẾT THÚC</span>`
                                 : `<span class="badge badge-secondary">CHƯA DIỄN RA</span>`}
-                            ${completed && w
+                            ${completed && winnerId
                                 ? `<span class="ml-2 badge badge-warning">NGƯỜI THẮNG: Đội ${m.winnerTeam}</span>`
                                 : ``}
                         </div>
@@ -361,11 +479,14 @@
 
             async function load() {
                 hideErr();
+
                 try {
                     const res = await axios.get(API);
                     CACHE.items = res.data?.items || [];
 
-                    const regsRes = await axios.get(API_REGS, { params: { tab: "SUCCESS" } });
+                    const regsRes = await axios.get(API_REGS, {
+                        params: { tab: "SUCCESS" }
+                    });
                     CACHE.regs = regsRes.data?.items || [];
 
                     render();
@@ -374,42 +495,32 @@
                 }
             }
 
-            function fillTeamsSelects(selected1, selected2) {
-                const s1 = $id("team1");
-                const s2 = $id("team2");
-
-                const opts = (CACHE.regs || []).map(r => {
-                    const name = r.player2Name
-                        ? `${r.player1Name} & ${r.player2Name}`
-                        : `${r.player1Name}`;
-                    return `<option value="${r.registrationId}">${esc(r.regCode)} — ${esc(name)}</option>`;
-                });
-
-                s1.innerHTML = opts.join("");
-                s2.innerHTML = opts.join("");
-
-                if (selected1) s1.value = String(selected1);
-                if (selected2) s2.value = String(selected2);
-            }
-
-            function openCreate() {
+            function resetMatchForm() {
                 hideFormErr("formErr");
+
                 $id("mode").value = "create";
                 $id("editingId").value = "";
                 $id("modalTitle").textContent = "Tạo trận đấu";
-
-                fillTeamsSelects(null, null);
 
                 $id("startAt").value = "";
                 $id("addressText").value = "";
                 $id("courtText").value = "";
                 $id("videoUrl").value = "";
 
+                $id("refereeUserIdInput").value = "";
+                setRefereeInfo(null);
+
+                fillTeamsSelects(null, null);
+            }
+
+            function openCreate() {
+                resetMatchForm();
                 $("#modalMatch").modal("show");
             }
 
             window.openEdit = (matchId) => {
                 hideFormErr("formErr");
+
                 const m = (CACHE.items || []).find(x => x.matchId === matchId);
                 if (!m) return;
 
@@ -423,6 +534,22 @@
                 $id("addressText").value = m.addressText || "";
                 $id("courtText").value = m.courtText || "";
                 $id("videoUrl").value = m.videoUrl || "";
+
+                $id("refereeUserIdInput").value = m.refereeUserId ? String(m.refereeUserId) : "";
+
+                if (m.refereeUserId) {
+                    setRefereeInfo({
+                        userId: m.refereeUserId,
+                        fullName: m.refereeName || "",
+                        phone: m.refereePhone || "",
+                        email: m.refereeEmail || "",
+                        city: m.refereeCity || "",
+                        verified: m.refereeVerified || false,
+                        isActive: m.refereeIsActive ?? true
+                    });
+                } else {
+                    setRefereeInfo(null);
+                }
 
                 $("#modalMatch").modal("show");
             };
@@ -440,6 +567,7 @@
 
             window.openScore = (matchId) => {
                 hideFormErr("scoreErr");
+
                 const m = (CACHE.items || []).find(x => x.matchId === matchId);
                 if (!m) return;
 
@@ -448,7 +576,7 @@
                 $id("scoreTeam2Name").textContent = m.team2Text || "Đội 2";
                 $id("score1").value = String(m.scoreTeam1 ?? 0);
                 $id("score2").value = String(m.scoreTeam2 ?? 0);
-                $id("isCompleted").checked = true;
+                $id("isCompleted").checked = !!m.isCompleted || true;
 
                 $("#modalScore").modal("show");
             };
@@ -479,6 +607,8 @@
                     return;
                 }
 
+                const refereeUserId = Number($id("refereeUserId").value || 0) || null;
+
                 const startAtLocal = $id("startAt").value;
                 const startAtIso = startAtLocal ? new Date(startAtLocal).toISOString() : null;
 
@@ -488,7 +618,8 @@
                     startAt: startAtIso,
                     addressText: $id("addressText").value || null,
                     courtText: $id("courtText").value || null,
-                    videoUrl: videoUrl || null
+                    videoUrl: videoUrl || null,
+                    refereeUserId: refereeUserId
                 };
 
                 const payloadUpdate = {
@@ -498,7 +629,8 @@
                     startAt: startAtIso,
                     addressText: $id("addressText").value || null,
                     courtText: $id("courtText").value || null,
-                    videoUrl: videoUrl || null
+                    videoUrl: videoUrl || null,
+                    refereeUserId: refereeUserId
                 };
 
                 const btn = $id("btnSubmit");
@@ -551,7 +683,10 @@
 
                     render();
                 } catch (err) {
-                    showFormErr(err?.response?.data?.message || err?.message || "Cập nhật tỷ số thất bại.", "scoreErr");
+                    showFormErr(
+                        err?.response?.data?.message || err?.message || "Cập nhật tỷ số thất bại.",
+                        "scoreErr"
+                    );
                 }
             });
 
@@ -563,6 +698,13 @@
                     ? "btn btn-sm btn-success"
                     : "btn btn-sm btn-outline-success";
                 render();
+            });
+
+            $id("btnFindReferee").addEventListener("click", findRefereeByUserId);
+
+            $id("btnClearReferee").addEventListener("click", () => {
+                $id("refereeUserIdInput").value = "";
+                setRefereeInfo(null);
             });
 
             document.addEventListener("DOMContentLoaded", load);

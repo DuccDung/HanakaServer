@@ -1,0 +1,481 @@
+﻿@{
+    Layout = null;
+    ViewData["Title"] = "Trận đấu của trọng tài";
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>@ViewData["Title"]</title>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+
+    <style>
+        body {
+            background: #f3f4f6;
+            font-family: Arial, sans-serif;
+        }
+
+        .topbar {
+            background: #111827;
+            color: #fff;
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .page-wrap {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 16px;
+        }
+
+        .page-title {
+            font-size: 28px;
+            font-weight: 800;
+            color: #111827;
+            margin-bottom: 8px;
+        }
+
+        .page-subtitle {
+            color: #6b7280;
+            margin-bottom: 24px;
+        }
+
+        .match-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+        }
+
+        .match-card {
+            background: #fff;
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: 0 4px 16px rgba(0,0,0,.06);
+            border: 1px solid #e5e7eb;
+        }
+
+            .match-card.completed {
+                border-color: #16a34a;
+            }
+
+        .match-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .match-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: #111827;
+        }
+
+        .match-meta {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .score-board {
+            margin-top: 14px;
+            padding-top: 14px;
+            border-top: 1px dashed #d1d5db;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .team-name {
+            width: 38%;
+            font-weight: 700;
+            color: #111827;
+        }
+
+            .team-name.right {
+                text-align: right;
+            }
+
+            .team-name.winner {
+                color: #d97706;
+            }
+
+        .score {
+            width: 24%;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 900;
+            color: #111827;
+        }
+
+        .history-box {
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px dashed #d1d5db;
+        }
+
+        .history-title {
+            font-size: 14px;
+            font-weight: 800;
+            margin-bottom: 10px;
+            color: #111827;
+        }
+
+        .history-item {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+        }
+
+        .history-score {
+            font-size: 16px;
+            font-weight: 800;
+            color: #111827;
+        }
+
+        .history-meta {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        @@media (max-width: 992px) {
+            .match-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <div>
+            <i class="fas fa-gavel"></i>
+            <span class="ml-2 font-weight-bold">Cổng trọng tài</span>
+        </div>
+        <div class="d-flex align-items-center" style="gap:10px;">
+            <span id="meBox" class="small"></span>
+            <button class="btn btn-sm btn-light" id="btnLogout" type="button">
+                <i class="fas fa-sign-out-alt"></i> Đăng xuất
+            </button>
+        </div>
+    </div>
+
+    <div class="page-wrap">
+        <div class="page-title">Trận đấu được phân công</div>
+        <div class="page-subtitle">
+            Trọng tài chỉ có thể chấm điểm khi đã đến thời gian thi đấu. Mỗi lần chấm sẽ lưu lịch sử.
+        </div>
+
+        <div id="errBox" class="alert alert-danger d-none"></div>
+        <div id="cards" class="match-grid">
+            <div class="text-muted">Đang tải...</div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalScore" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <form id="formScore">
+                    <input type="hidden" id="scoreMatchId" value="" />
+
+                    <div class="modal-header">
+                        <h5 class="modal-title">Chấm điểm trận đấu</h5>
+                        <button class="close" type="button" data-dismiss="modal">
+                            <span aria-hidden="true">×</span>
+                        </button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div id="scoreErr" class="alert alert-danger d-none"></div>
+
+                        <div class="d-flex justify-content-between mb-2">
+                            <div class="font-weight-bold" id="scoreTeam1Name">Đội 1</div>
+                            <div class="font-weight-bold" id="scoreTeam2Name">Đội 2</div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label>Tỷ số đội 1</label>
+                                <input type="number" class="form-control" id="score1" value="0" min="0" />
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label>Tỷ số đội 2</label>
+                                <input type="number" class="form-control" id="score2" value="0" min="0" />
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Tình huống</label>
+                            <select class="form-control" id="scoreNote">
+                                <option value="">-- Chọn tình huống --</option>
+                                <option value="Tay Hai">Tay Hai</option>
+                                <option value="Tay Một">Tay Một</option>
+                                <option value="Đổi tay">Đổi tay</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group mb-0">
+                            <div class="custom-control custom-switch">
+                                <input type="checkbox" class="custom-control-input" id="isCompleted" />
+                                <label class="custom-control-label" for="isCompleted">Kết thúc trận đấu</label>
+                            </div>
+                        </div>
+
+                        <small class="text-muted">Không hỗ trợ kết quả hòa khi kết thúc trận.</small>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" type="button" data-dismiss="modal">Hủy</button>
+                        <button class="btn btn-success" type="submit" id="btnSubmitScore">
+                            <i class="fas fa-check"></i> Lưu điểm
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <script>
+        (() => {
+            const $id = (id) => document.getElementById(id);
+            const API = `/api/referee/matches`;
+
+            let CACHE = { items: [] };
+
+            const esc = (s) => String(s || "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+
+            const fmt = (dt) => {
+                if (!dt) return "—";
+                const d = new Date(dt);
+                if (isNaN(d.getTime())) return "—";
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const dd = String(d.getDate()).padStart(2, "0");
+                const hh = String(d.getHours()).padStart(2, "0");
+                const mi = String(d.getMinutes()).padStart(2, "0");
+                return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+            };
+
+            function showErr(msg) {
+                const box = $id("errBox");
+                box.textContent = msg || "Đã xảy ra lỗi";
+                box.classList.remove("d-none");
+            }
+
+            function hideErr() {
+                const box = $id("errBox");
+                box.classList.add("d-none");
+                box.textContent = "";
+            }
+
+            function showFormErr(msg) {
+                const box = $id("scoreErr");
+                box.textContent = msg || "Đã xảy ra lỗi";
+                box.classList.remove("d-none");
+            }
+
+            function hideFormErr() {
+                const box = $id("scoreErr");
+                box.classList.add("d-none");
+                box.textContent = "";
+            }
+
+            function historyHtml(histories) {
+                if (!histories || !histories.length) {
+                    return `<div class="history-box"><div class="text-muted small">Chưa có lịch sử chấm điểm.</div></div>`;
+                }
+
+                return `
+                    <div class="history-box">
+                        <div class="history-title">Lịch sử chấm điểm</div>
+                        ${histories.map(h => `
+                            <div class="history-item">
+                                <div class="history-score">
+                                    ${Number(h.scoreTeam1 || 0)} - ${Number(h.scoreTeam2 || 0)}
+                                    ${h.winnerTeam ? `<span class="badge badge-warning ml-2">Đội thắng: ${h.winnerTeam}</span>` : ``}
+                                </div>
+                                <div class="history-meta">
+                                    ${esc(h.refereeName || ("User #" + h.refereeUserId))} • ${fmt(h.createdAt)}
+                                </div>
+                                ${h.note ? `<div class="mt-1 small">${esc(h.note)}</div>` : ``}
+                            </div>
+                        `).join("")}
+                    </div>
+                `;
+            }
+
+            function cardHtml(m) {
+                const completed = !!m.isCompleted;
+                const t1Winner = completed && m.winnerRegistrationId && m.winnerRegistrationId === m.team1RegistrationId;
+                const t2Winner = completed && m.winnerRegistrationId && m.winnerRegistrationId === m.team2RegistrationId;
+
+                const actionButton = m.canEditScore
+                    ? `<button class="btn btn-sm btn-success" type="button" onclick="openScore(${m.matchId})">
+                            <i class="fas fa-clipboard-check"></i> Chấm điểm
+                       </button>`
+                    : `<button class="btn btn-sm btn-outline-secondary" type="button" disabled>
+                            <i class="fas fa-lock"></i> Chưa đến giờ đấu
+                       </button>`;
+
+                return `
+                    <div class="match-card ${completed ? "completed" : ""}">
+                        <div class="match-header">
+                            <div>
+                                <div class="match-title">${esc(m.tournamentTitle)}</div>
+                                <div class="match-meta">Vòng: ${esc(m.roundKey)} • ${esc(m.roundLabel)} • Bảng: ${esc(m.groupName)}</div>
+                                <div class="match-meta">Bắt đầu: ${fmt(m.startAt)}${m.courtText ? " • " + esc(m.courtText) : ""}</div>
+                                <div class="match-meta">Địa chỉ: ${esc(m.addressText || "—")}</div>
+                            </div>
+                            <div>${actionButton}</div>
+                        </div>
+
+                        <div class="score-board">
+                            <div class="team-name ${t1Winner ? "winner" : ""}">${esc(m.team1Text)}</div>
+                            <div class="score">${Number(m.scoreTeam1 || 0)} - ${Number(m.scoreTeam2 || 0)}</div>
+                            <div class="team-name right ${t2Winner ? "winner" : ""}">${esc(m.team2Text)}</div>
+                        </div>
+
+                        <div class="mt-3">
+                            ${completed
+                                ? `<span class="badge badge-success">Đã kết thúc</span>`
+                                : `<span class="badge badge-secondary">Chưa kết thúc</span>`}
+                            ${completed && m.winnerTeam
+                                ? `<span class="badge badge-warning ml-2">Người thắng: Đội ${m.winnerTeam}</span>`
+                                : ``}
+                        </div>
+
+                        ${historyHtml(m.scoreHistories)}
+                    </div>
+                `;
+            }
+
+            function render() {
+                const box = $id("cards");
+                const items = CACHE.items || [];
+
+                if (!items.length) {
+                    box.innerHTML = `<div class="text-muted">Bạn chưa được phân công trận đấu nào.</div>`;
+                    return;
+                }
+
+                box.innerHTML = items.map(cardHtml).join("");
+            }
+
+            async function loadMe() {
+                try {
+                    const res = await axios.get("/api/referee-auth/me");
+                    $id("meBox").textContent = res.data?.fullName || "";
+                } catch {
+                    $id("meBox").textContent = "";
+                }
+            }
+
+            async function loadMatches() {
+                hideErr();
+                try {
+                    const res = await axios.get(API);
+                    CACHE.items = res.data?.items || [];
+                    render();
+                } catch (err) {
+                    showErr(err?.response?.data?.message || err?.message || "Tải dữ liệu thất bại.");
+                }
+            }
+
+            window.openScore = (matchId) => {
+                hideFormErr();
+
+                const m = (CACHE.items || []).find(x => x.matchId === matchId);
+                if (!m) return;
+
+                if (!m.canEditScore) {
+                    showErr("Chưa đến giờ thi đấu, bạn chỉ được phép xem trận.");
+                    return;
+                }
+
+                $id("scoreMatchId").value = String(matchId);
+                $id("scoreTeam1Name").textContent = m.team1Text || "Đội 1";
+                $id("scoreTeam2Name").textContent = m.team2Text || "Đội 2";
+                $id("score1").value = String(m.scoreTeam1 ?? 0);
+                $id("score2").value = String(m.scoreTeam2 ?? 0);
+                $id("scoreNote").value = "";
+                $id("isCompleted").checked = false;
+
+                $("#modalScore").modal("show");
+            };
+
+            $id("formScore").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                hideFormErr();
+
+                const matchId = Number($id("scoreMatchId").value || 0);
+                const s1 = Number($id("score1").value || 0);
+                const s2 = Number($id("score2").value || 0);
+                const note = ($id("scoreNote").value || "").trim();
+                const isCompleted = !!$id("isCompleted").checked;
+
+                const btn = $id("btnSubmitScore");
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang lưu...`;
+
+                try {
+                    const res = await axios.put(`${API}/${matchId}/score`, {
+                        scoreTeam1: s1,
+                        scoreTeam2: s2,
+                        isCompleted,
+                        note: note || null
+                    });
+
+                    $("#modalScore").modal("hide");
+
+                    const idx = (CACHE.items || []).findIndex(x => x.matchId === matchId);
+                    if (idx >= 0) {
+                        CACHE.items[idx].scoreTeam1 = res.data.scoreTeam1;
+                        CACHE.items[idx].scoreTeam2 = res.data.scoreTeam2;
+                        CACHE.items[idx].isCompleted = res.data.isCompleted;
+                        CACHE.items[idx].winnerRegistrationId = res.data.winnerRegistrationId;
+                        CACHE.items[idx].winnerTeam = res.data.winnerTeam;
+
+                        if (!Array.isArray(CACHE.items[idx].scoreHistories)) {
+                            CACHE.items[idx].scoreHistories = [];
+                        }
+                        CACHE.items[idx].scoreHistories.unshift(res.data.history);
+                    }
+
+                    render();
+                } catch (err) {
+                    showFormErr(err?.response?.data?.message || err?.message || "Chấm điểm thất bại.");
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = `<i class="fas fa-check"></i> Lưu điểm`;
+                }
+            });
+
+            $id("btnLogout").addEventListener("click", async () => {
+                await axios.post("/api/referee-auth/logout");
+                window.location.href = "/RefereePortal/Login";
+            });
+
+            document.addEventListener("DOMContentLoaded", async () => {
+                await loadMe();
+                await loadMatches();
+            });
+        })();
+    </script>
+</body>
+</html>

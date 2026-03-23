@@ -54,4 +54,6 @@ public partial class User
     public virtual ICollection<UserRatingHistory> UserRatingHistories { get; set; } = new List<UserRatingHistory>();
 
     public virtual ICollection<UserAchievement> UserAchievements { get; set; } = new List<UserAchievement>();
+    public virtual ICollection<TournamentGroupMatch> RefereeTournamentGroupMatches { get; set; } = new List<TournamentGroupMatch>();
+    public virtual ICollection<TournamentMatchScoreHistory> RefereeScoreHistories { get; set; } = new List<TournamentMatchScoreHistory>();
 }

@@ -71,6 +71,9 @@ namespace HanakaServer.Controllers
                     on m.Team1RegistrationId equals r1.RegistrationId
                 join r2 in _db.TournamentRegistrations.AsNoTracking()
                     on m.Team2RegistrationId equals r2.RegistrationId
+                join u in _db.Users.AsNoTracking()
+                    on m.RefereeUserId equals u.UserId into refereeJoin
+                from referee in refereeJoin.DefaultIfEmpty()
                 orderby (m.StartAt ?? DateTime.MaxValue), m.MatchId
                 select new
                 {
@@ -97,6 +100,14 @@ namespace HanakaServer.Controllers
                     WinnerTeam = m.WinnerRegistrationId == null
                         ? null
                         : (m.WinnerRegistrationId == m.Team1RegistrationId ? "1" : "2"),
+
+                    m.RefereeUserId,
+                    RefereeName = referee != null ? referee.FullName : null,
+                    RefereePhone = referee != null ? referee.Phone : null,
+                    RefereeEmail = referee != null ? referee.Email : null,
+                    RefereeCity = referee != null ? referee.City : null,
+                    RefereeVerified = referee != null && referee.Verified,
+                    RefereeIsActive = referee != null && referee.IsActive,
 
                     m.CreatedAt,
                     m.UpdatedAt
@@ -144,6 +155,15 @@ namespace HanakaServer.Controllers
             if (regs.Any(x => !x.Success))
                 return BadRequest(new { message = "Only SUCCESS registrations can be used for matches." });
 
+            if (dto.RefereeUserId.HasValue)
+            {
+                var refereeExists = await _db.Users.AsNoTracking()
+                    .AnyAsync(x => x.UserId == dto.RefereeUserId.Value);
+
+                if (!refereeExists)
+                    return BadRequest(new { message = "Referee user not found." });
+            }
+
             var m = new TournamentGroupMatch
             {
                 TournamentRoundGroupId = groupId,
@@ -156,6 +176,8 @@ namespace HanakaServer.Controllers
                 AddressText = string.IsNullOrWhiteSpace(dto.AddressText) ? null : dto.AddressText.Trim(),
                 CourtText = string.IsNullOrWhiteSpace(dto.CourtText) ? null : dto.CourtText.Trim(),
                 VideoUrl = string.IsNullOrWhiteSpace(dto.VideoUrl) ? null : dto.VideoUrl.Trim(),
+
+                RefereeUserId = dto.RefereeUserId,
 
                 ScoreTeam1 = 0,
                 ScoreTeam2 = 0,
@@ -185,7 +207,6 @@ namespace HanakaServer.Controllers
             return Ok(new { m.MatchId });
         }
 
-        // PUT /api/admin/groups/{groupId}/matches/{matchId}
         [HttpPut("{matchId:long}")]
         public async Task<IActionResult> Update(long groupId, long matchId, [FromBody] UpdateMatchDto dto)
         {
@@ -195,6 +216,38 @@ namespace HanakaServer.Controllers
             if (m == null)
                 return NotFound(new { message = "Match not found." });
 
+            if (dto.RefereeUserId.HasValue)
+            {
+                var refereeUserId = dto.RefereeUserId.Value;
+
+                var refereeExists = await _db.Users.AsNoTracking()
+                    .AnyAsync(x => x.UserId == refereeUserId);
+
+                if (!refereeExists)
+                    return BadRequest(new { message = "Referee user not found." });
+
+                var refereeRoleId = await _db.Roles.AsNoTracking()
+                    .Where(x => x.RoleCode == "REFEREE")
+                    .Select(x => x.RoleId)
+                    .FirstOrDefaultAsync();
+
+                if (refereeRoleId == 0)
+                    return BadRequest(new { message = "Role REFEREE not found in system." });
+
+                var hasRefereeRole = await _db.UserRoles
+                    .AnyAsync(x => x.UserId == refereeUserId && x.RoleId == refereeRoleId);
+
+                if (!hasRefereeRole)
+                {
+                    _db.UserRoles.Add(new UserRole
+                    {
+                        UserId = refereeUserId,
+                        RoleId = refereeRoleId,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+            }
+
             if (m.IsCompleted)
             {
                 if (dto.StartAtSet) m.StartAt = dto.StartAt;
@@ -202,8 +255,24 @@ namespace HanakaServer.Controllers
                 if (dto.CourtText != null) m.CourtText = string.IsNullOrWhiteSpace(dto.CourtText) ? null : dto.CourtText.Trim();
                 if (dto.VideoUrl != null) m.VideoUrl = string.IsNullOrWhiteSpace(dto.VideoUrl) ? null : dto.VideoUrl.Trim();
 
+                // vẫn cho sửa trọng tài
+                m.RefereeUserId = dto.RefereeUserId;
+
                 m.UpdatedAt = DateTime.UtcNow;
-                await _db.SaveChangesAsync();
+
+                try
+                {
+                    await _db.SaveChangesAsync();
+                }
+                catch (DbUpdateException ex)
+                {
+                    return BadRequest(new
+                    {
+                        message = "Update completed match failed.",
+                        detail = ex.Message
+                    });
+                }
+
                 return Ok(new { ok = true });
             }
 
@@ -224,6 +293,7 @@ namespace HanakaServer.Controllers
             if (dto.CourtText != null) m.CourtText = string.IsNullOrWhiteSpace(dto.CourtText) ? null : dto.CourtText.Trim();
             if (dto.VideoUrl != null) m.VideoUrl = string.IsNullOrWhiteSpace(dto.VideoUrl) ? null : dto.VideoUrl.Trim();
 
+            m.RefereeUserId = dto.RefereeUserId;
             m.UpdatedAt = DateTime.UtcNow;
 
             try
@@ -241,7 +311,6 @@ namespace HanakaServer.Controllers
 
             return Ok(new { ok = true });
         }
-
         // DELETE /api/admin/groups/{groupId}/matches/{matchId}
         [HttpDelete("{matchId:long}")]
         public async Task<IActionResult> Delete(long groupId, long matchId)
@@ -324,6 +393,9 @@ namespace HanakaServer.Controllers
         public string? AddressText { get; set; }
         public string? CourtText { get; set; }
         public string? VideoUrl { get; set; }
+
+        // NEW
+        public long? RefereeUserId { get; set; }
     }
 
     public class UpdateMatchDto
@@ -337,6 +409,9 @@ namespace HanakaServer.Controllers
         public string? AddressText { get; set; }
         public string? CourtText { get; set; }
         public string? VideoUrl { get; set; }
+
+        // NEW
+        public long? RefereeUserId { get; set; }
     }
 
     public class SetScoreDto
