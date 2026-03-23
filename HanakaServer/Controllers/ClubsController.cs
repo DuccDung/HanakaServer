@@ -517,8 +517,17 @@ namespace HanakaServer.Controllers
                     userId = x.User.UserId,
                     fullName = x.User.FullName,
                     avatarUrl = x.User.AvatarUrl,
-                    ratingSingle = x.User.RatingSingle,
-                    ratingDouble = x.User.RatingDouble
+                    latestRating = _db.UserRatingHistories
+                        .Where(r => r.UserId == x.UserId)
+                        .OrderByDescending(r => r.RatedAt)
+                        .ThenByDescending(r => r.RatingHistoryId)
+                        .Select(r => new
+                        {
+                            r.RatingSingle,
+                            r.RatingDouble,
+                            r.RatedAt
+                        })
+                        .FirstOrDefault()
                 })
                 .FirstOrDefaultAsync();
 
@@ -549,15 +558,16 @@ namespace HanakaServer.Controllers
                     introduction = $"CLB {club.clubName} được thành lập và đang hoạt động tại {club.areaText ?? "chưa cập nhật khu vực"}.",
                     foundedAt = club.createdAt,
                     addressText = club.areaText,
-                    level = owner?.ratingDouble ?? owner?.ratingSingle ?? 0m
+                    level = owner?.latestRating?.RatingDouble ?? owner?.latestRating?.RatingSingle ?? 0m
                 },
                 owner = owner == null ? null : new
                 {
                     owner.userId,
                     owner.fullName,
                     avatarUrl = ToAbsoluteUrl(owner.avatarUrl),
-                    owner.ratingSingle,
-                    owner.ratingDouble
+                    ratingSingle = owner.latestRating != null ? owner.latestRating.RatingSingle : null,
+                    ratingDouble = owner.latestRating != null ? owner.latestRating.RatingDouble : null,
+                    ratingUpdatedAt = owner.latestRating?.RatedAt
                 }
             });
         }
@@ -598,10 +608,19 @@ namespace HanakaServer.Controllers
                     city = x.User.City,
                     gender = x.User.Gender,
                     verified = x.User.Verified,
-                    ratingSingle = x.User.RatingSingle,
-                    ratingDouble = x.User.RatingDouble,
                     memberRole = x.MemberRole,
-                    joinedAt = x.JoinedAt
+                    joinedAt = x.JoinedAt,
+                    latestRating = _db.UserRatingHistories
+                        .Where(r => r.UserId == x.UserId)
+                        .OrderByDescending(r => r.RatedAt)
+                        .ThenByDescending(r => r.RatingHistoryId)
+                        .Select(r => new
+                        {
+                            r.RatingSingle,
+                            r.RatingDouble,
+                            r.RatedAt
+                        })
+                        .FirstOrDefault()
                 })
                 .ToListAsync();
 
@@ -619,8 +638,9 @@ namespace HanakaServer.Controllers
                     x.city,
                     x.gender,
                     x.verified,
-                    x.ratingSingle,
-                    x.ratingDouble,
+                    ratingSingle = x.latestRating != null ? x.latestRating.RatingSingle : null,
+                    ratingDouble = x.latestRating != null ? x.latestRating.RatingDouble : null,
+                    ratingUpdatedAt = x.latestRating?.RatedAt,
                     x.memberRole,
                     x.joinedAt
                 })
@@ -668,10 +688,19 @@ namespace HanakaServer.Controllers
                     city = x.User.City,
                     gender = x.User.Gender,
                     verified = x.User.Verified,
-                    ratingSingle = x.User.RatingSingle,
-                    ratingDouble = x.User.RatingDouble,
                     memberRole = x.MemberRole,
-                    joinedAt = x.JoinedAt
+                    joinedAt = x.JoinedAt,
+                    latestRating = _db.UserRatingHistories
+                        .Where(r => r.UserId == x.UserId)
+                        .OrderByDescending(r => r.RatedAt)
+                        .ThenByDescending(r => r.RatingHistoryId)
+                        .Select(r => new
+                        {
+                            r.RatingSingle,
+                            r.RatingDouble,
+                            r.RatedAt
+                        })
+                        .FirstOrDefault()
                 })
                 .ToListAsync();
 
@@ -689,8 +718,9 @@ namespace HanakaServer.Controllers
                     x.city,
                     x.gender,
                     x.verified,
-                    x.ratingSingle,
-                    x.ratingDouble,
+                    ratingSingle = x.latestRating != null ? x.latestRating.RatingSingle : null,
+                    ratingDouble = x.latestRating != null ? x.latestRating.RatingDouble : null,
+                    ratingUpdatedAt = x.latestRating?.RatedAt,
                     x.memberRole,
                     x.joinedAt
                 })

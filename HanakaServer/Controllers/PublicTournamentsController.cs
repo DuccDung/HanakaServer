@@ -32,9 +32,8 @@ namespace HanakaServer.Controllers
         [HttpGet("{id:long}")]
         public async Task<IActionResult> GetDetail(long id)
         {
-            // 1) Lấy detail tournament
             var t = await _db.Tournaments.AsNoTracking()
-                .Where(x => x.TournamentId == id)
+                .Where(x => x.TournamentId == id && x.Status != "DRAFT")
                 .Select(x => new PublicTournamentDetailDto
                 {
                     TournamentId = x.TournamentId,
@@ -43,7 +42,7 @@ namespace HanakaServer.Controllers
                     Status = x.Status,
                     Title = x.Title,
 
-                    BannerUrl = x.BannerUrl, // map absolute phía dưới
+                    BannerUrl = x.BannerUrl,
 
                     StartTimeRaw = x.StartTimeRaw,
                     StartTime = x.StartTime,
@@ -70,8 +69,6 @@ namespace HanakaServer.Controllers
                     Organizer = x.Organizer,
                     CreatorName = x.CreatorName,
 
-                    //  IMPORTANT: ở đây CHƯA set RegisteredCount/PairedCount
-                    // vì sẽ đếm từ bảng TournamentRegistrations phía dưới
                     RegisteredCount = null,
                     PairedCount = null,
 
@@ -82,24 +79,17 @@ namespace HanakaServer.Controllers
 
             if (t == null) return NotFound(new { message = "Tournament not found." });
 
-            // 2) Convert BannerUrl to absolute
             t.BannerUrl = ToAbsoluteUrl(t.BannerUrl);
 
-            // 3) Đếm RegisteredCount/PairedCount từ TournamentRegistrations
             var gt = (t.GameType ?? "").Trim().ToUpperInvariant();
 
-            // chỉ áp dụng cho giải đôi / đôi hỗn hợp
             if (gt == "DOUBLE" || gt == "MIXED")
             {
                 var regQ = _db.TournamentRegistrations
                     .AsNoTracking()
                     .Where(r => r.TournamentId == id);
 
-                // waiting: 1 người
                 var waitingCount = await regQ.CountAsync(r => r.WaitingPair);
-
-                // success: 1 đội đủ cặp => 2 người
-                // (theo logic admin: DOUBLE đủ cặp sẽ Success=true và WaitingPair=false)
                 var successCount = await regQ.CountAsync(r => r.Success);
 
                 t.PairedCount = successCount * 2;
@@ -107,17 +97,14 @@ namespace HanakaServer.Controllers
             }
             else
             {
-                // giải đơn: null theo yêu cầu
                 t.RegisteredCount = null;
                 t.PairedCount = null;
             }
 
             return Ok(t);
         }
+
         // GET: /api/public/tournaments/{tournamentId}/registrations
-        // query:
-        //   tab = ALL | SUCCESS | WAITING   (optional)
-        // NOTE: public endpoint, không auth
         [HttpGet("{tournamentId:long}/registrations")]
         public async Task<IActionResult> PublicRegistrations(long tournamentId, [FromQuery] string tab = "ALL")
         {
@@ -125,14 +112,13 @@ namespace HanakaServer.Controllers
 
             var tournament = await _db.Tournaments
                 .AsNoTracking()
-                .Where(t => t.TournamentId == tournamentId)
+                .Where(t => t.TournamentId == tournamentId && t.Status != "DRAFT")
                 .Select(t => new { t.TournamentId, t.ExpectedTeams, t.GameType, t.Title, t.Status })
                 .FirstOrDefaultAsync();
 
             if (tournament == null)
                 return NotFound(new { message = "Tournament not found." });
 
-            // Base query
             var baseQ = _db.TournamentRegistrations
                 .AsNoTracking()
                 .Where(x => x.TournamentId == tournamentId);
@@ -141,14 +127,10 @@ namespace HanakaServer.Controllers
             var waitingCount = await baseQ.CountAsync(x => x.WaitingPair);
             var capacityLeft = Math.Max(0, tournament.ExpectedTeams - successCount);
 
-            // filter tab nếu muốn
             var q = baseQ;
             if (tab == "SUCCESS") q = q.Where(x => x.Success);
             else if (tab == "WAITING") q = q.Where(x => x.WaitingPair);
 
-            // Join users để lấy verify/level/avatar
-            // !!! IMPORTANT: đổi IsVerified theo field verify thật của bạn trong bảng Users !!!
-            // Ví dụ: x.IsVerified hoặc x.Verified hoặc x.IsKycVerified ...
             var rows = await (
                 from r in q.OrderBy(x => x.RegIndex)
 
@@ -168,29 +150,24 @@ namespace HanakaServer.Controllers
                     r.WaitingPair,
                     r.Success,
 
-                    // player1 from reg
                     r.Player1UserId,
                     r.Player1Name,
                     r.Player1Avatar,
                     r.Player1Level,
 
-                    // player2 from reg
                     r.Player2UserId,
                     r.Player2Name,
                     r.Player2Avatar,
                     r.Player2Level,
 
-                    // user lookup (nullable)
                     U1Avatar = (string?)u1.AvatarUrl,
                     U2Avatar = (string?)u2.AvatarUrl,
 
-                    // nếu bạn muốn lấy level theo rating (giống admin):
                     U1RatingSingle = (decimal?)(u1 != null ? (u1.RatingSingle ?? 0m) : null),
                     U1RatingDouble = (decimal?)(u1 != null ? (u1.RatingDouble ?? 0m) : null),
                     U2RatingSingle = (decimal?)(u2 != null ? (u2.RatingSingle ?? 0m) : null),
                     U2RatingDouble = (decimal?)(u2 != null ? (u2.RatingDouble ?? 0m) : null),
 
-                    // ✅ VERIFY FLAG: đổi theo schema bảng Users của bạn
                     U1Verified = (bool?)(u1 != null ? u1.Verified : null),
                     U2Verified = (bool?)(u2 != null ? u2.Verified : null),
                 }
@@ -199,10 +176,8 @@ namespace HanakaServer.Controllers
             string gt = (tournament.GameType ?? "DOUBLE").Trim().ToUpperInvariant();
             bool isDouble = (gt == "DOUBLE" || gt == "MIXED");
 
-            // map rows -> dto
             PublicRegistrationItemDto MapItem(dynamic x)
             {
-                // level pick giống admin (tuỳ bạn có muốn):
                 decimal p1Level = x.Player1Level;
                 decimal p2Level = x.Player2Level;
 
@@ -211,6 +186,7 @@ namespace HanakaServer.Controllers
                     var picked = (isDouble ? x.U1RatingDouble : x.U1RatingSingle);
                     if (picked != null) p1Level = (decimal)picked;
                 }
+
                 if (x.Player2UserId != null)
                 {
                     var picked = (isDouble ? x.U2RatingDouble : x.U2RatingSingle);
@@ -228,7 +204,6 @@ namespace HanakaServer.Controllers
                 };
 
                 PublicPlayerDto? p2 = null;
-                // DOUBLE waiting => player2 null
                 if (!x.WaitingPair && !string.IsNullOrWhiteSpace(x.Player2Name))
                 {
                     p2 = new PublicPlayerDto
@@ -258,11 +233,9 @@ namespace HanakaServer.Controllers
 
             var mapped = rows.Select(r => MapItem(r)).ToList();
 
-            // successItems/waitingItems
             var successItems = mapped.Where(m => m.Success).ToArray();
             var waitingItems = mapped.Where(m => m.WaitingPair).ToArray();
 
-            // trả response giống structure admin + thêm list
             return Ok(new PublicTournamentRegistrationsResponseDto
             {
                 Tournament = new
@@ -283,42 +256,39 @@ namespace HanakaServer.Controllers
                 WaitingItems = waitingItems
             });
         }
+
         private static string? TrimToNull(string? s)
         {
             if (s == null) return null;
             var t = s.Trim();
             return string.IsNullOrWhiteSpace(t) ? null : t;
         }
+
         public class TournamentMobileListItemDto
         {
             public long TournamentId { get; set; }
-
             public string Title { get; set; } = null!;
             public string Status { get; set; } = null!;
             public string? StatusText { get; set; }
             public string? StateText { get; set; }
-
             public DateTime? StartTime { get; set; }
             public DateTime? RegisterDeadline { get; set; }
-
             public string GameType { get; set; } = "DOUBLE";
             public int ExpectedTeams { get; set; }
             public int RegisteredCount { get; set; }
             public int PairedCount { get; set; }
             public int MatchesCount { get; set; }
-
             public string? LocationText { get; set; }
             public string? AreaText { get; set; }
             public string? Organizer { get; set; }
             public string? CreatorName { get; set; }
             public string? FormatText { get; set; }
             public string? PlayoffType { get; set; }
-
             public string? BannerUrl { get; set; }
             public string? Content { get; set; }
-
             public DateTime CreatedAt { get; set; }
         }
+
         private TournamentMobileListItemDto MapToDto(Tournament t)
         {
             return new TournamentMobileListItemDto
@@ -328,16 +298,13 @@ namespace HanakaServer.Controllers
                 Status = t.Status,
                 StatusText = t.StatusText,
                 StateText = t.StateText,
-
                 StartTime = t.StartTime,
                 RegisterDeadline = t.RegisterDeadline,
-
                 GameType = t.GameType ?? "DOUBLE",
                 ExpectedTeams = t.ExpectedTeams,
                 RegisteredCount = t.RegisteredCount,
                 PairedCount = t.PairedCount,
                 MatchesCount = t.MatchesCount,
-
                 LocationText = t.LocationText,
                 AreaText = t.AreaText,
                 Organizer = t.Organizer,
@@ -345,13 +312,12 @@ namespace HanakaServer.Controllers
                 FormatText = t.FormatText,
                 PlayoffType = t.PlayoffType,
                 BannerUrl = ToAbsoluteUrl(t.BannerUrl),
-
                 Content = t.Content,
                 CreatedAt = t.CreatedAt
             };
         }
 
-        // GET: /api/tournaments?page=1&pageSize=10&status=OPEN&query=abc
+        // GET: /api/public/tournaments?page=1&pageSize=10&status=OPEN&query=abc
         [HttpGet]
         public async Task<IActionResult> List(
             [FromQuery] int page = 1,
@@ -368,13 +334,14 @@ namespace HanakaServer.Controllers
 
             var q = _db.Tournaments.AsNoTracking().AsQueryable();
 
-            // filter status nếu có
+            // Ẩn toàn bộ giải draft ở public API
+            q = q.Where(t => t.Status != "DRAFT");
+
             if (!string.IsNullOrWhiteSpace(status) && status != "ALL")
             {
                 q = q.Where(x => x.Status == status);
             }
 
-            // filter query theo tên giải / khu vực / địa điểm / organizer
             if (!string.IsNullOrWhiteSpace(query))
             {
                 q = q.Where(x =>
@@ -388,7 +355,6 @@ namespace HanakaServer.Controllers
 
             var total = await q.CountAsync();
 
-            // mới đến cũ
             var raw = await q
                 .OrderByDescending(x => x.CreatedAt)
                 .ThenByDescending(x => x.TournamentId)

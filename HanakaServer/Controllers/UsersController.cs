@@ -1,10 +1,11 @@
 ﻿using HanakaServer.Data;
 using HanakaServer.Dtos;
+using HanakaServer.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
 using Microsoft.Extensions.Configuration;
+using System.Security.Claims;
 
 namespace HanakaServer.Controllers
 {
@@ -67,46 +68,45 @@ namespace HanakaServer.Controllers
         {
             var userId = GetUserIdFromToken();
 
-            var u = await _db.Users
+            var user = await _db.Users
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
+
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            // Nếu user cũ chưa có history thì tự khởi tạo
+            await EnsureInitialRatingHistoryAsync(user);
+
+            var latestRating = await _db.UserRatingHistories
                 .AsNoTracking()
-                .Where(x => x.UserId == userId && x.IsActive)
+                .Where(x => x.UserId == user.UserId)
+                .OrderByDescending(x => x.RatedAt)
+                .ThenByDescending(x => x.RatingHistoryId)
                 .Select(x => new
                 {
-                    x.UserId,
-                    x.FullName,
-                    x.Email,
-                    x.Phone,
-                    x.Gender,
-                    City = x.City,
-                    x.Verified,
                     x.RatingSingle,
                     x.RatingDouble,
-                    x.AvatarUrl,
-                    x.Bio,
-                    x.BirthOfDate,
-                    x.CreatedAt,
-                    x.UpdatedAt
+                    x.RatedAt
                 })
                 .FirstOrDefaultAsync();
 
-            if (u == null) return NotFound(new { message = "User not found." });
-
             return Ok(new
             {
-                u.UserId,
-                u.FullName,
-                u.Email,
-                u.Phone,
-                u.Gender,
-                u.City,
-                u.Verified,
-                u.RatingSingle,
-                u.RatingDouble,
-                AvatarUrl = ToAbsoluteUrl(u.AvatarUrl),
-                u.Bio,
-                u.BirthOfDate,
-                u.CreatedAt,
-                u.UpdatedAt
+                user.UserId,
+                user.FullName,
+                user.Email,
+                user.Phone,
+                user.Gender,
+                City = user.City,
+                user.Verified,
+                RatingSingle = latestRating?.RatingSingle,
+                RatingDouble = latestRating?.RatingDouble,
+                RatingUpdatedAt = latestRating?.RatedAt,
+                AvatarUrl = ToAbsoluteUrl(user.AvatarUrl),
+                user.Bio,
+                user.BirthOfDate,
+                user.CreatedAt,
+                user.UpdatedAt
             });
         }
 
@@ -119,10 +119,15 @@ namespace HanakaServer.Controllers
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
             if (user == null) return NotFound(new { message = "User not found." });
 
+            var oldFullName = user.FullName;
+            var oldAvatarUrl = user.AvatarUrl;
+
             if (!string.IsNullOrWhiteSpace(req.FullName))
             {
                 var name = req.FullName.Trim();
-                if (name.Length < 2) return BadRequest(new { message = "FullName must be at least 2 characters." });
+                if (name.Length < 2)
+                    return BadRequest(new { message = "FullName must be at least 2 characters." });
+
                 user.FullName = name;
             }
 
@@ -132,11 +137,19 @@ namespace HanakaServer.Controllers
             if (req.Bio != null) user.Bio = req.Bio;
             if (req.BirthOfDate.HasValue) user.BirthOfDate = req.BirthOfDate.Value.Date;
 
-            // AvatarUrl: normalize về relative để lưu DB
             if (req.AvatarUrl != null)
                 user.AvatarUrl = NormalizeAvatarToRelative(req.AvatarUrl);
 
             user.UpdatedAt = DateTime.UtcNow;
+
+            await SyncTournamentRegistrationsForUserAsync(
+                userId,
+                oldFullName,
+                user.FullName,
+                oldAvatarUrl,
+                user.AvatarUrl
+            );
+
             await _db.SaveChangesAsync();
 
             return Ok(new
@@ -157,7 +170,6 @@ namespace HanakaServer.Controllers
                 user.UpdatedAt
             });
         }
-
         // POST: api/users/me/avatar
         [HttpPost("me/avatar")]
         [RequestSizeLimit(10_000_000)]
@@ -184,24 +196,32 @@ namespace HanakaServer.Controllers
                 await file.CopyToAsync(stream);
             }
 
-            // Lưu relative vào DB
             var relativeUrl = $"/uploads/avatars/{fileName}";
 
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
             if (user == null) return NotFound(new { message = "User not found." });
 
+            var oldFullName = user.FullName;
+            var oldAvatarUrl = user.AvatarUrl;
+
             user.AvatarUrl = relativeUrl;
             user.UpdatedAt = DateTime.UtcNow;
 
+            await SyncTournamentRegistrationsForUserAsync(
+                userId,
+                oldFullName,
+                user.FullName,
+                oldAvatarUrl,
+                user.AvatarUrl
+            );
+
             await _db.SaveChangesAsync();
 
-            // Trả absolute để client dùng luôn
             return Ok(new
             {
                 avatarUrl = ToAbsoluteUrl(relativeUrl)
             });
         }
-
         [HttpPost("me/change-password")]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest req)
         {
@@ -281,13 +301,22 @@ namespace HanakaServer.Controllers
                     u.City,
                     u.Gender,
                     u.Verified,
-                    u.RatingSingle,
-                    u.RatingDouble,
-                    u.AvatarUrl
+                    u.AvatarUrl,
+                    LatestRating = _db.UserRatingHistories
+                        .Where(r => r.UserId == u.UserId)
+                        .OrderByDescending(r => r.RatedAt)
+                        .ThenByDescending(r => r.RatingHistoryId)
+                        .Select(r => new
+                        {
+                            r.RatingSingle,
+                            r.RatingDouble,
+                            r.RatedAt
+                        })
+                        .FirstOrDefault()
                 })
                 .ToListAsync();
 
-            // Map AvatarUrl => absolute
+            // Fix for CS0173, CS8602, and CS8073 in the problematic line
             var mappedItems = items.Select(x => new
             {
                 x.UserId,
@@ -295,8 +324,9 @@ namespace HanakaServer.Controllers
                 x.City,
                 x.Gender,
                 x.Verified,
-                x.RatingSingle,
-                x.RatingDouble,
+                RatingSingle = x.LatestRating?.RatingSingle,
+                RatingDouble = x.LatestRating?.RatingDouble,
+                RatingUpdatedAt = x.LatestRating?.RatedAt, // Use null-conditional operator to handle nullable DateTime
                 AvatarUrl = ToAbsoluteUrl(x.AvatarUrl)
             });
 
@@ -308,51 +338,47 @@ namespace HanakaServer.Controllers
                 items = mappedItems
             });
         }
-
         // GET: api/users/{id}
         [AllowAnonymous]
         [HttpGet("{id:long}")]
         public async Task<IActionResult> GetUserDetail(long id)
         {
-            var u = await _db.Users
+            var user = await _db.Users
                 .AsNoTracking()
-                .Where(x => x.UserId == id && x.UserId != 2 && x.IsActive)
+                .FirstOrDefaultAsync(x => x.UserId == id && x.UserId != 2 && x.IsActive);
+
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            var latestRating = await _db.UserRatingHistories
+                .AsNoTracking()
+                .Where(x => x.UserId == user.UserId)
+                .OrderByDescending(x => x.RatedAt)
+                .ThenByDescending(x => x.RatingHistoryId)
                 .Select(x => new
                 {
-                    x.UserId,
-                    x.FullName,
-                    x.Email,
-                    x.Phone,
-                    x.Gender,
-                    x.City,
-                    x.Verified,
                     x.RatingSingle,
                     x.RatingDouble,
-                    x.AvatarUrl,
-                    x.Bio,
-                    x.BirthOfDate,
-                    x.CreatedAt
+                    x.RatedAt
                 })
                 .FirstOrDefaultAsync();
 
-            if (u == null)
-                return NotFound(new { message = "User not found." });
-
             return Ok(new
             {
-                u.UserId,
-                u.FullName,
-                u.Email,
-                u.Phone,
-                u.Gender,
-                u.City,
-                u.Verified,
-                u.RatingSingle,
-                u.RatingDouble,
-                AvatarUrl = ToAbsoluteUrl(u.AvatarUrl),
-                u.Bio,
-                u.BirthOfDate,
-                u.CreatedAt
+                user.UserId,
+                user.FullName,
+                user.Email,
+                user.Phone,
+                user.Gender,
+                user.City,
+                user.Verified,
+                RatingSingle = latestRating?.RatingSingle,
+                RatingDouble = latestRating?.RatingDouble,
+                RatingUpdatedAt = latestRating?.RatedAt,
+                AvatarUrl = ToAbsoluteUrl(user.AvatarUrl),
+                user.Bio,
+                user.BirthOfDate,
+                user.CreatedAt
             });
         }
         // PUT: api/users/me/self-rating
@@ -364,7 +390,6 @@ namespace HanakaServer.Controllers
             if (req == null)
                 return BadRequest(new { message = "Invalid request." });
 
-            // Nếu bạn muốn thang 0-5
             if (req.RatingSingle < 0 || req.RatingSingle > 5)
                 return BadRequest(new { message = "RatingSingle must be between 0 and 5." });
 
@@ -375,9 +400,27 @@ namespace HanakaServer.Controllers
             if (user == null)
                 return NotFound(new { message = "User not found." });
 
-            user.RatingSingle = Math.Round(req.RatingSingle, 1);
-            user.RatingDouble = Math.Round(req.RatingDouble, 1);
-            user.UpdatedAt = DateTime.UtcNow;
+            var now = DateTime.UtcNow;
+            var single = Math.Round(req.RatingSingle, 1);
+            var @double = Math.Round(req.RatingDouble, 1);
+
+            // Ghi lịch sử mới
+            var history = new Models.UserRatingHistory
+            {
+                UserId = user.UserId,
+                RatingSingle = single,
+                RatingDouble = @double,
+                RatedByUserId = user.UserId, // tự chấm
+                Note = "Người chơi tự cập nhật điểm trình.",
+                RatedAt = now
+            };
+
+            _db.UserRatingHistories.Add(history);
+
+            // vẫn sync qua Users để tương thích code cũ nếu còn nơi khác đang dùng
+            user.RatingSingle = single;
+            user.RatingDouble = @double;
+            user.UpdatedAt = now;
 
             await _db.SaveChangesAsync();
 
@@ -385,9 +428,9 @@ namespace HanakaServer.Controllers
             {
                 message = "Cập nhật điểm tự chấm trình thành công.",
                 userId = user.UserId,
-                ratingSingle = user.RatingSingle,
-                ratingDouble = user.RatingDouble,
-                updatedAt = user.UpdatedAt
+                ratingSingle = single,
+                ratingDouble = @double,
+                ratedAt = now
             });
         }
         // DELETE: api/users/me
@@ -412,6 +455,354 @@ namespace HanakaServer.Controllers
                 isActive = user.IsActive,
                 updatedAt = user.UpdatedAt
             });
+        }
+        // GET: api/users/me/rating-history
+        [HttpGet("me/rating-history")]
+        public async Task<IActionResult> GetMyRatingHistory()
+        {
+            var userId = GetUserIdFromToken();
+
+            var user = await _db.Users.FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            await EnsureInitialRatingHistoryAsync(user);
+
+            var items = await _db.UserRatingHistories
+                .AsNoTracking()
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.RatedAt)
+                .ThenByDescending(x => x.RatingHistoryId)
+                .Select(x => new
+                {
+                    x.RatingHistoryId,
+                    x.RatingSingle,
+                    x.RatingDouble,
+                    x.RatedAt,
+                    x.Note,
+                    x.RatedByUserId,
+                    RatedByName = x.RatedByUserId == null ? "Hệ thống" : (x.RatedByUser != null ? x.RatedByUser.FullName : null)
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                userId,
+                total = items.Count,
+                items
+            });
+        }
+        // GET: api/users/{id}/rating-history
+        [AllowAnonymous]
+        [HttpGet("{id:long}/rating-history")]
+        public async Task<IActionResult> GetUserRatingHistory(long id)
+        {
+            var user = await _db.Users.FirstOrDefaultAsync(x => x.UserId == id && x.IsActive);
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            await EnsureInitialRatingHistoryAsync(user);
+
+            var items = await _db.UserRatingHistories
+                .AsNoTracking()
+                .Where(x => x.UserId == id)
+                .OrderByDescending(x => x.RatedAt)
+                .ThenByDescending(x => x.RatingHistoryId)
+                .Select(x => new
+                {
+                    x.RatingHistoryId,
+                    x.RatingSingle,
+                    x.RatingDouble,
+                    x.RatedAt,
+                    x.Note,
+                    x.RatedByUserId,
+                    RatedByName = x.RatedByUserId == null ? "Hệ thống" : (x.RatedByUser != null ? x.RatedByUser.FullName : null)
+                })
+                .ToListAsync();
+
+            return Ok(new
+            {
+                userId = user.UserId,
+                user.FullName,
+                total = items.Count,
+                items
+            });
+        }
+        // GET: api/users/me/rating
+        [HttpGet("me/rating")]
+        public async Task<IActionResult> GetMyCurrentRating()
+        {
+            var userId = GetUserIdFromToken();
+
+            var user = await _db.Users.FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            await EnsureInitialRatingHistoryAsync(user);
+
+            var latest = await _db.UserRatingHistories
+                .AsNoTracking()
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.RatedAt)
+                .ThenByDescending(x => x.RatingHistoryId)
+                .Select(x => new
+                {
+                    x.RatingSingle,
+                    x.RatingDouble,
+                    x.RatedAt,
+                    x.Note,
+                    x.RatedByUserId,
+                    RatedByName = x.RatedByUserId == null ? "Hệ thống" : (x.RatedByUser != null ? x.RatedByUser.FullName : null)
+                })
+                .FirstOrDefaultAsync();
+
+            return Ok(new
+            {
+                userId = user.UserId,
+                user.FullName,
+                ratingSingle = latest?.RatingSingle,
+                ratingDouble = latest?.RatingDouble,
+                ratedAt = latest?.RatedAt,
+                ratedByUserId = latest?.RatedByUserId,
+                ratedByName = latest?.RatedByName,
+                note = latest?.Note
+            });
+        }
+        private const string SYSTEM_RATING_NOTE_PREFIX = "Hệ thống khởi tạo điểm trình ban đầu";
+
+        private static bool IsFemale(string? gender)
+        {
+            if (string.IsNullOrWhiteSpace(gender)) return false;
+
+            var g = gender.Trim().ToLowerInvariant();
+
+            return g == "Nữ"
+                || g == "nu"
+                || g == "female"
+                || g == "f"
+                || g == "woman"
+                || g == "girl";
+        }
+
+        private static (decimal single, decimal @double) GetDefaultInitialRating(string? gender)
+        {
+            // Nữ = 1.8, Nam = 2.6
+            if (IsFemale(gender))
+                return (1.8m, 1.8m);
+
+            return (2.6m, 2.6m);
+        }
+
+        /// <summary>
+        /// Tạo lịch sử điểm trình mặc định nếu user chưa có bản ghi nào.
+        /// Gọi hàm này ngay sau khi tạo user lần đầu hoặc trước khi đọc rating nếu muốn tự động vá dữ liệu cũ.
+        /// </summary>
+        private async Task EnsureInitialRatingHistoryAsync(User user)
+        {
+            var hasAnyHistory = await _db.UserRatingHistories
+                .AsNoTracking()
+                .AnyAsync(x => x.UserId == user.UserId);
+
+            if (hasAnyHistory) return;
+
+            var (single, @double) = GetDefaultInitialRating(user.Gender);
+
+            var now = DateTime.UtcNow;
+
+            _db.UserRatingHistories.Add(new Models.UserRatingHistory
+            {
+                UserId = user.UserId,
+                RatingSingle = single,
+                RatingDouble = @double,
+                RatedByUserId = null, // hệ thống chấm
+                Note = $"{SYSTEM_RATING_NOTE_PREFIX} theo giới tính: {(string.IsNullOrWhiteSpace(user.Gender) ? "không xác định, mặc định nam" : user.Gender)}.",
+                RatedAt = now
+            });
+
+            // Giữ đồng bộ bảng Users nếu bạn vẫn muốn cache/legacy
+            // Không dùng để đọc nữa, chỉ để tương thích code cũ
+            user.RatingSingle = single;
+            user.RatingDouble = @double;
+            user.UpdatedAt = now;
+
+            await _db.SaveChangesAsync();
+        }
+
+        /// <summary>
+        /// Lấy điểm trình mới nhất từ bảng UserRatingHistories.
+        /// </summary>
+        private async Task<object?> GetLatestRatingAsync(long userId)
+        {
+            var latest = await _db.UserRatingHistories
+                .AsNoTracking()
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.RatedAt)
+                .ThenByDescending(x => x.RatingHistoryId)
+                .Select(x => new
+                {
+                    x.RatingSingle,
+                    x.RatingDouble,
+                    x.RatedAt,
+                    x.Note,
+                    x.RatedByUserId
+                })
+                .FirstOrDefaultAsync();
+
+            return latest;
+        }
+        // GET: api/users/me/achievements
+        [HttpGet("me/achievements")]
+        public async Task<IActionResult> GetMyAchievements()
+        {
+            var userId = GetUserIdFromToken();
+
+            var user = await _db.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
+
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            var items = await _db.UserAchievements
+                .AsNoTracking()
+                .Where(x => x.UserId == userId)
+                .Include(x => x.Tournament)
+                .OrderByDescending(x => x.CreatedAt)
+                .ThenByDescending(x => x.UserAchievementId)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                userId = user.UserId,
+                user.FullName,
+                total = items.Count,
+                items = items.Select(MapAchievementItem)
+            });
+        }
+
+        // GET: api/users/{id}/achievements
+        [AllowAnonymous]
+        [HttpGet("{id:long}/achievements")]
+        public async Task<IActionResult> GetUserAchievements(long id)
+        {
+            var user = await _db.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.UserId == id && x.UserId != 2 && x.IsActive);
+
+            if (user == null)
+                return NotFound(new { message = "User not found." });
+
+            var items = await _db.UserAchievements
+                .AsNoTracking()
+                .Where(x => x.UserId == id)
+                .Include(x => x.Tournament)
+                .OrderByDescending(x => x.CreatedAt)
+                .ThenByDescending(x => x.UserAchievementId)
+                .ToListAsync();
+
+            return Ok(new
+            {
+                userId = user.UserId,
+                user.FullName,
+                total = items.Count,
+                items = items.Select(MapAchievementItem)
+            });
+        }
+        private object MapAchievementItem(UserAchievement x)
+        {
+            var achievementType = (x.AchievementType ?? "").Trim().ToUpperInvariant();
+
+            var rank = achievementType switch
+            {
+                "FIRST" => 1,
+                "SECOND" => 2,
+                "THIRD" => 3,
+                _ => 0
+            };
+
+            var achievementLabel = achievementType switch
+            {
+                "FIRST" => "Giải Nhất",
+                "SECOND" => "Giải Nhì",
+                "THIRD" => "Giải Ba",
+                _ => x.AchievementType ?? "Thành tích"
+            };
+
+            return new
+            {
+                x.UserAchievementId,
+                x.UserId,
+                x.TournamentId,
+                x.AchievementType,
+                AchievementLabel = achievementLabel,
+                Rank = rank,
+                x.CreatedAt,
+                AchievedAt = x.CreatedAt,
+                x.Note,
+
+                Tournament = x.Tournament == null ? null : new
+                {
+                    x.Tournament.TournamentId,
+                    x.Tournament.Title,
+                    BannerUrl = ToAbsoluteUrl(x.Tournament.BannerUrl),
+                    x.Tournament.StartTime,
+                    x.Tournament.LocationText,
+                    x.Tournament.AreaText,
+                    x.Tournament.GameType,
+                    x.Tournament.Status
+                },
+
+                Title = x.Tournament != null
+                    ? x.Tournament.Title
+                    : achievementLabel,
+
+                TournamentName = x.Tournament != null
+                    ? x.Tournament.Title
+                    : null,
+
+                BannerUrl = x.Tournament != null
+                    ? ToAbsoluteUrl(x.Tournament.BannerUrl)
+                    : null,
+
+                Date = x.Tournament != null && x.Tournament.StartTime.HasValue
+                    ? x.Tournament.StartTime
+                    : x.CreatedAt
+            };
+        }
+        private async Task SyncTournamentRegistrationsForUserAsync(
+     long userId,
+     string? oldFullName,
+     string? newFullName,
+     string? oldAvatarUrl,
+     string? newAvatarUrl)
+        {
+            var regs = await _db.TournamentRegistrations
+                .Where(x => x.Player1UserId == userId || x.Player2UserId == userId)
+                .ToListAsync();
+
+            if (!regs.Any()) return;
+
+            var newName = newFullName?.Trim();
+            var newAvatar = string.IsNullOrWhiteSpace(newAvatarUrl) ? null : newAvatarUrl.Trim();
+
+            foreach (var reg in regs)
+            {
+                if (reg.Player1UserId == userId)
+                {
+                    if (!string.IsNullOrWhiteSpace(newName))
+                        reg.Player1Name = newName;
+
+                    reg.Player1Avatar = newAvatar;
+                }
+
+                if (reg.Player2UserId == userId)
+                {
+                    if (!string.IsNullOrWhiteSpace(newName))
+                        reg.Player2Name = newName;
+
+                    reg.Player2Avatar = newAvatar;
+                }
+            }
         }
     }
 }

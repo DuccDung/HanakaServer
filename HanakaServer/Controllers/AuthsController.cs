@@ -38,6 +38,76 @@ namespace HanakaServer.Controllers
             return _config["PublicBaseUrl"] ?? "";
         }
 
+        private static bool IsFemale(string? gender)
+        {
+            if (string.IsNullOrWhiteSpace(gender)) return false;
+
+            var g = gender.Trim().ToLowerInvariant();
+
+            return g == "Nữ"
+                || g == "nu"
+                || g == "female"
+                || g == "f"
+                || g == "woman"
+                || g == "girl";
+        }
+
+        private static (decimal single, decimal @double) GetDefaultInitialRating(string? gender)
+        {
+            // Nữ: 1.8 | Nam hoặc mặc định: 2.6
+            if (IsFemale(gender))
+                return (1.8m, 1.8m);
+
+            return (2.3m, 2.3m);
+        }
+
+        private async Task EnsureInitialRatingHistoryAsync(User user, CancellationToken ct)
+        {
+            var exists = await _db.UserRatingHistories
+                .AnyAsync(x => x.UserId == user.UserId, ct);
+
+            if (exists) return;
+
+            var (single, @double) = GetDefaultInitialRating(user.Gender);
+            var now = DateTime.UtcNow;
+
+            _db.UserRatingHistories.Add(new UserRatingHistory
+            {
+                UserId = user.UserId,
+                RatingSingle = single,
+                RatingDouble = @double,
+                RatedByUserId = null, // hệ thống chấm
+                Note = $"Hệ thống khởi tạo điểm trình ban đầu theo giới tính: {(string.IsNullOrWhiteSpace(user.Gender) ? "mặc định nam" : user.Gender)}.",
+                RatedAt = now
+            });
+
+            // Đồng bộ cột cũ ở bảng Users để tương thích code cũ
+            user.RatingSingle = single;
+            user.RatingDouble = @double;
+            user.UpdatedAt = now;
+
+            await _db.SaveChangesAsync(ct);
+        }
+
+        private async Task<(decimal? RatingSingle, decimal? RatingDouble)> GetLatestRatingAsync(long userId, CancellationToken ct)
+        {
+            var latest = await _db.UserRatingHistories
+                .AsNoTracking()
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.RatedAt)
+                .ThenByDescending(x => x.RatingHistoryId)
+                .Select(x => new
+                {
+                    x.RatingSingle,
+                    x.RatingDouble
+                })
+                .FirstOrDefaultAsync(ct);
+
+            return latest == null
+                ? (null, null)
+                : (latest.RatingSingle, latest.RatingDouble);
+        }
+
         [HttpPost("register")]
         public async Task<ActionResult<RegisterResponseDto>> Register([FromBody] RegisterRequestDto dto, CancellationToken ct)
         {
@@ -66,6 +136,11 @@ namespace HanakaServer.Controllers
                 existedByEmail.PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
                 existedByEmail.UpdatedAt = DateTime.UtcNow;
 
+                await _db.SaveChangesAsync(ct);
+
+                // Nếu tài khoản cũ chưa có lịch sử điểm trình thì khởi tạo
+                await EnsureInitialRatingHistoryAsync(existedByEmail, ct);
+
                 var resend = await _userOtpService.CreateOtpAsync(existedByEmail, ct);
                 await _otpEmailService.SendOtpAsync(email, existedByEmail.FullName, resend.otp, ct);
 
@@ -91,8 +166,8 @@ namespace HanakaServer.Controllers
                 Email = email,
                 Phone = phone,
                 Verified = false,
-                RatingSingle = 0,
-                RatingDouble = 0,
+                RatingSingle = null, // không dùng làm nguồn chính nữa
+                RatingDouble = null, // không dùng làm nguồn chính nữa
                 AvatarUrl = null,
                 IsActive = false,
                 CreatedAt = DateTime.UtcNow,
@@ -118,6 +193,9 @@ namespace HanakaServer.Controllers
                 });
                 await _db.SaveChangesAsync(ct);
             }
+
+            // Khởi tạo lịch sử điểm trình ngay khi đăng ký lần đầu
+            await EnsureInitialRatingHistoryAsync(user, ct);
 
             var otpResult = await _userOtpService.CreateOtpAsync(user, ct);
             await _otpEmailService.SendOtpAsync(email, user.FullName, otpResult.otp, ct);
@@ -166,7 +244,10 @@ namespace HanakaServer.Controllers
 
             await _db.SaveChangesAsync(ct);
 
-            var auth = CreateAuthResponse(user);
+            // Đảm bảo luôn có lịch sử điểm trình ban đầu
+            await EnsureInitialRatingHistoryAsync(user, ct);
+
+            var auth = await CreateAuthResponseAsync(user, ct);
             return Ok(auth);
         }
 
@@ -184,6 +265,9 @@ namespace HanakaServer.Controllers
 
             if (user.IsActive)
                 return BadRequest("Tài khoản đã được kích hoạt.");
+
+            // Đảm bảo user cũ cũng có rating history
+            await EnsureInitialRatingHistoryAsync(user, ct);
 
             var otpResult = await _userOtpService.CreateOtpAsync(user, ct);
             await _otpEmailService.SendOtpAsync(email, user.FullName, otpResult.otp, ct);
@@ -215,11 +299,14 @@ namespace HanakaServer.Controllers
             var ok = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
             if (!ok) return Unauthorized("Invalid credentials.");
 
-            var auth = CreateAuthResponse(user);
+            // Nếu user cũ chưa có history thì tự tạo
+            await EnsureInitialRatingHistoryAsync(user, ct);
+
+            var auth = await CreateAuthResponseAsync(user, ct);
             return Ok(auth);
         }
 
-        private AuthResponseDto CreateAuthResponse(User user)
+        private async Task<AuthResponseDto> CreateAuthResponseAsync(User user, CancellationToken ct)
         {
             var jwtSection = _config.GetSection("Jwt");
             var issuer = jwtSection["Issuer"]!;
@@ -249,6 +336,8 @@ namespace HanakaServer.Controllers
 
             var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
 
+            var latestRating = await GetLatestRatingAsync(user.UserId, ct);
+
             return new AuthResponseDto
             {
                 AccessToken = tokenString,
@@ -260,8 +349,8 @@ namespace HanakaServer.Controllers
                     Email = user.Email,
                     Phone = user.Phone,
                     Verified = user.Verified,
-                    RatingSingle = user.RatingSingle,
-                    RatingDouble = user.RatingDouble,
+                    RatingSingle = latestRating.RatingSingle,
+                    RatingDouble = latestRating.RatingDouble,
                     AvatarUrl = string.IsNullOrWhiteSpace(user.AvatarUrl)
                         ? null
                         : GetBaseUrl() + user.AvatarUrl

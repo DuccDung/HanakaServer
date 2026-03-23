@@ -1,0 +1,548 @@
+﻿@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Thiết lập giải thưởng";
+    var tournamentId = (long)(ViewBag.TournamentId ?? 0L);
+}
+
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">Thiết lập giải thưởng</h1>
+            <div class="small text-muted mt-1">
+                Chọn số lượng giải nhất / nhì / ba, gán đội theo ý admin, lưu nháp hoặc xác nhận.
+            </div>
+        </div>
+
+        <div class="d-flex" style="gap:8px;">
+            <a asp-controller="Home" asp-action="Tournaments" class="btn btn-secondary btn-sm">
+                <i class="fas fa-arrow-left"></i> Quay lại
+            </a>
+            <button id="btnSaveDraft" class="btn btn-outline-primary btn-sm" type="button">
+                <i class="fas fa-save"></i> Lưu nháp
+            </button>
+            <button id="btnConfirm" class="btn btn-success btn-sm" type="button">
+                <i class="fas fa-check"></i> Xác nhận & cập nhật thành tích
+            </button>
+        </div>
+    </div>
+
+    <div id="alertBox" class="alert d-none"></div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Thông tin giải đấu</h6>
+        </div>
+        <div class="card-body" id="tournamentInfo">
+            <div class="text-muted">Đang tải...</div>
+        </div>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Số lượng giải thưởng</h6>
+        </div>
+        <div class="card-body">
+            <div class="form-row">
+                <div class="form-group col-md-3">
+                    <label>Số giải nhất</label>
+                    <input id="countFirst" type="number" min="0" class="form-control" value="1" />
+                </div>
+                <div class="form-group col-md-3">
+                    <label>Số giải nhì</label>
+                    <input id="countSecond" type="number" min="0" class="form-control" value="0" />
+                </div>
+                <div class="form-group col-md-3">
+                    <label>Số giải ba</label>
+                    <input id="countThird" type="number" min="0" class="form-control" value="0" />
+                </div>
+                <div class="form-group col-md-3 d-flex align-items-end">
+                    <button id="btnGenerateSlots" class="btn btn-primary w-100" type="button">
+                        <i class="fas fa-magic"></i> Tạo / cập nhật slot giải thưởng
+                    </button>
+                </div>
+            </div>
+
+            <small class="text-muted">
+                Có thể lưu nháp trước, sau đó quay lại gán đội và xác nhận sau.
+            </small>
+        </div>
+    </div>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex align-items-center justify-content-between">
+            <h6 class="m-0 font-weight-bold text-primary">Danh sách slot giải thưởng</h6>
+            <div id="confirmedBadge"></div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th style="width:120px;">Loại giải</th>
+                            <th style="width:90px;">Thứ tự</th>
+                            <th>Đội đã chọn</th>
+                            <th>Ghi chú</th>
+                            <th style="width:170px;">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="prizeItemsBody">
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">Chưa có dữ liệu</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="modalPickTeam" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Chọn đội cho slot giải thưởng</h5>
+                <button class="close" type="button" data-dismiss="modal">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="form-row mb-3">
+                    <div class="col-md-6">
+                        <input id="searchKeyword" class="form-control"
+                               placeholder="Tìm theo mã đội, tên người chơi, hoặc nhập ID đội..." />
+                    </div>
+                    <div class="col-md-3">
+                        <button id="btnSearchTeams" class="btn btn-outline-primary w-100" type="button">
+                            <i class="fas fa-search"></i> Tìm kiếm
+                        </button>
+                    </div>
+                    <div class="col-md-3">
+                        <button id="btnLoadAllTeams" class="btn btn-outline-secondary w-100" type="button">
+                            <i class="fas fa-list"></i> Tải danh sách đội
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-bordered" width="100%" cellspacing="0">
+                        <thead>
+                            <tr>
+                                <th style="width:110px;">ID đội</th>
+                                <th style="width:110px;">Mã đội</th>
+                                <th>Người chơi</th>
+                                <th style="width:90px;">Điểm</th>
+                                <th style="width:90px;">Đã thanh toán</th>
+                                <th style="width:90px;">Hợp lệ</th>
+                                <th style="width:100px;">Chọn</th>
+                            </tr>
+                        </thead>
+                        <tbody id="registrationsBody">
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">Chưa tải dữ liệu</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <script>
+        const TOURNAMENT_ID = @tournamentId;
+        const API_BASE = `/api/admin/tournament-prizes/${TOURNAMENT_ID}`;
+
+        const state = {
+            tournament: null,
+            items: [],
+            isConfirmed: false,
+            activeIndex: null
+        };
+
+        function showAlert(type, message) {
+            const box = document.getElementById("alertBox");
+            box.className = `alert alert-${type}`;
+            box.textContent = message || "";
+            box.classList.remove("d-none");
+        }
+
+        function hideAlert() {
+            const box = document.getElementById("alertBox");
+            box.className = "alert d-none";
+            box.textContent = "";
+        }
+
+        function prizeLabel(type) {
+            const t = (type || "").toUpperCase();
+            if (t === "FIRST") return "Giải nhất";
+            if (t === "SECOND") return "Giải nhì";
+            if (t === "THIRD") return "Giải ba";
+            return type || "—";
+        }
+
+        function prizeBadge(type) {
+            const t = (type || "").toUpperCase();
+            if (t === "FIRST") return `<span class="badge badge-success">Giải nhất</span>`;
+            if (t === "SECOND") return `<span class="badge badge-primary">Giải nhì</span>`;
+            if (t === "THIRD") return `<span class="badge badge-warning">Giải ba</span>`;
+            return `<span class="badge badge-secondary">${type || "—"}</span>`;
+        }
+
+        function fmtDate(dt) {
+            if (!dt) return "—";
+            const d = new Date(dt);
+            if (isNaN(d.getTime())) return "—";
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const dd = String(d.getDate()).padStart(2, "0");
+            const hh = String(d.getHours()).padStart(2, "0");
+            const mi = String(d.getMinutes()).padStart(2, "0");
+            return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+        }
+
+        function escapeHtml(str) {
+            return String(str || "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function renderTournamentInfo() {
+            const box = document.getElementById("tournamentInfo");
+            const t = state.tournament;
+
+            if (!t) {
+                box.innerHTML = `<div class="text-danger">Không tìm thấy thông tin giải đấu.</div>`;
+                return;
+            }
+
+            box.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <div><strong>ID giải:</strong> ${t.tournamentId}</div>
+                        <div><strong>Tiêu đề:</strong> ${escapeHtml(t.title)}</div>
+                        <div><strong>Trạng thái:</strong> ${escapeHtml(t.status || "—")}</div>
+                        <div><strong>Loại hình:</strong> ${escapeHtml(t.gameType || "—")}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div><strong>Ngày bắt đầu:</strong> ${fmtDate(t.startTime)}</div>
+                        <div><strong>Khu vực:</strong> ${escapeHtml(t.areaText || "—")}</div>
+                        <div><strong>Địa điểm:</strong> ${escapeHtml(t.locationText || "—")}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function teamText(reg) {
+            if (!reg) return `<span class="text-muted">Chưa chọn đội</span>`;
+
+            const p1 = `${reg.player1Name || "—"}${reg.player1UserId ? ` (UserId: ${reg.player1UserId})` : ""}`;
+            const p2 = reg.player2Name
+                ? `${reg.player2Name}${reg.player2UserId ? ` (UserId: ${reg.player2UserId})` : ""}`
+                : "—";
+
+            return `
+                <div><strong>Đội #${reg.registrationId}</strong> - ${escapeHtml(reg.regCode || "—")}</div>
+                <div class="small text-muted">P1: ${escapeHtml(p1)}</div>
+                <div class="small text-muted">P2: ${escapeHtml(p2)}</div>
+                <div class="small text-muted">Points: ${reg.points ?? 0}</div>
+            `;
+        }
+
+        function renderConfirmedBadge() {
+            const box = document.getElementById("confirmedBadge");
+            if (state.isConfirmed) {
+                box.innerHTML = `<span class="badge badge-success">Đã xác nhận</span>`;
+            } else {
+                box.innerHTML = `<span class="badge badge-secondary">Chưa xác nhận</span>`;
+            }
+        }
+
+        function renderItems() {
+            const body = document.getElementById("prizeItemsBody");
+
+            if (!state.items.length) {
+                body.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Chưa có slot giải thưởng</td></tr>`;
+                renderConfirmedBadge();
+                return;
+            }
+
+            body.innerHTML = state.items.map((item, index) => `
+                <tr>
+                    <td>${prizeBadge(item.prizeType)}</td>
+                    <td>#${item.prizeOrder}</td>
+                    <td>${teamText(item.registration)}</td>
+                    <td>
+                        <input type="text"
+                               class="form-control form-control-sm note-input"
+                               data-index="${index}"
+                               value="${escapeHtml(item.note || "")}"
+                               placeholder="Ghi chú..." />
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary mb-1" type="button" onclick="openPickTeam(${index})">
+                            <i class="fas fa-search"></i> Chọn đội
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" type="button" onclick="clearTeam(${index})">
+                            <i class="fas fa-times"></i> Xóa đội
+                        </button>
+                    </td>
+                </tr>
+            `).join("");
+
+            renderConfirmedBadge();
+
+            document.querySelectorAll(".note-input").forEach(input => {
+                input.addEventListener("input", function () {
+                    const idx = Number(this.dataset.index);
+                    state.items[idx].note = this.value || "";
+                });
+            });
+        }
+
+        function getCount(type) {
+            return state.items.filter(x => x.prizeType === type).length;
+        }
+
+        function syncCountInputs() {
+            document.getElementById("countFirst").value = getCount("FIRST");
+            document.getElementById("countSecond").value = getCount("SECOND");
+            document.getElementById("countThird").value = getCount("THIRD");
+        }
+
+        function generateSlots() {
+            hideAlert();
+
+            const first = Math.max(0, Number(document.getElementById("countFirst").value || 0));
+            const second = Math.max(0, Number(document.getElementById("countSecond").value || 0));
+            const third = Math.max(0, Number(document.getElementById("countThird").value || 0));
+
+            const oldMap = {};
+            for (const item of state.items) {
+                oldMap[`${item.prizeType}_${item.prizeOrder}`] = item;
+            }
+
+            const newItems = [];
+
+            function pushItems(type, count) {
+                for (let i = 1; i <= count; i++) {
+                    const key = `${type}_${i}`;
+                    const old = oldMap[key];
+
+                    newItems.push({
+                        tournamentPrizeId: old?.tournamentPrizeId || 0,
+                        prizeType: type,
+                        prizeOrder: i,
+                        registrationId: old?.registrationId ?? null,
+                        registration: old?.registration ?? null,
+                        isConfirmed: false,
+                        note: old?.note || ""
+                    });
+                }
+            }
+
+            pushItems("FIRST", first);
+            pushItems("SECOND", second);
+            pushItems("THIRD", third);
+
+            state.items = newItems;
+            state.isConfirmed = false;
+            renderItems();
+        }
+
+        async function loadSetup() {
+            hideAlert();
+
+            try {
+                const res = await axios.get(API_BASE);
+                const data = res.data || {};
+
+                state.tournament = data.tournament || null;
+                state.items = (data.items || []).map(x => ({
+                    tournamentPrizeId: x.tournamentPrizeId || 0,
+                    prizeType: x.prizeType,
+                    prizeOrder: x.prizeOrder,
+                    registrationId: x.registrationId,
+                    registration: x.registration,
+                    isConfirmed: x.isConfirmed,
+                    note: x.note || ""
+                }));
+                state.isConfirmed = !!data.isConfirmed;
+
+                renderTournamentInfo();
+                renderItems();
+                syncCountInputs();
+            } catch (err) {
+                const msg = err?.response?.data?.message || err?.message || "Tải dữ liệu thất bại.";
+                showAlert("danger", msg);
+            }
+        }
+
+        function openPickTeam(index) {
+            state.activeIndex = index;
+            document.getElementById("searchKeyword").value = "";
+            document.getElementById("registrationsBody").innerHTML =
+                `<tr><td colspan="7" class="text-center text-muted">Nhấn "Tải danh sách đội" hoặc tìm kiếm để chọn</td></tr>`;
+            $("#modalPickTeam").modal("show");
+        }
+
+        function clearTeam(index) {
+            state.items[index].registrationId = null;
+            state.items[index].registration = null;
+            state.isConfirmed = false;
+            renderItems();
+        }
+
+        async function loadRegistrations() {
+            const keyword = (document.getElementById("searchKeyword").value || "").trim();
+            const body = document.getElementById("registrationsBody");
+
+            body.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Đang tải...</td></tr>`;
+
+            try {
+                let params = {};
+
+                if (keyword) {
+                    if (/^\d+$/.test(keyword)) {
+                        params = { registrationId: Number(keyword) };
+                    } else {
+                        params = { q: keyword };
+                    }
+                }
+
+                const res = await axios.get(`${API_BASE}/registrations`, { params });
+                const items = res.data?.items || [];
+
+                if (!items.length) {
+                    body.innerHTML = `<tr><td colspan="7" class="text-center text-muted">Không tìm thấy đội</td></tr>`;
+                    return;
+                }
+
+                      body.innerHTML = items.map(reg => {
+            const p1 = `${reg.player1Name || "—"}${reg.player1UserId ? ` (UserId: ${reg.player1UserId})` : ""}`;
+            const p2 = reg.player2Name
+                ? `${reg.player2Name}${reg.player2UserId ? ` (UserId: ${reg.player2UserId})` : ""}`
+                : "—";
+
+            return `
+                <tr>
+                    <td>${reg.registrationId}</td>
+                    <td>${escapeHtml(reg.regCode || "—")}</td>
+                    <td>
+                        <div><strong>P1:</strong> ${escapeHtml(p1)}</div>
+                        <div><strong>P2:</strong> ${escapeHtml(p2)}</div>
+                    </td>
+                    <td>${Number(reg.points || 0).toFixed(2)}</td>
+                    <td>${reg.paid ? '<span class="badge badge-success">Có</span>' : '<span class="badge badge-secondary">Không</span>'}</td>
+                    <td>${reg.success ? '<span class="badge badge-success">Có</span>' : '<span class="badge badge-warning">Không</span>'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" type="button" onclick="chooseRegistration('${encodeURIComponent(JSON.stringify(reg))}')">
+                            Chọn
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join("");
+            } catch (err) {
+                const msg = err?.response?.data?.message || err?.message || "Tải danh sách đội thất bại.";
+                body.innerHTML = `<tr><td colspan="7" class="text-center text-danger">${escapeHtml(msg)}</td></tr>`;
+            }
+        }
+
+        function chooseRegistration(raw) {
+            const reg = JSON.parse(decodeURIComponent(raw));
+            const idx = state.activeIndex;
+
+            if (idx === null || idx === undefined) return;
+
+            const duplicated = state.items.find((x, i) => i !== idx && x.registrationId === reg.registrationId);
+            if (duplicated) {
+                showAlert("warning", `Đội #${reg.registrationId} đã được gán cho ${prizeLabel(duplicated.prizeType)} #${duplicated.prizeOrder}.`);
+                return;
+            }
+
+            state.items[idx].registrationId = reg.registrationId;
+            state.items[idx].registration = reg;
+            state.isConfirmed = false;
+            renderItems();
+            $("#modalPickTeam").modal("hide");
+        }
+
+        function buildPayload() {
+            return {
+                items: state.items.map(x => ({
+                    prizeType: x.prizeType,
+                    prizeOrder: x.prizeOrder,
+                    registrationId: x.registrationId,
+                    note: x.note
+                }))
+            };
+        }
+
+        async function saveDraft() {
+            hideAlert();
+
+            try {
+                const payload = buildPayload();
+                const res = await axios.post(`${API_BASE}/draft`, payload);
+                state.isConfirmed = false;
+                renderConfirmedBadge();
+                showAlert("success", res.data?.message || "Đã lưu nháp.");
+                await loadSetup();
+            } catch (err) {
+                const msg = err?.response?.data?.message || err?.message || "Lưu nháp thất bại.";
+                showAlert("danger", msg);
+            }
+        }
+
+        async function confirmAll() {
+            hideAlert();
+
+            if (!state.items.length) {
+                showAlert("warning", "Bạn chưa tạo slot giải thưởng.");
+                return;
+            }
+
+            if (!confirm("Xác nhận giải thưởng? Hệ thống sẽ cập nhật lại UserAchievement cho giải đấu này.")) {
+                return;
+            }
+
+            try {
+                const payload = buildPayload();
+                const res = await axios.post(`${API_BASE}/confirm`, payload);
+                showAlert("success", res.data?.message || "Đã xác nhận.");
+                await loadSetup();
+            } catch (err) {
+                const msg = err?.response?.data?.message || err?.message || "Xác nhận thất bại.";
+                showAlert("danger", msg);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadSetup();
+
+            document.getElementById("btnGenerateSlots").addEventListener("click", generateSlots);
+            document.getElementById("btnSaveDraft").addEventListener("click", saveDraft);
+            document.getElementById("btnConfirm").addEventListener("click", confirmAll);
+            document.getElementById("btnSearchTeams").addEventListener("click", loadRegistrations);
+            document.getElementById("btnLoadAllTeams").addEventListener("click", loadRegistrations);
+
+            document.getElementById("searchKeyword").addEventListener("keydown", function (e) {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    loadRegistrations();
+                }
+            });
+        });
+    </script>
+}

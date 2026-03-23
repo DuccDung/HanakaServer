@@ -46,8 +46,144 @@ public partial class PickleballDbContext : DbContext
     public virtual DbSet<Referee> Referees { get; set; }
     public virtual DbSet<Link> Links { get; set; }
     public virtual DbSet<UserOtp> UserOtps { get; set; }
+    public virtual DbSet<UserRatingHistory> UserRatingHistories { get; set; }
+    public virtual DbSet<UserAchievement> UserAchievements { get; set; }
+    public virtual DbSet<TournamentPrize> TournamentPrizes { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<TournamentPrize>(entity =>
+        {
+            entity.ToTable("TournamentPrizes", "dbo");
+
+            entity.HasKey(e => e.TournamentPrizeId)
+                  .HasName("PK_TournamentPrizes");
+
+            entity.HasIndex(e => new { e.TournamentId, e.PrizeType, e.PrizeOrder })
+                  .IsUnique()
+                  .HasDatabaseName("UX_TournamentPrizes_Tournament_PrizeType_PrizeOrder");
+
+            entity.HasIndex(e => new { e.TournamentId, e.RegistrationId })
+                  .IsUnique()
+                  .HasDatabaseName("UX_TournamentPrizes_Tournament_Registration")
+                  .HasFilter("[RegistrationId] IS NOT NULL");
+
+            entity.HasIndex(e => e.TournamentId)
+                  .HasDatabaseName("IX_TournamentPrizes_TournamentId");
+
+            entity.HasIndex(e => e.RegistrationId)
+                  .HasDatabaseName("IX_TournamentPrizes_RegistrationId");
+
+            entity.Property(e => e.PrizeType)
+                  .HasMaxLength(20)
+                  .IsUnicode(false);
+
+            entity.Property(e => e.PrizeOrder)
+                  .HasDefaultValue(1);
+
+            entity.Property(e => e.IsConfirmed)
+                  .HasDefaultValue(false);
+
+            entity.Property(e => e.Note)
+                  .HasMaxLength(500);
+
+            entity.Property(e => e.CreatedAt)
+                  .HasColumnType("datetime")
+                  .HasDefaultValueSql("(sysdatetime())");
+
+            entity.ToTable(t => t.HasCheckConstraint(
+                "CK_TournamentPrizes_PrizeType",
+                "[PrizeType] IN ('FIRST', 'SECOND', 'THIRD')"));
+
+            entity.ToTable(t => t.HasCheckConstraint(
+                "CK_TournamentPrizes_PrizeOrder",
+                "[PrizeOrder] >= 1"));
+
+            entity.HasOne(d => d.Tournament)
+                  .WithMany(p => p.TournamentPrizes)
+                  .HasForeignKey(d => d.TournamentId)
+                  .OnDelete(DeleteBehavior.Cascade)
+                  .HasConstraintName("FK_TournamentPrizes_Tournament");
+
+            entity.HasOne(d => d.Registration)
+                  .WithMany(p => p.TournamentPrizes)
+                  .HasForeignKey(d => d.RegistrationId)
+                  .OnDelete(DeleteBehavior.Restrict)
+                  .HasConstraintName("FK_TournamentPrizes_Registration");
+        });
+        modelBuilder.Entity<UserAchievement>(entity =>
+        {
+            entity.ToTable("UserAchievements", "dbo");
+
+            entity.HasKey(e => e.UserAchievementId).HasName("PK_UserAchievements");
+
+            entity.HasIndex(e => e.UserId, "IX_UserAchievements_UserId");
+            entity.HasIndex(e => e.TournamentId, "IX_UserAchievements_TournamentId");
+
+            entity.Property(e => e.AchievementType)
+                .HasMaxLength(20)
+                .IsUnicode(false);
+
+            entity.Property(e => e.CreatedAt)
+                .HasColumnType("datetime")
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.Property(e => e.Note).HasMaxLength(500);
+
+            entity.ToTable(t =>
+                t.HasCheckConstraint("CK_UserAchievements_Type",
+                    "[AchievementType] IN ('FIRST', 'SECOND', 'THIRD')"));
+
+            entity.HasOne(d => d.User)
+                .WithMany(p => p.UserAchievements)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_UserAchievements_User");
+
+            entity.HasOne(d => d.Tournament)
+                .WithMany(p => p.UserAchievements)
+                .HasForeignKey(d => d.TournamentId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("FK_UserAchievements_Tournament");
+        });
+        modelBuilder.Entity<UserRatingHistory>(entity =>
+        {
+            entity.ToTable("UserRatingHistory", "dbo");
+
+            entity.HasKey(e => e.RatingHistoryId);
+
+            entity.Property(e => e.RatingHistoryId)
+                .ValueGeneratedOnAdd();
+
+            entity.Property(e => e.RatingSingle)
+                .HasColumnType("decimal(18,2)");
+
+            entity.Property(e => e.RatingDouble)
+                .HasColumnType("decimal(18,2)");
+
+            entity.Property(e => e.Note)
+                .HasMaxLength(500);
+
+            entity.Property(e => e.RatedAt)
+                .HasColumnType("datetime");
+
+            entity.HasOne(e => e.User)
+                .WithMany(u => u.UserRatingHistories)
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_UserRatingHistory_User");
+
+            entity.HasOne(e => e.RatedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.RatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_UserRatingHistory_RatedByUser");
+
+            entity.HasOne(e => e.Tournament)
+                .WithMany()
+                .HasForeignKey(e => e.TournamentId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_UserRatingHistory_Tournament");
+        });
         modelBuilder.Entity<UserOtp>(entity =>
         {
             entity.HasKey(e => e.UserOtpId).HasName("PK_UserOtp");

@@ -289,6 +289,286 @@ namespace HanakaServer.Controllers
 
             return $"{p1} & {p2}";
         }
+        [HttpGet("users/{userId:long}/videos")]
+        public async Task<IActionResult> GetUserMatchVideos(
+    long userId,
+    [FromQuery] string tab = "all",
+    [FromQuery] int page = 1,
+    [FromQuery] int pageSize = 10)
+        {
+            if (page <= 0) page = 1;
+            if (pageSize <= 0) pageSize = 10;
+            if (pageSize > 50) pageSize = 50;
+
+            tab = (tab ?? "all").Trim().ToLowerInvariant();
+
+            var now = DateTime.Now;
+            var todayStart = now.Date;
+            var tomorrowStart = todayStart.AddDays(1);
+            var weekAgo = now.AddDays(-7);
+
+            var registrationIds = await _db.TournamentRegistrations
+                .AsNoTracking()
+                .Where(x => x.Player1UserId == userId || x.Player2UserId == userId)
+                .Select(x => x.RegistrationId)
+                .Distinct()
+                .ToListAsync();
+
+            if (!registrationIds.Any())
+            {
+                return Ok(new PagedMatchVideoResponseDto
+                {
+                    Tab = tab,
+                    Page = page,
+                    PageSize = pageSize,
+                    Total = 0,
+                    HasMore = false,
+                    Items = new List<MatchVideoItemDto>()
+                });
+            }
+
+            var baseQuery = _db.TournamentGroupMatches
+                .AsNoTracking()
+                .Where(x =>
+                    !string.IsNullOrWhiteSpace(x.VideoUrl) &&
+                    (registrationIds.Contains(x.Team1RegistrationId) ||
+                     registrationIds.Contains(x.Team2RegistrationId)));
+
+            if (tab == "suggested")
+            {
+                baseQuery = baseQuery.Where(x => (x.StartAt ?? x.CreatedAt) >= weekAgo);
+            }
+            else if (tab == "live")
+            {
+                baseQuery = baseQuery.Where(x =>
+                    (x.StartAt ?? x.CreatedAt) >= todayStart &&
+                    (x.StartAt ?? x.CreatedAt) < tomorrowStart);
+            }
+
+            var total = await baseQuery.CountAsync();
+
+            var rawMatches = await baseQuery
+                .OrderByDescending(x => x.StartAt ?? x.CreatedAt)
+                .ThenByDescending(x => x.MatchId)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => new
+                {
+                    x.MatchId,
+                    x.TournamentId,
+                    x.TournamentRoundGroupId,
+                    x.Team1RegistrationId,
+                    x.Team2RegistrationId,
+                    x.StartAt,
+                    x.AddressText,
+                    x.CourtText,
+                    x.VideoUrl,
+                    x.ScoreTeam1,
+                    x.ScoreTeam2,
+                    x.IsCompleted,
+                    x.WinnerRegistrationId,
+                    x.CreatedAt,
+                    x.UpdatedAt
+                })
+                .ToListAsync();
+
+            if (!rawMatches.Any())
+            {
+                return Ok(new PagedMatchVideoResponseDto
+                {
+                    Tab = tab,
+                    Page = page,
+                    PageSize = pageSize,
+                    Total = total,
+                    HasMore = page * pageSize < total,
+                    Items = new List<MatchVideoItemDto>()
+                });
+            }
+
+            var tournamentIds = rawMatches
+                .Select(x => x.TournamentId)
+                .Distinct()
+                .ToList();
+
+            var groupIds = rawMatches
+                .Select(x => x.TournamentRoundGroupId)
+                .Distinct()
+                .ToList();
+
+            var allRegistrationIds = rawMatches
+                .SelectMany(x => new long?[]
+                {
+            x.Team1RegistrationId,
+            x.Team2RegistrationId,
+            x.WinnerRegistrationId
+                })
+                .Where(x => x.HasValue)
+                .Select(x => x!.Value)
+                .Distinct()
+                .ToList();
+
+            var tournaments = await _db.Tournaments
+                .AsNoTracking()
+                .Where(x => tournamentIds.Contains(x.TournamentId))
+                .Select(x => new
+                {
+                    x.TournamentId,
+                    x.Title,
+                    x.GameType,
+                    x.BannerUrl,
+                    x.Status
+                })
+                .ToListAsync();
+
+            var groups = await _db.TournamentRoundGroups
+                .AsNoTracking()
+                .Where(x => groupIds.Contains(x.TournamentRoundGroupId))
+                .Select(x => new
+                {
+                    x.TournamentRoundGroupId,
+                    x.TournamentRoundMapId,
+                    x.GroupName,
+                    x.SortOrder
+                })
+                .ToListAsync();
+
+            var roundMapIds = groups
+                .Select(x => x.TournamentRoundMapId)
+                .Distinct()
+                .ToList();
+
+            var roundMaps = await _db.TournamentRoundMaps
+                .AsNoTracking()
+                .Where(x => roundMapIds.Contains(x.TournamentRoundMapId))
+                .Select(x => new
+                {
+                    x.TournamentRoundMapId,
+                    x.RoundKey,
+                    x.RoundLabel,
+                    x.SortOrder
+                })
+                .ToListAsync();
+
+            var regs = await _db.TournamentRegistrations
+                .AsNoTracking()
+                .Where(x => allRegistrationIds.Contains(x.RegistrationId))
+                .Select(x => new
+                {
+                    x.RegistrationId,
+                    x.RegCode,
+                    x.RegIndex,
+                    x.Player1Name,
+                    x.Player2Name,
+                    x.Player1UserId,
+                    x.Player2UserId,
+                    Player1Avatar = !string.IsNullOrWhiteSpace(x.Player1Avatar)
+                        ? x.Player1Avatar
+                        : (x.Player1User != null ? x.Player1User.AvatarUrl : null),
+                    Player2Avatar = !string.IsNullOrWhiteSpace(x.Player2Avatar)
+                        ? x.Player2Avatar
+                        : (x.Player2User != null ? x.Player2User.AvatarUrl : null)
+                })
+                .ToListAsync();
+
+            var tournamentMap = tournaments.ToDictionary(x => x.TournamentId, x => x);
+            var groupMap = groups.ToDictionary(x => x.TournamentRoundGroupId, x => x);
+            var roundMapDict = roundMaps.ToDictionary(x => x.TournamentRoundMapId, x => x);
+            var regMap = regs.ToDictionary(x => x.RegistrationId, x => x);
+
+            var items = rawMatches.Select(m =>
+            {
+                tournamentMap.TryGetValue(m.TournamentId, out var tournament);
+                groupMap.TryGetValue(m.TournamentRoundGroupId, out var group);
+                roundMapDict.TryGetValue(group?.TournamentRoundMapId ?? 0, out var round);
+
+                regMap.TryGetValue(m.Team1RegistrationId, out var team1Reg);
+                regMap.TryGetValue(m.Team2RegistrationId, out var team2Reg);
+
+                var team1Name = BuildTeamDisplayName(
+                    tournament?.GameType,
+                    team1Reg?.Player1Name,
+                    team1Reg?.Player2Name
+                );
+
+                var team2Name = BuildTeamDisplayName(
+                    tournament?.GameType,
+                    team2Reg?.Player1Name,
+                    team2Reg?.Player2Name
+                );
+
+                string? winnerSide = null;
+                if (m.WinnerRegistrationId.HasValue)
+                {
+                    if (m.WinnerRegistrationId.Value == m.Team1RegistrationId) winnerSide = "1";
+                    else if (m.WinnerRegistrationId.Value == m.Team2RegistrationId) winnerSide = "2";
+                }
+
+                var isUserInTeam1 = team1Reg != null &&
+                    (team1Reg.Player1UserId == userId || team1Reg.Player2UserId == userId);
+
+                var isUserInTeam2 = team2Reg != null &&
+                    (team2Reg.Player1UserId == userId || team2Reg.Player2UserId == userId);
+
+                return new MatchVideoItemDto
+                {
+                    MatchId = m.MatchId,
+
+                    TournamentId = m.TournamentId,
+                    TournamentTitle = tournament?.Title,
+                    TournamentBannerUrl = ToAbsoluteUrl(tournament?.BannerUrl),
+                    TournamentStatus = tournament?.Status,
+
+                    RoundKey = round?.RoundKey,
+                    RoundLabel = round?.RoundLabel,
+
+                    GroupId = m.TournamentRoundGroupId,
+                    GroupName = group?.GroupName,
+
+                    Team1RegistrationId = m.Team1RegistrationId,
+                    Team1Name = team1Name,
+                    Team1Player1Name = team1Reg?.Player1Name,
+                    Team1Player1Avatar = ToAbsoluteUrl(team1Reg?.Player1Avatar),
+                    Team1Player2Name = team1Reg?.Player2Name,
+                    Team1Player2Avatar = ToAbsoluteUrl(team1Reg?.Player2Avatar),
+
+                    Team2RegistrationId = m.Team2RegistrationId,
+                    Team2Name = team2Name,
+                    Team2Player1Name = team2Reg?.Player1Name,
+                    Team2Player1Avatar = ToAbsoluteUrl(team2Reg?.Player1Avatar),
+                    Team2Player2Name = team2Reg?.Player2Name,
+                    Team2Player2Avatar = ToAbsoluteUrl(team2Reg?.Player2Avatar),
+
+                    StartAt = m.StartAt,
+                    AddressText = m.AddressText,
+                    CourtText = m.CourtText,
+
+                    ScoreTeam1 = m.ScoreTeam1,
+                    ScoreTeam2 = m.ScoreTeam2,
+                    IsCompleted = m.IsCompleted,
+
+                    WinnerRegistrationId = m.WinnerRegistrationId,
+                    WinnerSide = winnerSide,
+
+                    VideoUrl = m.VideoUrl,
+
+                    CreatedAt = m.CreatedAt,
+                    UpdatedAt = m.UpdatedAt,
+
+                    IsUserInTeam1 = isUserInTeam1,
+                    IsUserInTeam2 = isUserInTeam2
+                };
+            }).ToList();
+
+            return Ok(new PagedMatchVideoResponseDto
+            {
+                Tab = tab,
+                Page = page,
+                PageSize = pageSize,
+                Total = total,
+                HasMore = page * pageSize < total,
+                Items = items
+            });
+        }
     }
 
     public class PagedMatchVideoResponseDto
@@ -345,5 +625,8 @@ namespace HanakaServer.Controllers
 
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+
+        public bool IsUserInTeam1 { get; set; }
+        public bool IsUserInTeam2 { get; set; }
     }
 }
