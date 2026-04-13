@@ -76,7 +76,7 @@ namespace HanakaServer.Controllers
                 UserId = user.UserId,
                 RatingSingle = single,
                 RatingDouble = @double,
-                RatedByUserId = null, // hệ thống chấm
+                RatedByUserId = 2, // hệ thống chấm
                 Note = $"Hệ thống khởi tạo điểm trình ban đầu theo giới tính: {(string.IsNullOrWhiteSpace(user.Gender) ? "mặc định nam" : user.Gender)}.",
                 RatedAt = now
             });

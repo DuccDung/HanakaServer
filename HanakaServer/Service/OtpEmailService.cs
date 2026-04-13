@@ -19,7 +19,7 @@ namespace mail_service.service
             var subject = "Mã OTP đăng ký tài khoản";
             var htmlBody = BuildOtpHtml(displayName, otp);
 
-            await _emailSender.SendAsync(to, subject, htmlBody, ct);
+            await _emailSender.SendAsync(to, subject, htmlBody, ct: ct);
         }
 
         private string BuildOtpHtml(string displayName, string otp)

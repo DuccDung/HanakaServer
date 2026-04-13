@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hanaka Sport - Hỗ trợ ứng dụng</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fb, #eef2f7);
+            color: #1f2937;
+            min-height: 100vh;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1080px;
+            margin: 0 auto;
+            padding: 32px 20px 50px;
+        }
+
+        .hero {
+            background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%);
+            color: #fff;
+            border-radius: 20px;
+            padding: 36px 28px;
+            margin-bottom: 24px;
+            box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+        }
+
+        .brand {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.16);
+            color: #fff;
+            font-weight: 700;
+            font-size: 13px;
+            padding: 8px 14px;
+            border-radius: 999px;
+            margin-bottom: 16px;
+        }
+
+        .hero h1 {
+            font-size: 34px;
+            line-height: 1.2;
+            margin-bottom: 12px;
+        }
+
+        .hero p {
+            font-size: 16px;
+            line-height: 1.7;
+            color: #dbe4f0;
+            max-width: 760px;
+        }
+
+        .hero ul {
+            margin-top: 18px;
+            padding-left: 18px;
+            color: #e2e8f0;
+            line-height: 1.8;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1.1fr;
+            gap: 24px;
+        }
+
+        .card {
+            background: #ffffff;
+            border-radius: 18px;
+            padding: 24px;
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+        }
+
+        .card h2 {
+            font-size: 22px;
+            margin-bottom: 16px;
+            color: #0f172a;
+        }
+
+        .contact-list {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+
+        .contact-item {
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            padding: 14px 16px;
+            background: #f9fafb;
+        }
+
+        .contact-item small {
+            display: block;
+            color: #6b7280;
+            margin-bottom: 6px;
+            font-size: 13px;
+        }
+
+        .contact-item a,
+        .contact-item span {
+            font-size: 16px;
+            font-weight: 600;
+            color: #111827;
+            text-decoration: none;
+            word-break: break-word;
+        }
+
+        .contact-item a:hover {
+            color: #2563eb;
+        }
+
+        .desc {
+            color: #4b5563;
+            line-height: 1.7;
+            font-size: 15px;
+        }
+
+        .tips {
+            margin-top: 16px;
+            padding: 16px;
+            border-radius: 14px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1e3a8a;
+            line-height: 1.7;
+            font-size: 14px;
+        }
+
+        .tips ul {
+            margin-top: 10px;
+            padding-left: 18px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: #111827;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 13px 14px;
+            border: 1px solid #d1d5db;
+            border-radius: 12px;
+            outline: none;
+            font-size: 15px;
+            background: #fff;
+            transition: 0.2s ease;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+        }
+
+        textarea {
+            min-height: 130px;
+            resize: vertical;
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .btn {
+            border: none;
+            border-radius: 12px;
+            padding: 13px 18px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: 0.2s ease;
+        }
+
+        .btn-primary {
+            background: #2563eb;
+            color: #fff;
+        }
+
+        .btn-primary:hover {
+            background: #1d4ed8;
+        }
+
+        .btn-secondary {
+            background: #e5e7eb;
+            color: #111827;
+        }
+
+        .btn-secondary:hover {
+            background: #d1d5db;
+        }
+
+        .status {
+            margin-top: 14px;
+            font-size: 14px;
+            color: #374151;
+            min-height: 20px;
+            line-height: 1.6;
+        }
+
+        .status.success {
+            color: #166534;
+        }
+
+        .status.error {
+            color: #991b1b;
+        }
+
+        .footer-note {
+            margin-top: 18px;
+            font-size: 13px;
+            color: #6b7280;
+            line-height: 1.6;
+        }
+
+        .policy-link {
+            display: inline-block;
+            margin-top: 14px;
+            color: #2563eb;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .policy-link:hover {
+            text-decoration: underline;
+        }
+
+        @@media (max-width: 900px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero h1 {
+                font-size: 28px;
+            }
+        }
+
+        @@media (max-width: 640px) {
+            .container {
+                padding: 20px 14px 36px;
+            }
+
+            .card,
+            .hero {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <section class="hero">
+            <div class="brand">Hanaka Sport App Support</div>
+            <h1>Trung tâm hỗ trợ ứng dụng Hanaka Sport</h1>
+            <p>
+                Trang này dành cho hỗ trợ người dùng ứng dụng Hanaka Sport, bao gồm đăng nhập tài khoản,
+                cập nhật hồ sơ, câu lạc bộ, tin nhắn CLB, giải đấu, quyền riêng tư và các lỗi kỹ thuật trong app.
+            </p>
+            <ul>
+                <li>Hỗ trợ tài khoản, đăng nhập Google Sign-In và cập nhật hồ sơ</li>
+                <li>Hỗ trợ câu lạc bộ, thành viên, tin nhắn và giải đấu</li>
+                <li>Hỗ trợ quyền riêng tư, xóa tài khoản và phản ánh lỗi ứng dụng</li>
+            </ul>
+        </section>
+
+        <section class="grid">
+            <div class="card">
+                <h2>Thông tin hỗ trợ</h2>
+
+                <div class="contact-list">
+                    <div class="contact-item">
+                        <small>Email hỗ trợ</small>
+                        <a href="mailto:duccdung999&#64;gmail.com">duccdung999&#64;gmail.com</a>
+                    </div>
+
+                    <div class="contact-item">
+                        <small>Số điện thoại</small>
+                        <a href="tel:0961848526">0961848526</a>
+                    </div>
+
+                    <div class="contact-item">
+                        <small>Chính sách quyền riêng tư</small>
+                        <a href="https://hanakasport.click/policy/index"
+                           target="_blank"
+                           rel="noreferrer">
+                            https://hanakasport.click/policy/index
+                        </a>
+                    </div>
+                </div>
+
+                <p class="desc">
+                    Nếu bạn gặp sự cố khi sử dụng ứng dụng Hanaka Sport, vui lòng liên hệ qua email,
+                    điện thoại hoặc gửi yêu cầu bằng biểu mẫu bên cạnh. Chúng tôi hỗ trợ các vấn đề liên
+                    quan đến tài khoản, ảnh đại diện, câu lạc bộ, tin nhắn CLB, giải đấu và quyền riêng tư.
+                </p>
+
+                <div class="tips">
+                    Để được hỗ trợ nhanh hơn, vui lòng cung cấp:
+                    <ul>
+                        <li>Email hoặc số điện thoại dùng trong tài khoản</li>
+                        <li>Thiết bị đang sử dụng và phiên bản ứng dụng nếu có</li>
+                        <li>Mô tả ngắn gọn lỗi đang gặp và ảnh chụp màn hình nếu cần</li>
+                    </ul>
+                </div>
+
+                <a class="policy-link"
+                   href="https://hanakasport.click/policy/index"
+                   target="_blank"
+                   rel="noreferrer">
+                    Xem Chính sách quyền riêng tư
+                </a>
+
+                <div class="footer-note">
+                    Các nội dung hỗ trợ phổ biến: không đăng nhập được, cập nhật hồ sơ,
+                    đổi ảnh đại diện, tham gia hoặc quản lý CLB, lỗi tin nhắn, dữ liệu giải đấu,
+                    hỗ trợ xóa tài khoản hoặc góp ý về ứng dụng.
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Gửi yêu cầu hỗ trợ</h2>
+
+                <form id="supportForm">
+                    <div class="form-group">
+                        <label for="name">Họ và tên</label>
+                        <input type="text" id="name" name="Name" placeholder="Nhập họ và tên của bạn" required />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="Email" placeholder="Nhập email của bạn" required />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="phone">Số điện thoại</label>
+                        <input type="tel" id="phone" name="Phone" placeholder="Nhập số điện thoại" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="topic">Loại hỗ trợ</label>
+                        <select id="topic" name="Topic">
+                            <option>Đăng nhập hoặc tài khoản</option>
+                            <option>Hồ sơ người dùng và ảnh đại diện</option>
+                            <option>Câu lạc bộ và thành viên</option>
+                            <option>Tin nhắn CLB</option>
+                            <option>Giải đấu và lịch thi đấu</option>
+                            <option>Quyền riêng tư hoặc xóa tài khoản</option>
+                            <option>Lỗi kỹ thuật khác</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="message">Mô tả vấn đề</label>
+                        <textarea id="message"
+                                  name="Message"
+                                  placeholder="Hãy mô tả ngắn gọn yêu cầu hỗ trợ của bạn"
+                                  required></textarea>
+                    </div>
+
+                    <div class="actions">
+                        <button type="submit" class="btn btn-primary" id="submitBtn">Gửi yêu cầu hỗ trợ</button>
+                        <button type="button" class="btn btn-secondary" id="resetBtn">Xóa nội dung</button>
+                    </div>
+
+                    <div class="status" id="status"></div>
+                </form>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        const form = document.getElementById("supportForm");
+        const resetBtn = document.getElementById("resetBtn");
+        const submitBtn = document.getElementById("submitBtn");
+        const status = document.getElementById("status");
+        const sendUrl = '@Url.Action("Send", "Support")';
+
+        function setStatus(message, type) {
+          status.textContent = message;
+          status.classList.remove("success", "error");
+
+          if (type) {
+            status.classList.add(type);
+          }
+        }
+
+        form.addEventListener("submit", async function (e) {
+          e.preventDefault();
+
+          const name = document.getElementById("name").value.trim();
+          const email = document.getElementById("email").value.trim();
+          const phone = document.getElementById("phone").value.trim();
+          const topic = document.getElementById("topic").value;
+          const message = document.getElementById("message").value.trim();
+
+          if (!name || !email || !message) {
+            setStatus("Vui lòng nhập đầy đủ họ tên, email và mô tả vấn đề.", "error");
+            return;
+          }
+
+          submitBtn.disabled = true;
+          submitBtn.textContent = "Đang gửi...";
+          setStatus("Hệ thống đang gửi yêu cầu hỗ trợ, vui lòng chờ trong giây lát.", "");
+
+          try {
+            const formData = new FormData();
+            formData.append("Name", name);
+            formData.append("Email", email);
+            formData.append("Phone", phone);
+            formData.append("Topic", topic);
+            formData.append("Message", message);
+
+            const response = await fetch(sendUrl, {
+              method: "POST",
+              body: formData
+            });
+
+            const result = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+              throw new Error(result.message || "Không thể gửi yêu cầu hỗ trợ lúc này.");
+            }
+
+            form.reset();
+            setStatus(
+              result.message || "Yêu cầu hỗ trợ đã được gửi thành công. Chúng tôi sẽ phản hồi sớm nhất có thể.",
+              "success"
+            );
+          } catch (error) {
+            setStatus(
+              error.message || "Không thể gửi yêu cầu hỗ trợ lúc này. Vui lòng thử lại sau.",
+              "error"
+            );
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Gửi yêu cầu hỗ trợ";
+          }
+        });
+
+        resetBtn.addEventListener("click", function () {
+          form.reset();
+          setStatus("", "");
+        });
+    </script>
+</body>
+</html>

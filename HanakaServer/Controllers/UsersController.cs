@@ -149,7 +149,8 @@ namespace HanakaServer.Controllers
                 oldAvatarUrl,
                 user.AvatarUrl
             );
-
+            await SyncCoachShadowFromUserAsync(user);
+            await SyncRefereeShadowFromUserAsync(user);
             await _db.SaveChangesAsync();
 
             return Ok(new
@@ -214,7 +215,8 @@ namespace HanakaServer.Controllers
                 oldAvatarUrl,
                 user.AvatarUrl
             );
-
+            await SyncCoachShadowFromUserAsync(user);
+            await SyncRefereeShadowFromUserAsync(user);
             await _db.SaveChangesAsync();
 
             return Ok(new
@@ -421,7 +423,8 @@ namespace HanakaServer.Controllers
             user.RatingSingle = single;
             user.RatingDouble = @double;
             user.UpdatedAt = now;
-
+            await SyncCoachShadowFromUserAsync(user, single, @double);
+            await SyncRefereeShadowFromUserAsync(user, single, @double);
             await _db.SaveChangesAsync();
 
             return Ok(new
@@ -592,7 +595,42 @@ namespace HanakaServer.Controllers
 
             return (2.6m, 2.6m);
         }
+        private async Task SyncRefereeShadowFromUserAsync(
+                            User user,
+                            decimal? latestSingle = null,
+                            decimal? latestDouble = null)
+        {
+            var referee = await _db.Referees.FirstOrDefaultAsync(x => x.ExternalId == user.UserId.ToString());
+            if (referee == null) return;
 
+            referee.FullName = user.FullName;
+            referee.City = user.City;
+            referee.AvatarUrl = user.AvatarUrl;
+
+            if (latestSingle.HasValue && latestDouble.HasValue)
+            {
+                referee.LevelSingle = latestSingle.Value;
+                referee.LevelDouble = latestDouble.Value;
+                referee.UpdatedAt = DateTime.UtcNow;
+                return;
+            }
+
+            var latestRating = await _db.UserRatingHistories
+                .AsNoTracking()
+                .Where(x => x.UserId == user.UserId)
+                .OrderByDescending(x => x.RatedAt)
+                .ThenByDescending(x => x.RatingHistoryId)
+                .Select(x => new
+                {
+                    x.RatingSingle,
+                    x.RatingDouble
+                })
+                .FirstOrDefaultAsync();
+
+            referee.LevelSingle = latestRating?.RatingSingle ?? user.RatingSingle ?? referee.LevelSingle;
+            referee.LevelDouble = latestRating?.RatingDouble ?? user.RatingDouble ?? referee.LevelDouble;
+            referee.UpdatedAt = DateTime.UtcNow;
+        }
         /// <summary>
         /// Tạo lịch sử điểm trình mặc định nếu user chưa có bản ghi nào.
         /// Gọi hàm này ngay sau khi tạo user lần đầu hoặc trước khi đọc rating nếu muốn tự động vá dữ liệu cũ.
@@ -624,7 +662,8 @@ namespace HanakaServer.Controllers
             user.RatingSingle = single;
             user.RatingDouble = @double;
             user.UpdatedAt = now;
-
+            await SyncCoachShadowFromUserAsync(user, single, @double);
+            await SyncRefereeShadowFromUserAsync(user, single, @double);
             await _db.SaveChangesAsync();
         }
 
@@ -770,11 +809,11 @@ namespace HanakaServer.Controllers
             };
         }
         private async Task SyncTournamentRegistrationsForUserAsync(
-     long userId,
-     string? oldFullName,
-     string? newFullName,
-     string? oldAvatarUrl,
-     string? newAvatarUrl)
+         long userId,
+         string? oldFullName,
+         string? newFullName,
+         string? oldAvatarUrl,
+         string? newAvatarUrl)
         {
             var regs = await _db.TournamentRegistrations
                 .Where(x => x.Player1UserId == userId || x.Player2UserId == userId)
@@ -804,5 +843,39 @@ namespace HanakaServer.Controllers
                 }
             }
         }
+        private async Task SyncCoachShadowFromUserAsync(
+        User user,
+        decimal? latestSingle = null,
+        decimal? latestDouble = null)
+            {
+                var coach = await _db.Coaches.FirstOrDefaultAsync(x => x.ExternalId == user.UserId.ToString());
+                if (coach == null) return;
+
+                coach.FullName = user.FullName;
+                coach.City = user.City;
+                coach.AvatarUrl = user.AvatarUrl;
+
+                if (latestSingle.HasValue && latestDouble.HasValue)
+                {
+                    coach.LevelSingle = latestSingle.Value;
+                    coach.LevelDouble = latestDouble.Value;
+                    return;
+                }
+
+                var latestRating = await _db.UserRatingHistories
+                    .AsNoTracking()
+                    .Where(x => x.UserId == user.UserId)
+                    .OrderByDescending(x => x.RatedAt)
+                    .ThenByDescending(x => x.RatingHistoryId)
+                    .Select(x => new
+                    {
+                        x.RatingSingle,
+                        x.RatingDouble
+                    })
+                    .FirstOrDefaultAsync();
+
+                coach.LevelSingle = latestRating?.RatingSingle ?? user.RatingSingle ?? coach.LevelSingle;
+                coach.LevelDouble = latestRating?.RatingDouble ?? user.RatingDouble ?? coach.LevelDouble;
+            }
     }
 }

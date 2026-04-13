@@ -14,13 +14,31 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
 
     <style>
+        :root {
+            --bg: #f3f4f6;
+            --card: #ffffff;
+            --border: #e5e7eb;
+            --muted: #6b7280;
+            --text: #111827;
+            --primary: #2563eb;
+            --success: #16a34a;
+            --warning: #d97706;
+            --dark: #0f172a;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            background: #f3f4f6;
+            background: var(--bg);
             font-family: Arial, sans-serif;
+            color: var(--text);
+            margin: 0;
         }
 
         .topbar {
-            background: #111827;
+            background: var(--dark);
             color: #fff;
             padding: 14px 24px;
             display: flex;
@@ -28,43 +46,64 @@
             justify-content: space-between;
         }
 
+        .topbar-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
         .page-wrap {
-            max-width: 1200px;
+            max-width: 1280px;
             margin: 24px auto;
-            padding: 0 16px;
+            padding: 0 16px 32px;
         }
 
         .page-title {
-            font-size: 28px;
+            font-size: 30px;
             font-weight: 800;
-            color: #111827;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
+            color: var(--text);
         }
 
         .page-subtitle {
-            color: #6b7280;
+            color: var(--muted);
             margin-bottom: 24px;
         }
 
         .match-grid {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            gap: 16px;
+            gap: 18px;
         }
 
         .match-card {
-            background: #fff;
-            border-radius: 18px;
+            background: var(--card);
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 24px rgba(0,0,0,.05);
             padding: 18px;
-            box-shadow: 0 4px 16px rgba(0,0,0,.06);
-            border: 1px solid #e5e7eb;
+            cursor: pointer;
+            transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
         }
 
-            .match-card.completed {
-                border-color: #16a34a;
-            }
+        .match-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 28px rgba(0,0,0,.08);
+            border-color: #cbd5e1;
+        }
 
-        .match-header {
+        .match-card.completed {
+            border-color: #bbf7d0;
+        }
+
+        .match-head {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
@@ -72,94 +111,389 @@
         }
 
         .match-title {
-            font-size: 16px;
+            font-size: 17px;
             font-weight: 800;
-            color: #111827;
+            color: var(--text);
+            margin-bottom: 4px;
         }
 
         .match-meta {
             font-size: 12px;
-            color: #6b7280;
+            color: var(--muted);
+            margin-bottom: 2px;
         }
 
-        .score-board {
-            margin-top: 14px;
-            padding-top: 14px;
+        .match-chip-col {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 6px;
+        }
+
+        .match-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            background: #eef2ff;
+            color: #3730a3;
+        }
+
+        .match-chip.success {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .match-chip.muted {
+            background: #f3f4f6;
+            color: #4b5563;
+        }
+
+        .score-preview {
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
+            align-items: center;
+            gap: 10px;
+            margin-top: 18px;
+            padding-top: 16px;
             border-top: 1px dashed #d1d5db;
+        }
+
+        .team-preview {
+            font-weight: 700;
+            font-size: 15px;
+            color: var(--text);
+            line-height: 1.4;
+        }
+
+        .team-preview.right {
+            text-align: right;
+        }
+
+        .team-preview.winner {
+            color: var(--warning);
+        }
+
+        .score-preview-value {
+            font-size: 28px;
+            font-weight: 900;
+            color: var(--text);
+            min-width: 96px;
+            text-align: center;
+        }
+
+        .hint-click {
+            margin-top: 14px;
+            font-size: 12px;
+            color: var(--primary);
+            font-weight: 700;
+        }
+
+        .empty-box {
+            background: #fff;
+            border: 1px dashed #cbd5e1;
+            border-radius: 18px;
+            padding: 32px;
+            text-align: center;
+            color: var(--muted);
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, .72);
+            z-index: 3000;
+            display: none;
+            align-items: stretch;
+            justify-content: stretch;
+        }
+
+        .overlay.show {
+            display: flex;
+        }
+
+        .overlay-panel {
+            background: #fff;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .overlay-header {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background: #fff;
+            border-bottom: 1px solid var(--border);
+            padding: 16px 22px;
             display: flex;
             justify-content: space-between;
-            align-items: center;
-            gap: 12px;
+            align-items: flex-start;
+            gap: 16px;
         }
 
-        .team-name {
-            width: 38%;
-            font-weight: 700;
-            color: #111827;
-        }
-
-            .team-name.right {
-                text-align: right;
-            }
-
-            .team-name.winner {
-                color: #d97706;
-            }
-
-        .score {
-            width: 24%;
-            text-align: center;
+        .overlay-title {
             font-size: 24px;
-            font-weight: 900;
-            color: #111827;
-        }
-
-        .history-box {
-            margin-top: 16px;
-            padding-top: 14px;
-            border-top: 1px dashed #d1d5db;
-        }
-
-        .history-title {
-            font-size: 14px;
             font-weight: 800;
-            margin-bottom: 10px;
-            color: #111827;
+            margin-bottom: 4px;
+            color: var(--text);
+        }
+
+        .overlay-subtitle {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+
+        .overlay-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .overlay-body {
+            padding: 24px;
+        }
+
+        .focus-match {
+            background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,.05);
+        }
+
+        .focus-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .focus-meta {
+            font-size: 13px;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
+        .focus-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .focus-scoreboard {
+            margin-top: 18px;
+            padding-top: 20px;
+            border-top: 1px dashed #d1d5db;
+            display: grid;
+            grid-template-columns: 1fr 280px 1fr;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .focus-team {
+            font-size: 28px;
+            font-weight: 800;
+            line-height: 1.35;
+            color: var(--text);
+        }
+
+        .focus-team.right {
+            text-align: right;
+        }
+
+        .focus-team.winner {
+            color: var(--warning);
+        }
+
+        .focus-score-center {
+            background: #0f172a;
+            color: #fff;
+            border-radius: 24px;
+            padding: 24px 12px;
+            text-align: center;
+            box-shadow: 0 12px 28px rgba(15, 23, 42, .18);
+        }
+
+        .focus-score-value {
+            font-size: 72px;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: 1px;
+        }
+
+        .focus-score-label {
+            margin-top: 10px;
+            font-size: 14px;
+            opacity: .9;
+            font-weight: 700;
+        }
+
+        .focus-controls {
+            margin-top: 28px;
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 24px;
+        }
+
+        .history-section,
+        .score-form-section {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 18px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 800;
+            margin-bottom: 14px;
+            color: var(--text);
+        }
+
+        .history-list {
+            max-height: 420px;
+            overflow: auto;
+            padding-right: 4px;
+        }
+
+        .history-empty {
+            color: var(--muted);
+            font-size: 14px;
         }
 
         .history-item {
             background: #f9fafb;
             border: 1px solid #e5e7eb;
-            border-radius: 10px;
-            padding: 10px 12px;
-            margin-bottom: 8px;
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
         }
 
         .history-score {
-            font-size: 16px;
-            font-weight: 800;
-            color: #111827;
+            font-size: 18px;
+            font-weight: 900;
+            color: var(--text);
         }
 
         .history-meta {
             font-size: 12px;
-            color: #6b7280;
+            color: var(--muted);
+            margin-top: 4px;
         }
 
-        @@media (max-width: 992px) {
+        .history-note {
+            margin-top: 8px;
+            font-size: 14px;
+            color: var(--text);
+        }
+
+        .big-score-inputs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .big-score-box label {
+            font-weight: 700;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .big-score-box input {
+            height: 90px;
+            font-size: 42px;
+            font-weight: 900;
+            text-align: center;
+            border-radius: 16px;
+        }
+
+        .form-note-select {
+            height: 48px;
+            border-radius: 12px;
+        }
+
+        .switch-wrap {
+            margin-top: 14px;
+            padding: 12px 14px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .focus-lock {
+            margin-top: 14px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: #fff7ed;
+            color: #9a3412;
+            border: 1px solid #fed7aa;
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        @@media (max-width: 1100px) {
             .match-grid {
                 grid-template-columns: 1fr;
+            }
+
+            .focus-scoreboard {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+
+            .focus-team,
+            .focus-team.right {
+                text-align: center;
+                font-size: 24px;
+            }
+
+            .focus-controls {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @@media (max-width: 768px) {
+            .topbar {
+                padding: 12px 14px;
+            }
+
+            .overlay-header,
+            .overlay-body {
+                padding: 14px;
+            }
+
+            .focus-match {
+                padding: 16px;
+            }
+
+            .focus-score-value {
+                font-size: 54px;
+            }
+
+            .big-score-box input {
+                height: 76px;
+                font-size: 34px;
             }
         }
     </style>
 </head>
 <body>
     <div class="topbar">
-        <div>
+        <div class="topbar-left">
             <i class="fas fa-gavel"></i>
-            <span class="ml-2 font-weight-bold">Cổng trọng tài</span>
+            <span>Cổng trọng tài</span>
         </div>
-        <div class="d-flex align-items-center" style="gap:10px;">
+        <div class="topbar-right">
             <span id="meBox" class="small"></span>
             <button class="btn btn-sm btn-light" id="btnLogout" type="button">
                 <i class="fas fa-sign-out-alt"></i> Đăng xuất
@@ -170,74 +504,34 @@
     <div class="page-wrap">
         <div class="page-title">Trận đấu được phân công</div>
         <div class="page-subtitle">
-            Trọng tài chỉ có thể chấm điểm khi đã đến thời gian thi đấu. Mỗi lần chấm sẽ lưu lịch sử.
+            Chọn đúng trận đấu để vào màn hình chấm điểm riêng. Trọng tài chỉ có thể chấm khi đã đến thời gian thi đấu.
         </div>
 
         <div id="errBox" class="alert alert-danger d-none"></div>
+
         <div id="cards" class="match-grid">
-            <div class="text-muted">Đang tải...</div>
+            <div class="empty-box">Đang tải...</div>
         </div>
     </div>
 
-    <div class="modal fade" id="modalScore" tabindex="-1" role="dialog" aria-hidden="true">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <form id="formScore">
-                    <input type="hidden" id="scoreMatchId" value="" />
+    <!-- Full screen overlay -->
+    <div class="overlay" id="matchOverlay">
+        <div class="overlay-panel">
+            <div class="overlay-header">
+                <div>
+                    <div class="overlay-title" id="overlayTitle">Chi tiết trận đấu</div>
+                    <div class="overlay-subtitle" id="overlaySubtitle"></div>
+                </div>
 
-                    <div class="modal-header">
-                        <h5 class="modal-title">Chấm điểm trận đấu</h5>
-                        <button class="close" type="button" data-dismiss="modal">
-                            <span aria-hidden="true">×</span>
-                        </button>
-                    </div>
+                <div class="overlay-actions">
+                    <button type="button" class="btn btn-outline-secondary" id="btnCloseOverlay">
+                        <i class="fas fa-times"></i> Đóng
+                    </button>
+                </div>
+            </div>
 
-                    <div class="modal-body">
-                        <div id="scoreErr" class="alert alert-danger d-none"></div>
-
-                        <div class="d-flex justify-content-between mb-2">
-                            <div class="font-weight-bold" id="scoreTeam1Name">Đội 1</div>
-                            <div class="font-weight-bold" id="scoreTeam2Name">Đội 2</div>
-                        </div>
-
-                        <div class="form-row">
-                            <div class="form-group col-md-6">
-                                <label>Tỷ số đội 1</label>
-                                <input type="number" class="form-control" id="score1" value="0" min="0" />
-                            </div>
-                            <div class="form-group col-md-6">
-                                <label>Tỷ số đội 2</label>
-                                <input type="number" class="form-control" id="score2" value="0" min="0" />
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Tình huống</label>
-                            <select class="form-control" id="scoreNote">
-                                <option value="">-- Chọn tình huống --</option>
-                                <option value="Tay Hai">Tay Hai</option>
-                                <option value="Tay Một">Tay Một</option>
-                                <option value="Đổi tay">Đổi tay</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group mb-0">
-                            <div class="custom-control custom-switch">
-                                <input type="checkbox" class="custom-control-input" id="isCompleted" />
-                                <label class="custom-control-label" for="isCompleted">Kết thúc trận đấu</label>
-                            </div>
-                        </div>
-
-                        <small class="text-muted">Không hỗ trợ kết quả hòa khi kết thúc trận.</small>
-                    </div>
-
-                    <div class="modal-footer">
-                        <button class="btn btn-secondary" type="button" data-dismiss="modal">Hủy</button>
-                        <button class="btn btn-success" type="submit" id="btnSubmitScore">
-                            <i class="fas fa-check"></i> Lưu điểm
-                        </button>
-                    </div>
-                </form>
+            <div class="overlay-body">
+                <div id="overlayContent"></div>
             </div>
         </div>
     </div>
@@ -252,6 +546,7 @@
             const API = `/api/referee/matches`;
 
             let CACHE = { items: [] };
+            let ACTIVE_MATCH_ID = null;
 
             const esc = (s) => String(s || "")
                 .replaceAll("&", "&amp;")
@@ -284,26 +579,65 @@
                 box.textContent = "";
             }
 
-            function showFormErr(msg) {
-                const box = $id("scoreErr");
-                box.textContent = msg || "Đã xảy ra lỗi";
-                box.classList.remove("d-none");
+            function getMatch(matchId) {
+                return (CACHE.items || []).find(x => x.matchId === matchId) || null;
             }
 
-            function hideFormErr() {
-                const box = $id("scoreErr");
-                box.classList.add("d-none");
-                box.textContent = "";
+            function getStatusBadge(m) {
+                if (m.isCompleted) {
+                    return `<span class="match-chip success"><i class="fas fa-check-circle"></i> Đã kết thúc</span>`;
+                }
+                return `<span class="match-chip muted"><i class="fas fa-clock"></i> Chưa kết thúc</span>`;
+            }
+
+            function getEditBadge(m) {
+                if (m.canEditScore) {
+                    return `<span class="match-chip"><i class="fas fa-clipboard-check"></i> Có thể chấm điểm</span>`;
+                }
+                return `<span class="match-chip muted"><i class="fas fa-lock"></i> Chưa đến giờ đấu</span>`;
+            }
+
+            function cardHtml(m) {
+                const completed = !!m.isCompleted;
+                const t1Winner = completed && m.winnerRegistrationId && m.winnerRegistrationId === m.team1RegistrationId;
+                const t2Winner = completed && m.winnerRegistrationId && m.winnerRegistrationId === m.team2RegistrationId;
+
+                return `
+                    <div class="match-card ${completed ? "completed" : ""}" onclick="openMatchDetail(${m.matchId})">
+                        <div class="match-head">
+                            <div>
+                                <div class="match-title">${esc(m.tournamentTitle)}</div>
+                                <div class="match-meta">Vòng: ${esc(m.roundKey)} • ${esc(m.roundLabel)} • Bảng: ${esc(m.groupName)}</div>
+                                <div class="match-meta">Bắt đầu: ${fmt(m.startAt)}${m.courtText ? " • " + esc(m.courtText) : ""}</div>
+                                <div class="match-meta">Địa chỉ: ${esc(m.addressText || "—")}</div>
+                            </div>
+
+                            <div class="match-chip-col">
+                                ${getStatusBadge(m)}
+                                ${getEditBadge(m)}
+                            </div>
+                        </div>
+
+                        <div class="score-preview">
+                            <div class="team-preview ${t1Winner ? "winner" : ""}">${esc(m.team1Text)}</div>
+                            <div class="score-preview-value">${Number(m.scoreTeam1 || 0)} - ${Number(m.scoreTeam2 || 0)}</div>
+                            <div class="team-preview right ${t2Winner ? "winner" : ""}">${esc(m.team2Text)}</div>
+                        </div>
+
+                        <div class="hint-click">
+                            <i class="fas fa-expand"></i> Bấm để vào màn hình chấm điểm riêng cho trận này
+                        </div>
+                    </div>
+                `;
             }
 
             function historyHtml(histories) {
                 if (!histories || !histories.length) {
-                    return `<div class="history-box"><div class="text-muted small">Chưa có lịch sử chấm điểm.</div></div>`;
+                    return `<div class="history-empty">Chưa có lịch sử chấm điểm.</div>`;
                 }
 
                 return `
-                    <div class="history-box">
-                        <div class="history-title">Lịch sử chấm điểm</div>
+                    <div class="history-list">
                         ${histories.map(h => `
                             <div class="history-item">
                                 <div class="history-score">
@@ -313,54 +647,103 @@
                                 <div class="history-meta">
                                     ${esc(h.refereeName || ("User #" + h.refereeUserId))} • ${fmt(h.createdAt)}
                                 </div>
-                                ${h.note ? `<div class="mt-1 small">${esc(h.note)}</div>` : ``}
+                                ${h.note ? `<div class="history-note">${esc(h.note)}</div>` : ``}
                             </div>
                         `).join("")}
                     </div>
                 `;
             }
 
-            function cardHtml(m) {
+            function detailHtml(m) {
                 const completed = !!m.isCompleted;
                 const t1Winner = completed && m.winnerRegistrationId && m.winnerRegistrationId === m.team1RegistrationId;
                 const t2Winner = completed && m.winnerRegistrationId && m.winnerRegistrationId === m.team2RegistrationId;
 
-                const actionButton = m.canEditScore
-                    ? `<button class="btn btn-sm btn-success" type="button" onclick="openScore(${m.matchId})">
-                            <i class="fas fa-clipboard-check"></i> Chấm điểm
-                       </button>`
-                    : `<button class="btn btn-sm btn-outline-secondary" type="button" disabled>
-                            <i class="fas fa-lock"></i> Chưa đến giờ đấu
-                       </button>`;
-
                 return `
-                    <div class="match-card ${completed ? "completed" : ""}">
-                        <div class="match-header">
+                    <div class="focus-match">
+                        <div class="focus-top">
                             <div>
-                                <div class="match-title">${esc(m.tournamentTitle)}</div>
-                                <div class="match-meta">Vòng: ${esc(m.roundKey)} • ${esc(m.roundLabel)} • Bảng: ${esc(m.groupName)}</div>
-                                <div class="match-meta">Bắt đầu: ${fmt(m.startAt)}${m.courtText ? " • " + esc(m.courtText) : ""}</div>
-                                <div class="match-meta">Địa chỉ: ${esc(m.addressText || "—")}</div>
+                                <div class="focus-meta"><b>Giải đấu:</b> ${esc(m.tournamentTitle)}</div>
+                                <div class="focus-meta"><b>Vòng:</b> ${esc(m.roundKey)} • ${esc(m.roundLabel)} • <b>Bảng:</b> ${esc(m.groupName)}</div>
+                                <div class="focus-meta"><b>Bắt đầu:</b> ${fmt(m.startAt)}</div>
+                                <div class="focus-meta"><b>Sân:</b> ${esc(m.courtText || "—")}</div>
+                                <div class="focus-meta"><b>Địa chỉ:</b> ${esc(m.addressText || "—")}</div>
                             </div>
-                            <div>${actionButton}</div>
+
+                            <div class="focus-badges">
+                                ${getStatusBadge(m)}
+                                ${getEditBadge(m)}
+                            </div>
                         </div>
 
-                        <div class="score-board">
-                            <div class="team-name ${t1Winner ? "winner" : ""}">${esc(m.team1Text)}</div>
-                            <div class="score">${Number(m.scoreTeam1 || 0)} - ${Number(m.scoreTeam2 || 0)}</div>
-                            <div class="team-name right ${t2Winner ? "winner" : ""}">${esc(m.team2Text)}</div>
+                        <div class="focus-scoreboard">
+                            <div class="focus-team ${t1Winner ? "winner" : ""}">
+                                ${esc(m.team1Text)}
+                            </div>
+
+                            <div class="focus-score-center">
+                                <div class="focus-score-value">${Number(m.scoreTeam1 || 0)} - ${Number(m.scoreTeam2 || 0)}</div>
+                                <div class="focus-score-label">Tỷ số hiện tại</div>
+                            </div>
+
+                            <div class="focus-team right ${t2Winner ? "winner" : ""}">
+                                ${esc(m.team2Text)}
+                            </div>
                         </div>
 
-                        <div class="mt-3">
-                            ${completed
-                                ? `<span class="badge badge-success">Đã kết thúc</span>`
-                                : `<span class="badge badge-secondary">Chưa kết thúc</span>`}
-                            ${completed && m.winnerTeam
-                                ? `<span class="badge badge-warning ml-2">Người thắng: Đội ${m.winnerTeam}</span>`
-                                : ``}
-                        </div>
+                        <div class="focus-controls">
+                            <div class="history-section">
+                                <div class="section-title">Lịch sử chấm điểm</div>
+                                ${historyHtml(m.scoreHistories)}
+                            </div>
 
-                        ${historyHtml(m.scoreHistories)}
+                            <div class="score-form-section">
+                                <div class="section-title">Chấm điểm trận đấu</div>
+
+                                ${m.canEditScore ? `
+                                    <form id="inlineScoreForm">
+                                        <div id="inlineScoreErr" class="alert alert-danger d-none"></div>
+
+                                        <div class="big-score-inputs">
+                                            <div class="big-score-box">
+                                                <label>${esc(m.team1Text)}</label>
+                                                <input type="number" class="form-control" id="inlineScore1" min="0" value="${Number(m.scoreTeam1 || 0)}" />
+                                            </div>
+                                            <div class="big-score-box">
+                                                <label>${esc(m.team2Text)}</label>
+                                                <input type="number" class="form-control" id="inlineScore2" min="0" value="${Number(m.scoreTeam2 || 0)}" />
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group mt-3">
+                                            <label>Tình huống</label>
+                                            <select class="form-control form-note-select" id="inlineScoreNote">
+                                                <option value="">-- Chọn tình huống --</option>
+                                                <option value="Tay Hai">Tay Hai</option>
+                                                <option value="Tay Một">Tay Một</option>
+                                                <option value="Đổi tay">Đổi tay</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="switch-wrap">
+                                            <div class="custom-control custom-switch">
+                                                <input type="checkbox" class="custom-control-input" id="inlineIsCompleted">
+                                                <label class="custom-control-label" for="inlineIsCompleted">Kết thúc trận đấu</label>
+                                            </div>
+                                        </div>
+
+                                        <button type="submit" class="btn btn-success btn-block mt-3" id="btnInlineSubmit">
+                                            <i class="fas fa-save"></i> Lưu điểm cho trận này
+                                        </button>
+                                    </form>
+                                ` : `
+                                    <div class="focus-lock">
+                                        <i class="fas fa-lock"></i>
+                                        Chưa đến thời gian thi đấu. Trọng tài chỉ có thể xem thông tin trận đấu này.
+                                    </div>
+                                `}
+                            </div>
+                        </div>
                     </div>
                 `;
             }
@@ -370,11 +753,90 @@
                 const items = CACHE.items || [];
 
                 if (!items.length) {
-                    box.innerHTML = `<div class="text-muted">Bạn chưa được phân công trận đấu nào.</div>`;
+                    box.innerHTML = `<div class="empty-box">Bạn chưa được phân công trận đấu nào.</div>`;
                     return;
                 }
 
                 box.innerHTML = items.map(cardHtml).join("");
+            }
+
+            function openOverlay(matchId) {
+                ACTIVE_MATCH_ID = matchId;
+                const m = getMatch(matchId);
+                if (!m) return;
+
+                $id("overlayTitle").textContent = m.tournamentTitle || "Chi tiết trận đấu";
+                $id("overlaySubtitle").innerHTML = `
+                    Trận đấu riêng biệt để chấm điểm, tránh nhầm lẫn với các trận khác.
+                `;
+                $id("overlayContent").innerHTML = detailHtml(m);
+                $id("matchOverlay").classList.add("show");
+                document.body.style.overflow = "hidden";
+
+                bindInlineScoreForm();
+            }
+
+            function closeOverlay() {
+                ACTIVE_MATCH_ID = null;
+                $id("matchOverlay").classList.remove("show");
+                $id("overlayContent").innerHTML = "";
+                document.body.style.overflow = "";
+            }
+
+            function bindInlineScoreForm() {
+                const form = $id("inlineScoreForm");
+                if (!form || !ACTIVE_MATCH_ID) return;
+
+                form.addEventListener("submit", async (e) => {
+                    e.preventDefault();
+
+                    const errBox = $id("inlineScoreErr");
+                    const btn = $id("btnInlineSubmit");
+
+                    errBox.classList.add("d-none");
+                    errBox.textContent = "";
+
+                    const s1 = Number($id("inlineScore1").value || 0);
+                    const s2 = Number($id("inlineScore2").value || 0);
+                    const note = ($id("inlineScoreNote").value || "").trim();
+                    const isCompleted = !!$id("inlineIsCompleted").checked;
+
+                    btn.disabled = true;
+                    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang lưu...`;
+
+                    try {
+                        const res = await axios.put(`${API}/${ACTIVE_MATCH_ID}/score`, {
+                            scoreTeam1: s1,
+                            scoreTeam2: s2,
+                            isCompleted,
+                            note: note || null
+                        });
+
+                        const idx = (CACHE.items || []).findIndex(x => x.matchId === ACTIVE_MATCH_ID);
+                        if (idx >= 0) {
+                            CACHE.items[idx].scoreTeam1 = res.data.scoreTeam1;
+                            CACHE.items[idx].scoreTeam2 = res.data.scoreTeam2;
+                            CACHE.items[idx].isCompleted = res.data.isCompleted;
+                            CACHE.items[idx].winnerRegistrationId = res.data.winnerRegistrationId;
+                            CACHE.items[idx].winnerTeam = res.data.winnerTeam;
+
+                            if (!Array.isArray(CACHE.items[idx].scoreHistories)) {
+                                CACHE.items[idx].scoreHistories = [];
+                            }
+
+                            CACHE.items[idx].scoreHistories.unshift(res.data.history);
+                        }
+
+                        render();
+                        openOverlay(ACTIVE_MATCH_ID);
+                    } catch (err) {
+                        errBox.textContent = err?.response?.data?.message || err?.message || "Chấm điểm thất bại.";
+                        errBox.classList.remove("d-none");
+                    } finally {
+                        btn.disabled = false;
+                        btn.innerHTML = `<i class="fas fa-save"></i> Lưu điểm cho trận này`;
+                    }
+                });
             }
 
             async function loadMe() {
@@ -397,72 +859,21 @@
                 }
             }
 
-            window.openScore = (matchId) => {
-                hideFormErr();
-
-                const m = (CACHE.items || []).find(x => x.matchId === matchId);
-                if (!m) return;
-
-                if (!m.canEditScore) {
-                    showErr("Chưa đến giờ thi đấu, bạn chỉ được phép xem trận.");
-                    return;
-                }
-
-                $id("scoreMatchId").value = String(matchId);
-                $id("scoreTeam1Name").textContent = m.team1Text || "Đội 1";
-                $id("scoreTeam2Name").textContent = m.team2Text || "Đội 2";
-                $id("score1").value = String(m.scoreTeam1 ?? 0);
-                $id("score2").value = String(m.scoreTeam2 ?? 0);
-                $id("scoreNote").value = "";
-                $id("isCompleted").checked = false;
-
-                $("#modalScore").modal("show");
+            window.openMatchDetail = (matchId) => {
+                openOverlay(matchId);
             };
 
-            $id("formScore").addEventListener("submit", async (e) => {
-                e.preventDefault();
-                hideFormErr();
+            $id("btnCloseOverlay").addEventListener("click", closeOverlay);
 
-                const matchId = Number($id("scoreMatchId").value || 0);
-                const s1 = Number($id("score1").value || 0);
-                const s2 = Number($id("score2").value || 0);
-                const note = ($id("scoreNote").value || "").trim();
-                const isCompleted = !!$id("isCompleted").checked;
+            $id("matchOverlay").addEventListener("click", (e) => {
+                if (e.target.id === "matchOverlay") {
+                    closeOverlay();
+                }
+            });
 
-                const btn = $id("btnSubmitScore");
-                btn.disabled = true;
-                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang lưu...`;
-
-                try {
-                    const res = await axios.put(`${API}/${matchId}/score`, {
-                        scoreTeam1: s1,
-                        scoreTeam2: s2,
-                        isCompleted,
-                        note: note || null
-                    });
-
-                    $("#modalScore").modal("hide");
-
-                    const idx = (CACHE.items || []).findIndex(x => x.matchId === matchId);
-                    if (idx >= 0) {
-                        CACHE.items[idx].scoreTeam1 = res.data.scoreTeam1;
-                        CACHE.items[idx].scoreTeam2 = res.data.scoreTeam2;
-                        CACHE.items[idx].isCompleted = res.data.isCompleted;
-                        CACHE.items[idx].winnerRegistrationId = res.data.winnerRegistrationId;
-                        CACHE.items[idx].winnerTeam = res.data.winnerTeam;
-
-                        if (!Array.isArray(CACHE.items[idx].scoreHistories)) {
-                            CACHE.items[idx].scoreHistories = [];
-                        }
-                        CACHE.items[idx].scoreHistories.unshift(res.data.history);
-                    }
-
-                    render();
-                } catch (err) {
-                    showFormErr(err?.response?.data?.message || err?.message || "Chấm điểm thất bại.");
-                } finally {
-                    btn.disabled = false;
-                    btn.innerHTML = `<i class="fas fa-check"></i> Lưu điểm`;
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape" && $id("matchOverlay").classList.contains("show")) {
+                    closeOverlay();
                 }
             });
 
@@ -478,4 +889,4 @@
         })();
     </script>
 </body>
-</html>
+</html> 

@@ -1,4 +1,4 @@
-﻿using MailKit.Net.Smtp;
+using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
 using mail_service.Internal;
@@ -14,11 +14,22 @@ namespace mail_service.service
             _config = config;
         }
 
-        public async Task SendAsync(string to, string subject, string htmlBody, CancellationToken ct = default)
+        public async Task SendAsync(
+            string to,
+            string subject,
+            string htmlBody,
+            string? replyTo = null,
+            CancellationToken ct = default)
         {
             var msg = new MimeMessage();
             msg.From.Add(new MailboxAddress(_config["Email:FromName"], _config["Email:FromAddress"]));
             msg.To.Add(MailboxAddress.Parse(to));
+
+            if (!string.IsNullOrWhiteSpace(replyTo))
+            {
+                msg.ReplyTo.Add(MailboxAddress.Parse(replyTo));
+            }
+
             msg.Subject = subject;
             msg.Body = new BodyBuilder { HtmlBody = htmlBody }.ToMessageBody();
 

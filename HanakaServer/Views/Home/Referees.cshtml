@@ -22,8 +22,8 @@
         }
 
         .filter-toolbar .filter-verified {
-            flex: 0 0 150px;
-            min-width: 150px;
+            flex: 0 0 170px;
+            min-width: 170px;
         }
 
         .filter-toolbar .filter-action {
@@ -31,11 +31,12 @@
         }
 
     .referee-avatar-lg {
-        width: 64px;
-        height: 64px;
+        width: 72px;
+        height: 72px;
         border-radius: 50%;
         object-fit: cover;
         border: 1px solid #eee;
+        background: #f8f9fc;
     }
 
     .referee-avatar-sm {
@@ -44,6 +45,7 @@
         border-radius: 50%;
         object-fit: cover;
         border: 1px solid #eee;
+        background: #f8f9fc;
     }
 
     .referee-avatar-fallback {
@@ -56,6 +58,57 @@
         justify-content: center;
         color: #999;
         font-weight: 700;
+        background: #fafafa;
+    }
+
+    .readonly-box {
+        border: 1px solid #e3e6f0;
+        border-radius: 0.35rem;
+        background: #fff;
+        padding: 12px;
+    }
+
+    .readonly-box-sm {
+        min-height: 42px;
+    }
+
+    .modal-section-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #4e73df;
+        margin-bottom: 10px;
+    }
+
+    .history-box {
+        max-height: 240px;
+        overflow: auto;
+        border: 1px solid #e3e6f0;
+        border-radius: 0.35rem;
+        background: #fff;
+    }
+
+    .history-item {
+        padding: 12px;
+        border-bottom: 1px solid #edf2f9;
+    }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+
+    .small-muted {
+        font-size: 12px;
+        color: #858796;
+    }
+
+    .referee-link-warning {
+        font-size: 12px;
+    }
+
+    .user-badge-wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
     }
 
     @@media (max-width: 991.98px) {
@@ -125,12 +178,12 @@
             <div class="filter-toolbar">
                 <div class="filter-keyword">
                     <input id="keyword" class="form-control form-control-sm w-100"
-                           placeholder="Tìm tên / thành phố / loại / mã ngoài" />
+                           placeholder="Tìm theo tên / thành phố / loại / UserId" />
                 </div>
 
                 <div class="filter-verified">
                     <select id="verifiedFilter" class="form-control form-control-sm w-100">
-                        <option value="ALL" selected>Tất cả xác minh</option>
+                        <option value="ALL" selected>Tất cả xác minh trọng tài</option>
                         <option value="true">Đã xác minh</option>
                         <option value="false">Chưa xác minh</option>
                     </select>
@@ -149,13 +202,13 @@
                 <table class="table table-bordered" width="100%" cellspacing="0">
                     <thead>
                         <tr>
-                            <th style="width: 72px;">Ảnh đại diện</th>
+                            <th style="width: 72px;">Ảnh</th>
                             <th>Trọng tài</th>
                             <th>Thành phố</th>
-                            <th>Xác minh</th>
-                            <th>Trình độ (Đơn/Đôi)</th>
+                            <th>Xác minh trọng tài</th>
+                            <th>Xác minh user</th>
+                            <th>Trình độ (Đơn / Đôi)</th>
                             <th>Loại</th>
-                            <th>Ngày tạo</th>
                             <th style="width: 170px;">Thao tác</th>
                         </tr>
                     </thead>
@@ -187,13 +240,12 @@
                     </button>
                 </div>
             </div>
-
         </div>
     </div>
 </div>
 
 <div class="modal fade" id="modalItem" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
             <form id="formItem">
                 <input type="hidden" id="editingId" value="" />
@@ -208,84 +260,142 @@
                 <div class="modal-body">
                     <div id="formError" class="alert alert-danger d-none"></div>
 
-                    <div class="d-flex align-items-center" style="gap: 12px;">
-                        <img id="uAvatar" src="" class="referee-avatar-lg" />
-                        <div>
-                            <div class="font-weight-bold text-gray-900" id="uName">—</div>
-                            <div class="small text-gray-500" id="uSub">—</div>
-                        </div>
-                    </div>
-
-                    <hr />
+                    <div class="modal-section-title">Liên kết User</div>
 
                     <div class="form-row">
-                        <div class="form-group col-md-6">
-                            <label>Mã ngoài</label>
-                            <input id="externalId" class="form-control" />
+                        <div class="form-group col-md-8">
+                            <label>UserId / ExternalId</label>
+                            <div class="input-group">
+                                <input id="externalId" class="form-control" placeholder="Nhập UserId" />
+                                <div class="input-group-append">
+                                    <button id="btnLookupUser" class="btn btn-outline-info" type="button">
+                                        <i class="fas fa-search mr-1"></i> Tải User
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">
+                                Dữ liệu chuẩn hoá yêu cầu trọng tài phải liên kết với User có thật. Tên, thành phố, ảnh, điểm trình sẽ lấy từ User.
+                            </small>
                         </div>
-                        <div class="form-group col-md-6">
-                            <label>Họ và tên</label>
-                            <input id="fullName" class="form-control" />
-                        </div>
-                    </div>
 
-                    <div class="form-row">
-                        <div class="form-group col-md-4">
-                            <label>Thành phố</label>
-                            <input id="city" class="form-control" />
-                        </div>
                         <div class="form-group col-md-4">
                             <label>Loại trọng tài</label>
                             <input id="refereeType" class="form-control" value="REFEREE" />
                         </div>
-                        <div class="form-group col-md-4">
-                            <label>Đường dẫn ảnh đại diện</label>
-                            <input id="avatarUrl" class="form-control" />
+                    </div>
+
+                    <div class="readonly-box mb-3">
+                        <div class="d-flex align-items-center" style="gap: 14px;">
+                            <img id="uAvatar" src="" class="referee-avatar-lg" />
+
+                            <div class="flex-grow-1">
+                                <div class="font-weight-bold text-gray-900" id="uName">Chưa chọn user</div>
+                                <div class="small text-gray-500" id="uSub">—</div>
+                                <div class="mt-2 user-badge-wrap" id="uBadges"></div>
+                            </div>
+                        </div>
+
+                        <div id="refereeLinkWarning" class="alert alert-warning referee-link-warning d-none mt-3 mb-0"></div>
+
+                        <div class="form-row mt-3">
+                            <div class="form-group col-md-3 mb-2">
+                                <div class="small-muted">Email</div>
+                                <div id="uEmail" class="readonly-box readonly-box-sm">—</div>
+                            </div>
+                            <div class="form-group col-md-3 mb-2">
+                                <div class="small-muted">Số điện thoại</div>
+                                <div id="uPhone" class="readonly-box readonly-box-sm">—</div>
+                            </div>
+                            <div class="form-group col-md-3 mb-2">
+                                <div class="small-muted">Giới tính</div>
+                                <div id="uGender" class="readonly-box readonly-box-sm">—</div>
+                            </div>
+                            <div class="form-group col-md-3 mb-2">
+                                <div class="small-muted">Ngày sinh</div>
+                                <div id="uBirthOfDate" class="readonly-box readonly-box-sm">—</div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group col-md-4 mb-2">
+                                <div class="small-muted">Điểm đơn hiện tại</div>
+                                <div id="uRatingSingle" class="readonly-box readonly-box-sm">—</div>
+                            </div>
+                            <div class="form-group col-md-4 mb-2">
+                                <div class="small-muted">Điểm đôi hiện tại</div>
+                                <div id="uRatingDouble" class="readonly-box readonly-box-sm">—</div>
+                            </div>
+                            <div class="form-group col-md-4 mb-2">
+                                <div class="small-muted">Cập nhật điểm gần nhất</div>
+                                <div id="uRatingUpdatedAt" class="readonly-box readonly-box-sm">—</div>
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-0">
+                            <div class="small-muted">Giới thiệu cá nhân (User.Bio)</div>
+                            <div id="uBio" class="readonly-box" style="min-height:72px;">—</div>
+                        </div>
+                    </div>
+
+                    <div class="modal-section-title">Thông tin riêng của hồ sơ trọng tài</div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-12">
+                            <label>Giới thiệu</label>
+                            <textarea id="introduction" class="form-control" rows="3"></textarea>
                         </div>
                     </div>
 
                     <div class="form-row">
-                        <div class="form-group col-md-6">
-                            <label>Trình độ đơn</label>
-                            <input id="levelSingle" type="number" step="0.01" class="form-control" />
-                        </div>
-                        <div class="form-group col-md-6">
-                            <label>Trình độ đôi</label>
-                            <input id="levelDouble" type="number" step="0.01" class="form-control" />
+                        <div class="form-group col-md-12">
+                            <label>Khu vực làm việc</label>
+                            <textarea id="workingArea" class="form-control" rows="2"></textarea>
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label>Giới thiệu</label>
-                        <textarea id="introduction" class="form-control" rows="3"></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Khu vực làm việc</label>
-                        <textarea id="workingArea" class="form-control" rows="2"></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Thành tích</label>
-                        <textarea id="achievements" class="form-control" rows="3"></textarea>
+                    <div class="form-row">
+                        <div class="form-group col-md-12">
+                            <label>Thành tích / chứng chỉ trọng tài</label>
+                            <textarea id="achievements" class="form-control" rows="3"></textarea>
+                        </div>
                     </div>
 
                     <div class="d-flex flex-wrap align-items-center" style="gap: 12px;">
                         <div class="custom-control custom-switch">
                             <input type="checkbox" class="custom-control-input" id="verified">
-                            <label class="custom-control-label" for="verified">Đã xác minh</label>
+                            <label class="custom-control-label" for="verified">Đã xác minh hồ sơ trọng tài</label>
                         </div>
+
+                        <button id="btnSyncFromUser" class="btn btn-outline-info btn-sm" type="button">
+                            <i class="fas fa-sync mr-1"></i> Đồng bộ từ User
+                        </button>
 
                         <button id="btnToggleVerified" class="btn btn-outline-success btn-sm" type="button">
                             <i class="fas fa-check mr-1"></i> Chuyển trạng thái xác minh
                         </button>
 
                         <button id="btnDelete" class="btn btn-outline-danger btn-sm ml-auto" type="button">
-                            <i class="fas fa-trash mr-1"></i> Xoá
+                            <i class="fas fa-trash mr-1"></i> Xóa
                         </button>
                     </div>
 
-                    <div class="small text-muted mt-2" id="uMeta">—</div>
+                    <hr />
+
+                    <div class="form-row">
+                        <div class="form-group col-lg-6">
+                            <div class="modal-section-title mb-2">Lịch sử điểm trình</div>
+                            <div id="ratingHistoryBox" class="history-box">
+                                <div class="history-item text-muted text-center">Chưa có dữ liệu</div>
+                            </div>
+                        </div>
+
+                        <div class="form-group col-lg-6">
+                            <div class="modal-section-title mb-2">Thành tích thi đấu</div>
+                            <div id="userAchievementsBox" class="history-box">
+                                <div class="history-item text-muted text-center">Chưa có dữ liệu</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="modal-footer">
@@ -303,6 +413,7 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
         const API_BASE = "/api/admin/referees";
+        const EMPTY_IMG = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
 
         let state = {
             page: 1,
@@ -313,50 +424,106 @@
 
         function escapeHtml(str) {
             return String(str || "")
-                .replaceAll("&", "&amp;")
-                .replaceAll("<", "&lt;")
-                .replaceAll(">", "&gt;")
-                .replaceAll('"', "&quot;")
-                .replaceAll("'", "&#039;");
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
 
-        function fmtDate(dt) {
-            if (!dt) return "—";
-            const d = new Date(dt);
-            if (isNaN(d.getTime())) return "—";
-            const yyyy = d.getFullYear();
-            const mm = String(d.getMonth() + 1).padStart(2, "0");
-            const dd = String(d.getDate()).padStart(2, "0");
-            return `${yyyy}-${mm}-${dd}`;
+        function formatScore(v) {
+            const n = Number(v || 0);
+            return n % 1 === 0 ? `${n}` : n.toFixed(2).replace(/\.?0+$/, "");
+        }
+
+        function formatDate(value) {
+            if (!value) return "—";
+            try {
+                const d = new Date(value);
+                if (Number.isNaN(d.getTime())) return String(value);
+                const dd = String(d.getDate()).padStart(2, "0");
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const yyyy = d.getFullYear();
+                return `${dd}/${mm}/${yyyy}`;
+            } catch {
+                return String(value);
+            }
+        }
+
+        function formatDateTime(value) {
+            if (!value) return "—";
+            try {
+                const d = new Date(value);
+                if (Number.isNaN(d.getTime())) return String(value);
+                const dd = String(d.getDate()).padStart(2, "0");
+                const mm = String(d.getMonth() + 1).padStart(2, "0");
+                const yyyy = d.getFullYear();
+                const hh = String(d.getHours()).padStart(2, "0");
+                const mi = String(d.getMinutes()).padStart(2, "0");
+                return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+            } catch {
+                return String(value);
+            }
         }
 
         function displayRefereeType(type) {
-            if (!type) return "TRỌNG TÀI";
-            const map = {
-                REFEREE: "Trọng tài"
-            };
-            return map[type] || type;
+            const value = String(type || "REFEREE").trim().toUpperCase();
+            switch (value) {
+                case "REFEREE":
+                    return "Trọng tài";
+                default:
+                    return type || "Trọng tài";
+            }
         }
 
-        function badgeVerified(v) {
+        function normalizeRefereeTypeForApi(value) {
+            const raw = String(value || "").trim();
+            if (!raw) return "REFEREE";
+
+            const normalized = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+
+            if (normalized === "TRONG TAI" || normalized === "REFEREE") {
+                return "REFEREE";
+            }
+
+            return raw.toUpperCase();
+        }
+
+        function badgeVerified(v, okText = "Đã xác minh", noText = "Chưa xác minh") {
             return v
-                ? `<span class="badge badge-success">Đã xác minh</span>`
-                : `<span class="badge badge-secondary">Chưa</span>`;
+                ? `<span class="badge badge-success">${escapeHtml(okText)}</span>`
+                : `<span class="badge badge-secondary">${escapeHtml(noText)}</span>`;
+        }
+
+        function badgeUserActive(v) {
+            return v
+                ? `<span class="badge badge-info">User đang hoạt động</span>`
+                : `<span class="badge badge-warning">User không hoạt động</span>`;
+        }
+
+        function badgeLinkStatus(item) {
+            if (!item?.hasLinkedUser) {
+                return `<span class="badge badge-danger">Chưa link User</span>`;
+            }
+
+            if (!item?.userIsActive) {
+                return `<span class="badge badge-warning">User inactive</span>`;
+            }
+
+            return `<span class="badge badge-primary">Đã link User</span>`;
         }
 
         function avatarHtml(url, name) {
             const safe = escapeHtml(name || "R");
             if (url) {
-                return `<img src="${url}" class="referee-avatar-sm" />`;
+                return `<img src="${escapeHtml(url)}" class="referee-avatar-sm" />`;
             }
-            return `<div class="referee-avatar-fallback">
-                        ${safe.substring(0,1).toUpperCase()}
-                    </div>`;
+            return `<div class="referee-avatar-fallback">${safe.substring(0, 1).toUpperCase()}</div>`;
         }
 
         function showPageError(msg) {
             const box = document.getElementById("pageError");
-            box.textContent = msg || "Có lỗi xảy ra.";
+            box.textContent = msg || "Có lỗi xảy ra";
             box.classList.remove("d-none");
         }
 
@@ -368,7 +535,7 @@
 
         function showFormError(msg) {
             const box = document.getElementById("formError");
-            box.textContent = msg || "Có lỗi xảy ra.";
+            box.textContent = msg || "Có lỗi xảy ra";
             box.classList.remove("d-none");
         }
 
@@ -378,28 +545,186 @@
             box.textContent = "";
         }
 
+        function renderRatingHistory(items) {
+            const box = document.getElementById("ratingHistoryBox");
+            const list = Array.isArray(items) ? items : [];
+
+            if (!list.length) {
+                box.innerHTML = `<div class="history-item text-muted text-center">Chưa có lịch sử điểm trình</div>`;
+                return;
+            }
+
+            box.innerHTML = list.map(x => `
+                <div class="history-item">
+                    <div class="font-weight-bold text-gray-900">${escapeHtml(formatDateTime(x.ratedAt))}</div>
+                    <div class="small-muted mt-1">
+                        Điểm đơn: <strong>${escapeHtml(formatScore(x.ratingSingle))}</strong> |
+                        Điểm đôi: <strong>${escapeHtml(formatScore(x.ratingDouble))}</strong>
+                    </div>
+                    <div class="small-muted mt-1">
+                        Người chấm: <strong>${escapeHtml(x.ratedByName || "Hệ thống")}</strong>
+                    </div>
+                    <div class="small-muted mt-1">
+                        Ghi chú: ${escapeHtml(x.note || "—")}
+                    </div>
+                </div>
+            `).join("");
+        }
+
+        function renderUserAchievements(items) {
+            const box = document.getElementById("userAchievementsBox");
+            const list = Array.isArray(items) ? items : [];
+
+            if (!list.length) {
+                box.innerHTML = `<div class="history-item text-muted text-center">Chưa có thành tích thi đấu</div>`;
+                return;
+            }
+
+            box.innerHTML = list.map(x => `
+                <div class="history-item">
+                    <div class="font-weight-bold text-gray-900">${escapeHtml(x.title || x.tournamentName || "Thành tích")}</div>
+                    <div class="small-muted mt-1">
+                        ${escapeHtml(x.achievementLabel || x.achievementType || "Thành tích")}
+                    </div>
+                    <div class="small-muted mt-1">
+                        Ngày: ${escapeHtml(formatDate(x.date || x.achievedAt || x.createdAt))}
+                    </div>
+                    <div class="small-muted mt-1">
+                        Ghi chú: ${escapeHtml(x.note || "—")}
+                    </div>
+                </div>
+            `).join("");
+        }
+
+        function clearUserPreview() {
+            document.getElementById("uAvatar").src = EMPTY_IMG;
+            document.getElementById("uName").textContent = "Chưa chọn user";
+            document.getElementById("uSub").textContent = "—";
+            document.getElementById("uBadges").innerHTML = "";
+            document.getElementById("uEmail").textContent = "—";
+            document.getElementById("uPhone").textContent = "—";
+            document.getElementById("uGender").textContent = "—";
+            document.getElementById("uBirthOfDate").textContent = "—";
+            document.getElementById("uRatingSingle").textContent = "—";
+            document.getElementById("uRatingDouble").textContent = "—";
+            document.getElementById("uRatingUpdatedAt").textContent = "—";
+            document.getElementById("uBio").textContent = "—";
+
+            const warn = document.getElementById("refereeLinkWarning");
+            warn.classList.add("d-none");
+            warn.textContent = "";
+
+            renderRatingHistory([]);
+            renderUserAchievements([]);
+        }
+
+        function setLinkWarning(message) {
+            const warn = document.getElementById("refereeLinkWarning");
+            if (!message) {
+                warn.classList.add("d-none");
+                warn.textContent = "";
+                return;
+            }
+
+            warn.classList.remove("d-none");
+            warn.textContent = message;
+        }
+
+        function renderPreviewBadges(data, editingRefereeId = null) {
+            const badges = [];
+
+            badges.push(data?.verified
+                ? `<span class="badge badge-success">User đã xác minh</span>`
+                : `<span class="badge badge-secondary">User chưa xác minh</span>`);
+
+            badges.push(data?.isActive === false
+                ? `<span class="badge badge-warning">User không hoạt động</span>`
+                : `<span class="badge badge-info">User đang hoạt động</span>`);
+
+            if (data?.existingRefereeId) {
+                const sameReferee = String(editingRefereeId || "") === String(data.existingRefereeId);
+                badges.push(
+                    sameReferee
+                        ? `<span class="badge badge-primary">Đang liên kết hồ sơ trọng tài #${escapeHtml(data.existingRefereeId)}</span>`
+                        : `<span class="badge badge-danger">Đã có trọng tài #${escapeHtml(data.existingRefereeId)}</span>`
+                );
+            }
+
+            return badges.join(" ");
+        }
+
+        function setUserPreviewFromLookup(data) {
+            document.getElementById("uAvatar").src = data?.avatarUrl || EMPTY_IMG;
+            document.getElementById("uName").textContent = data?.fullName || "—";
+            document.getElementById("uSub").textContent = `${data?.city || "—"} • UserId: ${data?.userId || "—"}`;
+            document.getElementById("uBadges").innerHTML = renderPreviewBadges(data, document.getElementById("editingId").value || null);
+
+            document.getElementById("uEmail").textContent = data?.email || "—";
+            document.getElementById("uPhone").textContent = data?.phone || "—";
+            document.getElementById("uGender").textContent = data?.gender || "—";
+            document.getElementById("uBirthOfDate").textContent = formatDate(data?.birthOfDate);
+            document.getElementById("uRatingSingle").textContent = formatScore(data?.ratingSingle);
+            document.getElementById("uRatingDouble").textContent = formatScore(data?.ratingDouble);
+            document.getElementById("uRatingUpdatedAt").textContent = formatDateTime(data?.ratingUpdatedAt);
+            document.getElementById("uBio").textContent = data?.bio || "—";
+
+            setLinkWarning(data?.isActive === false ? "User này đang bị vô hiệu hoá. Không thể liên kết làm trọng tài." : "");
+        }
+
+        function setUserPreviewFromDetail(data) {
+            document.getElementById("uAvatar").src = data?.avatarUrl || EMPTY_IMG;
+            document.getElementById("uName").textContent = data?.fullName || "—";
+            document.getElementById("uSub").textContent =
+                `${data?.city || "—"} • UserId: ${data?.userId || data?.externalId || "—"}`;
+
+            document.getElementById("uBadges").innerHTML = [
+                badgeVerified(!!data?.userVerified, "User đã xác minh", "User chưa xác minh"),
+                badgeUserActive(!!data?.userIsActive),
+                badgeLinkStatus(data)
+            ].join(" ");
+
+            document.getElementById("uEmail").textContent = data?.email || "—";
+            document.getElementById("uPhone").textContent = data?.phone || "—";
+            document.getElementById("uGender").textContent = data?.gender || "—";
+            document.getElementById("uBirthOfDate").textContent = formatDate(data?.birthOfDate);
+            document.getElementById("uRatingSingle").textContent = formatScore(data?.levelSingle);
+            document.getElementById("uRatingDouble").textContent = formatScore(data?.levelDouble);
+            document.getElementById("uRatingUpdatedAt").textContent = formatDateTime(data?.ratingUpdatedAt);
+            document.getElementById("uBio").textContent = data?.bio || "—";
+
+            setLinkWarning(data?.linkWarning || "");
+            renderRatingHistory(data?.ratingHistory || []);
+            renderUserAchievements(data?.userAchievements || []);
+        }
+
         function rowHtml(u) {
-            const userLine = `
+            const infoLine = `
                 <div class="font-weight-bold text-gray-900">${escapeHtml(u.fullName || "—")}</div>
-                <div class="small text-gray-500">${escapeHtml(u.externalId || "—")}</div>`;
+                <div class="small text-gray-500">UserId / ExternalId: ${escapeHtml(u.externalId || "—")}</div>
+                <div class="small text-gray-500">${escapeHtml(u.email || "—")} ${u.phone ? `• ${escapeHtml(u.phone)}` : ""}</div>
+                <div class="mt-1">${badgeLinkStatus(u)} ${u.linkWarning ? `<span class="badge badge-warning">${escapeHtml(u.linkWarning)}</span>` : ""}</div>
+            `;
 
             return `
                 <tr data-id="${u.refereeId}">
                     <td>${avatarHtml(u.avatarUrl, u.fullName)}</td>
-                    <td>${userLine}</td>
+                    <td>${infoLine}</td>
                     <td>${escapeHtml(u.city || "—")}</td>
-                    <td>${badgeVerified(!!u.verified)}</td>
-                    <td>${Number(u.levelSingle ?? 0).toFixed(2)} / ${Number(u.levelDouble ?? 0).toFixed(2)}</td>
-                    <td>${escapeHtml(displayRefereeType(u.refereeType || "REFEREE"))}</td>
-                    <td>${fmtDate(u.createdAt)}</td>
+                    <td>${badgeVerified(!!u.verified, "Đã xác minh", "Chưa")}</td>
+                    <td>${badgeVerified(!!u.userVerified, "Đã xác minh", "Chưa")}</td>
+                    <td>
+                        ${escapeHtml(formatScore(u.levelSingle))} / ${escapeHtml(formatScore(u.levelDouble))}
+                        <div class="small text-muted">${escapeHtml(formatDateTime(u.ratingUpdatedAt))}</div>
+                    </td>
+                    <td>${escapeHtml(displayRefereeType(u.refereeType))}</td>
                     <td style="white-space:nowrap">
-                        <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${u.refereeId})" type="button" title="Sửa">
+                        <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${u.refereeId})" type="button">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-success" onclick="toggleVerified(${u.refereeId})" type="button" title="Chuyển xác minh">
+                        <button class="btn btn-sm btn-outline-success" onclick="toggleVerified(${u.refereeId})" type="button">
                             <i class="fas fa-check"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${u.refereeId})" type="button" title="Xoá">
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteItem(${u.refereeId})" type="button">
                             <i class="fas fa-trash"></i>
                         </button>
                     </td>
@@ -424,11 +749,13 @@
 
             if (keyword) params.keyword = keyword;
             if (verified !== "ALL") params.verified = verified;
+
             return params;
         }
 
         async function loadItems(resetPage = false) {
             if (resetPage) state.page = 1;
+
             clearPageError();
 
             const body = document.getElementById("itemsBody");
@@ -437,11 +764,12 @@
             try {
                 const res = await axios.get(API_BASE, { params: getFilters() });
                 const items = res.data?.items || [];
+
                 state.total = res.data?.total || 0;
                 state.items = items;
 
                 if (!items.length) {
-                    body.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Chưa có trọng tài</td></tr>`;
+                    body.innerHTML = `<tr><td colspan="8" class="text-center text-muted">Không có trọng tài</td></tr>`;
                 } else {
                     body.innerHTML = items.map(rowHtml).join("");
                 }
@@ -470,54 +798,70 @@
             clearFormError();
             document.getElementById("formItem").reset();
             document.getElementById("editingId").value = "";
-            document.getElementById("uAvatar").src = "";
-            document.getElementById("uName").textContent = "—";
-            document.getElementById("uSub").textContent = "—";
-            document.getElementById("uMeta").textContent = "—";
             document.getElementById("refereeType").value = "REFEREE";
+            document.getElementById("verified").checked = false;
+
+            clearUserPreview();
+
             document.getElementById("btnDelete").classList.add("d-none");
             document.getElementById("btnToggleVerified").classList.add("d-none");
+            document.getElementById("btnSyncFromUser").classList.add("d-none");
+
             document.getElementById("modalTitle").textContent = "Thêm trọng tài";
         }
 
         function fillModal(u) {
             document.getElementById("editingId").value = String(u.refereeId);
             document.getElementById("externalId").value = u.externalId || "";
-            document.getElementById("fullName").value = u.fullName || "";
-            document.getElementById("city").value = u.city || "";
             document.getElementById("refereeType").value = u.refereeType || "REFEREE";
-            document.getElementById("avatarUrl").value = u.avatarUrl || "";
-            document.getElementById("levelSingle").value = u.levelSingle ?? 0;
-            document.getElementById("levelDouble").value = u.levelDouble ?? 0;
+            document.getElementById("verified").checked = !!u.verified;
             document.getElementById("introduction").value = u.introduction || "";
             document.getElementById("workingArea").value = u.workingArea || "";
             document.getElementById("achievements").value = u.achievements || "";
-            document.getElementById("verified").checked = !!u.verified;
 
-            document.getElementById("uAvatar").src = u.avatarUrl || "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
-            document.getElementById("uName").textContent = u.fullName || "—";
-            document.getElementById("uSub").textContent = `${u.city || "—"} • ${displayRefereeType(u.refereeType || "REFEREE")}`;
-            document.getElementById("uMeta").textContent = `Tạo ngày: ${fmtDate(u.createdAt)} • Cập nhật: ${fmtDate(u.updatedAt)}`;
+            setUserPreviewFromDetail(u);
 
             document.getElementById("btnDelete").classList.remove("d-none");
             document.getElementById("btnToggleVerified").classList.remove("d-none");
+            document.getElementById("btnSyncFromUser").classList.remove("d-none");
+
             document.getElementById("modalTitle").textContent = "Chi tiết trọng tài";
         }
 
         function buildPayload() {
             return {
                 externalId: document.getElementById("externalId").value || null,
-                fullName: document.getElementById("fullName").value || "",
-                city: document.getElementById("city").value || null,
                 verified: document.getElementById("verified").checked,
-                levelSingle: parseFloat(document.getElementById("levelSingle").value || "0"),
-                levelDouble: parseFloat(document.getElementById("levelDouble").value || "0"),
-                avatarUrl: document.getElementById("avatarUrl").value || null,
-                refereeType: document.getElementById("refereeType").value || "REFEREE",
+                refereeType: normalizeRefereeTypeForApi(document.getElementById("refereeType").value),
                 introduction: document.getElementById("introduction").value || null,
                 workingArea: document.getElementById("workingArea").value || null,
                 achievements: document.getElementById("achievements").value || null
             };
+        }
+
+        async function lookupUserPreview(showError = true) {
+            const externalId = document.getElementById("externalId").value.trim();
+            if (!externalId) {
+                clearUserPreview();
+                return;
+            }
+
+            try {
+                const res = await axios.get(`${API_BASE}/lookup-user`, {
+                    params: { externalId }
+                });
+
+                setUserPreviewFromLookup(res.data);
+            } catch (e) {
+                clearUserPreview();
+
+                const msg = e?.response?.data?.message || e?.message || "Không tải được user.";
+                setLinkWarning(msg);
+
+                if (showError) {
+                    showFormError(msg);
+                }
+            }
         }
 
         async function openCreate() {
@@ -528,6 +872,7 @@
         async function openEdit(id) {
             resetModal();
             $("#modalItem").modal("show");
+
             try {
                 const res = await axios.get(`${API_BASE}/${id}`);
                 fillModal(res.data);
@@ -538,9 +883,8 @@
 
         async function toggleVerified(id) {
             try {
-                await axios.post(`${API_BASE}/${id}/toggle-verified`);
-                const d = await axios.get(`${API_BASE}/${id}`);
-                updateRowInTable(d.data);
+                const res = await axios.post(`${API_BASE}/${id}/toggle-verified`);
+                updateRowInTable(res.data);
             } catch (e) {
                 alert(e?.response?.data?.message || e?.message || "Chuyển trạng thái xác minh thất bại.");
             }
@@ -551,39 +895,55 @@
             if (!id) return;
 
             try {
-                await axios.post(`${API_BASE}/${id}/toggle-verified`);
-                const d = await axios.get(`${API_BASE}/${id}`);
-                fillModal(d.data);
-                updateRowInTable(d.data);
+                const res = await axios.post(`${API_BASE}/${id}/toggle-verified`);
+                fillModal(res.data);
+                updateRowInTable(res.data);
             } catch (e) {
                 showFormError(e?.response?.data?.message || e?.message || "Chuyển trạng thái xác minh thất bại.");
             }
         }
 
+        async function modalSyncFromUser() {
+            const id = document.getElementById("editingId").value;
+            if (!id) return;
+
+            try {
+                const res = await axios.post(`${API_BASE}/${id}/sync-from-user`);
+                fillModal(res.data);
+                updateRowInTable(res.data);
+            } catch (e) {
+                showFormError(e?.response?.data?.message || e?.message || "Đồng bộ từ User thất bại.");
+            }
+        }
+
         async function deleteItem(id) {
-            if (!confirm("Bạn có chắc muốn xoá trọng tài này?")) return;
+            if (!confirm("Bạn có chắc muốn xóa trọng tài này?")) return;
 
             try {
                 await axios.delete(`${API_BASE}/${id}`);
                 loadItems(false);
             } catch (e) {
-                alert(e?.response?.data?.message || e?.message || "Xoá thất bại.");
+                alert(e?.response?.data?.message || e?.message || "Xóa thất bại.");
             }
         }
 
         async function modalDelete() {
             const id = document.getElementById("editingId").value;
             if (!id) return;
-            if (!confirm("Bạn có chắc muốn xoá trọng tài này?")) return;
+            if (!confirm("Bạn có chắc muốn xóa trọng tài này?")) return;
 
             try {
                 await axios.delete(`${API_BASE}/${id}`);
                 $("#modalItem").modal("hide");
                 loadItems(false);
             } catch (e) {
-                showFormError(e?.response?.data?.message || e?.message || "Xoá thất bại.");
+                showFormError(e?.response?.data?.message || e?.message || "Xóa thất bại.");
             }
         }
+
+        window.openEdit = openEdit;
+        window.toggleVerified = toggleVerified;
+        window.deleteItem = deleteItem;
 
         document.addEventListener("DOMContentLoaded", () => {
             state.pageSize = parseInt(document.getElementById("pageSize").value, 10) || 20;
@@ -592,6 +952,7 @@
             document.getElementById("btnAdd").addEventListener("click", openCreate);
             document.getElementById("btnRefresh").addEventListener("click", () => loadItems(false));
             document.getElementById("btnFilter").addEventListener("click", () => loadItems(true));
+
             document.getElementById("keyword").addEventListener("keydown", (e) => {
                 if (e.key === "Enter") loadItems(true);
             });
@@ -613,7 +974,28 @@
                 loadItems(false);
             });
 
+            document.getElementById("btnLookupUser").addEventListener("click", () => {
+                clearFormError();
+                lookupUserPreview(true);
+            });
+
+            document.getElementById("externalId").addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    clearFormError();
+                    lookupUserPreview(true);
+                }
+            });
+
+            document.getElementById("externalId").addEventListener("blur", () => {
+                const editingId = document.getElementById("editingId").value;
+                if (!editingId) {
+                    lookupUserPreview(false);
+                }
+            });
+
             document.getElementById("btnToggleVerified").addEventListener("click", modalToggleVerified);
+            document.getElementById("btnSyncFromUser").addEventListener("click", modalSyncFromUser);
             document.getElementById("btnDelete").addEventListener("click", modalDelete);
 
             document.getElementById("formItem").addEventListener("submit", async (e) => {
