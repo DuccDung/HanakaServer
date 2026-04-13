@@ -43,6 +43,12 @@ public partial class User
 
     public virtual ICollection<Club> Clubs { get; set; } = new List<Club>();
 
+    public virtual ICollection<ModerationReport> ModerationReportsReporter { get; set; } = new List<ModerationReport>();
+
+    public virtual ICollection<ModerationReport> ModerationReportsReviewedBy { get; set; } = new List<ModerationReport>();
+
+    public virtual ICollection<ModerationReport> ModerationReportsTarget { get; set; } = new List<ModerationReport>();
+
     public virtual ICollection<TournamentRegistration> TournamentRegistrationPlayer1Users { get; set; } = new List<TournamentRegistration>();
 
     public virtual ICollection<TournamentRegistration> TournamentRegistrationPlayer2Users { get; set; } = new List<TournamentRegistration>();
@@ -56,4 +62,6 @@ public partial class User
     public virtual ICollection<UserAchievement> UserAchievements { get; set; } = new List<UserAchievement>();
     public virtual ICollection<TournamentGroupMatch> RefereeTournamentGroupMatches { get; set; } = new List<TournamentGroupMatch>();
     public virtual ICollection<TournamentMatchScoreHistory> RefereeScoreHistories { get; set; } = new List<TournamentMatchScoreHistory>();
+    public virtual ICollection<UserBlock> UserBlocksBlockedByMe { get; set; } = new List<UserBlock>();
+    public virtual ICollection<UserBlock> UserBlocksBlockingMe { get; set; } = new List<UserBlock>();
 }

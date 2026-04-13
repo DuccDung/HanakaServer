@@ -1167,7 +1167,12 @@ namespace HanakaServer.Controllers
                     x.AreaText,
                     membersCount = x.ClubMembers.Count(cm => cm.IsActive),
                     lastMessage = x.ClubMessages
-                        .Where(m => !m.IsDeleted)
+                        .Where(m =>
+                            !m.IsDeleted &&
+                            !_db.UserBlocks.Any(ub =>
+                                ub.BlockerUserId == userId &&
+                                ub.BlockedUserId == m.SenderUserId &&
+                                ub.IsActive))
                         .OrderByDescending(m => m.SentAt)
                         .Select(m => new
                         {
@@ -1243,7 +1248,13 @@ namespace HanakaServer.Controllers
 
             var q = _db.ClubMessages
                 .AsNoTracking()
-                .Where(x => x.ClubId == id && !x.IsDeleted);
+                .Where(x =>
+                    x.ClubId == id &&
+                    !x.IsDeleted &&
+                    !_db.UserBlocks.Any(ub =>
+                        ub.BlockerUserId == userId &&
+                        ub.BlockedUserId == x.SenderUserId &&
+                        ub.IsActive));
 
             var total = await q.CountAsync();
 
@@ -1408,7 +1419,14 @@ namespace HanakaServer.Controllers
             // 2) gửi notification cho các thành viên khác đang online
             var memberUserIds = await _db.ClubMembers
                 .AsNoTracking()
-                .Where(x => x.ClubId == id && x.IsActive && x.UserId != userId)
+                .Where(x =>
+                    x.ClubId == id &&
+                    x.IsActive &&
+                    x.UserId != userId &&
+                    !_db.UserBlocks.Any(ub =>
+                        ub.BlockerUserId == x.UserId &&
+                        ub.BlockedUserId == userId &&
+                        ub.IsActive))
                 .Select(x => x.UserId)
                 .ToListAsync();
 

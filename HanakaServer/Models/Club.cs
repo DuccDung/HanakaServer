@@ -41,5 +41,9 @@ public partial class Club
 
     public virtual ICollection<ClubMessage> ClubMessages { get; set; } = new List<ClubMessage>();
 
+    public virtual ICollection<ModerationReport> ModerationReports { get; set; } = new List<ModerationReport>();
+
+    public virtual ICollection<UserBlock> UserBlocks { get; set; } = new List<UserBlock>();
+
     public virtual User? Ow { get; set; }
 }

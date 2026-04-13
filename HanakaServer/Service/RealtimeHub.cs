@@ -154,6 +154,43 @@ namespace HanakaServer.Services
             });
         }
 
+        public async Task DisconnectUserAsync(string userId, string reason = "session_revoked")
+        {
+            if (!_userSockets.TryGetValue(userId, out var sockets) || sockets.IsEmpty)
+                return;
+
+            var socketPairs = sockets.ToArray();
+            var bytes = Serialize(new
+            {
+                type = "session.revoked",
+                reason
+            });
+
+            foreach (var pair in socketPairs)
+            {
+                var socketId = pair.Key;
+                var ws = pair.Value;
+
+                await SafeSendAsync(ws, bytes);
+
+                try
+                {
+                    if (ws.State == WebSocketState.Open || ws.State == WebSocketState.CloseReceived)
+                    {
+                        await ws.CloseAsync(
+                            WebSocketCloseStatus.PolicyViolation,
+                            reason,
+                            CancellationToken.None);
+                    }
+                }
+                catch
+                {
+                }
+
+                await RemoveSocketAsync(socketId);
+            }
+        }
+
         private static byte[] Serialize(object message)
         {
             var json = JsonSerializer.Serialize(message, JsonOpts);

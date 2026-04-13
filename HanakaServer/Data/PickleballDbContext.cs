@@ -20,6 +20,8 @@ public partial class PickleballDbContext : DbContext
 
     public virtual DbSet<ClubMessage> ClubMessages { get; set; }
 
+    public virtual DbSet<ModerationReport> ModerationReports { get; set; }
+
     public virtual DbSet<Coach> Coaches { get; set; }
 
     public virtual DbSet<Court> Courts { get; set; }
@@ -48,10 +50,230 @@ public partial class PickleballDbContext : DbContext
     public virtual DbSet<UserOtp> UserOtps { get; set; }
     public virtual DbSet<UserRatingHistory> UserRatingHistories { get; set; }
     public virtual DbSet<UserAchievement> UserAchievements { get; set; }
+    public virtual DbSet<UserBlock> UserBlocks { get; set; }
     public virtual DbSet<TournamentPrize> TournamentPrizes { get; set; }
     public virtual DbSet<TournamentMatchScoreHistory> TournamentMatchScoreHistories { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ModerationReport>(entity =>
+        {
+            entity.ToTable("ModerationReports");
+
+            entity.HasKey(e => e.ReportId)
+                .HasName("PK_ModerationReports");
+
+            entity.HasIndex(e => new { e.Status, e.CreatedAt })
+                .HasDatabaseName("IX_ModerationReports_Status_CreatedAt")
+                .IsDescending(false, true);
+
+            entity.HasIndex(e => new { e.ReporterUserId, e.CreatedAt })
+                .HasDatabaseName("IX_ModerationReports_ReporterUserId_CreatedAt")
+                .IsDescending(false, true);
+
+            entity.HasIndex(e => new { e.TargetUserId, e.CreatedAt })
+                .HasDatabaseName("IX_ModerationReports_TargetUserId_CreatedAt")
+                .IsDescending(false, true);
+
+            entity.HasIndex(e => new { e.ClubId, e.CreatedAt })
+                .HasDatabaseName("IX_ModerationReports_ClubId_CreatedAt")
+                .IsDescending(false, true);
+
+            entity.HasIndex(e => e.MessageId)
+                .HasDatabaseName("IX_ModerationReports_MessageId");
+
+            entity.Property(e => e.ReportType)
+                .HasMaxLength(20)
+                .IsUnicode(false);
+
+            entity.Property(e => e.ReasonCode)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+
+            entity.Property(e => e.ReasonLabel)
+                .HasMaxLength(150);
+
+            entity.Property(e => e.Notes)
+                .HasMaxLength(1000);
+
+            entity.Property(e => e.ReporterNameSnapshot)
+                .HasMaxLength(150);
+
+            entity.Property(e => e.TargetNameSnapshot)
+                .HasMaxLength(150);
+
+            entity.Property(e => e.Source)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue("CHAT");
+
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("PENDING");
+
+            entity.Property(e => e.DeveloperNotified)
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.DeveloperNotifiedAt)
+                .HasPrecision(0);
+
+            entity.Property(e => e.ReviewedByName)
+                .HasMaxLength(150);
+
+            entity.Property(e => e.ReviewedAt)
+                .HasPrecision(0);
+
+            entity.Property(e => e.ResolutionAction)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue("NONE");
+
+            entity.Property(e => e.ResolutionNote)
+                .HasMaxLength(1000);
+
+            entity.Property(e => e.ResolvedAt)
+                .HasPrecision(0);
+
+            entity.Property(e => e.SlaDueAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(dateadd(hour,(24),sysdatetime()))");
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.ToTable(t => t.HasCheckConstraint(
+                "CK_ModerationReports_ReportType",
+                "[ReportType] IN ('USER', 'MESSAGE')"));
+
+            entity.ToTable(t => t.HasCheckConstraint(
+                "CK_ModerationReports_ReasonCode",
+                "[ReasonCode] IN ('HATE_OR_HARASSMENT', 'VIOLENT_THREAT', 'SEXUAL_CONTENT', 'SPAM_OR_SCAM', 'OTHER')"));
+
+            entity.ToTable(t => t.HasCheckConstraint(
+                "CK_ModerationReports_Status",
+                "[Status] IN ('PENDING', 'UNDER_REVIEW', 'RESOLVED', 'REJECTED')"));
+
+            entity.ToTable(t => t.HasCheckConstraint(
+                "CK_ModerationReports_ResolutionAction",
+                "[ResolutionAction] IN ('NONE', 'MESSAGE_HIDDEN', 'USER_WARNED', 'USER_EJECTED', 'USER_BANNED')"));
+
+            entity.HasOne(d => d.ReporterUser)
+                .WithMany(p => p.ModerationReportsReporter)
+                .HasForeignKey(d => d.ReporterUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_ModerationReports_ReporterUser");
+
+            entity.HasOne(d => d.TargetUser)
+                .WithMany(p => p.ModerationReportsTarget)
+                .HasForeignKey(d => d.TargetUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_ModerationReports_TargetUser");
+
+            entity.HasOne(d => d.Club)
+                .WithMany(p => p.ModerationReports)
+                .HasForeignKey(d => d.ClubId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_ModerationReports_Club");
+
+            entity.HasOne(d => d.Message)
+                .WithMany(p => p.ModerationReports)
+                .HasForeignKey(d => d.MessageId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_ModerationReports_Message");
+
+            entity.HasOne(d => d.ReviewedByUser)
+                .WithMany(p => p.ModerationReportsReviewedBy)
+                .HasForeignKey(d => d.ReviewedByUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_ModerationReports_ReviewedByUser");
+        });
+
+        modelBuilder.Entity<UserBlock>(entity =>
+        {
+            entity.ToTable("UserBlocks");
+
+            entity.HasKey(e => e.BlockId)
+                .HasName("PK_UserBlocks");
+
+            entity.HasIndex(e => new { e.BlockerUserId, e.IsActive, e.BlockedAt })
+                .HasDatabaseName("IX_UserBlocks_BlockerUserId_IsActive")
+                .IsDescending(false, false, true);
+
+            entity.HasIndex(e => new { e.BlockedUserId, e.IsActive, e.BlockedAt })
+                .HasDatabaseName("IX_UserBlocks_BlockedUserId_IsActive")
+                .IsDescending(false, false, true);
+
+            entity.HasIndex(e => new { e.BlockerUserId, e.BlockedUserId })
+                .IsUnique()
+                .HasFilter("([IsActive]=(1))")
+                .HasDatabaseName("UX_UserBlocks_ActivePair");
+
+            entity.Property(e => e.ReasonCode)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+
+            entity.Property(e => e.Notes)
+                .HasMaxLength(500);
+
+            entity.Property(e => e.Source)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue("CHAT");
+
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true);
+
+            entity.Property(e => e.BlockedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.Property(e => e.UnblockedAt)
+                .HasPrecision(0);
+
+            entity.ToTable(t => t.HasCheckConstraint(
+                "CK_UserBlocks_NotSelf",
+                "[BlockerUserId] <> [BlockedUserId]"));
+
+            entity.ToTable(t => t.HasCheckConstraint(
+                "CK_UserBlocks_ReasonCode",
+                "[ReasonCode] IN ('HATE_OR_HARASSMENT', 'VIOLENT_THREAT', 'SEXUAL_CONTENT', 'SPAM_OR_SCAM', 'OTHER')"));
+
+            entity.ToTable(t => t.HasCheckConstraint(
+                "CK_UserBlocks_Source",
+                "[Source] IN ('CHAT', 'PROFILE', 'ADMIN', 'SYSTEM')"));
+
+            entity.HasOne(d => d.BlockerUser)
+                .WithMany(p => p.UserBlocksBlockedByMe)
+                .HasForeignKey(d => d.BlockerUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_UserBlocks_BlockerUser");
+
+            entity.HasOne(d => d.BlockedUser)
+                .WithMany(p => p.UserBlocksBlockingMe)
+                .HasForeignKey(d => d.BlockedUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_UserBlocks_BlockedUser");
+
+            entity.HasOne(d => d.SourceClub)
+                .WithMany(p => p.UserBlocks)
+                .HasForeignKey(d => d.SourceClubId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_UserBlocks_SourceClub");
+
+            entity.HasOne(d => d.SourceMessage)
+                .WithMany(p => p.UserBlocks)
+                .HasForeignKey(d => d.SourceMessageId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_UserBlocks_SourceMessage");
+
+            entity.HasOne(d => d.Report)
+                .WithMany(p => p.UserBlocks)
+                .HasForeignKey(d => d.ReportId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_UserBlocks_Report");
+        });
+
         modelBuilder.Entity<TournamentMatchScoreHistory>(entity =>
         {
             entity.ToTable("TournamentMatchScoreHistories");

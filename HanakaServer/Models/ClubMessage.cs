@@ -27,7 +27,11 @@ public partial class ClubMessage
 
     public virtual ICollection<ClubMessage> InverseReplyTo { get; set; } = new List<ClubMessage>();
 
+    public virtual ICollection<ModerationReport> ModerationReports { get; set; } = new List<ModerationReport>();
+
     public virtual ClubMessage? ReplyTo { get; set; }
 
     public virtual User SenderUser { get; set; } = null!;
+
+    public virtual ICollection<UserBlock> UserBlocks { get; set; } = new List<UserBlock>();
 }
