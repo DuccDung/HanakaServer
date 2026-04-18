@@ -100,6 +100,28 @@ namespace HanakaServer.Controllers
             return string.Join(", ", parts);
         }
 
+        private static readonly string[] UnsafeChatTerms =
+        {
+            "fuck",
+            "shit",
+            "bitch",
+            "asshole",
+            "motherfucker",
+            "kill",
+            "rape",
+            "sex",
+            "nude",
+            "xxx"
+        };
+
+        private static bool ContainsObjectionableChatContent(string? content)
+        {
+            if (string.IsNullOrWhiteSpace(content)) return false;
+
+            return UnsafeChatTerms.Any(term =>
+                content.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+
         private async Task<bool> IsClubOwner(long clubId, long userId)
         {
             return await _db.ClubMembers.AnyAsync(x =>
@@ -1345,6 +1367,9 @@ namespace HanakaServer.Controllers
             if (messageType == "TEXT" && string.IsNullOrWhiteSpace(req.Content))
                 return BadRequest(new { message = "Nội dung tin nhắn không được để trống." });
 
+            if (messageType == "TEXT" && ContainsObjectionableChatContent(req.Content))
+                return BadRequest(new { message = "Nội dung tin nhắn vi phạm tiêu chuẩn cộng đồng." });
+
             if (req.ReplyToId.HasValue)
             {
                 var replyExists = await _db.ClubMessages.AnyAsync(x =>
@@ -1422,6 +1447,7 @@ namespace HanakaServer.Controllers
                 .Where(x =>
                     x.ClubId == id &&
                     x.IsActive &&
+                    x.User.IsActive &&
                     x.UserId != userId &&
                     !_db.UserBlocks.Any(ub =>
                         ub.BlockerUserId == x.UserId &&
@@ -1529,7 +1555,8 @@ namespace HanakaServer.Controllers
             return await _db.ClubMembers.AnyAsync(x =>
                 x.ClubId == clubId &&
                 x.UserId == userId &&
-                x.IsActive);
+                x.IsActive &&
+                x.User.IsActive);
         }
     }
 }

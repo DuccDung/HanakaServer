@@ -125,6 +125,11 @@ app.UseWebSockets();
 app.UseAuthentication();
 app.UseAuthorization();
 
+app.MapControllerRoute(
+    name: "pickleball_web_home",
+    pattern: "",
+    defaults: new { controller = "PickleballWeb", action = "Index" });
+
 // Route mặc định
 app.MapControllerRoute(
     name: "default",
