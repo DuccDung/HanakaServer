@@ -1,0 +1,89 @@
+@model HanakaServer.ViewModels.PickleballWeb.PickleballWebPageViewModel
+@{
+    Layout = "_PickleballWebLayout";
+    ViewData["Title"] = $"{Model.Title} | Hanaka Sport";
+    ViewData["Description"] = Model.Description;
+}
+
+<div class="rules-app-screen">
+    <header class="rules-app-header">
+        <div class="container mobile-web-screen__container">
+            <div class="rules-app-header__bar">
+                <a class="rules-app-header__back"
+                   href="@Model.BackHref"
+                   aria-label="@Model.BackLabel"
+                   onclick="if (window.history.length > 1) { window.history.back(); return false; }">
+                    <ion-icon name="chevron-back"></ion-icon>
+                </a>
+                <h1>@Model.Title</h1>
+                <span class="rules-app-header__spacer" aria-hidden="true"></span>
+            </div>
+        </div>
+    </header>
+
+    <main class="rules-app-body">
+        <div class="container mobile-web-screen__container">
+            <article class="rules-app-card">
+                <h2 class="rules-app__blue-title">Thuật ngữ</h2>
+
+                <p class="rules-app__paragraph"><strong>Ace:</strong> Một cú giao bóng mà đối thủ không chạm được và điểm được ghi.</p>
+                <p class="rules-app__paragraph"><strong>Baseline:</strong> Đường giới hạn cuối cùng của sân, nơi người chơi thường đứng khi đánh từ nền.</p>
+                <p class="rules-app__paragraph"><strong>Dink:</strong> Một cú đánh nhẹ nhàng đưa bóng qua lưới với mục đích làm khó đối thủ.</p>
+                <p class="rules-app__paragraph"><strong>Drop Shot:</strong> Một cú đánh nhẹ nhàng nhằm đặt bóng ngay gần lưới.</p>
+                <p class="rules-app__paragraph"><strong>Fault:</strong> Lỗi khi giao bóng hoặc khi đánh bóng ra ngoài biên.</p>
+                <p class="rules-app__paragraph"><strong>Kitchen:</strong> Vùng cấm trước lưới, nơi người chơi không được đánh bóng khi đang đứng trong vùng này, trừ khi bóng đã chạm đất.</p>
+                <p class="rules-app__paragraph"><strong>Let:</strong> Khi bóng chạm vào lưới trong lúc giao bóng nhưng vẫn đặt chính xác vào mục tiêu.</p>
+                <p class="rules-app__paragraph"><strong>Rally:</strong> Chuỗi liên tiếp các cú đánh mà không có lỗi.</p>
+                <p class="rules-app__paragraph"><strong>Serve:</strong> Cú giao bóng để bắt đầu mỗi game.</p>
+                <p class="rules-app__paragraph"><strong>Smash:</strong> Cú đánh mạnh từ trên cao xuống với lực mạnh.</p>
+                <p class="rules-app__paragraph"><strong>Volley:</strong> Cú đánh mà bóng được đánh trước khi nó chạm đất.</p>
+
+                <div class="rules-app__gap"></div>
+
+                <h2 class="rules-app__blue-title">Luật chơi</h2>
+                <h3 class="rules-app__link-title">Trước Trận Đấu:</h3>
+
+                <p class="rules-app__paragraph"><strong>Sân thi đấu:</strong> Sân pickleball dài 44 feet (13.41m) và rộng 20 feet (6.1m), với một vùng cấm gọi là "kitchen" dài 7 feet (2.1m) tính từ lưới vào trong sân.</p>
+                <p class="rules-app__paragraph"><strong>Bảng điểm:</strong> Trận đấu được chơi đến 11, 15 hoặc 21 điểm và đội hoặc người chơi phải thắng cách biệt ít nhất 2 điểm.</p>
+
+                <h3 class="rules-app__link-title">Trong Trận Đấu:</h3>
+
+                <h4 class="rules-app__subheading">Giao bóng:</h4>
+                <p class="rules-app__bullet">• Người giao bóng phải đứng sau baseline và phải giao bóng theo kiểu underhand, tức là vợt phải tiếp xúc với bóng dưới thắt lưng.</p>
+                <p class="rules-app__bullet">• Bóng phải bay chéo sang ô nhận bóng của đối thủ và vượt qua lưới mà không chạm vào vùng cấm "kitchen".</p>
+                <p class="rules-app__bullet">• Người giao bóng có hai lần giao bóng, nếu cả hai lần đều lỗi thì đối phương sẽ được điểm.</p>
+
+                <h4 class="rules-app__subheading">Cách đánh:</h4>
+                <p class="rules-app__bullet">• Bóng phải chạm đất một lần ở bên phần sân của đối phương trước khi đánh tiếp.</p>
+                <p class="rules-app__bullet">• Bóng không được rơi vào vùng cấm "kitchen" trừ khi đã chạm đất ở ngoài vùng cấm trước đó.</p>
+
+                <h4 class="rules-app__subheading">Quy tắc điểm:</h4>
+                <p class="rules-app__bullet">• Điểm chỉ được ghi bởi đội đang giao bóng.</p>
+                <p class="rules-app__bullet">• Trận đấu kết thúc khi một đội đạt đủ số điểm quy định và cách biệt ít nhất 2 điểm.</p>
+
+                <h4 class="rules-app__subheading">Rally và Faults:</h4>
+                <p class="rules-app__bullet">• Rally tiếp tục cho đến khi một trong hai đội phạm lỗi.</p>
+                <p class="rules-app__bullet">• Các lỗi bao gồm: giao bóng sai, bóng chạm vào net và không vượt qua, bóng rơi vào vùng cấm "kitchen" không đúng luật, và bóng ra ngoài biên.</p>
+
+                <h3 class="rules-app__link-title">Chi Tiết Thêm:</h3>
+                <p class="rules-app__paragraph"><strong>Nghỉ giữa trận:</strong> Có thời gian nghỉ ngắn giữa các set và nghỉ dài hơn giữa các trận đấu.</p>
+                <p class="rules-app__paragraph"><strong>Mất trận đấu:</strong> Người chơi hoặc đội mất trận đấu khi đối thủ giành chiến thắng với số set nhiều hơn.</p>
+            </article>
+        </div>
+    </main>
+
+    <nav class="mobile-tabbar mobile-tabbar--page" aria-label="Điều hướng app mobile">
+        <a class="mobile-tabbar__item @(Model.ActiveTab == "home" ? "is-active" : string.Empty)" href="/">
+            <ion-icon name="home"></ion-icon>
+            <span>Trang Chủ</span>
+        </a>
+        <a class="mobile-tabbar__item @(Model.ActiveTab == "tournaments" ? "is-active" : string.Empty)" href="/PickleballWeb/Tournaments">
+            <ion-icon name="trophy-outline"></ion-icon>
+            <span>Giải Đấu</span>
+        </a>
+        <a class="mobile-tabbar__item @(Model.ActiveTab == "courts" ? "is-active" : string.Empty)" href="/PickleballWeb/Courts">
+            <ion-icon name="location-outline"></ion-icon>
+            <span>Sân Bãi</span>
+        </a>
+    </nav>
+</div>

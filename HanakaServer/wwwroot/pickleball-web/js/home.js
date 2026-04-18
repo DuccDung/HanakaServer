@@ -1,15 +1,15 @@
 (function () {
     const menuItems = [
-        { key: "rules", label: "Luật Chơi", icon: "document-text-outline", href: "#top" },
-        { key: "guide", label: "Hướng Dẫn", icon: "map-outline", href: "#tournaments", guideLink: true },
-        { key: "members", label: "T.Viên", icon: "people-outline", href: "#tournaments" },
-        { key: "club", label: "CLB", icon: "shield-outline", href: "#tournaments" },
-        { key: "coach", label: "HL Viên", icon: "school-outline", href: "#tournaments" },
-        { key: "court", label: "Sân Bãi", icon: "location-outline", href: "#courts" },
-        { key: "ref", label: "Trọng Tài", icon: "flag-outline", href: "#tournaments" },
-        { key: "tournament", label: "Giải Đấu", icon: "trophy-outline", href: "#tournaments" },
-        { key: "exchange", label: "Giao Lưu", icon: "people-circle-outline", href: "#tournaments" },
-        { key: "match", label: "Trận Đấu", icon: "tennisball-outline", href: "#tournaments" }
+        { key: "rules", label: "Luật Chơi", icon: "document-text-outline", href: "/PickleballWeb/Rules" },
+        { key: "guide", label: "Hướng Dẫn", icon: "map-outline", href: "/PickleballWeb/Guide" },
+        { key: "members", label: "T.Viên", icon: "people-outline", href: "/PickleballWeb/Members" },
+        { key: "club", label: "CLB", icon: "shield-outline", href: "/PickleballWeb/Clubs" },
+        { key: "coach", label: "HL Viên", icon: "school-outline", href: "/PickleballWeb/Coaches" },
+        { key: "court", label: "Sân Bãi", icon: "location-outline", href: "/PickleballWeb/Courts" },
+        { key: "ref", label: "Trọng Tài", icon: "flag-outline", href: "/PickleballWeb/Referees" },
+        { key: "tournament", label: "Giải Đấu", icon: "trophy-outline", href: "/PickleballWeb/Tournaments" },
+        { key: "exchange", label: "Giao Lưu", icon: "people-circle-outline", href: "/PickleballWeb/Exchanges" },
+        { key: "match", label: "Trận Đấu", icon: "tennisball-outline", href: "/PickleballWeb/Matches" }
     ];
 
     const state = {
@@ -758,6 +758,10 @@
     }
 
     document.addEventListener("DOMContentLoaded", function () {
+        if (!qs(".landing-app")) {
+            return;
+        }
+
         setStat("banners", 0);
         setStat("tournaments", 0);
         setStat("courts", 0);

@@ -1,0 +1,54 @@
+@model HanakaServer.ViewModels.PickleballWeb.PickleballWebDetailPageViewModel
+@{
+    Layout = "_PickleballWebLayout";
+    ViewData["Title"] = $"{Model.Title} | Hanaka Sport";
+    ViewData["Description"] = Model.Description;
+}
+
+<div
+    class="mobile-web-screen mobile-web-screen--detail"
+    data-detail-kind="@Model.PageKind"
+    data-detail-id="@Model.EntityId">
+    <header class="page-hero page-hero--detail">
+        <div class="container mobile-web-screen__container">
+            <a class="page-hero__back" href="@Model.BackHref" aria-label="@Model.BackLabel">
+                <ion-icon name="chevron-back-outline"></ion-icon>
+                <span>@Model.BackLabel</span>
+            </a>
+
+            <div class="page-hero__content">
+                <span class="page-hero__eyebrow">@Model.Eyebrow</span>
+                <h1>@Model.Title</h1>
+                <p>@Model.Description</p>
+            </div>
+        </div>
+    </header>
+
+    <main class="page-shell">
+        <div class="container mobile-web-screen__container">
+            <section class="page-panel page-panel--detail">
+                <div class="detail-body" data-detail-body>
+                    <article class="page-empty">
+                        <strong>Đang tải chi tiết</strong>
+                        <p>Hanaka Sport đang lấy dữ liệu cho màn hình này.</p>
+                    </article>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <nav class="mobile-tabbar mobile-tabbar--page" aria-label="Điều hướng app mobile">
+        <a class="mobile-tabbar__item @(Model.ActiveTab == "home" ? "is-active" : string.Empty)" href="/">
+            <ion-icon name="home"></ion-icon>
+            <span>Trang Chủ</span>
+        </a>
+        <a class="mobile-tabbar__item @(Model.ActiveTab == "tournaments" ? "is-active" : string.Empty)" href="/PickleballWeb/Tournaments">
+            <ion-icon name="trophy-outline"></ion-icon>
+            <span>Giải Đấu</span>
+        </a>
+        <a class="mobile-tabbar__item @(Model.ActiveTab == "courts" ? "is-active" : string.Empty)" href="/PickleballWeb/Courts">
+            <ion-icon name="location-outline"></ion-icon>
+            <span>Sân Bãi</span>
+        </a>
+    </nav>
+</div>

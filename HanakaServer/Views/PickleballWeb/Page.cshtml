@@ -1,0 +1,85 @@
+@model HanakaServer.ViewModels.PickleballWeb.PickleballWebPageViewModel
+@{
+    Layout = "_PickleballWebLayout";
+    ViewData["Title"] = $"{Model.Title} | Hanaka Sport";
+    ViewData["Description"] = Model.Description;
+}
+
+<div class="mobile-web-screen mobile-web-screen--page" data-page-kind="@Model.PageKind">
+    <header class="page-hero">
+        <div class="container mobile-web-screen__container">
+            <a class="page-hero__back" href="@Model.BackHref" aria-label="@Model.BackLabel">
+                <ion-icon name="chevron-back-outline"></ion-icon>
+                <span>@Model.BackLabel</span>
+            </a>
+
+            <div class="page-hero__content">
+                <span class="page-hero__eyebrow">@Model.Eyebrow</span>
+                <div class="page-hero__title-row">
+                    <span class="page-hero__icon">
+                        <ion-icon name="@Model.Icon"></ion-icon>
+                    </span>
+                    <div>
+                        <h1>@Model.Title</h1>
+                        <p>@Model.Description</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="page-shell">
+        <div class="container mobile-web-screen__container">
+            <section class="page-panel">
+                <div class="page-panel__head">
+                    <div>
+                        <span class="page-pill">Hanaka Sport App</span>
+                        <strong class="page-total" data-page-total-text>Đang tải dữ liệu...</strong>
+                    </div>
+                </div>
+
+                @if (Model.ShowSearch)
+                {
+                    <form class="page-search" data-page-search-form>
+                        <ion-icon name="search-outline"></ion-icon>
+                        <input
+                            type="search"
+                            name="query"
+                            placeholder="@Model.SearchPlaceholder"
+                            autocomplete="off"
+                            data-page-search-input />
+                        <button type="submit">Tìm</button>
+                    </form>
+                }
+
+                <div class="page-filter-row" data-page-filters hidden></div>
+                <div class="page-highlight" data-page-highlight hidden></div>
+                <div class="page-list" data-page-list>
+                    <article class="page-empty">
+                        <strong>Đang chuẩn bị dữ liệu</strong>
+                        <p>Hanaka Sport đang đồng bộ nội dung cho màn hình này.</p>
+                    </article>
+                </div>
+
+                <button class="page-more-button" type="button" data-page-more hidden>
+                    Xem thêm
+                </button>
+            </section>
+        </div>
+    </main>
+
+    <nav class="mobile-tabbar mobile-tabbar--page" aria-label="Điều hướng app mobile">
+        <a class="mobile-tabbar__item @(Model.ActiveTab == "home" ? "is-active" : string.Empty)" href="/">
+            <ion-icon name="home"></ion-icon>
+            <span>Trang Chủ</span>
+        </a>
+        <a class="mobile-tabbar__item @(Model.ActiveTab == "tournaments" ? "is-active" : string.Empty)" href="/PickleballWeb/Tournaments">
+            <ion-icon name="trophy-outline"></ion-icon>
+            <span>Giải Đấu</span>
+        </a>
+        <a class="mobile-tabbar__item @(Model.ActiveTab == "courts" ? "is-active" : string.Empty)" href="/PickleballWeb/Courts">
+            <ion-icon name="location-outline"></ion-icon>
+            <span>Sân Bãi</span>
+        </a>
+    </nav>
+</div>
