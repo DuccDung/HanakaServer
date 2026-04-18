@@ -398,7 +398,7 @@
 
     function renderTournaments(items, total) {
         const container = qs("[data-tournament-list]");
-        const list = Array.isArray(items) ? items.slice(0, 3) : [];
+        const list = Array.isArray(items) ? items : [];
         const count = total || list.length;
 
         setStat("tournaments", count);
