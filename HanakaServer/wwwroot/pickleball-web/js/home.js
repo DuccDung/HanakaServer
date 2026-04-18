@@ -1,22 +1,22 @@
 (function () {
     const menuItems = [
         { key: "rules", label: "Luật Chơi", icon: "document-text-outline", href: "#top" },
-        { key: "guide", label: "Hướng Dẫn", icon: "map-outline", href: "#community", guideLink: true },
-        { key: "members", label: "T.Viên", icon: "people-outline", href: "#community" },
-        { key: "club", label: "CLB", icon: "shield-outline", href: "#community" },
-        { key: "coach", label: "HL Viên", icon: "school-outline", href: "#community" },
+        { key: "guide", label: "Hướng Dẫn", icon: "map-outline", href: "#tournaments", guideLink: true },
+        { key: "members", label: "T.Viên", icon: "people-outline", href: "#tournaments" },
+        { key: "club", label: "CLB", icon: "shield-outline", href: "#tournaments" },
+        { key: "coach", label: "HL Viên", icon: "school-outline", href: "#tournaments" },
         { key: "court", label: "Sân Bãi", icon: "location-outline", href: "#courts" },
-        { key: "ref", label: "Trọng Tài", icon: "flag-outline", href: "#videos" },
+        { key: "ref", label: "Trọng Tài", icon: "flag-outline", href: "#tournaments" },
         { key: "tournament", label: "Giải Đấu", icon: "trophy-outline", href: "#tournaments" },
-        { key: "exchange", label: "Giao Lưu", icon: "people-circle-outline", href: "#community" },
-        { key: "match", label: "Trận Đấu", icon: "tennisball-outline", href: "#videos" }
+        { key: "exchange", label: "Giao Lưu", icon: "people-circle-outline", href: "#tournaments" },
+        { key: "match", label: "Trận Đấu", icon: "tennisball-outline", href: "#tournaments" }
     ];
 
     const state = {
         banners: [],
         bannerIndex: 0,
         bannerTimer: null,
-        guideLink: "#community"
+        guideLink: "#tournaments"
     };
 
     const prefersReducedMotion =
@@ -200,7 +200,7 @@
         });
 
         qsa(".is-guide-link").forEach(function (node) {
-            const href = buildSafeHref(state.guideLink, "#community");
+            const href = buildSafeHref(state.guideLink, "#tournaments");
             node.setAttribute("href", href);
 
             if (isExternalHref(href)) {
@@ -556,7 +556,7 @@
             return trimToEmpty(item.type).toLowerCase() === "zalo";
         });
 
-        state.guideLink = buildSafeHref(youtube?.link, "#community");
+        state.guideLink = buildSafeHref(youtube?.link, "#tournaments");
         renderMenus();
 
         const cards = [];
@@ -591,7 +591,7 @@
 
         section.hidden = false;
         container.innerHTML = cards.map(function (card) {
-            const href = buildSafeHref(card.href, "#community");
+            const href = buildSafeHref(card.href, "#tournaments");
             const attrs = isExternalHref(href) ? ' target="_blank" rel="noreferrer"' : "";
 
             return [
@@ -684,8 +684,8 @@
 
         const sectionToKey = {
             "home-feed": "home",
-            "videos": "videos",
-            "community": "club"
+            "tournaments": "tournaments",
+            "courts": "courts"
         };
 
         function setActive(key) {

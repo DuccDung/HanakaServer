@@ -28,13 +28,13 @@
                 </button>
 
                 <div class="app-bar__actions">
-                    <a class="round-icon" href="#community" aria-label="Thông báo">
+                    <a class="round-icon" href="#tournaments" aria-label="Thông báo">
                         <ion-icon name="notifications-outline"></ion-icon>
                     </a>
-                    <a class="round-icon" href="#community" aria-label="Cài đặt">
+                    <a class="round-icon" href="#tournaments" aria-label="Cài đặt">
                         <ion-icon name="settings-outline"></ion-icon>
                     </a>
-                    <a class="avatar-icon" href="#community" aria-label="Tài khoản">
+                    <a class="avatar-icon" href="#tournaments" aria-label="Tài khoản">
                         <ion-icon name="person-circle-outline"></ion-icon>
                     </a>
                 </div>
@@ -51,7 +51,7 @@
 
                     <div class="hero-actions">
                         <a class="button button--primary" href="#tournaments">Xem giải đấu</a>
-                        <a class="button button--ghost is-guide-link" href="#community">Xem hướng dẫn</a>
+                        <a class="button button--ghost is-guide-link" href="#tournaments">Xem hướng dẫn</a>
                     </div>
 
                     <div class="hero-metrics">
@@ -173,39 +173,15 @@
                 <div class="cards-grid cards-grid--three" data-tournament-list></div>
             </section>
 
-            <section class="dual-grid">
-                <section class="panel reveal" id="courts">
-                    <div class="section-heading">
-                        <div>
-                            <p>Sân bãi</p>
-                            <h2>Sân công khai</h2>
-                        </div>
-                    </div>
-
-                    <div class="cards-grid cards-grid--two" data-court-list></div>
-                </section>
-
-                <section class="panel reveal reveal--delay-1" id="videos">
-                    <div class="section-heading">
-                        <div>
-                            <p>Videos</p>
-                            <h2>Trận đấu nổi bật</h2>
-                        </div>
-                    </div>
-
-                    <div class="cards-grid cards-grid--stack" data-video-list></div>
-                </section>
-            </section>
-
-            <section class="panel panel--links reveal" id="community" data-links-section hidden>
+            <section class="panel reveal" id="courts">
                 <div class="section-heading">
                     <div>
-                        <p>Cộng đồng</p>
-                        <h2>Hướng dẫn và kết nối</h2>
+                        <p>Sân bãi</p>
+                        <h2>Sân công khai</h2>
                     </div>
                 </div>
 
-                <div class="link-stack" data-link-stack></div>
+                <div class="cards-grid cards-grid--two" data-court-list></div>
             </section>
         </div>
     </main>
@@ -215,17 +191,13 @@
             <ion-icon name="home"></ion-icon>
             <span>Trang Chủ</span>
         </a>
-        <a class="mobile-tabbar__item" href="#videos" data-tab-link="videos">
-            <ion-icon name="play-circle-outline"></ion-icon>
-            <span>Videos</span>
+        <a class="mobile-tabbar__item" href="#tournaments" data-tab-link="tournaments">
+            <ion-icon name="trophy-outline"></ion-icon>
+            <span>Giải Đấu</span>
         </a>
-        <a class="mobile-tabbar__item" href="#community" data-tab-link="club">
-            <ion-icon name="copy-outline"></ion-icon>
-            <span>CLB</span>
-        </a>
-        <a class="mobile-tabbar__item" href="#community" data-tab-link="chat">
-            <ion-icon name="chatbubbles-outline"></ion-icon>
-            <span>Tin nhắn</span>
+        <a class="mobile-tabbar__item" href="#courts" data-tab-link="courts">
+            <ion-icon name="location-outline"></ion-icon>
+            <span>Sân Bãi</span>
         </a>
     </nav>
 </div>
