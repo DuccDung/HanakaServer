@@ -41,13 +41,25 @@ namespace HanakaServer.Controllers.Web
         [HttpGet]
         public IActionResult Members()
         {
-            return View("Page", BuildPage(
+            return View("Members", BuildPage(
                 title: "Thành Viên",
                 eyebrow: "Cộng đồng người chơi",
                 description: "Danh sách thành viên công khai với hồ sơ cơ bản, thành tích và mức điểm trình mới nhất.",
                 pageKind: "members",
                 icon: "people-outline",
                 searchPlaceholder: "Tìm thành viên, số điện thoại, email..."));
+        }
+
+        [HttpGet]
+        public IActionResult HanakaRatingInfo()
+        {
+            return View("HanakaRatingInfo", BuildPage(
+                title: "CÃ¡ch Cháº¥m TrÃ¬nh",
+                eyebrow: "Hanaka rating",
+                description: "Quy Ä‘á»‹nh cháº¥m trÃ¬nh, Ä‘iá»ƒm exp vÃ  cÃ¡ch há»‡ thá»‘ng Hanaka Sport Ä‘iá»u chá»‰nh má»©c Ä‘iá»ƒm ngÆ°á»i chÆ¡i.",
+                pageKind: "hanaka-rating-info",
+                icon: "ribbon-outline",
+                showSearch: false));
         }
 
         [HttpGet("/PickleballWeb/Member/{id:long}")]

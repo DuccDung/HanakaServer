@@ -5,66 +5,49 @@
     ViewData["Description"] = Model.Description;
 }
 
-<div class="mobile-web-screen mobile-web-screen--page" data-page-kind="@Model.PageKind">
-    <header class="page-hero">
+<div class="native-page-screen native-page-screen--@Model.PageKind" data-native-page-kind="@Model.PageKind">
+    <header class="native-page-header">
         <div class="container mobile-web-screen__container">
-            <a class="page-hero__back" href="@Model.BackHref" aria-label="@Model.BackLabel">
-                <ion-icon name="chevron-back-outline"></ion-icon>
-                <span>@Model.BackLabel</span>
-            </a>
+            <div class="native-page-header__top">
+                <a class="native-page-header__back"
+                   href="@Model.BackHref"
+                   aria-label="@Model.BackLabel"
+                   onclick="if (window.history.length > 1) { window.history.back(); return false; }">
+                    <ion-icon name="arrow-back"></ion-icon>
+                </a>
 
-            <div class="page-hero__content">
-                <span class="page-hero__eyebrow">@Model.Eyebrow</span>
-                <div class="page-hero__title-row">
-                    <span class="page-hero__icon">
-                        <ion-icon name="@Model.Icon"></ion-icon>
-                    </span>
-                    <div>
-                        <h1>@Model.Title</h1>
-                        <p>@Model.Description</p>
-                    </div>
-                </div>
+                <h1 class="native-page-header__title">@Model.Title</h1>
+
+                <button class="native-page-header__action" type="button" data-native-page-action hidden></button>
+                <span class="native-page-header__spacer" data-native-page-spacer aria-hidden="true"></span>
             </div>
+
+            <div class="native-page-header__extra" data-native-page-header-extra></div>
         </div>
     </header>
 
-    <main class="page-shell">
+    <main class="native-page-main">
         <div class="container mobile-web-screen__container">
-            <section class="page-panel">
-                <div class="page-panel__head">
-                    <div>
-                        <span class="page-pill">Hanaka Sport App</span>
-                        <strong class="page-total" data-page-total-text>Đang tải dữ liệu...</strong>
-                    </div>
-                </div>
+            <div class="native-page-error" data-native-page-error hidden>
+                <p data-native-page-error-text></p>
+                <button type="button" data-native-page-retry hidden>Thử lại</button>
+            </div>
 
-                @if (Model.ShowSearch)
-                {
-                    <form class="page-search" data-page-search-form>
-                        <ion-icon name="search-outline"></ion-icon>
-                        <input
-                            type="search"
-                            name="query"
-                            placeholder="@Model.SearchPlaceholder"
-                            autocomplete="off"
-                            data-page-search-input />
-                        <button type="submit">Tìm</button>
-                    </form>
-                }
+            <div class="native-page-loading" data-native-page-loading>
+                <span class="members-app-spinner" aria-hidden="true"></span>
+            </div>
 
-                <div class="page-filter-row" data-page-filters hidden></div>
-                <div class="page-highlight" data-page-highlight hidden></div>
-                <div class="page-list" data-page-list>
-                    <article class="page-empty">
-                        <strong>Đang chuẩn bị dữ liệu</strong>
-                        <p>Hanaka Sport đang đồng bộ nội dung cho màn hình này.</p>
-                    </article>
-                </div>
+            <div class="native-page-list" data-native-page-list></div>
 
-                <button class="page-more-button" type="button" data-page-more hidden>
-                    Xem thêm
-                </button>
-            </section>
+            <div class="native-page-empty" data-native-page-empty hidden>
+                <p data-native-page-empty-text>Chưa có dữ liệu phù hợp.</p>
+            </div>
+
+            <div class="native-page-loading native-page-loading--more" data-native-page-loading-more hidden>
+                <span class="members-app-spinner" aria-hidden="true"></span>
+            </div>
+
+            <div class="native-page-sentinel" data-native-page-sentinel aria-hidden="true"></div>
         </div>
     </main>
 

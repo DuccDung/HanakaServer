@@ -1,0 +1,93 @@
+@model HanakaServer.ViewModels.PickleballWeb.PickleballWebPageViewModel
+@{
+    Layout = "_PickleballWebLayout";
+    ViewData["Title"] = $"{Model.Title} | Hanaka Sport";
+    ViewData["Description"] = Model.Description;
+}
+
+<div class="members-app-screen" data-members-page>
+    <header class="members-app-header">
+        <div class="container mobile-web-screen__container">
+            <div class="members-app-header__top">
+                <a class="members-app-header__back"
+                   href="@Model.BackHref"
+                   aria-label="@Model.BackLabel"
+                   onclick="if (window.history.length > 1) { window.history.back(); return false; }">
+                    <ion-icon name="arrow-back"></ion-icon>
+                </a>
+
+                <h1>@Model.Title</h1>
+
+                <a class="members-app-header__link" href="/PickleballWeb/HanakaRatingInfo">
+                    Tự chấm trình
+                </a>
+            </div>
+
+            <form class="members-app-search" data-members-search-form>
+                <label class="members-app-search__box">
+                    <ion-icon name="search"></ion-icon>
+                    <input
+                        type="search"
+                        name="query"
+                        placeholder="Họ tên, ID, SĐT..."
+                        autocomplete="off"
+                        data-members-search-input />
+                </label>
+
+                <button class="members-app-search__button" type="submit">
+                    Tìm kiếm
+                </button>
+            </form>
+
+            <div class="members-app-sectionhead">
+                <span>Thành viên</span>
+                <div class="members-app-sectionhead__icons" aria-hidden="true">
+                    <ion-icon name="people"></ion-icon>
+                    <ion-icon name="person"></ion-icon>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container mobile-web-screen__container">
+        <div class="members-app-error" data-members-error hidden>
+            <p data-members-error-text></p>
+            <button type="button" data-members-retry>Thử lại</button>
+        </div>
+    </div>
+
+    <main class="members-app-listwrap">
+        <div class="container mobile-web-screen__container">
+            <div class="members-app-list" data-members-list>
+                <div class="members-app-state members-app-state--loading" data-members-loading>
+                    <span class="members-app-spinner" aria-hidden="true"></span>
+                </div>
+            </div>
+
+            <div class="members-app-state" data-members-empty hidden>
+                <p>Chưa có thành viên phù hợp.</p>
+            </div>
+
+            <div class="members-app-state members-app-state--loading" data-members-loading-more hidden>
+                <span class="members-app-spinner" aria-hidden="true"></span>
+            </div>
+
+            <div class="members-app-sentinel" data-members-sentinel aria-hidden="true"></div>
+        </div>
+    </main>
+
+    <nav class="mobile-tabbar mobile-tabbar--page" aria-label="Điều hướng app mobile">
+        <a class="mobile-tabbar__item is-active" href="/">
+            <ion-icon name="home"></ion-icon>
+            <span>Trang Chủ</span>
+        </a>
+        <a class="mobile-tabbar__item" href="/PickleballWeb/Tournaments">
+            <ion-icon name="trophy-outline"></ion-icon>
+            <span>Giải Đấu</span>
+        </a>
+        <a class="mobile-tabbar__item" href="/PickleballWeb/Courts">
+            <ion-icon name="location-outline"></ion-icon>
+            <span>Sân Bãi</span>
+        </a>
+    </nav>
+</div>

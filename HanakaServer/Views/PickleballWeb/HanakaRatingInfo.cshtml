@@ -1,0 +1,110 @@
+@model HanakaServer.ViewModels.PickleballWeb.PickleballWebPageViewModel
+@{
+    Layout = "_PickleballWebLayout";
+    ViewData["Title"] = $"{Model.Title} | Hanaka Sport";
+    ViewData["Description"] = Model.Description;
+}
+
+<div class="rating-info-screen">
+    <header class="rating-info-header">
+        <div class="container mobile-web-screen__container">
+            <div class="rating-info-header__bar">
+                <a class="rating-info-header__back"
+                   href="/PickleballWeb/Members"
+                   aria-label="Thành viên"
+                   onclick="if (window.history.length > 1) { window.history.back(); return false; }">
+                    <ion-icon name="arrow-back"></ion-icon>
+                </a>
+
+                <h1>Cách chấm trình</h1>
+
+                <span class="rating-info-header__spacer" aria-hidden="true"></span>
+            </div>
+        </div>
+    </header>
+
+    <main class="rating-info-body">
+        <div class="container mobile-web-screen__container">
+            <section class="rating-info-hero">
+                <div class="rating-info-hero__icon">
+                    <ion-icon name="trophy-outline"></ion-icon>
+                </div>
+                <h2>Quy định chấm trình Hanaka Sport</h2>
+                <p>Hanaka Sport áp dụng điểm trình mặc định khi người chơi mới tạo tài khoản, đồng thời cộng thêm điểm kinh nghiệm dựa trên thành tích thi đấu thực tế để làm cơ sở điều chỉnh mức trình trong hệ thống.</p>
+            </section>
+
+            <section class="rating-info-card">
+                <h3>1. Điểm trình mặc định</h3>
+
+                <div class="rating-info-row">
+                    <span class="rating-info-badge rating-info-badge--pink">Nữ</span>
+                    <p>Người chơi nữ khi mới tạo tài khoản sẽ có mức điểm trình mặc định là <strong>1.8</strong>.</p>
+                </div>
+
+                <div class="rating-info-row">
+                    <span class="rating-info-badge rating-info-badge--blue">Nam</span>
+                    <p>Người chơi nam khi mới tạo tài khoản sẽ có mức điểm trình mặc định là <strong>2.3</strong>.</p>
+                </div>
+            </section>
+
+            <section class="rating-info-card">
+                <h3>2. Cộng điểm kinh nghiệm thi đấu</h3>
+                <p class="rating-info-paragraph">Trong quá trình tham gia các giải đấu, người chơi sẽ được cộng thêm điểm kinh nghiệm dựa trên thành tích thực tế:</p>
+
+                <div class="rating-info-exp">
+                    <div class="rating-info-exp__left">
+                        <ion-icon name="medal-outline"></ion-icon>
+                        <span>Vô địch</span>
+                    </div>
+                    <strong>+0.15 exp</strong>
+                </div>
+
+                <div class="rating-info-exp">
+                    <div class="rating-info-exp__left">
+                        <ion-icon name="ribbon-outline"></ion-icon>
+                        <span>Á quân</span>
+                    </div>
+                    <strong>+0.10 exp</strong>
+                </div>
+
+                <div class="rating-info-exp">
+                    <div class="rating-info-exp__left">
+                        <ion-icon name="star-outline"></ion-icon>
+                        <span>Hạng ba</span>
+                    </div>
+                    <strong>+0.05 exp</strong>
+                </div>
+            </section>
+
+            <section class="rating-info-card">
+                <h3>3. Cách hệ thống sử dụng điểm exp</h3>
+                <p class="rating-info-paragraph">Điểm kinh nghiệm tích lũy từ các giải đấu sẽ là cơ sở để hệ thống điều chỉnh mức trình của người chơi theo quá trình thi đấu thực tế.</p>
+
+                <div class="rating-info-note">
+                    <ion-icon name="information-circle-outline"></ion-icon>
+                    <p>Thành tích thi đấu càng tốt, điểm kinh nghiệm càng tăng, từ đó mức trình sẽ được cập nhật phù hợp hơn với năng lực thực tế của người chơi.</p>
+                </div>
+            </section>
+
+            <a class="rating-info-button" href="/PickleballWeb/Tournaments">
+                <ion-icon name="search-outline"></ion-icon>
+                <span>Tìm giải đấu ngay</span>
+            </a>
+        </div>
+    </main>
+
+    <nav class="mobile-tabbar mobile-tabbar--page" aria-label="Điều hướng app mobile">
+        <a class="mobile-tabbar__item is-active" href="/">
+            <ion-icon name="home"></ion-icon>
+            <span>Trang Chủ</span>
+        </a>
+        <a class="mobile-tabbar__item" href="/PickleballWeb/Tournaments">
+            <ion-icon name="trophy-outline"></ion-icon>
+            <span>Giải Đấu</span>
+        </a>
+        <a class="mobile-tabbar__item" href="/PickleballWeb/Courts">
+            <ion-icon name="location-outline"></ion-icon>
+            <span>Sân Bãi</span>
+        </a>
+    </nav>
+</div>

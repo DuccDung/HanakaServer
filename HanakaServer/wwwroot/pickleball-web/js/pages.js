@@ -494,6 +494,168 @@
         }).join("");
     }
 
+    function formatMemberScore(value) {
+        const number = Number(value);
+        return Number.isFinite(number) ? number.toFixed(2) : "0.00";
+    }
+
+    function renderMembersAppItem(item) {
+        const href = buildSafeHref(`/PickleballWeb/Member/${item.userId}`, "/PickleballWeb/Members");
+        const fullName = trimToEmpty(item.fullName) || "Thành viên Hanaka";
+        const city = trimToEmpty(item.city) || "-";
+        const gender = trimToEmpty(item.gender) || "-";
+        const verified = !!item.verified;
+
+        const avatar = trimToEmpty(item.avatarUrl)
+            ? [
+                '<span class="members-app-item__avatar">',
+                `<img src="${escapeHtml(item.avatarUrl)}" alt="${escapeHtml(fullName)}" loading="lazy">`,
+                "</span>"
+            ].join("")
+            : [
+                '<span class="members-app-item__avatar-fallback">',
+                '<ion-icon name="person-circle-outline"></ion-icon>',
+                "</span>"
+            ].join("");
+
+        return [
+            `<a class="members-app-item" href="${escapeHtml(href)}">`,
+            avatar,
+            '<div class="members-app-item__mid">',
+            `<h2 class="members-app-item__name">${escapeHtml(fullName)}</h2>`,
+            '<div class="members-app-item__meta">',
+            `<span>ID: ${escapeHtml(item.userId)}</span>`,
+            `<span>${escapeHtml(city)}</span>`,
+            "</div>",
+            '<div class="members-app-item__sub">',
+            `<span class="members-app-item__gender">${escapeHtml(gender)}</span>`,
+            `<span class="members-app-item__verified ${verified ? "is-verified" : "is-unverified"}">${verified ? "Đã xác thực" : "Chưa xác thực"}</span>`,
+            "</div>",
+            "</div>",
+            '<div class="members-app-item__right">',
+            `<span class="members-app-item__score">${formatMemberScore(item.ratingSingle)}</span>`,
+            `<span class="members-app-item__score">${formatMemberScore(item.ratingDouble)}</span>`,
+            "</div>",
+            "</a>"
+        ].join("");
+    }
+
+    async function initMembersPage(root) {
+        const form = qs("[data-members-search-form]", root);
+        const input = qs("[data-members-search-input]", root);
+        const list = qs("[data-members-list]", root);
+        const errorBox = qs("[data-members-error]", root);
+        const errorText = qs("[data-members-error-text]", root);
+        const retryButton = qs("[data-members-retry]", root);
+        const emptyState = qs("[data-members-empty]", root);
+        const loadingState = qs("[data-members-loading]", root);
+        const loadingMoreState = qs("[data-members-loading-more]", root);
+        const sentinel = qs("[data-members-sentinel]", root);
+
+        if (!form || !input || !list || !errorBox || !errorText || !retryButton || !emptyState || !loadingState || !loadingMoreState || !sentinel) {
+            return;
+        }
+
+        const state = {
+            query: "",
+            page: 1,
+            pageSize: 20,
+            total: 0,
+            items: [],
+            loading: false,
+            errorMessage: ""
+        };
+
+        function canLoadMore() {
+            return state.items.length < state.total;
+        }
+
+        function render() {
+            if (state.items.length > 0) {
+                list.innerHTML = state.items.map(function (item) {
+                    return renderMembersAppItem(item);
+                }).join("");
+            } else if (!state.loading) {
+                list.innerHTML = "";
+            }
+
+            errorBox.hidden = !state.errorMessage;
+            errorText.textContent = state.errorMessage;
+            loadingState.hidden = !(state.loading && state.items.length === 0);
+            loadingMoreState.hidden = !(state.loading && state.items.length > 0);
+            emptyState.hidden = state.loading || !!state.errorMessage || state.items.length > 0;
+            sentinel.hidden = state.loading || !canLoadMore();
+        }
+
+        async function fetchMembers(reset) {
+            if (state.loading) {
+                return;
+            }
+
+            if (!reset && !canLoadMore()) {
+                return;
+            }
+
+            state.loading = true;
+            if (reset) {
+                state.errorMessage = "";
+            }
+            render();
+
+            try {
+                const nextPage = reset ? 1 : state.page;
+                const payload = await fetchJson(`/api/users/members?page=${nextPage}&pageSize=${state.pageSize}&query=${encodeURIComponent(state.query)}`);
+                const nextItems = Array.isArray(payload?.items) ? payload.items : [];
+
+                state.total = Number(payload?.total) || 0;
+
+                if (reset) {
+                    state.items = nextItems;
+                    state.page = 2;
+                } else {
+                    state.items = state.items.concat(nextItems);
+                    state.page += 1;
+                }
+            } catch (error) {
+                if (reset) {
+                    state.items = [];
+                    state.page = 1;
+                    state.total = 0;
+                    state.errorMessage = "Không tải được danh sách thành viên.";
+                }
+            } finally {
+                state.loading = false;
+                render();
+            }
+        }
+
+        form.addEventListener("submit", function (event) {
+            event.preventDefault();
+            state.query = trimToEmpty(input.value);
+            fetchMembers(true);
+        });
+
+        retryButton.addEventListener("click", function () {
+            fetchMembers(true);
+        });
+
+        if ("IntersectionObserver" in window) {
+            const observer = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
+                    if (entry.isIntersecting && !state.loading && canLoadMore()) {
+                        fetchMembers(false);
+                    }
+                });
+            }, {
+                rootMargin: "180px 0px"
+            });
+
+            observer.observe(sentinel);
+        }
+
+        await fetchMembers(true);
+    }
+
     const listConfigs = {
         rules: {
             noun: "nguyên tắc",
@@ -1213,6 +1375,11 @@
     }
 
     document.addEventListener("DOMContentLoaded", function () {
+        const membersRoot = qs("[data-members-page]");
+        if (membersRoot) {
+            initMembersPage(membersRoot);
+        }
+
         const listRoot = qs("[data-page-kind]");
         if (listRoot) {
             initListPage(listRoot);
