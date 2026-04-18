@@ -150,6 +150,7 @@ namespace HanakaServer.Services
                 x.ClubId == clubId &&
                 x.UserId == uid &&
                 x.IsActive &&
+                x.User.IsActive &&
                 x.Club.IsActive);
         }
 

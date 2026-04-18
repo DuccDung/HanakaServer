@@ -438,25 +438,103 @@ namespace HanakaServer.Controllers
         }
         // DELETE: api/users/me
         [HttpDelete("me")]
-        public async Task<IActionResult> DeleteMe()
+        public async Task<IActionResult> DeleteMe(CancellationToken ct)
         {
             var userId = GetUserIdFromToken();
 
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive, ct);
             if (user == null)
                 return NotFound(new { message = "User not found." });
 
-            user.IsActive = false;
-            user.UpdatedAt = DateTime.UtcNow;
+            var now = DateTime.UtcNow;
+            var oldFullName = user.FullName;
+            var oldAvatarUrl = user.AvatarUrl;
+            var deletedDisplayName = $"Deleted Account {user.UserId}";
+            var deletedEmail = BuildDeletedEmailAddress(user.UserId, now);
 
-            await _db.SaveChangesAsync();
+            await using var tx = await _db.Database.BeginTransactionAsync(ct);
+
+            var ownedClubs = await _db.Clubs
+                .Where(x => x.OwId == userId)
+                .ToListAsync(ct);
+
+            foreach (var club in ownedClubs)
+            {
+                club.OwId = null;
+                club.IsActive = false;
+                club.AllowChallenge = false;
+                club.UpdatedAt = now;
+            }
+
+            var memberships = await _db.ClubMembers
+                .Where(x => x.UserId == userId)
+                .ToListAsync(ct);
+            _db.ClubMembers.RemoveRange(memberships);
+
+            var userRoles = await _db.UserRoles
+                .Where(x => x.UserId == userId)
+                .ToListAsync(ct);
+            _db.UserRoles.RemoveRange(userRoles);
+
+            var userOtps = await _db.UserOtps
+                .Where(x => x.UserId == userId)
+                .ToListAsync(ct);
+            _db.UserOtps.RemoveRange(userOtps);
+
+            var userAchievements = await _db.UserAchievements
+                .Where(x => x.UserId == userId)
+                .ToListAsync(ct);
+            _db.UserAchievements.RemoveRange(userAchievements);
+
+            var userRatingHistories = await _db.UserRatingHistories
+                .Where(x => x.UserId == userId)
+                .ToListAsync(ct);
+            _db.UserRatingHistories.RemoveRange(userRatingHistories);
+
+            var coachProfiles = await _db.Coaches
+                .Where(x => x.ExternalId == user.UserId.ToString())
+                .ToListAsync(ct);
+            _db.Coaches.RemoveRange(coachProfiles);
+
+            var refereeProfiles = await _db.Referees
+                .Where(x => x.ExternalId == user.UserId.ToString())
+                .ToListAsync(ct);
+            _db.Referees.RemoveRange(refereeProfiles);
+
+            user.ExternalId = null;
+            user.FullName = deletedDisplayName;
+            user.City = null;
+            user.Gender = null;
+            user.Verified = false;
+            user.RatingSingle = null;
+            user.RatingDouble = null;
+            user.AvatarUrl = null;
+            user.Phone = null;
+            user.Email = deletedEmail;
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString("N"));
+            user.IsActive = false;
+            user.Bio = null;
+            user.BirthOfDate = null;
+            user.UpdatedAt = now;
+
+            await SyncTournamentRegistrationsForUserAsync(
+                userId,
+                oldFullName,
+                deletedDisplayName,
+                oldAvatarUrl,
+                null
+            );
+
+            await _db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
 
             return Ok(new
             {
-                message = "Tài khoản đã được xóa.",
+                message = "Your account and profile data have been permanently deleted.",
                 userId = user.UserId,
-                isActive = user.IsActive,
-                updatedAt = user.UpdatedAt
+                deletedAt = now,
+                anonymized = true,
+                isActive = user.IsActive
             });
         }
         // GET: api/users/me/rating-history
@@ -877,5 +955,10 @@ namespace HanakaServer.Controllers
                 coach.LevelSingle = latestRating?.RatingSingle ?? user.RatingSingle ?? coach.LevelSingle;
                 coach.LevelDouble = latestRating?.RatingDouble ?? user.RatingDouble ?? coach.LevelDouble;
             }
+
+        private static string BuildDeletedEmailAddress(long userId, DateTime deletedAtUtc)
+        {
+            return $"deleted+{userId}+{deletedAtUtc:yyyyMMddHHmmssfff}@hanaka.invalid";
+        }
     }
 }

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Security.Claims;
+using System.Text.Json.Serialization;
 using HanakaServer.Data;
 using HanakaServer.Models;
 using mail_service.Internal;
@@ -105,6 +106,8 @@ namespace HanakaServer.Controllers
                     notes = x.Notes,
                     source = ToApiSource(x.Source),
                     blockedAt = x.BlockedAt,
+                    developerNotified = x.Report != null && x.Report.DeveloperNotified,
+                    developerNotifiedAt = x.Report != null ? x.Report.DeveloperNotifiedAt : null,
                     pendingSync = false,
                     syncedRemote = true
                 })
@@ -127,7 +130,7 @@ namespace HanakaServer.Controllers
 
             var reporterUserId = await TryGetCurrentUserIdAsync();
             var reportSource = NormalizeReportSource(dto.Source);
-            var isDemoSource = IsDemoSource(reportSource);
+            var isDemoSource = IsDemoSource(dto.Source);
 
             if (!reporterUserId.HasValue)
             {
@@ -169,7 +172,7 @@ namespace HanakaServer.Controllers
                 ? await LoadUserBriefAsync(targetUserId.Value, ct)
                 : null;
 
-            long? clubId = dto.ClubId ?? messageContext?.ClubId;
+            long? clubId = await ResolveExistingClubIdAsync(dto.ClubId, messageContext, ct);
             long? messageId = messageContext?.MessageId;
             var messageContent = Clean(dto.MessageContent, 2000) ?? messageContext?.Content;
 
@@ -219,7 +222,7 @@ namespace HanakaServer.Controllers
             var blockerUserId = await TryGetCurrentUserIdAsync();
             var blockSource = NormalizeBlockSource(dto.Source);
             var reportSource = NormalizeReportSource(dto.Source);
-            var isDemoSource = IsDemoSource(reportSource);
+            var isDemoSource = IsDemoSource(dto.Source);
 
             if (!blockerUserId.HasValue)
             {
@@ -270,11 +273,39 @@ namespace HanakaServer.Controllers
                     return NotFound(new { message = "Blocked user was not found." });
                 }
 
+                var demoReasonCode = NormalizeReasonCode(dto.Reason);
+                var demoNow = DateTime.UtcNow;
+                var demoReport = new ModerationReport
+                {
+                    ReporterUserId = blocker.UserId,
+                    TargetUserId = null,
+                    ClubId = await ResolveExistingClubIdAsync(dto.ClubId, messageContext, ct),
+                    MessageId = messageContext?.MessageId,
+                    ReportType = "USER",
+                    ReasonCode = demoReasonCode,
+                    ReasonLabel = BuildReasonLabel(dto.Reason),
+                    Notes = "Demo/review user was blocked in the app and should be reviewed by moderators.",
+                    MessageContentSnapshot = messageContext?.Content,
+                    ReporterNameSnapshot = blocker.FullName,
+                    TargetNameSnapshot = Clean(dto.FullName, 150) ?? "Demo user",
+                    Source = "BLOCK_ACTION",
+                    Status = "PENDING",
+                    DeveloperNotified = true,
+                    DeveloperNotifiedAt = demoNow,
+                    ResolutionAction = "NONE",
+                    SlaDueAt = demoNow.AddHours(24),
+                    CreatedAt = demoNow
+                };
+
+                _db.ModerationReports.Add(demoReport);
+                await _db.SaveChangesAsync(ct);
+                QueueReportEmail(demoReport, blocker, null);
+
                 return Ok(new
                 {
                     ok = true,
                     developerNotified = true,
-                    item = BuildEphemeralBlockItem(dto, blockSource)
+                    item = BuildEphemeralBlockItem(dto, blockSource, demoReport.ReportId)
                 });
             }
 
@@ -299,7 +330,7 @@ namespace HanakaServer.Controllers
 
             var reasonCode = NormalizeReasonCode(dto.Reason);
             var now = DateTime.UtcNow;
-            var clubId = dto.ClubId ?? messageContext?.ClubId;
+            var clubId = await ResolveExistingClubIdAsync(dto.ClubId, messageContext, ct);
             var messageId = messageContext?.MessageId;
 
             var reportEntity = new ModerationReport
@@ -447,6 +478,28 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(ct);
         }
 
+        private async Task<long?> ResolveExistingClubIdAsync(
+            long? requestedClubId,
+            MessageContextDto? messageContext,
+            CancellationToken ct)
+        {
+            if (messageContext?.ClubId > 0)
+            {
+                return messageContext.ClubId;
+            }
+
+            if (!requestedClubId.HasValue || requestedClubId.Value <= 0)
+            {
+                return null;
+            }
+
+            var exists = await _db.Clubs
+                .AsNoTracking()
+                .AnyAsync(x => x.ClubId == requestedClubId.Value, ct);
+
+            return exists ? requestedClubId.Value : null;
+        }
+
         private async Task<object?> BuildPersistedReportItemAsync(long reportId, CancellationToken ct)
         {
             return await _db.ModerationReports
@@ -495,6 +548,8 @@ namespace HanakaServer.Controllers
                     notes = x.Notes,
                     source = ToApiSource(x.Source),
                     blockedAt = x.BlockedAt,
+                    developerNotified = x.Report != null && x.Report.DeveloperNotified,
+                    developerNotifiedAt = x.Report != null ? x.Report.DeveloperNotifiedAt : null,
                     pendingSync = false,
                     syncedRemote = true
                 })
@@ -540,6 +595,8 @@ namespace HanakaServer.Controllers
                 notes = block.Notes,
                 source = ToApiSource(block.Source),
                 blockedAt = block.BlockedAt,
+                developerNotified = block.Report?.DeveloperNotified ?? true,
+                developerNotifiedAt = block.Report?.DeveloperNotifiedAt,
                 pendingSync = false,
                 syncedRemote = true
             };
@@ -576,12 +633,15 @@ namespace HanakaServer.Controllers
             };
         }
 
-        private object BuildEphemeralBlockItem(ModerationBlockRequestDto dto, string blockSource)
+        private object BuildEphemeralBlockItem(
+            ModerationBlockRequestDto dto,
+            string blockSource,
+            long? reportId = null)
         {
             return new
             {
                 blockId = (long?)null,
-                reportId = (long?)null,
+                reportId,
                 userId = dto.UserId,
                 fullName = Clean(dto.FullName, 150) ?? "User",
                 clubId = dto.ClubId,
@@ -590,6 +650,8 @@ namespace HanakaServer.Controllers
                 notes = Clean(dto.Notes, 500),
                 source = ToApiSource(blockSource),
                 blockedAt = DateTime.UtcNow,
+                developerNotified = true,
+                developerNotifiedAt = DateTime.UtcNow,
                 pendingSync = false,
                 syncedRemote = false
             };
@@ -735,7 +797,7 @@ namespace HanakaServer.Controllers
         private static bool IsDemoSource(string? source)
         {
             return !string.IsNullOrWhiteSpace(source) &&
-                   source.StartsWith("DEMO_", StringComparison.Ordinal);
+                   source.Trim().StartsWith("DEMO_", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string ToApiReportType(string? reportType)
@@ -893,21 +955,36 @@ namespace HanakaServer.Controllers
             public string? Reason { get; set; }
             public string? ReasonLabel { get; set; }
             public string? Notes { get; set; }
+
+            [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
             public long? ClubId { get; set; }
+
+            [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
             public long? MessageId { get; set; }
+
             public string? MessageContent { get; set; }
+
+            [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
             public long? TargetUserId { get; set; }
+
             public string? TargetUserName { get; set; }
             public string? Source { get; set; }
         }
 
         public class ModerationBlockRequestDto
         {
+            [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
             public long? ClubId { get; set; }
+
+            [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
             public long? UserId { get; set; }
+
             public string? FullName { get; set; }
             public string? Reason { get; set; }
+
+            [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
             public long? MessageId { get; set; }
+
             public string? Notes { get; set; }
             public string? Source { get; set; }
         }

@@ -1,0 +1,231 @@
+@{
+    Layout = "_PickleballWebLayout";
+    ViewData["Title"] = "Hanaka Sport";
+    ViewData["Description"] = "Hanaka Sport landing page theo theme mobile app với dữ liệu public từ backend.";
+}
+
+<div class="landing-app">
+    <header class="hero-header" id="top">
+        <div class="hero-orb hero-orb--one"></div>
+        <div class="hero-orb hero-orb--two"></div>
+
+        <div class="container">
+            <div class="app-bar reveal">
+                <a class="brand-chip" href="#top" aria-label="Hanaka Sport">
+                    <span class="brand-chip__mark">
+                        <ion-icon name="tennisball-outline"></ion-icon>
+                    </span>
+                    <span class="brand-chip__copy">
+                        <strong>Hanaka Sport</strong>
+                        <small>Pickleball Community</small>
+                    </span>
+                </a>
+
+                <button class="sport-chip" type="button" aria-label="Môn thể thao hiện tại">
+                    <ion-icon name="tennisball-outline"></ion-icon>
+                    <span>Pickleball</span>
+                    <ion-icon name="chevron-down"></ion-icon>
+                </button>
+
+                <div class="app-bar__actions">
+                    <a class="round-icon" href="#community" aria-label="Thông báo">
+                        <ion-icon name="notifications-outline"></ion-icon>
+                    </a>
+                    <a class="round-icon" href="#community" aria-label="Cài đặt">
+                        <ion-icon name="settings-outline"></ion-icon>
+                    </a>
+                    <a class="avatar-icon" href="#community" aria-label="Tài khoản">
+                        <ion-icon name="person-circle-outline"></ion-icon>
+                    </a>
+                </div>
+            </div>
+
+            <div class="hero-grid">
+                <div class="hero-copy reveal reveal--up">
+                    <span class="hero-badge">Ứng dụng thể thao cộng đồng</span>
+                    <h1>Hanaka Sport</h1>
+                    <p>
+                        Kết nối người chơi, sân bãi, giải đấu và video nổi bật trong một giao diện gọn gàng,
+                        cùng tông màu và cảm giác sử dụng giống ứng dụng mobile.
+                    </p>
+
+                    <div class="hero-actions">
+                        <a class="button button--primary" href="#tournaments">Xem giải đấu</a>
+                        <a class="button button--ghost is-guide-link" href="#community">Xem hướng dẫn</a>
+                    </div>
+
+                    <div class="hero-metrics">
+                        <article class="metric-pill">
+                            <span>Banner</span>
+                            <strong data-stat="banners">00</strong>
+                        </article>
+
+                        <article class="metric-pill">
+                            <span>Giải đấu</span>
+                            <strong data-stat="tournaments">00</strong>
+                        </article>
+
+                        <article class="metric-pill">
+                            <span>Sân bãi</span>
+                            <strong data-stat="courts">00</strong>
+                        </article>
+
+                        <article class="metric-pill">
+                            <span>Videos</span>
+                            <strong data-stat="videos">00</strong>
+                        </article>
+                    </div>
+                </div>
+
+                <aside class="hero-highlight reveal reveal--delay-1">
+                    <div class="hero-highlight__media" data-hero-banner-media>
+                        <div class="media-placeholder">
+                            <span>Đang tải banner nổi bật</span>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </header>
+
+    <main class="landing-main">
+        <div class="container stack-layout">
+            <section class="panel panel--menu reveal" id="home-feed">
+                <div class="section-heading">
+                    <div>
+                        <p>Trang chủ</p>
+                        <h2>Truy cập nhanh</h2>
+                    </div>
+                </div>
+
+                <div class="menu-grid" data-menu-grid></div>
+            </section>
+
+            <section class="showcase-grid">
+                <section class="panel reveal" id="banners">
+                    <div class="section-heading">
+                        <div>
+                            <p>Banner</p>
+                            <h2 data-banner-title>Đang tải banner</h2>
+                        </div>
+                    </div>
+
+                    <div class="banner-stage" data-banner-stage>
+                        <div class="banner-viewport">
+                            <div class="banner-track" data-banner-track></div>
+                        </div>
+
+                        <div class="banner-footer">
+                            <button class="carousel-button" type="button" data-banner-prev aria-label="Banner trước">
+                                <ion-icon name="chevron-back"></ion-icon>
+                            </button>
+
+                            <div class="dots dots--dark" data-banner-dots></div>
+
+                            <button class="carousel-button" type="button" data-banner-next aria-label="Banner tiếp theo">
+                                <ion-icon name="chevron-forward"></ion-icon>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <aside class="panel panel--feature reveal reveal--right">
+                    <div class="section-heading section-heading--compact">
+                        <div>
+                            <p>Sắp diễn ra</p>
+                            <h2>Lịch nổi bật</h2>
+                        </div>
+                    </div>
+
+                    <div class="feature-event">
+                        <span class="feature-event__status" data-next-status>Public</span>
+                        <h3 data-next-title>Đang tải giải đấu</h3>
+                        <p data-next-location>Hanaka Sport</p>
+
+                        <div class="feature-event__meta">
+                            <article>
+                                <small>Thời gian</small>
+                                <strong data-next-date>Chưa có lịch</strong>
+                            </article>
+                            <article>
+                                <small>Đăng ký</small>
+                                <strong data-next-slots>00 đội</strong>
+                            </article>
+                            <article>
+                                <small>Matches</small>
+                                <strong data-next-matches>00 trận</strong>
+                            </article>
+                        </div>
+
+                        <a class="button button--feature" href="#tournaments">Xem chi tiết</a>
+                    </div>
+                </aside>
+            </section>
+
+            <section class="panel reveal" id="tournaments">
+                <div class="section-heading">
+                    <div>
+                        <p>Giải đấu</p>
+                        <h2>Các giải đấu Hanaka</h2>
+                    </div>
+                </div>
+
+                <div class="cards-grid cards-grid--three" data-tournament-list></div>
+            </section>
+
+            <section class="dual-grid">
+                <section class="panel reveal" id="courts">
+                    <div class="section-heading">
+                        <div>
+                            <p>Sân bãi</p>
+                            <h2>Sân công khai</h2>
+                        </div>
+                    </div>
+
+                    <div class="cards-grid cards-grid--two" data-court-list></div>
+                </section>
+
+                <section class="panel reveal reveal--delay-1" id="videos">
+                    <div class="section-heading">
+                        <div>
+                            <p>Videos</p>
+                            <h2>Trận đấu nổi bật</h2>
+                        </div>
+                    </div>
+
+                    <div class="cards-grid cards-grid--stack" data-video-list></div>
+                </section>
+            </section>
+
+            <section class="panel panel--links reveal" id="community" data-links-section hidden>
+                <div class="section-heading">
+                    <div>
+                        <p>Cộng đồng</p>
+                        <h2>Hướng dẫn và kết nối</h2>
+                    </div>
+                </div>
+
+                <div class="link-stack" data-link-stack></div>
+            </section>
+        </div>
+    </main>
+
+    <nav class="mobile-tabbar" aria-label="Điều hướng kiểu app">
+        <a class="mobile-tabbar__item is-active" href="#home-feed" data-tab-link="home">
+            <ion-icon name="home"></ion-icon>
+            <span>Trang Chủ</span>
+        </a>
+        <a class="mobile-tabbar__item" href="#videos" data-tab-link="videos">
+            <ion-icon name="play-circle-outline"></ion-icon>
+            <span>Videos</span>
+        </a>
+        <a class="mobile-tabbar__item" href="#community" data-tab-link="club">
+            <ion-icon name="copy-outline"></ion-icon>
+            <span>CLB</span>
+        </a>
+        <a class="mobile-tabbar__item" href="#community" data-tab-link="chat">
+            <ion-icon name="chatbubbles-outline"></ion-icon>
+            <span>Tin nhắn</span>
+        </a>
+    </nav>
+</div>
