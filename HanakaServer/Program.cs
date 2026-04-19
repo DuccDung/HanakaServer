@@ -37,6 +37,8 @@ builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<IOtpEmailService, OtpEmailService>();
 builder.Services.AddScoped<IOtpGenerator, OtpGenerator>();
 builder.Services.AddScoped<IUserOtpService, UserOtpService>();
+builder.Services.AddScoped<IAppAuthService, AppAuthService>();
+builder.Services.AddSingleton<IWebAuthCookieService, WebAuthCookieService>();
 
 builder.Services.AddSingleton<RealtimeHub>();
 builder.Services.AddScoped<WebSocketHandler>();
@@ -87,6 +89,14 @@ builder.Services.AddAuthentication(options =>
                 && context.HttpContext.WebSockets.IsWebSocketRequest)
             {
                 context.Token = accessToken;
+                return Task.CompletedTask;
+            }
+
+            if (string.IsNullOrWhiteSpace(context.Token)
+                && context.Request.Cookies.TryGetValue(WebAuthCookieService.AccessTokenCookieName, out var cookieToken)
+                && !string.IsNullOrWhiteSpace(cookieToken))
+            {
+                context.Token = cookieToken;
             }
 
             return Task.CompletedTask;

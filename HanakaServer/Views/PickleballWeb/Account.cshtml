@@ -1,0 +1,196 @@
+@model HanakaServer.ViewModels.PickleballWeb.PickleballWebAuthPageViewModel
+@{
+    Layout = "_PickleballWebLayout";
+    ViewData["Title"] = $"{Model.Title} | Hanaka Sport";
+    ViewData["Description"] = "Trang thông tin tài khoản Hanaka Sport trên mobile web, thiết kế theo đúng app React Native.";
+}
+
+@section Styles {
+    <link href="~/pickleball-web/css/account.css" asp-append-version="true" rel="stylesheet" />
+}
+
+<div class="account-screen" data-account-page="account">
+    <header class="account-header">
+        <div class="container mobile-web-screen__container">
+            <div class="account-header__bar">
+                <a class="account-header__back"
+                   href="@Model.BackHref"
+                   aria-label="@Model.BackLabel"
+                   onclick="if (window.history.length > 1) { window.history.back(); return false; }">
+                    <ion-icon name="arrow-back"></ion-icon>
+                </a>
+
+                <h1>@Model.Title</h1>
+
+                <span class="account-header__spacer" aria-hidden="true"></span>
+            </div>
+        </div>
+    </header>
+
+    <main class="account-body">
+        <div class="container mobile-web-screen__container">
+            <section class="account-avatar-section">
+                <button class="account-avatar-button" type="button" data-account-avatar-trigger>
+                    <span class="account-avatar" data-account-avatar hidden>
+                        <img src="" alt="Ảnh đại diện" data-account-avatar-image />
+                    </span>
+
+                    <span class="account-avatar-fallback" data-account-avatar-fallback>
+                        <ion-icon name="person-circle-outline"></ion-icon>
+                    </span>
+
+                    <span class="account-camera-badge" data-account-camera-badge>
+                        <ion-icon name="camera"></ion-icon>
+                    </span>
+                </button>
+
+                <input type="file" accept="image/*" data-account-avatar-input hidden />
+                <p class="account-avatar-hint" data-account-avatar-hint>Chạm để đổi ảnh đại diện</p>
+            </section>
+
+            <p class="account-status-text">
+                Thành viên:
+                <strong data-account-verified-text>Đang tải</strong>
+            </p>
+            <p class="account-status-subtext">
+                Cộng đồng:
+                <strong data-account-community-text>Đang tải</strong>
+            </p>
+
+            <section class="account-card">
+                <label class="account-label" for="account-user-id">User ID</label>
+                <input id="account-user-id"
+                       class="account-input account-input--disabled"
+                       type="text"
+                       placeholder="Chưa có dữ liệu"
+                       data-account-user-id
+                       readonly />
+
+                <label class="account-label account-label--spacing" for="account-full-name">
+                    Họ tên <span>*</span>
+                </label>
+                <div class="account-input-shell">
+                    <input id="account-full-name"
+                           class="account-input-text"
+                           type="text"
+                           placeholder="Nhập họ tên"
+                           autocomplete="name"
+                           data-account-full-name />
+                </div>
+
+                <label class="account-label account-label--spacing" for="account-phone">
+                    Số điện thoại <span>*</span>
+                </label>
+                <div class="account-input-shell">
+                    <input id="account-phone"
+                           class="account-input-text"
+                           type="tel"
+                           placeholder="Ví dụ: 096..."
+                           autocomplete="tel"
+                           data-account-phone />
+                </div>
+
+                <label class="account-label account-label--spacing" for="account-email">Email</label>
+                <input id="account-email"
+                       class="account-input account-input--disabled"
+                       type="email"
+                       placeholder="Chưa có email"
+                       data-account-email
+                       readonly />
+
+                <label class="account-label account-label--spacing">Ngày sinh</label>
+                <button class="account-select" type="button" data-account-date-trigger>
+                    <span data-account-date-text>Chọn ngày sinh</span>
+                    <ion-icon name="calendar-outline"></ion-icon>
+                </button>
+                <input type="date" data-account-date-input hidden />
+
+                <label class="account-label account-label--spacing">Giới tính</label>
+                <button class="account-select" type="button" data-account-gender-trigger>
+                    <span data-account-gender-text>Chọn giới tính</span>
+                    <ion-icon name="chevron-down"></ion-icon>
+                </button>
+
+                <label class="account-label account-label--spacing">Tỉnh/Thành</label>
+                <button class="account-select" type="button" data-account-province-trigger>
+                    <span data-account-province-text>Chọn tỉnh/thành</span>
+                    <ion-icon name="chevron-down"></ion-icon>
+                </button>
+
+                <label class="account-label account-label--spacing" for="account-bio">Giới thiệu</label>
+                <div class="account-textarea-shell">
+                    <textarea id="account-bio"
+                              class="account-textarea-input"
+                              placeholder="Viết vài dòng giới thiệu..."
+                              data-account-bio></textarea>
+                </div>
+
+                <div class="account-inline-error" data-account-error hidden>
+                    <p data-account-error-text></p>
+                </div>
+
+                <button class="account-btn account-btn--primary" type="button" data-account-update>
+                    <span data-account-update-text>Cập nhật thông tin</span>
+                </button>
+
+                <a class="account-btn account-btn--outline" href="/PickleballWeb/ChangePassword" data-account-change-password>
+                    Đổi mật khẩu
+                </a>
+
+                <a class="account-btn account-btn--blue-soft"
+                   href="/PickleballWeb/CommunitySafety">
+                    Điều khoản cộng đồng và quản lý chặn
+                </a>
+
+                <a class="account-btn account-btn--green"
+                   href="https://hanakasport.click/policy/index"
+                   target="_blank"
+                   rel="noreferrer">
+                    Chính sách quyền riêng tư
+                </a>
+
+                <button class="account-btn account-btn--danger" type="button" data-account-delete>
+                    <span data-account-delete-text>Xóa tài khoản</span>
+                </button>
+
+                <button class="account-btn account-btn--danger" type="button" data-account-logout>
+                    Đăng xuất
+                </button>
+            </section>
+        </div>
+    </main>
+
+    <div class="account-modal" data-account-modal="gender" hidden>
+        <div class="account-modal__overlay" data-account-close-modal></div>
+        <div class="account-modal__card">
+            <div class="account-modal__header">
+                <h2>Chọn giới tính</h2>
+            </div>
+
+            <div class="account-modal__list" data-account-gender-list></div>
+
+            <button class="account-modal__close" type="button" data-account-close-modal>
+                Đóng
+            </button>
+        </div>
+    </div>
+
+    <div class="account-modal" data-account-modal="province" hidden>
+        <div class="account-modal__overlay" data-account-close-modal></div>
+        <div class="account-modal__card">
+            <div class="account-modal__header">
+                <h2>Chọn tỉnh/thành</h2>
+            </div>
+
+            <div class="account-modal__list" data-account-province-list></div>
+
+            <button class="account-modal__close" type="button" data-account-close-modal>
+                Đóng
+            </button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/pickleball-web/js/account.js" asp-append-version="true"></script>
+}

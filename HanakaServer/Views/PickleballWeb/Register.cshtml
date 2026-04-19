@@ -1,0 +1,163 @@
+@model HanakaServer.ViewModels.PickleballWeb.PickleballWebAuthPageViewModel
+@{
+    Layout = "_PickleballWebLayout";
+    ViewData["Title"] = $"{Model.Title} | Hanaka Sport";
+    ViewData["Description"] = "Đăng ký tài khoản Hanaka Sport trên mobile web theo đúng flow app React Native.";
+}
+
+@section Styles {
+    <link href="~/pickleball-web/css/auth.css" asp-append-version="true" rel="stylesheet" />
+}
+
+<div class="auth-screen auth-screen--register"
+     data-auth-page="register"
+     data-return-url="@Model.ReturnUrl">
+    <header class="auth-header">
+        <div class="container mobile-web-screen__container">
+            <div class="auth-header__bar">
+                <a class="auth-header__back"
+                   href="@Model.BackHref"
+                   aria-label="@Model.BackLabel"
+                   onclick="if (window.history.length > 1) { window.history.back(); return false; }">
+                    <ion-icon name="arrow-back"></ion-icon>
+                </a>
+
+                <h1>@Model.Title</h1>
+            </div>
+        </div>
+    </header>
+
+    <main class="auth-register-body">
+        <div class="container mobile-web-screen__container">
+            <section class="auth-register-card">
+                <h2 class="auth-section-title">Tạo tài khoản</h2>
+                <p class="auth-section-desc">
+                    Điền thông tin để đăng ký tài khoản mới và xác nhận điều khoản cộng đồng
+                    trước khi dùng tính năng chat.
+                </p>
+
+                <form data-auth-form="register" novalidate>
+                    <div class="auth-field-block">
+                        <div class="auth-label-row">
+                            <label class="auth-label" for="auth-register-fullname">Họ và tên</label>
+                        </div>
+
+                        <div class="auth-input-wrap">
+                            <input id="auth-register-fullname"
+                                   class="auth-input"
+                                   type="text"
+                                   placeholder="Nguyễn Văn A"
+                                   autocomplete="name"
+                                   data-auth-fullname />
+                        </div>
+                    </div>
+
+                    <div class="auth-field-block">
+                        <div class="auth-label-row">
+                            <label class="auth-label" for="auth-register-email">Email</label>
+                        </div>
+
+                        <div class="auth-input-wrap">
+                            <input id="auth-register-email"
+                                   class="auth-input"
+                                   type="email"
+                                   placeholder="a@test.com"
+                                   autocomplete="email"
+                                   data-auth-email />
+                        </div>
+                    </div>
+
+                    <div class="auth-field-block">
+                        <div class="auth-label-row">
+                            <label class="auth-label" for="auth-register-password">Mật khẩu</label>
+                        </div>
+
+                        <div class="auth-input-wrap auth-input-wrap--password">
+                            <input id="auth-register-password"
+                                   class="auth-input"
+                                   type="password"
+                                   placeholder="******"
+                                   autocomplete="new-password"
+                                   data-auth-password />
+
+                            <button class="auth-eye-btn"
+                                    type="button"
+                                    aria-label="Hiện mật khẩu"
+                                    data-auth-toggle-password>
+                                <ion-icon name="eye-outline"></ion-icon>
+                            </button>
+                        </div>
+
+                        <p class="auth-hint">Mật khẩu tối thiểu 6 ký tự.</p>
+                    </div>
+
+                    <div class="auth-field-block">
+                        <div class="auth-label-row">
+                            <label class="auth-label">Giới tính</label>
+                            <span class="auth-optional-text">Không bắt buộc</span>
+                        </div>
+
+                        <div class="auth-gender-row">
+                            <button class="auth-gender-option" type="button" data-auth-gender-option="Nam">
+                                <ion-icon name="radio-button-off"></ion-icon>
+                                <span>Nam</span>
+                            </button>
+
+                            <button class="auth-gender-option" type="button" data-auth-gender-option="Nữ">
+                                <ion-icon name="radio-button-off"></ion-icon>
+                                <span>Nữ</span>
+                            </button>
+                        </div>
+
+                        <div class="auth-helper-box">
+                            <p>Bạn có thể bỏ qua mục này và tiếp tục đăng ký.</p>
+                        </div>
+                    </div>
+
+                    <div class="auth-field-block">
+                        <button class="auth-terms-card" type="button" data-auth-toggle-terms>
+                            <span class="auth-checkbox" data-auth-checkbox>
+                                <ion-icon name="checkmark"></ion-icon>
+                            </span>
+
+                            <span class="auth-terms-copy">
+                                <strong>Tôi đồng ý Điều khoản sử dụng và Tiêu chuẩn cộng đồng</strong>
+                                <small>
+                                    Hanaka Sport không dung thứ cho nội dung phản cảm, quấy rối,
+                                    đe dọa, spam hoặc người dùng lạm dụng trong khu vực chat CLB.
+                                </small>
+                            </span>
+                        </button>
+
+                        <div class="auth-terms-links">
+                            <a href="https://hanakasport.click" target="_blank" rel="noreferrer">
+                                Điều khoản & moderation
+                            </a>
+                            <span>·</span>
+                            <a href="https://hanakasport.click/policy/index" target="_blank" rel="noreferrer">
+                                Chính sách quyền riêng tư
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="auth-error-box" data-auth-error hidden>
+                        <p data-auth-error-text></p>
+                    </div>
+
+                    <button class="auth-submit-btn auth-submit-btn--large" type="submit" data-auth-submit disabled>
+                        <span data-auth-submit-text>Đăng ký</span>
+                    </button>
+                </form>
+
+                <div class="auth-footer-row">
+                    <span>Đã có tài khoản?</span>
+                    <a href="/PickleballWeb/Login?returnUrl=@Uri.EscapeDataString(Model.ReturnUrl)">Đăng nhập</a>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+@section Scripts {
+    <script src="~/pickleball-web/js/auth.js" asp-append-version="true"></script>
+}

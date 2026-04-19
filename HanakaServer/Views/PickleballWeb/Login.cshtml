@@ -1,0 +1,68 @@
+@model HanakaServer.ViewModels.PickleballWeb.PickleballWebAuthPageViewModel
+@{
+    Layout = "_PickleballWebLayout";
+    ViewData["Title"] = $"{Model.Title} | Hanaka Sport";
+    ViewData["Description"] = "Đăng nhập Hanaka Sport trên mobile web với trải nghiệm đồng bộ theo app.";
+}
+
+@section Styles {
+    <link href="~/pickleball-web/css/auth.css" asp-append-version="true" rel="stylesheet" />
+}
+
+<div class="auth-screen auth-screen--login"
+     data-auth-page="login"
+     data-return-url="@Model.ReturnUrl">
+    <div class="auth-screen__safe-top" aria-hidden="true"></div>
+
+    <main class="auth-login-body">
+        <div class="container mobile-web-screen__container">
+            <section class="auth-login-card">
+                <form data-auth-form="login" novalidate>
+                    <label class="auth-label" for="auth-login-email">Email</label>
+                    <div class="auth-input-wrap">
+                        <input id="auth-login-email"
+                               class="auth-input"
+                               type="email"
+                               placeholder="vd: admin@hanaka.com"
+                               autocomplete="email"
+                               data-auth-email />
+                    </div>
+
+                    <label class="auth-label auth-label--offset" for="auth-login-password">Mật khẩu</label>
+                    <div class="auth-input-wrap auth-input-wrap--password">
+                        <input id="auth-login-password"
+                               class="auth-input"
+                               type="password"
+                               placeholder="******"
+                               autocomplete="current-password"
+                               data-auth-password />
+
+                        <button class="auth-eye-btn"
+                                type="button"
+                                aria-label="Hiện mật khẩu"
+                                data-auth-toggle-password>
+                            <ion-icon name="eye-outline"></ion-icon>
+                        </button>
+                    </div>
+
+                    <div class="auth-error-box" data-auth-error hidden>
+                        <p data-auth-error-text></p>
+                    </div>
+
+                    <button class="auth-submit-btn" type="submit" data-auth-submit disabled>
+                        <span data-auth-submit-text>Đăng Nhập</span>
+                    </button>
+                </form>
+
+                <a class="auth-footer-link"
+                   href="/PickleballWeb/Register?returnUrl=@Uri.EscapeDataString(Model.ReturnUrl)">
+                    Chưa có tài khoản? Đăng ký
+                </a>
+            </section>
+        </div>
+    </main>
+</div>
+
+@section Scripts {
+    <script src="~/pickleball-web/js/auth.js" asp-append-version="true"></script>
+}

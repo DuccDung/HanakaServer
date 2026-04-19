@@ -1,0 +1,457 @@
+.account-screen {
+    min-height: 100vh;
+    background: #FFFFFF;
+}
+
+.account-screen [hidden] {
+    display: none !important;
+}
+
+.account-header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding-top: env(safe-area-inset-top);
+    background: #FFFFFF;
+    border-bottom: 1px solid #F3F4F6;
+}
+
+.account-header .mobile-web-screen__container,
+.account-body .mobile-web-screen__container,
+.change-password-body .mobile-web-screen__container {
+    width: min(560px, calc(100% - 32px));
+}
+
+.account-header__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 56px;
+    gap: 10px;
+}
+
+.account-header__back,
+.account-header__spacer {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 18px;
+    flex: 0 0 auto;
+}
+
+.account-header__back {
+    color: #111827;
+    font-size: 1.25rem;
+}
+
+.account-header h1 {
+    flex: 1 1 auto;
+    margin: 0;
+    color: #111827;
+    font-size: 1.0625rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.account-body,
+.change-password-body {
+    padding: 16px 0 32px;
+}
+
+.account-avatar-section {
+    display: grid;
+    justify-items: center;
+    margin-top: 4px;
+    margin-bottom: 12px;
+}
+
+.account-avatar-button {
+    position: relative;
+    display: inline-flex;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.account-avatar,
+.account-avatar-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 104px;
+    height: 104px;
+    border-radius: 52px;
+    overflow: hidden;
+}
+
+.account-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.account-avatar-fallback {
+    background: #EFF6FF;
+    color: #2563EB;
+    font-size: 5.75rem;
+}
+
+.account-camera-badge {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 2px solid #FFFFFF;
+    border-radius: 15px;
+    background: #2563EB;
+    color: #FFFFFF;
+    font-size: 0.95rem;
+}
+
+.account-camera-badge.is-loading {
+    background: #1D4ED8;
+}
+
+.account-avatar-hint {
+    margin: 8px 0 0;
+    color: #6B7280;
+    font-size: 0.75rem;
+}
+
+.account-status-text,
+.account-status-subtext {
+    margin: 0;
+    text-align: center;
+}
+
+.account-status-text {
+    color: #374151;
+    font-size: 0.875rem;
+}
+
+.account-status-subtext {
+    margin-top: 4px;
+    color: #475569;
+    font-size: 0.8125rem;
+}
+
+.account-status-text strong,
+.account-status-subtext strong {
+    margin-left: 4px;
+    color: #111827;
+    font-weight: 800;
+}
+
+.account-card,
+.change-password-card {
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px solid #E5E7EB;
+    border-radius: 16px;
+    background: #FFFFFF;
+}
+
+.account-label {
+    display: block;
+    margin-bottom: 6px;
+    color: #111827;
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.account-label span {
+    color: #EF4444;
+}
+
+.account-label--spacing {
+    margin-top: 12px;
+}
+
+.account-input,
+.account-input-shell,
+.account-select,
+.change-password-input {
+    min-height: 46px;
+    border-radius: 12px;
+    background: #F3F4F6;
+}
+
+.account-input {
+    width: 100%;
+    padding: 0 12px;
+    border: 0;
+    color: #111827;
+    font: inherit;
+    font-size: 0.875rem;
+}
+
+.account-input--disabled {
+    opacity: 0.7;
+}
+
+.account-input-shell {
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+}
+
+.account-input-text,
+.account-textarea-input,
+.change-password-input input {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #111827;
+    font: inherit;
+    font-size: 0.875rem;
+    outline: none;
+}
+
+.account-input-text {
+    min-height: 46px;
+}
+
+.account-select {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    border: 0;
+    color: #111827;
+    font: inherit;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.account-select.is-disabled,
+.account-btn.is-disabled,
+.change-password-submit.is-disabled,
+.account-avatar-button.is-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.account-textarea-shell {
+    min-height: 120px;
+    padding: 12px;
+    border-radius: 12px;
+    background: #F3F4F6;
+}
+
+.account-textarea-input {
+    min-height: 96px;
+    resize: vertical;
+}
+
+.account-inline-error {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px solid #FECACA;
+    border-radius: 12px;
+    background: #FEF2F2;
+}
+
+.account-inline-error p {
+    margin: 0;
+    color: #DC2626;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    font-weight: 500;
+}
+
+.account-btn,
+.change-password-submit {
+    display: inline-flex;
+    width: 100%;
+    min-height: 48px;
+    margin-top: 12px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    font-size: 0.875rem;
+    font-weight: 800;
+}
+
+.account-btn {
+    padding: 0 12px;
+    border: 0;
+    cursor: pointer;
+    text-align: center;
+}
+
+.account-btn--primary {
+    background: #1D4ED8;
+    color: #FFFFFF;
+}
+
+.account-btn--outline {
+    border: 2px solid #1D4ED8;
+    background: #FFFFFF;
+    color: #1D4ED8;
+}
+
+.account-btn--green {
+    background: #22C55E;
+    color: #FFFFFF;
+}
+
+.account-btn--blue-soft {
+    border: 1px solid #BFDBFE;
+    background: #EFF6FF;
+    color: #1D4ED8;
+}
+
+.account-btn--danger {
+    border: 2px solid #EF4444;
+    background: #FFFFFF;
+    color: #EF4444;
+}
+
+.account-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+}
+
+.account-modal__overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+}
+
+.account-modal__card {
+    position: relative;
+    z-index: 1;
+    width: min(520px, 100%);
+    max-height: 70vh;
+    overflow: hidden;
+    border-radius: 14px;
+    background: #FFFFFF;
+}
+
+.account-modal__header {
+    padding: 14px;
+    border-bottom: 1px solid #EEEEEE;
+}
+
+.account-modal__header h2 {
+    margin: 0;
+    color: #111827;
+    font-size: 1rem;
+    font-weight: 700;
+}
+
+.account-modal__list {
+    max-height: calc(70vh - 110px);
+    overflow-y: auto;
+}
+
+.account-modal__item {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px;
+    border: 0;
+    border-bottom: 1px solid #F3F4F6;
+    background: #FFFFFF;
+    color: #111827;
+    font: inherit;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    text-align: left;
+}
+
+.account-modal__item ion-icon {
+    color: #16A34A;
+    font-size: 1.1rem;
+}
+
+.account-modal__close {
+    display: inline-flex;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    min-height: 46px;
+    border: 0;
+    background: #F3F4F6;
+    color: #111827;
+    font-size: 0.875rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.change-password-input {
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+}
+
+.change-password-input button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #6B7280;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.change-password-rule {
+    margin-top: 10px;
+}
+
+.change-password-rule p {
+    margin: 0 0 6px;
+    color: #6B7280;
+}
+
+.change-password-rule div {
+    display: flex;
+    align-items: center;
+    color: #374151;
+    font-size: 0.875rem;
+}
+
+.change-password-rule ion-icon {
+    color: #9CA3AF;
+    font-size: 1rem;
+}
+
+.change-password-rule ion-icon.is-valid {
+    color: #22C55E;
+}
+
+.change-password-rule span {
+    margin-left: 8px;
+}
+
+.change-password-submit {
+    border: 1px solid #D1D5DB;
+    background: #E5E7EB;
+    color: #9CA3AF;
+    cursor: pointer;
+}
+
+.change-password-submit.is-active {
+    background: #111827;
+    color: #FFFFFF;
+}

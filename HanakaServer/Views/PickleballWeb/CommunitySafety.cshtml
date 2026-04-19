@@ -1,0 +1,188 @@
+@model HanakaServer.ViewModels.PickleballWeb.PickleballWebAuthPageViewModel
+@{
+    Layout = "_PickleballWebLayout";
+    ViewData["Title"] = $"{Model.Title} | Hanaka Sport";
+    ViewData["Description"] = "Màn an toàn cộng đồng trên mobile web, mô phỏng theo CommunitySafetyScreen của app React Native.";
+}
+
+@section Styles {
+    <link href="~/pickleball-web/css/community-safety.css" asp-append-version="true" rel="stylesheet" />
+}
+
+<div class="community-safety-screen" data-community-safety-page>
+    <header class="community-safety-header">
+        <div class="container mobile-web-screen__container">
+            <div class="community-safety-header__bar">
+                <a class="community-safety-header__back"
+                   href="@Model.BackHref"
+                   aria-label="@Model.BackLabel"
+                   onclick="if (window.history.length > 1) { window.history.back(); return false; }">
+                    <ion-icon name="arrow-back"></ion-icon>
+                </a>
+
+                <h1>@Model.Title</h1>
+
+                <span class="community-safety-header__spacer" aria-hidden="true"></span>
+            </div>
+        </div>
+    </header>
+
+    <main class="community-safety-body">
+        <div class="container mobile-web-screen__container">
+            <section class="community-hero-card">
+                <div class="community-hero-card__badge">An toàn chat</div>
+                <h2>Quản lý điều khoản, báo cáo và chặn người dùng trong chat CLB.</h2>
+                <p>Bạn có thể xem cam kết an toàn cộng đồng, liên hệ hỗ trợ và quản lý danh sách chặn tại đây.</p>
+            </section>
+
+            <section class="community-terms-card">
+                <div class="community-terms-card__header">
+                    <div class="community-terms-card__badge">
+                        <ion-icon name="shield-checkmark"></ion-icon>
+                        <span>An toàn chat</span>
+                    </div>
+
+                    <div class="community-terms-card__status" data-community-status-badge>
+                        <span data-community-status-text>Chưa đồng ý</span>
+                    </div>
+                </div>
+
+                <h2>Điều khoản sử dụng & tiêu chuẩn cộng đồng</h2>
+                <p class="community-terms-card__subtitle">
+                    Người dùng phải đồng ý trước khi truy cập chat CLB.
+                </p>
+                <p class="community-terms-card__accepted" data-community-accepted-at hidden></p>
+
+                <div class="community-terms-card__group">
+                    <h3>Không dung thứ cho:</h3>
+                    <div class="community-list">
+                        <div class="community-list__row">
+                            <span class="community-list__dot"></span>
+                            <p>Không chấp nhận nội dung xúc phạm, thù ghét, đe dọa, quấy rối hoặc phản cảm.</p>
+                        </div>
+                        <div class="community-list__row">
+                            <span class="community-list__dot"></span>
+                            <p>Không chấp nhận spam, lừa đảo, mạo danh hoặc lôi kéo giao dịch trái phép.</p>
+                        </div>
+                        <div class="community-list__row">
+                            <span class="community-list__dot"></span>
+                            <p>Tin nhắn vi phạm có thể bị chặn, ẩn hoặc xóa ngay mà không cần báo trước.</p>
+                        </div>
+                        <div class="community-list__row">
+                            <span class="community-list__dot"></span>
+                            <p>Tài khoản vi phạm có thể bị khóa quyền chat, loại khỏi CLB hoặc chấm dứt sử dụng.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="community-terms-card__group">
+                    <h3>Cam kết moderation:</h3>
+                    <div class="community-list">
+                        <div class="community-list__row">
+                            <span class="community-list__dot"></span>
+                            <p>Người dùng phải đồng ý Điều khoản sử dụng trước khi truy cập nội dung cộng đồng.</p>
+                        </div>
+                        <div class="community-list__row">
+                            <span class="community-list__dot"></span>
+                            <p>Ứng dụng áp dụng bộ lọc an toàn cho nội dung chat và lưu lịch sử báo cáo vi phạm.</p>
+                        </div>
+                        <div class="community-list__row">
+                            <span class="community-list__dot"></span>
+                            <p>Người dùng có thể báo cáo nội dung xấu hoặc chặn người dùng lạm dụng trực tiếp trong chat.</p>
+                        </div>
+                        <div class="community-list__row">
+                            <span class="community-list__dot"></span>
+                            <p>Khi chặn người dùng, nội dung của họ bị gỡ khỏi phiên chat của bạn ngay lập tức.</p>
+                        </div>
+                        <div class="community-list__row">
+                            <span class="community-list__dot"></span>
+                            <p>Mọi hành động báo cáo hoặc chặn trong chat CLB đều được gửi ngay tới hộp thư moderation của Hanaka Sport.</p>
+                        </div>
+                        <div class="community-list__row">
+                            <span class="community-list__dot"></span>
+                            <p>Đội ngũ Hanaka Sport cam kết xử lý báo cáo vi phạm trong vòng 24 giờ.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="community-terms-card__contact">
+                    <ion-icon name="mail-outline"></ion-icon>
+                    <p>Liên hệ moderator: duccdung999@gmail.com</p>
+                </div>
+
+                <div class="community-terms-card__actions">
+                    <button class="community-action-btn" type="button" data-community-accept>
+                        Tôi đồng ý điều khoản cộng đồng
+                    </button>
+
+                    <a class="community-link-btn"
+                       href="https://hanakasport.click/policy/index"
+                       target="_blank"
+                       rel="noreferrer">
+                        Chính sách quyền riêng tư
+                    </a>
+                </div>
+            </section>
+
+            <section class="community-section-card">
+                <h3>Liên hệ hỗ trợ & moderation</h3>
+
+                <a class="community-contact-row" href="mailto:duccdung999@gmail.com">
+                    <ion-icon name="mail-outline"></ion-icon>
+                    <div>
+                        <span>Email hỗ trợ</span>
+                        <strong>duccdung999@gmail.com</strong>
+                    </div>
+                    <ion-icon name="chevron-forward"></ion-icon>
+                </a>
+
+                <a class="community-contact-row"
+                   href="https://hanakasport.click"
+                   target="_blank"
+                   rel="noreferrer">
+                    <ion-icon name="globe-outline"></ion-icon>
+                    <div>
+                        <span>Website</span>
+                        <strong>https://hanakasport.click</strong>
+                    </div>
+                    <ion-icon name="chevron-forward"></ion-icon>
+                </a>
+
+                <a class="community-secondary-btn"
+                   href="https://hanakasport.click/policy/index"
+                   target="_blank"
+                   rel="noreferrer">
+                    Mở chính sách quyền riêng tư
+                </a>
+            </section>
+
+            <section class="community-section-card">
+                <h3>Người dùng đã chặn</h3>
+                <p class="community-section-card__subtitle">
+                    Nội dung từ các tài khoản này sẽ bị gỡ khỏi phiên chat của bạn ngay.
+                </p>
+
+                <div class="community-stack" data-community-blocked-list hidden></div>
+                <div class="community-empty-card" data-community-blocked-empty>
+                    <p>Đang tải danh sách chặn...</p>
+                </div>
+            </section>
+
+            <section class="community-section-card">
+                <h3>Lịch sử báo cáo gần đây</h3>
+                <p class="community-section-card__subtitle">
+                    Các báo cáo gần đây của bạn sẽ hiển thị tại đây để tiện theo dõi.
+                </p>
+
+                <div class="community-stack" data-community-report-list hidden></div>
+                <div class="community-empty-card" data-community-report-empty>
+                    <p>Đang tải lịch sử báo cáo...</p>
+                </div>
+            </section>
+        </div>
+    </main>
+</div>
+
+@section Scripts {
+    <script src="~/pickleball-web/js/community-safety.js" asp-append-version="true"></script>
+}

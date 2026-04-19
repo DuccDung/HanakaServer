@@ -16,7 +16,8 @@
         banners: [],
         bannerIndex: 0,
         bannerTimer: null,
-        guideLink: "#tournaments"
+        guideLink: "#tournaments",
+        session: null
     };
 
     const prefersReducedMotion =
@@ -175,6 +176,31 @@
         }
 
         return response.json();
+    }
+
+    async function requestJson(url, options) {
+        const response = await fetch(url, Object.assign({
+            credentials: "same-origin",
+            headers: {
+                Accept: "application/json",
+                "Content-Type": "application/json"
+            }
+        }, options || {}));
+
+        const contentType = response.headers.get("content-type") || "";
+        const payload = contentType.includes("application/json")
+            ? await response.json().catch(function () { return null; })
+            : await response.text().catch(function () { return ""; });
+
+        if (!response.ok) {
+            const message = typeof payload === "string"
+                ? payload
+                : trimToEmpty(payload && (payload.message || payload.title));
+
+            throw new Error(message || `Request failed: ${response.status}`);
+        }
+
+        return payload;
     }
 
     function buildMenuHtml() {
@@ -729,6 +755,84 @@
         });
     }
 
+    function updateAuthEntry() {
+        const avatarLink = qs(".app-bar__actions .avatar-icon");
+        const actionLinks = qsa(".app-bar__actions .round-icon");
+        const logoutLink = actionLinks.length > 1 ? actionLinks[1] : null;
+        const session = state.session;
+        const isAuthenticated = !!(session && session.isAuthenticated && session.user);
+
+        if (avatarLink) {
+            if (isAuthenticated) {
+                avatarLink.href = "/PickleballWeb/Account";
+                avatarLink.setAttribute("aria-label", trimToEmpty(session.user.fullName) || "Tai khoan");
+                avatarLink.title = trimToEmpty(session.user.fullName) || "Tai khoan";
+            } else {
+                avatarLink.href = "/PickleballWeb/Login?returnUrl=" + encodeURIComponent("/PickleballWeb/Account");
+                avatarLink.setAttribute("aria-label", "Dang nhap");
+                avatarLink.title = "Dang nhap";
+            }
+        }
+
+        if (logoutLink) {
+            logoutLink.hidden = !isAuthenticated;
+
+            if (isAuthenticated) {
+                logoutLink.href = "#logout";
+                logoutLink.setAttribute("aria-label", "Dang xuat");
+                logoutLink.title = "Dang xuat";
+            } else {
+                logoutLink.href = "#tournaments";
+                logoutLink.removeAttribute("title");
+            }
+        }
+    }
+
+    async function loadAuthSession() {
+        try {
+            const payload = await requestJson("/api/web-auth/me", {
+                method: "GET",
+                headers: { Accept: "application/json" }
+            });
+
+            state.session = payload;
+        } catch (error) {
+            state.session = { isAuthenticated: false };
+        }
+
+        updateAuthEntry();
+    }
+
+    function bindAuthActions() {
+        const actionLinks = qsa(".app-bar__actions .round-icon");
+        const logoutLink = actionLinks.length > 1 ? actionLinks[1] : null;
+
+        if (!logoutLink) {
+            return;
+        }
+
+        logoutLink.addEventListener("click", async function (event) {
+            if (!(state.session && state.session.isAuthenticated)) {
+                return;
+            }
+
+            event.preventDefault();
+
+            try {
+                await requestJson("/api/web-auth/logout", {
+                    method: "POST",
+                    body: JSON.stringify({})
+                });
+            } catch (error) {
+                // Ignore logout response failures and still clear local UI state.
+            }
+
+            state.session = { isAuthenticated: false };
+            updateAuthEntry();
+            window.location.href = "/";
+        });
+    }
+
     async function loadLandingPage() {
         const results = await Promise.allSettled([
             fetchJson("/api/public/banners"),
@@ -771,15 +875,21 @@
         renderHeroBanner(null);
         renderNextTournament(null);
         bindBannerControls();
+        bindAuthActions();
         initReveal();
         initTabBar();
 
-        loadLandingPage().catch(function () {
-            renderLinks([]);
-            renderBanners([]);
-            renderTournaments([], 0);
-            renderCourts([], 0);
-            renderVideos([], 0);
+        Promise.allSettled([
+            loadLandingPage(),
+            loadAuthSession()
+        ]).then(function (results) {
+            if (results[0].status !== "fulfilled") {
+                renderLinks([]);
+                renderBanners([]);
+                renderTournaments([], 0);
+                renderCourts([], 0);
+                renderVideos([], 0);
+            }
         });
     });
 })();

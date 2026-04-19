@@ -1,0 +1,82 @@
+@model HanakaServer.ViewModels.PickleballWeb.PickleballWebAuthPageViewModel
+@{
+    Layout = "_PickleballWebLayout";
+    ViewData["Title"] = $"{Model.Title} | Hanaka Sport";
+    ViewData["Description"] = "Xác thực OTP Hanaka Sport trên mobile web với luồng giống app.";
+}
+
+@section Styles {
+    <link href="~/pickleball-web/css/auth.css" asp-append-version="true" rel="stylesheet" />
+}
+
+<div class="auth-screen auth-screen--otp"
+     data-auth-page="otp"
+     data-return-url="@Model.ReturnUrl"
+     data-auth-email="@Model.Email"
+     data-auth-fullname="@Model.FullName"
+     data-auth-terms="@(Model.AgreedToTerms ? "true" : "false")">
+    <header class="auth-header auth-header--plain">
+        <div class="container mobile-web-screen__container">
+            <div class="auth-header__bar">
+                <a class="auth-header__back"
+                   href="@Model.BackHref"
+                   aria-label="@Model.BackLabel"
+                   onclick="if (window.history.length > 1) { window.history.back(); return false; }">
+                    <ion-icon name="arrow-back"></ion-icon>
+                </a>
+
+                <h1>@Model.Title</h1>
+            </div>
+        </div>
+    </header>
+
+    <main class="auth-login-body auth-login-body--otp">
+        <div class="container mobile-web-screen__container">
+            <section class="auth-login-card auth-login-card--otp">
+                <p class="auth-otp-greeting">
+                    Xin chào <strong data-auth-fullname-text>@(string.IsNullOrWhiteSpace(Model.FullName) ? "bạn" : Model.FullName)</strong>
+                </p>
+
+                <p class="auth-otp-desc">Hệ thống đã gửi mã OTP đến email:</p>
+                <p class="auth-otp-email" data-auth-email-text>@Model.Email</p>
+
+                <form data-auth-form="otp" novalidate>
+                    <label class="auth-label auth-label--offset" for="auth-register-otp">Nhập mã OTP</label>
+                    <div class="auth-input-wrap">
+                        <input id="auth-register-otp"
+                               class="auth-input auth-input--otp"
+                               type="text"
+                               inputmode="numeric"
+                               maxlength="6"
+                               placeholder="Nhập 6 số"
+                               autocomplete="one-time-code"
+                               data-auth-otp />
+                    </div>
+
+                    <p class="auth-hint">OTP có hiệu lực trong vài phút.</p>
+
+                    <div class="auth-error-box" data-auth-error hidden>
+                        <p data-auth-error-text></p>
+                    </div>
+
+                    <button class="auth-submit-btn auth-submit-btn--large" type="submit" data-auth-submit disabled>
+                        <span data-auth-submit-text>Xác nhận OTP</span>
+                    </button>
+                </form>
+
+                <button class="auth-secondary-link" type="button" data-auth-resend>
+                    Gửi lại OTP
+                </button>
+
+                <a class="auth-muted-link"
+                   href="/PickleballWeb/Login?returnUrl=@Uri.EscapeDataString(Model.ReturnUrl)">
+                    Quay lại đăng nhập
+                </a>
+            </section>
+        </div>
+    </main>
+</div>
+
+@section Scripts {
+    <script src="~/pickleball-web/js/auth.js" asp-append-version="true"></script>
+}
