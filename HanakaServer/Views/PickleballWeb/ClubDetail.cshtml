@@ -1,0 +1,239 @@
+@model HanakaServer.ViewModels.PickleballWeb.PickleballWebDetailPageViewModel
+@{
+    Layout = "_PickleballWebLayout";
+    ViewData["Title"] = $"{Model.Title} | Hanaka Sport";
+    ViewData["Description"] = Model.Description;
+}
+
+@section Styles {
+    <link href="~/pickleball-web/css/club-detail.css" asp-append-version="true" rel="stylesheet" />
+}
+
+<div class="club-detail-screen" data-club-detail-page data-club-id="@Model.EntityId">
+    <header class="club-detail-header">
+        <div class="container mobile-web-screen__container">
+            <div class="club-detail-header__bar">
+                <a class="club-detail-header__back"
+                   href="@Model.BackHref"
+                   aria-label="@Model.BackLabel"
+                   onclick="if (window.history.length > 1) { window.history.back(); return false; }">
+                    <ion-icon name="arrow-back"></ion-icon>
+                </a>
+
+                <h1 data-club-header-title>@Model.Title</h1>
+
+                <button class="club-detail-header__action"
+                        type="button"
+                        aria-label="Cài đặt CLB"
+                        data-club-settings-trigger
+                        hidden>
+                    <ion-icon name="settings-outline"></ion-icon>
+                </button>
+
+                <span class="club-detail-header__spacer" data-club-header-spacer aria-hidden="true"></span>
+            </div>
+        </div>
+    </header>
+
+    <main class="club-detail-main">
+        <div class="container mobile-web-screen__container">
+            <div class="club-detail-loading" data-club-loading>
+                <span class="club-detail-spinner" aria-hidden="true"></span>
+            </div>
+
+            <div class="club-detail-error" data-club-error hidden>
+                <p data-club-error-text>Không tải được chi tiết câu lạc bộ.</p>
+                <button type="button" data-club-retry>Tải lại</button>
+            </div>
+
+            <div class="club-detail-content" data-club-content hidden>
+                <section class="club-detail-hero">
+                    <div class="club-detail-cover">
+                        <img src="" alt="Ảnh bìa câu lạc bộ" data-club-cover-image hidden />
+                        <div class="club-detail-cover__fallback" data-club-cover-fallback>
+                            <ion-icon name="image-outline"></ion-icon>
+                        </div>
+                    </div>
+
+                    <div class="club-detail-avatar">
+                        <img src="" alt="Ảnh đại diện câu lạc bộ" data-club-avatar-image hidden />
+                        <div class="club-detail-avatar__fallback" data-club-avatar-fallback>
+                            <ion-icon name="people-outline"></ion-icon>
+                        </div>
+                    </div>
+                </section>
+
+                <nav class="club-detail-tabs" aria-label="Tab câu lạc bộ">
+                    <button class="club-detail-tab is-active" type="button" data-club-tab-button="overview">Chung</button>
+                    <button class="club-detail-tab" type="button" data-club-tab-button="members">Thành viên</button>
+                    <button class="club-detail-tab" type="button" data-club-tab-button="pending">Chờ duyệt</button>
+                </nav>
+
+                <section class="club-detail-panel club-detail-panel--overview" data-club-panel="overview">
+                    <div class="club-detail-overview-top">
+                        <div class="club-detail-stat-top">
+                            <p>Điểm giao lưu:</p>
+                            <strong data-club-social-score>-</strong>
+                        </div>
+
+                        <div class="club-detail-stat-top club-detail-stat-top--right">
+                            <p>Số trận thi đấu:</p>
+                            <strong data-club-matches-played>0</strong>
+                        </div>
+                    </div>
+
+                    <div class="club-detail-match-summary">
+                        <div class="club-detail-match-summary__row">
+                            <span data-club-win-text>Thắng 0</span>
+                            <span data-club-draw-text>Hoà 0</span>
+                            <span data-club-loss-text>Thua 0</span>
+                        </div>
+
+                        <div class="club-detail-match-bar">
+                            <span class="club-detail-match-bar__segment club-detail-match-bar__segment--win" data-club-win-bar></span>
+                            <span class="club-detail-match-bar__segment club-detail-match-bar__segment--draw" data-club-draw-bar></span>
+                            <span class="club-detail-match-bar__segment club-detail-match-bar__segment--loss" data-club-loss-bar></span>
+                        </div>
+                    </div>
+
+                    <p class="club-detail-level" data-club-level>Điểm trình: 0.0</p>
+
+                    <div class="club-detail-review-row">
+                        <span data-club-review-label>Đánh giá: 0.0</span>
+                        <div class="club-detail-stars" data-club-stars></div>
+                        <span data-club-review-count>(0 Đánh giá)</span>
+                    </div>
+
+                    <h2 class="club-detail-section-title">Thông Tin Chung</h2>
+
+                    <div class="club-detail-description-card">
+                        <p data-club-description>Nội dung đang được cập nhật.</p>
+                    </div>
+
+                    <div class="club-detail-info-block">
+                        <p>Ngày thành lập: <strong data-club-founded-at>01/10/2021</strong></p>
+                        <p>Địa chỉ: <strong data-club-address>Chưa có địa chỉ</strong></p>
+                        <p>Tổng số thành viên: <strong data-club-members-count>0</strong></p>
+                        <p>Thành viên chờ duyệt: <strong data-club-pending-count>0</strong></p>
+                    </div>
+
+                    <div class="club-detail-challenge-card" data-club-challenge-card hidden>
+                        <div class="club-detail-challenge-card__head">
+                            <div>
+                                <h3>Chế độ khiêu chiến</h3>
+                                <p>Bật để CLB sẵn sàng nhận khiêu chiến từ CLB khác.</p>
+                            </div>
+
+                            <span class="club-detail-challenge-badge" data-club-challenge-badge>Đang tắt</span>
+                        </div>
+
+                        <button class="club-detail-challenge-button"
+                                type="button"
+                                data-club-challenge-open>
+                            <ion-icon name="settings-outline"></ion-icon>
+                            <span>Chọn chế độ khiêu chiến</span>
+                        </button>
+                    </div>
+                </section>
+
+                <section class="club-detail-panel club-detail-panel--members" data-club-panel="members" hidden>
+                    <div class="club-detail-member-wrap">
+                        <label class="club-detail-search">
+                            <ion-icon name="search-outline"></ion-icon>
+                            <input type="search"
+                                   placeholder="Nickname..."
+                                   autocomplete="off"
+                                   data-club-members-search />
+                        </label>
+
+                        <div class="club-detail-member-head">
+                            <span class="club-detail-member-head__index">STT</span>
+                            <span class="club-detail-member-head__member">Thành Viên</span>
+                            <span class="club-detail-member-head__score">Điểm đơn</span>
+                            <span class="club-detail-member-head__score">Điểm đôi</span>
+                        </div>
+
+                        <div class="club-detail-list-state club-detail-list-state--loading" data-club-members-loading hidden>
+                            <span class="club-detail-spinner" aria-hidden="true"></span>
+                        </div>
+
+                        <div class="club-detail-member-list" data-club-members-list></div>
+
+                        <div class="club-detail-list-state" data-club-members-empty hidden>
+                            <p>Chưa có thành viên</p>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="club-detail-panel club-detail-panel--pending" data-club-panel="pending" hidden>
+                    <div class="club-detail-member-wrap">
+                        <label class="club-detail-search" data-club-pending-search-shell>
+                            <ion-icon name="search-outline"></ion-icon>
+                            <input type="search"
+                                   placeholder="Nickname..."
+                                   autocomplete="off"
+                                   data-club-pending-search />
+                        </label>
+
+                        <div class="club-detail-member-head" data-club-pending-head>
+                            <span class="club-detail-member-head__index">STT</span>
+                            <span class="club-detail-member-head__member">Thành Viên</span>
+                            <span class="club-detail-member-head__score">Điểm đơn</span>
+                            <span class="club-detail-member-head__score">Điểm đôi</span>
+                        </div>
+
+                        <div class="club-detail-list-state" data-club-pending-locked hidden>
+                            <ion-icon name="lock-closed-outline"></ion-icon>
+                            <p>Bạn không có quyền xem danh sách chờ duyệt</p>
+                        </div>
+
+                        <div class="club-detail-list-state club-detail-list-state--loading" data-club-pending-loading hidden>
+                            <span class="club-detail-spinner" aria-hidden="true"></span>
+                        </div>
+
+                        <div class="club-detail-member-list" data-club-pending-list></div>
+
+                        <div class="club-detail-list-state" data-club-pending-empty hidden>
+                            <p>Không có thành viên chờ duyệt</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </main>
+
+    <div class="club-detail-modal" data-club-modal hidden>
+        <div class="club-detail-modal__overlay" data-club-modal-close></div>
+
+        <div class="club-detail-modal__card" role="dialog" aria-modal="true" aria-labelledby="club-detail-modal-title">
+            <h2 id="club-detail-modal-title">Cài đặt CLB</h2>
+            <p>Chọn chế độ khiêu chiến cho câu lạc bộ của bạn.</p>
+
+            <button class="club-detail-modal__option"
+                    type="button"
+                    data-club-challenge-option="true">
+                <div>
+                    <strong>Bật khiêu chiến</strong>
+                    <span>Cho phép các CLB khác nhìn thấy và gửi lời mời khiêu chiến.</span>
+                </div>
+                <ion-icon name="checkmark-circle" aria-hidden="true"></ion-icon>
+            </button>
+
+            <button class="club-detail-modal__option"
+                    type="button"
+                    data-club-challenge-option="false">
+                <div>
+                    <strong>Tắt khiêu chiến</strong>
+                    <span>Ẩn chế độ khiêu chiến để CLB không nhận lời mời mới.</span>
+                </div>
+                <ion-icon name="checkmark-circle" aria-hidden="true"></ion-icon>
+            </button>
+
+            <button class="club-detail-modal__close" type="button" data-club-modal-close>Đóng</button>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/pickleball-web/js/club-detail.js" asp-append-version="true"></script>
+}

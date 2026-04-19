@@ -64,8 +64,30 @@ namespace HanakaServer.Controllers
 
         private string? ToAbsoluteUrl(string? url)
         {
-            if (string.IsNullOrWhiteSpace(url)) return null;
-            return _config["PublicBaseUrl"] + url;
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                return null;
+            }
+
+            var trimmed = url.Trim();
+            if (Uri.TryCreate(trimmed, UriKind.Absolute, out var absoluteUri))
+            {
+                return absoluteUri.ToString();
+            }
+
+            if (!trimmed.StartsWith("/"))
+            {
+                trimmed = "/" + trimmed;
+            }
+
+            if (Request?.Host.HasValue == true)
+            {
+                var pathBase = Request.PathBase.HasValue ? Request.PathBase.Value : string.Empty;
+                return $"{Request.Scheme}://{Request.Host}{pathBase}{trimmed}";
+            }
+
+            var baseUrl = _config["PublicBaseUrl"]?.TrimEnd('/');
+            return string.IsNullOrWhiteSpace(baseUrl) ? trimmed : $"{baseUrl}{trimmed}";
         }
 
         private string? NormalizeToRelative(string? url)

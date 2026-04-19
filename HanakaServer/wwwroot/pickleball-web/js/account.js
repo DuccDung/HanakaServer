@@ -81,7 +81,19 @@
             return "";
         }
 
-        return normalized;
+        try {
+            var resolved = new URL(normalized, window.location.origin);
+            var isLocalPreviewHost = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+            var isUploadAsset = resolved.pathname.toLowerCase().startsWith("/uploads/");
+
+            if (isLocalPreviewHost && isUploadAsset && resolved.origin !== window.location.origin) {
+                return window.location.origin + resolved.pathname + resolved.search;
+            }
+
+            return resolved.href;
+        } catch (error) {
+            return normalized;
+        }
     }
 
     function createEmptyForm() {
@@ -291,6 +303,7 @@
             loading: false,
             avatarUploading: false,
             deleting: false,
+            avatarRenderFailed: false,
             profile: null,
             form: createEmptyForm()
         };
@@ -351,6 +364,7 @@
 
         function applyProfile(profile) {
             if (!profile) {
+                state.avatarRenderFailed = false;
                 state.profile = null;
                 state.form = createEmptyForm();
                 return;
@@ -358,6 +372,7 @@
 
             state.profile = normalizeProfile(profile);
             state.form = cloneForm(state.profile);
+            state.avatarRenderFailed = false;
         }
 
         function setFormField(name, value) {
@@ -416,10 +431,13 @@
                 ? "Chạm để đổi ảnh đại diện"
                 : "Đăng nhập để cập nhật ảnh";
 
-            refs.avatar.hidden = !state.form.avatarUrl;
-            refs.avatarFallback.hidden = !!state.form.avatarUrl;
-            if (state.form.avatarUrl) {
-                refs.avatarImage.src = state.form.avatarUrl;
+            var hasRenderableAvatar = !!state.form.avatarUrl && !state.avatarRenderFailed;
+            refs.avatar.hidden = !hasRenderableAvatar;
+            refs.avatarFallback.hidden = hasRenderableAvatar;
+            if (hasRenderableAvatar) {
+                if (refs.avatarImage.getAttribute("src") !== state.form.avatarUrl) {
+                    refs.avatarImage.src = state.form.avatarUrl;
+                }
             } else {
                 refs.avatarImage.removeAttribute("src");
             }
@@ -532,6 +550,7 @@
                 var nextAvatarUrl = normalizeAvatarUrl(payload && payload.avatarUrl);
 
                 state.form.avatarUrl = nextAvatarUrl;
+                state.avatarRenderFailed = false;
                 if (state.profile) {
                     state.profile.avatarUrl = nextAvatarUrl;
                 }
@@ -659,6 +678,20 @@
             var file = refs.avatarInput.files && refs.avatarInput.files[0];
             uploadAvatar(file);
             refs.avatarInput.value = "";
+        });
+
+        refs.avatarImage.addEventListener("load", function () {
+            if (state.avatarRenderFailed) {
+                state.avatarRenderFailed = false;
+                render();
+            }
+        });
+
+        refs.avatarImage.addEventListener("error", function () {
+            if (!state.avatarRenderFailed) {
+                state.avatarRenderFailed = true;
+                render();
+            }
         });
 
         refs.dateTrigger.addEventListener("click", function () {

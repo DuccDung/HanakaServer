@@ -195,7 +195,21 @@ ion-icon {
 
 .avatar-icon {
     border-radius: 999px;
+    overflow: hidden;
     font-size: 1.78rem;
+}
+
+.avatar-icon.has-image {
+    padding: 0;
+    background: rgba(255, 255, 255, 0.18);
+}
+
+.avatar-icon__image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 999px;
 }
 
 .round-icon:hover,

@@ -55,6 +55,29 @@
         return "https://" + href.replace(/^\/+/, "");
     }
 
+    function normalizeMediaUrl(value) {
+        var url = trimToEmpty(value);
+
+        if (!url) {
+            return "";
+        }
+
+        if (url.startsWith("/")) {
+            return window.location.origin + url;
+        }
+
+        try {
+            var parsed = new URL(url, window.location.origin);
+            if (parsed.pathname.startsWith("/uploads/") && parsed.origin !== window.location.origin) {
+                return window.location.origin + parsed.pathname + parsed.search;
+            }
+
+            return parsed.toString();
+        } catch (_error) {
+            return url;
+        }
+    }
+
     async function fetchJson(url) {
         var response = await fetch(url, {
             headers: { Accept: "application/json" },
@@ -304,7 +327,7 @@
     }
 
     function renderTableRow(item, index, options) {
-        var avatarUrl = trimToEmpty(item.avatarUrl);
+        var avatarUrl = normalizeMediaUrl(item.avatarUrl);
         var mine = !!item.isMine;
         var badgeClass = options.kind === "referee" ? "native-table-row__badge native-table-row__badge--soft" : "native-table-row__badge";
 

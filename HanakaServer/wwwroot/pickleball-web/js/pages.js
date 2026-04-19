@@ -57,6 +57,34 @@
         }).format(date);
     }
 
+    function formatDateOrDash(value) {
+        const date = parseDate(value);
+        if (!date) {
+            return "-";
+        }
+
+        return new Intl.DateTimeFormat("vi-VN", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric"
+        }).format(date);
+    }
+
+    function formatDateTimeOrDash(value) {
+        const date = parseDate(value);
+        if (!date) {
+            return "-";
+        }
+
+        return new Intl.DateTimeFormat("vi-VN", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+        }).format(date);
+    }
+
     function toNumber(value) {
         const number = Number(value);
         return Number.isFinite(number) ? number : 0;
@@ -65,6 +93,11 @@
     function formatDecimal(value) {
         const number = Number(value);
         return Number.isFinite(number) ? number.toFixed(1) : "0.0";
+    }
+
+    function formatScore(value) {
+        const number = Number(value);
+        return Number.isFinite(number) ? number.toFixed(2) : "0.00";
     }
 
     function initials(name) {
@@ -106,8 +139,31 @@
         return /^https?:\/\//i.test(href) || /^mailto:/i.test(href) || /^tel:/i.test(href);
     }
 
+    function normalizeMediaUrl(value) {
+        const url = trimToEmpty(value);
+
+        if (!url) {
+            return "";
+        }
+
+        if (url.startsWith("/")) {
+            return `${window.location.origin}${url}`;
+        }
+
+        try {
+            const parsed = new URL(url, window.location.origin);
+            if (parsed.pathname.startsWith("/uploads/") && parsed.origin !== window.location.origin) {
+                return `${window.location.origin}${parsed.pathname}${parsed.search}`;
+            }
+
+            return parsed.toString();
+        } catch (_error) {
+            return url;
+        }
+    }
+
     function mediaMarkup(url, alt, fallbackText) {
-        const src = trimToEmpty(url);
+        const src = normalizeMediaUrl(url);
 
         if (src) {
             return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy">`;
@@ -123,7 +179,7 @@
     }
 
     function avatarMarkup(name, avatarUrl, className) {
-        const src = trimToEmpty(avatarUrl);
+        const src = normalizeMediaUrl(avatarUrl);
         const cssClass = className || "identity__avatar";
 
         if (src) {
@@ -181,6 +237,75 @@
             body,
             "</section>"
         ].join("");
+    }
+
+    function htmlToPlainText(html, emptyText) {
+        const source = trimToEmpty(html);
+        if (!source) {
+            return emptyText || "Chưa cập nhật";
+        }
+
+        const container = document.createElement("div");
+        container.innerHTML = source
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<\/p>/gi, "\n")
+            .replace(/<\/div>/gi, "\n")
+            .replace(/<li>/gi, "• ")
+            .replace(/<\/li>/gi, "\n");
+
+        const plain = trimToEmpty(container.textContent || container.innerText || "");
+        return plain || emptyText || "Chưa cập nhật";
+    }
+
+    function achievementLabel(item) {
+        const type = trimToEmpty(item?.achievementType).toUpperCase();
+        if (type === "FIRST") {
+            return "Giải Nhất";
+        }
+
+        if (type === "SECOND") {
+            return "Giải Nhì";
+        }
+
+        if (type === "THIRD") {
+            return "Giải Ba";
+        }
+
+        return trimToEmpty(item?.achievementLabel) || "Thành tích";
+    }
+
+    function achievementIcon(item) {
+        const type = trimToEmpty(item?.achievementType).toUpperCase();
+        if (type === "FIRST") {
+            return "trophy";
+        }
+
+        if (type === "SECOND") {
+            return "medal";
+        }
+
+        if (type === "THIRD") {
+            return "ribbon";
+        }
+
+        return "award";
+    }
+
+    function achievementColor(item) {
+        const type = trimToEmpty(item?.achievementType).toUpperCase();
+        if (type === "FIRST") {
+            return "#F59E0B";
+        }
+
+        if (type === "SECOND") {
+            return "#9CA3AF";
+        }
+
+        if (type === "THIRD") {
+            return "#D97706";
+        }
+
+        return "#2563EB";
     }
 
     function simpleRows(items, valueGetter) {
@@ -994,7 +1119,7 @@
         ].join("");
     }
 
-    function renderCoachDetail(item, roleLabel, areaLabel) {
+    function renderCoachLikeDetail(item, roleLabel, areaLabel) {
         return [
             '<article class="detail-card">',
             '<div class="identity">',
@@ -1025,6 +1150,128 @@
             trimToEmpty(item.achievements)
                 ? detailSection("Ghi chú chuyên môn", `<div class="detail-note">${escapeHtml(item.achievements)}</div>`)
                 : ""
+        ].join("");
+    }
+
+    function renderCoachNativeSection(key, title, bodyHtml, isOpen) {
+        return [
+            `<section class="coach-native-section ${isOpen ? "is-open" : ""}" data-coach-section="${escapeHtml(key)}">`,
+            `<button class="coach-native-section__header" type="button" data-coach-section-toggle="${escapeHtml(key)}">`,
+            `<span>${escapeHtml(title)}</span>`,
+            `<ion-icon name="${isOpen ? "chevron-up" : "chevron-forward"}"></ion-icon>`,
+            "</button>",
+            `<div class="coach-native-section__body" ${isOpen ? "" : "hidden"}>`,
+            bodyHtml,
+            "</div>",
+            "</section>"
+        ].join("");
+    }
+
+    function renderCoachRatingHistory(items) {
+        if (!Array.isArray(items) || items.length === 0) {
+            return '<div class="coach-native-empty">Chưa có lịch sử điểm trình</div>';
+        }
+
+        return [
+            '<div class="coach-native-history-list">',
+            items.map(function (item) {
+                return [
+                    '<article class="coach-native-history-item">',
+                    `<h3>${escapeHtml(formatDateTimeOrDash(item?.ratedAt))}</h3>`,
+                    '<div class="coach-native-history-item__scores">',
+                    '<div class="coach-native-history-item__score">',
+                    '<span>Điểm đơn</span>',
+                    `<strong>${escapeHtml(item?.ratingSingle != null ? Number(item.ratingSingle).toFixed(2) : "0.00")}</strong>`,
+                    "</div>",
+                    '<div class="coach-native-history-item__score">',
+                    '<span>Điểm đôi</span>',
+                    `<strong>${escapeHtml(item?.ratingDouble != null ? Number(item.ratingDouble).toFixed(2) : "0.00")}</strong>`,
+                    "</div>",
+                    "</div>",
+                    `<p>Người chấm: <strong>${escapeHtml(trimToEmpty(item?.ratedByName) || "Hệ thống")}</strong></p>`,
+                    `<p>Ghi chú: <strong>${escapeHtml(trimToEmpty(item?.note) || "—")}</strong></p>`,
+                    "</article>"
+                ].join("");
+            }).join(""),
+            "</div>"
+        ].join("");
+    }
+
+    function renderCoachUserAchievements(items) {
+        if (!Array.isArray(items) || items.length === 0) {
+            return '<div class="coach-native-empty">Chưa có thành tích thi đấu</div>';
+        }
+
+        return [
+            '<div class="coach-native-achievement-list">',
+            items.map(function (item) {
+                const title = trimToEmpty(item?.title) || trimToEmpty(item?.tournamentName) || trimToEmpty(item?.tournament?.title) || "Thành tích";
+                const dateValue = item?.date || item?.achievedAt || item?.createdAt || item?.tournament?.startTime;
+                const canOpenTournament = Number(item?.tournamentId) > 0;
+                const tagName = canOpenTournament ? "a" : "article";
+                const href = canOpenTournament ? buildSafeHref(`/PickleballWeb/Tournament/${item.tournamentId}`, "#") : "";
+
+                return [
+                    `<${tagName} class="coach-native-achievement-card" ${canOpenTournament ? `href="${escapeHtml(href)}"` : ""}>`,
+                    '<div class="coach-native-achievement-card__icon">',
+                    `<ion-icon name="${escapeHtml(achievementIcon(item))}" style="color:${escapeHtml(achievementColor(item))}"></ion-icon>`,
+                    "</div>",
+                    '<div class="coach-native-achievement-card__content">',
+                    `<h3>${escapeHtml(title)}</h3>`,
+                    `<p class="coach-native-achievement-card__label">${escapeHtml(achievementLabel(item))}</p>`,
+                    `<p class="coach-native-achievement-card__date">${escapeHtml(formatDateOrDash(dateValue))}</p>`,
+                    "</div>",
+                    `<ion-icon class="coach-native-achievement-card__arrow" name="${canOpenTournament ? "chevron-forward" : "trophy-outline"}"></ion-icon>`,
+                    `</${tagName}>`
+                ].join("");
+            }).join(""),
+            "</div>"
+        ].join("");
+    }
+
+    function renderCoachDetail(item) {
+        const introduction = htmlToPlainText(item?.introduction, "Chưa cập nhật");
+        const teachingArea = htmlToPlainText(item?.teachingArea, "Chưa cập nhật");
+        const achievements = htmlToPlainText(item?.achievements, "Chưa cập nhật");
+
+        return [
+            '<div class="coach-native-detail" data-coach-native-detail>',
+            '<article class="coach-native-card">',
+            '<div class="coach-native-card__profile">',
+            trimToEmpty(item?.avatarUrl)
+                ? `<img class="coach-native-card__avatar" src="${escapeHtml(normalizeMediaUrl(item.avatarUrl))}" alt="${escapeHtml(trimToEmpty(item?.fullName) || "Huấn luyện viên")}" loading="lazy">`
+                : '<ion-icon class="coach-native-card__avatar-fallback" name="person-circle-outline"></ion-icon>',
+            `<h2>${escapeHtml(trimToEmpty(item?.fullName) || "—")}</h2>`,
+            `<p class="coach-native-card__verify ${item?.verified ? "is-verified" : "is-unverified"}">${escapeHtml(item?.verified ? "Hồ sơ HLV đã xác thực" : "Hồ sơ HLV chưa xác thực")}</p>`,
+            `<p class="coach-native-card__user-verify ${item?.userVerified ? "is-verified" : "is-unverified"}">${escapeHtml(item?.userVerified ? "Tài khoản người dùng đã xác thực" : "Tài khoản người dùng chưa xác thực")}</p>`,
+            "</div>",
+            '<div class="coach-native-card__scorebox">',
+            '<div class="coach-native-card__scorecol">',
+            "<span>Điểm đơn</span>",
+            `<strong>${escapeHtml(formatScore(item?.levelSingle))}</strong>`,
+            "</div>",
+            '<div class="coach-native-card__divider"></div>',
+            '<div class="coach-native-card__scorecol">',
+            "<span>Điểm đôi</span>",
+            `<strong>${escapeHtml(formatScore(item?.levelDouble))}</strong>`,
+            "</div>",
+            "</div>",
+            `<p class="coach-native-card__updated">Cập nhật điểm gần nhất: ${escapeHtml(formatDateTimeOrDash(item?.ratingUpdatedAt))}</p>`,
+            '<div class="coach-native-card__fields">',
+            `<div class="coach-native-card__field"><span>Giới tính</span><strong>${escapeHtml(trimToEmpty(item?.gender) || "—")}</strong></div>`,
+            `<div class="coach-native-card__field"><span>Tỉnh/Thành</span><strong>${escapeHtml(trimToEmpty(item?.city) || "—")}</strong></div>`,
+            `<div class="coach-native-card__field"><span>Email</span><strong>${escapeHtml(trimToEmpty(item?.email) || "—")}</strong></div>`,
+            `<div class="coach-native-card__field"><span>Số điện thoại</span><strong>${escapeHtml(trimToEmpty(item?.phone) || "—")}</strong></div>`,
+            `<div class="coach-native-card__field"><span>Ngày sinh</span><strong>${escapeHtml(formatDateOrDash(item?.birthOfDate))}</strong></div>`,
+            `<div class="coach-native-card__field"><span>Giới thiệu cá nhân</span><p>${escapeHtml(trimToEmpty(item?.bio) || "—")}</p></div>`,
+            "</div>",
+            "</article>",
+            renderCoachNativeSection("intro", "Giới thiệu giảng dạy", `<div class="coach-native-section__content"><p>${escapeHtml(introduction)}</p></div>`, true),
+            renderCoachNativeSection("teaching-area", "Khu vực giảng dạy", `<div class="coach-native-section__content"><p>${escapeHtml(teachingArea)}</p></div>`, true),
+            renderCoachNativeSection("coach-achievements", "Thành tích / chứng chỉ huấn luyện", `<div class="coach-native-section__content"><p>${escapeHtml(achievements)}</p></div>`, true),
+            renderCoachNativeSection("rating-history", "Lịch sử điểm trình", renderCoachRatingHistory(item?.ratingHistory), false),
+            renderCoachNativeSection("user-achievements", "Thành tích thi đấu", renderCoachUserAchievements(item?.userAchievements), true),
+            "</div>"
         ].join("");
     }
 
@@ -1347,6 +1594,70 @@
         }
     };
 
+    detailConfigs["coach-detail"].render = renderCoachDetail;
+    detailConfigs["referee-detail"].render = function (item) {
+        return renderCoachLikeDetail(item, "Trá»ng tÃ i", "Khu vá»±c cÃ´ng tÃ¡c");
+    };
+
+    detailConfigs["referee-detail"].render = function (item) {
+        return renderCoachLikeDetail(item, "Trọng tài", "Khu vực công tác");
+    };
+
+    function applyCoachDetailShell(root) {
+        root.classList.add("detail-screen--coach-native");
+
+        const title = qs(".page-hero h1", root);
+        const eyebrow = qs(".page-hero__eyebrow", root);
+        const description = qs(".page-hero p", root);
+        const backText = qs(".page-hero__back span", root);
+        const tabbar = qs(".mobile-tabbar--page", root);
+
+        if (title) {
+            title.textContent = "ThÃ´ng tin HLV";
+        }
+
+        if (title) {
+            title.textContent = "Thông tin HLV";
+        }
+
+        if (eyebrow) {
+            eyebrow.hidden = true;
+        }
+
+        if (description) {
+            description.hidden = true;
+        }
+
+        if (backText) {
+            backText.hidden = true;
+        }
+
+        if (tabbar) {
+            tabbar.hidden = true;
+        }
+    }
+
+    function initCoachDetailInteractions(root) {
+        qsa("[data-coach-section-toggle]", root).forEach(function (button) {
+            button.addEventListener("click", function () {
+                const section = button.closest("[data-coach-section]");
+                const body = qs(".coach-native-section__body", section);
+                const icon = qs("ion-icon", button);
+                const isOpen = section?.classList.contains("is-open");
+
+                section?.classList.toggle("is-open", !isOpen);
+
+                if (body) {
+                    body.hidden = !!isOpen;
+                }
+
+                if (icon) {
+                    icon.setAttribute("name", isOpen ? "chevron-forward" : "chevron-up");
+                }
+            });
+        });
+    }
+
     async function initDetailPage(root) {
         const kind = trimToEmpty(root.getAttribute("data-detail-kind"));
         const id = Number(root.getAttribute("data-detail-id"));
@@ -1361,9 +1672,17 @@
             return;
         }
 
+        if (kind === "coach-detail") {
+            applyCoachDetailShell(root);
+        }
+
         try {
             const data = await config.load(id);
             body.innerHTML = config.render(data);
+
+            if (kind === "coach-detail") {
+                initCoachDetailInteractions(root);
+            }
         } catch (error) {
             body.innerHTML = [
                 '<article class="page-empty">',

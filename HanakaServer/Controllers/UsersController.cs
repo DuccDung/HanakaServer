@@ -38,7 +38,23 @@ namespace HanakaServer.Controllers
         private string? ToAbsoluteUrl(string? url)
         {
             if (string.IsNullOrWhiteSpace(url)) return null;
-            return _config["PublicBaseUrl"] + url;
+
+            url = url.Trim();
+
+            if (Uri.TryCreate(url, UriKind.Absolute, out _))
+                return url;
+
+            if (Request?.Host.HasValue == true)
+            {
+                var relativePath = url.StartsWith("/") ? url : "/" + url;
+                return $"{Request.Scheme}://{Request.Host}{Request.PathBase}{relativePath}";
+            }
+
+            var baseUrl = (_config["PublicBaseUrl"] ?? string.Empty).TrimEnd('/');
+            if (string.IsNullOrWhiteSpace(baseUrl))
+                return url;
+
+            return url.StartsWith("/") ? baseUrl + url : baseUrl + "/" + url;
         }
 
         // Helper: normalize avatar về relative để lưu DB

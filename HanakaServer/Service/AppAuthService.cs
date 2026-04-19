@@ -5,6 +5,7 @@ using HanakaServer.Data;
 using HanakaServer.Dtos;
 using HanakaServer.Models;
 using mail_service.Internal;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
@@ -16,17 +17,20 @@ namespace HanakaServer.Services
         private readonly IConfiguration _config;
         private readonly IOtpEmailService _otpEmailService;
         private readonly IUserOtpService _userOtpService;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
         public AppAuthService(
             PickleballDbContext db,
             IConfiguration config,
             IOtpEmailService otpEmailService,
-            IUserOtpService userOtpService)
+            IUserOtpService userOtpService,
+            IHttpContextAccessor httpContextAccessor)
         {
             _db = db;
             _config = config;
             _otpEmailService = otpEmailService;
             _userOtpService = userOtpService;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<RegisterResponseDto> RegisterAsync(RegisterRequestDto dto, CancellationToken ct = default)
@@ -283,7 +287,13 @@ namespace HanakaServer.Services
 
         private string GetBaseUrl()
         {
-            return _config["PublicBaseUrl"] ?? string.Empty;
+            var request = _httpContextAccessor.HttpContext?.Request;
+            if (request?.Host.HasValue == true)
+            {
+                return $"{request.Scheme}://{request.Host}{request.PathBase}".TrimEnd('/');
+            }
+
+            return (_config["PublicBaseUrl"] ?? string.Empty).TrimEnd('/');
         }
 
         private static bool IsFemale(string? gender)

@@ -536,6 +536,407 @@
     transform: translateX(-50%);
 }
 
+.detail-screen--coach-native {
+    min-height: 100vh;
+    padding-bottom: 0;
+    background: #F8FAFC;
+}
+
+.detail-screen--coach-native .mobile-web-screen__container {
+    width: min(560px, calc(100% - 32px));
+}
+
+.detail-screen--coach-native .page-hero {
+    padding: env(safe-area-inset-top) 0 0;
+    background: #FFFFFF;
+    color: #111827;
+    border-bottom: 1px solid #F3F4F6;
+}
+
+.detail-screen--coach-native .page-hero::after {
+    display: none;
+}
+
+.detail-screen--coach-native .page-hero .mobile-web-screen__container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 60px;
+    padding: 0 44px;
+}
+
+.detail-screen--coach-native .page-hero__back {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    min-height: 32px;
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    color: #111827;
+    transform: translateY(-50%);
+}
+
+.detail-screen--coach-native .page-hero__back ion-icon {
+    font-size: 1.4rem;
+}
+
+.detail-screen--coach-native .page-hero__content {
+    display: block;
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    text-align: center;
+}
+
+.detail-screen--coach-native .page-hero h1 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 700;
+    line-height: 1.3;
+    text-align: center;
+}
+
+.detail-screen--coach-native .page-shell {
+    margin-top: 0;
+    padding: 16px 0 32px;
+}
+
+.detail-screen--coach-native .page-panel,
+.detail-screen--coach-native .page-panel--detail {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.coach-native-detail {
+    display: grid;
+    gap: 14px;
+}
+
+.coach-native-card {
+    padding: 20px;
+    border-radius: 20px;
+    background: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.coach-native-card__profile {
+    display: grid;
+    justify-items: center;
+    text-align: center;
+}
+
+.coach-native-card__avatar {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.coach-native-card__avatar-fallback {
+    font-size: 110px;
+    color: #2563EB;
+}
+
+.coach-native-card__profile h2 {
+    margin: 12px 0 0;
+    color: #111827;
+    font-size: 1.25rem;
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+.coach-native-card__verify,
+.coach-native-card__user-verify,
+.coach-native-card__updated {
+    margin: 0;
+}
+
+.coach-native-card__verify {
+    margin-top: 6px;
+    font-weight: 700;
+}
+
+.coach-native-card__user-verify {
+    margin-top: 4px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.coach-native-card__verify.is-verified,
+.coach-native-card__user-verify.is-verified {
+    color: #16A34A;
+}
+
+.coach-native-card__verify.is-unverified,
+.coach-native-card__user-verify.is-unverified {
+    color: #DC2626;
+}
+
+.coach-native-card__scorebox {
+    display: flex;
+    align-items: stretch;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 20px;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: #F8FAFC;
+}
+
+.coach-native-card__scorecol {
+    flex: 1 1 0;
+}
+
+.coach-native-card__scorecol span {
+    display: block;
+    margin-bottom: 4px;
+    color: #6B7280;
+    font-size: 0.875rem;
+}
+
+.coach-native-card__scorecol strong {
+    color: #111827;
+    font-size: 1.125rem;
+    font-weight: 800;
+}
+
+.coach-native-card__divider {
+    width: 1px;
+    background: #E5E7EB;
+}
+
+.coach-native-card__updated {
+    margin-top: 10px;
+    color: #6B7280;
+    font-size: 0.8125rem;
+}
+
+.coach-native-card__fields {
+    display: grid;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.coach-native-card__field span,
+.coach-native-card__field strong,
+.coach-native-card__field p {
+    display: block;
+}
+
+.coach-native-card__field span {
+    margin-bottom: 4px;
+    color: #6B7280;
+    font-size: 0.8125rem;
+}
+
+.coach-native-card__field strong {
+    color: #111827;
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
+.coach-native-card__field p {
+    margin: 0;
+    color: #4B5563;
+    font-size: 0.9375rem;
+    line-height: 1.47;
+    white-space: pre-wrap;
+}
+
+.coach-native-section {
+    display: grid;
+    gap: 0;
+}
+
+.coach-native-section__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 16px;
+    border: 1px solid #EEF2F7;
+    border-radius: 16px;
+    background: #FFFFFF;
+    color: #111827;
+    font-size: 1rem;
+    font-weight: 800;
+    text-align: left;
+    cursor: pointer;
+}
+
+.coach-native-section.is-open .coach-native-section__header {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.coach-native-section__header ion-icon {
+    flex: 0 0 auto;
+    color: #374151;
+    font-size: 1.25rem;
+}
+
+.coach-native-section__body {
+    border: 1px solid #EEF2F7;
+    border-top: 0;
+    border-bottom-left-radius: 16px;
+    border-bottom-right-radius: 16px;
+    background: #FFFFFF;
+}
+
+.coach-native-section__content {
+    padding: 16px;
+}
+
+.coach-native-section__content p {
+    margin: 0;
+    color: #374151;
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+}
+
+.coach-native-empty {
+    padding: 16px;
+    color: #6B7280;
+}
+
+.coach-native-history-list {
+    display: grid;
+}
+
+.coach-native-history-item {
+    padding: 16px;
+    border-top: 1px solid #F3F4F6;
+}
+
+.coach-native-history-item:first-child {
+    border-top: 0;
+}
+
+.coach-native-history-item h3,
+.coach-native-history-item p {
+    margin: 0;
+}
+
+.coach-native-history-item h3 {
+    margin-bottom: 12px;
+    color: #111827;
+    font-size: 0.9375rem;
+    font-weight: 800;
+}
+
+.coach-native-history-item p {
+    color: #374151;
+    line-height: 1.45;
+}
+
+.coach-native-history-item p + p {
+    margin-top: 6px;
+    color: #4B5563;
+}
+
+.coach-native-history-item__scores {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 12px;
+}
+
+.coach-native-history-item__score {
+    flex: 1 1 0;
+}
+
+.coach-native-history-item__score span,
+.coach-native-history-item__score strong {
+    display: block;
+}
+
+.coach-native-history-item__score span {
+    margin-bottom: 4px;
+    color: #6B7280;
+}
+
+.coach-native-history-item__score strong {
+    color: #111827;
+    font-size: 1.125rem;
+    font-weight: 800;
+}
+
+.coach-native-achievement-list {
+    display: grid;
+    gap: 10px;
+    padding-top: 10px;
+}
+
+.coach-native-achievement-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid #EEF2F7;
+    border-radius: 16px;
+    background: #FFFFFF;
+    color: inherit;
+}
+
+.coach-native-achievement-card__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    flex: 0 0 30px;
+}
+
+.coach-native-achievement-card__icon ion-icon {
+    font-size: 1.375rem;
+}
+
+.coach-native-achievement-card__content {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.coach-native-achievement-card__content h3,
+.coach-native-achievement-card__content p {
+    margin: 0;
+}
+
+.coach-native-achievement-card__content h3 {
+    color: #1F2937;
+    font-size: 0.9375rem;
+    font-weight: 800;
+    line-height: 1.45;
+}
+
+.coach-native-achievement-card__label {
+    margin-top: 4px;
+    color: #6B7280;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.coach-native-achievement-card__date {
+    margin-top: 6px;
+    color: #9CA3AF;
+    font-size: 0.875rem;
+}
+
+.coach-native-achievement-card__arrow {
+    flex: 0 0 auto;
+    color: #9CA3AF;
+    font-size: 1.125rem;
+}
+
 @media (min-width: 768px) {
     .mobile-web-screen {
         padding-top: 12px;

@@ -89,7 +89,7 @@ namespace HanakaServer.Controllers.Web
         [HttpGet("/PickleballWeb/Club/{id:long}")]
         public IActionResult ClubDetail(long id)
         {
-            return View("Detail", BuildDetailPage(
+            return View("ClubDetail", BuildDetailPage(
                 title: "Chi Tiết CLB",
                 eyebrow: "Không gian đội nhóm",
                 description: "Trang tổng quan câu lạc bộ, chủ nhiệm, thành viên và các chỉ số hoạt động.",

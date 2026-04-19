@@ -33,6 +33,7 @@ var jwtSection = builder.Configuration.GetSection("Jwt");
 var jwtKey = jwtSection["Key"] ?? throw new Exception("Jwt:Key is missing");
 
 // Services
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<IOtpEmailService, OtpEmailService>();
 builder.Services.AddScoped<IOtpGenerator, OtpGenerator>();

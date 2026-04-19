@@ -46,6 +46,27 @@
         return String(value ?? "").trim();
     }
 
+    function normalizeAvatarUrl(value) {
+        var normalized = trimToEmpty(value);
+        if (!normalized || normalized === "null" || normalized === "undefined") {
+            return "";
+        }
+
+        try {
+            var resolved = new URL(normalized, window.location.origin);
+            var isLocalPreviewHost = /^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
+            var isUploadAsset = resolved.pathname.toLowerCase().startsWith("/uploads/");
+
+            if (isLocalPreviewHost && isUploadAsset && resolved.origin !== window.location.origin) {
+                return window.location.origin + resolved.pathname + resolved.search;
+            }
+
+            return resolved.href;
+        } catch (error) {
+            return normalized;
+        }
+    }
+
     function toCount(value) {
         const number = Number(value);
         if (!Number.isFinite(number) || number < 0) {
@@ -762,15 +783,49 @@
         const session = state.session;
         const isAuthenticated = !!(session && session.isAuthenticated && session.user);
 
+        function setAvatarFallback() {
+            if (!avatarLink) {
+                return;
+            }
+
+            avatarLink.classList.remove("has-image");
+            avatarLink.innerHTML = '<ion-icon name="person-circle-outline"></ion-icon>';
+        }
+
+        function setAvatarImage(url, altText) {
+            if (!avatarLink) {
+                return;
+            }
+
+            var src = normalizeAvatarUrl(url);
+            if (!src) {
+                setAvatarFallback();
+                return;
+            }
+
+            var img = document.createElement("img");
+            img.className = "avatar-icon__image";
+            img.alt = trimToEmpty(altText) || "Tai khoan";
+            img.src = src;
+            img.addEventListener("error", function () {
+                setAvatarFallback();
+            }, { once: true });
+
+            avatarLink.classList.add("has-image");
+            avatarLink.replaceChildren(img);
+        }
+
         if (avatarLink) {
             if (isAuthenticated) {
                 avatarLink.href = "/PickleballWeb/Account";
                 avatarLink.setAttribute("aria-label", trimToEmpty(session.user.fullName) || "Tai khoan");
                 avatarLink.title = trimToEmpty(session.user.fullName) || "Tai khoan";
+                setAvatarImage(session.user.avatarUrl, session.user.fullName);
             } else {
                 avatarLink.href = "/PickleballWeb/Login?returnUrl=" + encodeURIComponent("/PickleballWeb/Account");
                 avatarLink.setAttribute("aria-label", "Dang nhap");
                 avatarLink.title = "Dang nhap";
+                setAvatarFallback();
             }
         }
 
