@@ -81,25 +81,25 @@ namespace HanakaServer.Controllers
 
             t.BannerUrl = ToAbsoluteUrl(t.BannerUrl);
 
-            var gt = (t.GameType ?? "").Trim().ToUpperInvariant();
+            var matchCount = await _db.TournamentGroupMatches
+                .AsNoTracking()
+                .CountAsync(m => m.TournamentId == id);
 
-            if (gt == "DOUBLE" || gt == "MIXED")
-            {
-                var regQ = _db.TournamentRegistrations
-                    .AsNoTracking()
-                    .Where(r => r.TournamentId == id);
+            t.MatchesCount = matchCount;
 
-                var waitingCount = await regQ.CountAsync(r => r.WaitingPair);
-                var successCount = await regQ.CountAsync(r => r.Success);
+            var regQ = _db.TournamentRegistrations
+                .AsNoTracking()
+                .Where(r => r.TournamentId == id);
 
-                t.PairedCount = successCount * 2;
-                t.RegisteredCount = waitingCount + successCount * 2;
-            }
-            else
-            {
-                t.RegisteredCount = null;
-                t.PairedCount = null;
-            }
+            var waitingCount = await regQ.CountAsync(r => r.WaitingPair);
+            var successCount = await regQ.CountAsync(r => r.Success);
+            var (registeredCount, pairedCount) = ComputePublicRegistrationCounts(
+                t.GameType,
+                successCount,
+                waitingCount);
+
+            t.RegisteredCount = registeredCount;
+            t.PairedCount = pairedCount;
 
             return Ok(t);
         }
@@ -317,6 +317,24 @@ namespace HanakaServer.Controllers
             };
         }
 
+        private static (int registeredCount, int pairedCount) ComputePublicRegistrationCounts(
+            string? gameType,
+            int successCount,
+            int waitingCount)
+        {
+            var normalizedGameType = (gameType ?? "DOUBLE").Trim().ToUpperInvariant();
+            var isDoubleLike = normalizedGameType == "DOUBLE" || normalizedGameType == "MIXED";
+
+            if (isDoubleLike)
+            {
+                var pairedCount = successCount * 2;
+                var registeredCount = waitingCount + pairedCount;
+                return (registeredCount, pairedCount);
+            }
+
+            return (successCount + waitingCount, successCount);
+        }
+
         // GET: /api/public/tournaments?page=1&pageSize=10&status=OPEN&query=abc
         [HttpGet]
         public async Task<IActionResult> List(
@@ -362,7 +380,52 @@ namespace HanakaServer.Controllers
                 .Take(pageSize)
                 .ToListAsync();
 
-            var items = raw.Select(MapToDto).ToList();
+            var tournamentIds = raw.Select(x => x.TournamentId).ToList();
+
+            var registrationStats = await _db.TournamentRegistrations
+                .AsNoTracking()
+                .Where(x => tournamentIds.Contains(x.TournamentId))
+                .GroupBy(x => x.TournamentId)
+                .Select(g => new
+                {
+                    TournamentId = g.Key,
+                    SuccessCount = g.Count(x => x.Success),
+                    WaitingCount = g.Count(x => x.WaitingPair)
+                })
+                .ToListAsync();
+
+            var matchStats = await _db.TournamentGroupMatches
+                .AsNoTracking()
+                .Where(x => tournamentIds.Contains(x.TournamentId))
+                .GroupBy(x => x.TournamentId)
+                .Select(g => new
+                {
+                    TournamentId = g.Key,
+                    MatchesCount = g.Count()
+                })
+                .ToListAsync();
+
+            var registrationStatsMap = registrationStats.ToDictionary(x => x.TournamentId, x => x);
+            var matchStatsMap = matchStats.ToDictionary(x => x.TournamentId, x => x.MatchesCount);
+
+            var items = raw.Select(t =>
+            {
+                var dto = MapToDto(t);
+
+                registrationStatsMap.TryGetValue(t.TournamentId, out var regStat);
+                matchStatsMap.TryGetValue(t.TournamentId, out var liveMatchesCount);
+
+                var (registeredCount, pairedCount) = ComputePublicRegistrationCounts(
+                    t.GameType,
+                    regStat?.SuccessCount ?? 0,
+                    regStat?.WaitingCount ?? 0);
+
+                dto.RegisteredCount = registeredCount;
+                dto.PairedCount = pairedCount;
+                dto.MatchesCount = liveMatchesCount;
+
+                return dto;
+            }).ToList();
 
             var totalPages = total == 0 ? 0 : (int)Math.Ceiling(total / (double)pageSize);
             var hasNextPage = page < totalPages;

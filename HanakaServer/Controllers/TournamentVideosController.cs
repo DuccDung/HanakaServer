@@ -132,7 +132,34 @@ namespace HanakaServer.Controllers
                     x.Title,
                     x.GameType,
                     x.BannerUrl,
-                    x.Status
+                    x.Status,
+                    x.ExpectedTeams,
+                    x.RegisteredCount,
+                    x.PairedCount,
+                    x.MatchesCount
+                })
+                .ToListAsync();
+
+            var registrationStats = await _db.TournamentRegistrations
+                .AsNoTracking()
+                .Where(x => tournamentIds.Contains(x.TournamentId))
+                .GroupBy(x => x.TournamentId)
+                .Select(g => new
+                {
+                    TournamentId = g.Key,
+                    SuccessCount = g.Count(x => x.Success),
+                    WaitingCount = g.Count(x => x.WaitingPair)
+                })
+                .ToListAsync();
+
+            var matchStats = await _db.TournamentGroupMatches
+                .AsNoTracking()
+                .Where(x => tournamentIds.Contains(x.TournamentId))
+                .GroupBy(x => x.TournamentId)
+                .Select(g => new
+                {
+                    TournamentId = g.Key,
+                    MatchesCount = g.Count()
                 })
                 .ToListAsync();
 
@@ -185,6 +212,8 @@ namespace HanakaServer.Controllers
                 .ToListAsync();
 
             var tournamentMap = tournaments.ToDictionary(x => x.TournamentId, x => x);
+            var registrationStatsMap = registrationStats.ToDictionary(x => x.TournamentId, x => x);
+            var matchStatsMap = matchStats.ToDictionary(x => x.TournamentId, x => x.MatchesCount);
             var groupMap = groups.ToDictionary(x => x.TournamentRoundGroupId, x => x);
             var roundMapDict = roundMaps.ToDictionary(x => x.TournamentRoundMapId, x => x);
             var regMap = regs.ToDictionary(x => x.RegistrationId, x => x);
@@ -192,6 +221,8 @@ namespace HanakaServer.Controllers
             var items = rawMatches.Select(m =>
             {
                 tournamentMap.TryGetValue(m.TournamentId, out var tournament);
+                registrationStatsMap.TryGetValue(m.TournamentId, out var registrationStat);
+                matchStatsMap.TryGetValue(m.TournamentId, out var totalMatchesCount);
                 groupMap.TryGetValue(m.TournamentRoundGroupId, out var group);
                 roundMapDict.TryGetValue(group?.TournamentRoundMapId ?? 0, out var round);
 
@@ -217,6 +248,9 @@ namespace HanakaServer.Controllers
                     else if (m.WinnerRegistrationId.Value == m.Team2RegistrationId) winnerSide = "2";
                 }
 
+                var pairedCount = (registrationStat?.SuccessCount ?? 0) * 2;
+                var registeredCount = (registrationStat?.WaitingCount ?? 0) + pairedCount;
+
                 return new MatchVideoItemDto
                 {
                     MatchId = m.MatchId,
@@ -225,6 +259,10 @@ namespace HanakaServer.Controllers
                     TournamentTitle = tournament?.Title,
                     TournamentBannerUrl = ToAbsoluteUrl(tournament?.BannerUrl),
                     TournamentStatus = tournament?.Status,
+                    ExpectedTeams = tournament?.ExpectedTeams ?? 0,
+                    RegisteredCount = registeredCount,
+                    PairedCount = pairedCount,
+                    MatchesCount = totalMatchesCount,
 
                     RoundKey = round?.RoundKey,
                     RoundLabel = round?.RoundLabel,
@@ -416,7 +454,34 @@ namespace HanakaServer.Controllers
                     x.Title,
                     x.GameType,
                     x.BannerUrl,
-                    x.Status
+                    x.Status,
+                    x.ExpectedTeams,
+                    x.RegisteredCount,
+                    x.PairedCount,
+                    x.MatchesCount
+                })
+                .ToListAsync();
+
+            var registrationStats = await _db.TournamentRegistrations
+                .AsNoTracking()
+                .Where(x => tournamentIds.Contains(x.TournamentId))
+                .GroupBy(x => x.TournamentId)
+                .Select(g => new
+                {
+                    TournamentId = g.Key,
+                    SuccessCount = g.Count(x => x.Success),
+                    WaitingCount = g.Count(x => x.WaitingPair)
+                })
+                .ToListAsync();
+
+            var matchStats = await _db.TournamentGroupMatches
+                .AsNoTracking()
+                .Where(x => tournamentIds.Contains(x.TournamentId))
+                .GroupBy(x => x.TournamentId)
+                .Select(g => new
+                {
+                    TournamentId = g.Key,
+                    MatchesCount = g.Count()
                 })
                 .ToListAsync();
 
@@ -471,6 +536,8 @@ namespace HanakaServer.Controllers
                 .ToListAsync();
 
             var tournamentMap = tournaments.ToDictionary(x => x.TournamentId, x => x);
+            var registrationStatsMap = registrationStats.ToDictionary(x => x.TournamentId, x => x);
+            var matchStatsMap = matchStats.ToDictionary(x => x.TournamentId, x => x.MatchesCount);
             var groupMap = groups.ToDictionary(x => x.TournamentRoundGroupId, x => x);
             var roundMapDict = roundMaps.ToDictionary(x => x.TournamentRoundMapId, x => x);
             var regMap = regs.ToDictionary(x => x.RegistrationId, x => x);
@@ -478,6 +545,8 @@ namespace HanakaServer.Controllers
             var items = rawMatches.Select(m =>
             {
                 tournamentMap.TryGetValue(m.TournamentId, out var tournament);
+                registrationStatsMap.TryGetValue(m.TournamentId, out var registrationStat);
+                matchStatsMap.TryGetValue(m.TournamentId, out var totalMatchesCount);
                 groupMap.TryGetValue(m.TournamentRoundGroupId, out var group);
                 roundMapDict.TryGetValue(group?.TournamentRoundMapId ?? 0, out var round);
 
@@ -503,6 +572,9 @@ namespace HanakaServer.Controllers
                     else if (m.WinnerRegistrationId.Value == m.Team2RegistrationId) winnerSide = "2";
                 }
 
+                var pairedCount = (registrationStat?.SuccessCount ?? 0) * 2;
+                var registeredCount = (registrationStat?.WaitingCount ?? 0) + pairedCount;
+
                 var isUserInTeam1 = team1Reg != null &&
                     (team1Reg.Player1UserId == userId || team1Reg.Player2UserId == userId);
 
@@ -517,6 +589,10 @@ namespace HanakaServer.Controllers
                     TournamentTitle = tournament?.Title,
                     TournamentBannerUrl = ToAbsoluteUrl(tournament?.BannerUrl),
                     TournamentStatus = tournament?.Status,
+                    ExpectedTeams = tournament?.ExpectedTeams ?? 0,
+                    RegisteredCount = registeredCount,
+                    PairedCount = pairedCount,
+                    MatchesCount = totalMatchesCount,
 
                     RoundKey = round?.RoundKey,
                     RoundLabel = round?.RoundLabel,
@@ -589,6 +665,10 @@ namespace HanakaServer.Controllers
         public string? TournamentTitle { get; set; }
         public string? TournamentBannerUrl { get; set; }
         public string? TournamentStatus { get; set; }
+        public int ExpectedTeams { get; set; }
+        public int RegisteredCount { get; set; }
+        public int PairedCount { get; set; }
+        public int MatchesCount { get; set; }
 
         public string? RoundKey { get; set; }
         public string? RoundLabel { get; set; }

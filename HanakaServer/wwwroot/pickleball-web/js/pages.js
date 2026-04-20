@@ -514,6 +514,7 @@
             `<span class="list-card__badge">${escapeHtml(trimToEmpty(item.roundLabel) || "Match video")}</span>`,
             `<h2 class="list-card__title">${escapeHtml(matchTitle)}</h2>`,
             `<p class="list-card__desc">${escapeHtml(`${trimToEmpty(item.team1Name) || "Đội 1"} vs ${trimToEmpty(item.team2Name) || "Đội 2"}`)}</p>`,
+            `<div class="stats-grid list-card__stats"><div class="stat-box"><small>Số đội dự kiến</small><strong>${escapeHtml(String(toNumber(item.expectedTeams)))}</strong></div><div class="stat-box"><small>Đã đăng ký</small><strong>${escapeHtml(String(toNumber(item.registeredCount)))}</strong></div><div class="stat-box"><small>Đã ghép cặp</small><strong>${escapeHtml(String(toNumber(item.pairedCount)))}</strong></div><div class="stat-box"><small>Số trận</small><strong>${escapeHtml(String(toNumber(item.matchesCount)))}</strong></div></div>`,
             `<div class="list-card__meta">${[
                 metaChip(`${toNumber(item.scoreTeam1)} - ${toNumber(item.scoreTeam2)}`, "stats-chart-outline"),
                 trimToEmpty(item.groupName) ? metaChip(item.groupName, "albums-outline") : "",
@@ -1275,6 +1276,52 @@
         ].join("");
     }
 
+    function renderRefereeDetail(item) {
+        const introduction = htmlToPlainText(item?.introduction, "Ch\u01b0a c\u1eadp nh\u1eadt");
+        const workingArea = htmlToPlainText(item?.workingArea, "Ch\u01b0a c\u1eadp nh\u1eadt");
+        const achievements = htmlToPlainText(item?.achievements, "Ch\u01b0a c\u1eadp nh\u1eadt");
+
+        return [
+            '<div class="coach-native-detail" data-coach-native-detail>',
+            '<article class="coach-native-card">',
+            '<div class="coach-native-card__profile">',
+            trimToEmpty(item?.avatarUrl)
+                ? `<img class="coach-native-card__avatar" src="${escapeHtml(normalizeMediaUrl(item.avatarUrl))}" alt="${escapeHtml(trimToEmpty(item?.fullName) || "Tr\u1ecdng t\u00e0i")}" loading="lazy">`
+                : '<ion-icon class="coach-native-card__avatar-fallback" name="person-circle-outline"></ion-icon>',
+            `<h2>${escapeHtml(trimToEmpty(item?.fullName) || "\u2014")}</h2>`,
+            `<p class="coach-native-card__verify ${item?.verified ? "is-verified" : "is-unverified"}">${escapeHtml(item?.verified ? "H\u1ed3 s\u01a1 tr\u1ecdng t\u00e0i \u0111\u00e3 x\u00e1c th\u1ef1c" : "H\u1ed3 s\u01a1 tr\u1ecdng t\u00e0i ch\u01b0a x\u00e1c th\u1ef1c")}</p>`,
+            `<p class="coach-native-card__user-verify ${item?.userVerified ? "is-verified" : "is-unverified"}">${escapeHtml(item?.userVerified ? "T\u00e0i kho\u1ea3n ng\u01b0\u1eddi d\u00f9ng \u0111\u00e3 x\u00e1c th\u1ef1c" : "T\u00e0i kho\u1ea3n ng\u01b0\u1eddi d\u00f9ng ch\u01b0a x\u00e1c th\u1ef1c")}</p>`,
+            "</div>",
+            '<div class="coach-native-card__scorebox">',
+            '<div class="coach-native-card__scorecol">',
+            "<span>\u0110i\u1ec3m \u0111\u01a1n</span>",
+            `<strong>${escapeHtml(formatScore(item?.levelSingle))}</strong>`,
+            "</div>",
+            '<div class="coach-native-card__divider"></div>',
+            '<div class="coach-native-card__scorecol">',
+            "<span>\u0110i\u1ec3m \u0111\u00f4i</span>",
+            `<strong>${escapeHtml(formatScore(item?.levelDouble))}</strong>`,
+            "</div>",
+            "</div>",
+            `<p class="coach-native-card__updated">C\u1eadp nh\u1eadt \u0111i\u1ec3m g\u1ea7n nh\u1ea5t: ${escapeHtml(formatDateTimeOrDash(item?.ratingUpdatedAt))}</p>`,
+            '<div class="coach-native-card__fields">',
+            `<div class="coach-native-card__field"><span>Gi\u1edbi t\u00ednh</span><strong>${escapeHtml(trimToEmpty(item?.gender) || "\u2014")}</strong></div>`,
+            `<div class="coach-native-card__field"><span>T\u1ec9nh/Th\u00e0nh</span><strong>${escapeHtml(trimToEmpty(item?.city) || "\u2014")}</strong></div>`,
+            `<div class="coach-native-card__field"><span>Email</span><strong>${escapeHtml(trimToEmpty(item?.email) || "\u2014")}</strong></div>`,
+            `<div class="coach-native-card__field"><span>S\u1ed1 \u0111i\u1ec7n tho\u1ea1i</span><strong>${escapeHtml(trimToEmpty(item?.phone) || "\u2014")}</strong></div>`,
+            `<div class="coach-native-card__field"><span>Ng\u00e0y sinh</span><strong>${escapeHtml(formatDateOrDash(item?.birthOfDate))}</strong></div>`,
+            `<div class="coach-native-card__field"><span>Gi\u1edbi thi\u1ec7u c\u00e1 nh\u00e2n</span><p>${escapeHtml(trimToEmpty(item?.bio) || "\u2014")}</p></div>`,
+            "</div>",
+            "</article>",
+            renderCoachNativeSection("intro", "Gi\u1edbi thi\u1ec7u", `<div class="coach-native-section__content"><p>${escapeHtml(introduction)}</p></div>`, true),
+            renderCoachNativeSection("working-area", "Khu v\u1ef1c l\u00e0m vi\u1ec7c", `<div class="coach-native-section__content"><p>${escapeHtml(workingArea)}</p></div>`, true),
+            renderCoachNativeSection("referee-achievements", "Th\u00e0nh t\u00edch / ch\u1ee9ng ch\u1ec9 tr\u1ecdng t\u00e0i", `<div class="coach-native-section__content"><p>${escapeHtml(achievements)}</p></div>`, true),
+            renderCoachNativeSection("rating-history", "L\u1ecbch s\u1eed \u0111i\u1ec3m tr\u00ecnh", renderCoachRatingHistory(item?.ratingHistory), false),
+            renderCoachNativeSection("user-achievements", "Th\u00e0nh t\u00edch thi \u0111\u1ea5u", renderCoachUserAchievements(item?.userAchievements), true),
+            "</div>"
+        ].join("");
+    }
+
     function renderClubDetail(data) {
         const detail = data.detail;
         const owner = detail.owner;
@@ -1511,6 +1558,772 @@
         ].join("");
     }
 
+    function pad2(value) {
+        return String(value).padStart(2, "0");
+    }
+
+    function formatSlashDate(value) {
+        const date = parseDate(value);
+        if (!date) {
+            return "-";
+        }
+
+        return `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()}`;
+    }
+
+    function formatSlashDateTime(value) {
+        const date = parseDate(value);
+        if (!date) {
+            return "-";
+        }
+
+        return `${formatSlashDate(date)} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+    }
+
+    function formatClock(value) {
+        const date = parseDate(value);
+        if (!date) {
+            return "--:--";
+        }
+
+        return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+    }
+
+    function formatFlexibleNumber(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) {
+            return "-";
+        }
+
+        if (Math.abs(number - Math.trunc(number)) < 0.000001) {
+            return String(Math.trunc(number));
+        }
+
+        return number.toFixed(2).replace(/\.?0+$/, "");
+    }
+
+    function normalizeRichHtml(value) {
+        const html = trimToEmpty(value);
+        if (!html || html === "<p><br></p>") {
+            return "";
+        }
+
+        return html;
+    }
+
+    function tournamentGameTypeLabel(value) {
+        const type = trimToEmpty(value).toUpperCase();
+
+        if (type === "DOUBLE") {
+            return "\u0110\u00f4i";
+        }
+
+        if (type === "SINGLE") {
+            return "\u0110\u01a1n";
+        }
+
+        if (type === "MIXED") {
+            return "\u0110\u00f4i h\u1ed7n h\u1ee3p";
+        }
+
+        return trimToEmpty(value) || "-";
+    }
+
+    function formatSignedNumber(value) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) {
+            return "0";
+        }
+
+        if (number > 0) {
+            return `+${number}`;
+        }
+
+        return String(number);
+    }
+
+    function buildTournamentTeamName(item) {
+        const names = [
+            trimToEmpty(item?.player1?.name),
+            trimToEmpty(item?.player2?.name)
+        ].filter(Boolean);
+
+        if (names.length > 0) {
+            return names.join(" / ");
+        }
+
+        return `\u0110\u0103ng k\u00fd #${toNumber(item?.regIndex)}`;
+    }
+
+    function buildTournamentRegistrationMeta(item) {
+        const parts = [];
+
+        if (trimToEmpty(item?.regCode)) {
+            parts.push(trimToEmpty(item.regCode));
+        }
+
+        if (item?.regTime) {
+            parts.push(formatSlashDateTime(item.regTime));
+        }
+
+        parts.push(
+            item?.success
+                ? "\u0110\u00e3 gh\u00e9p c\u1eb7p"
+                : item?.waitingPair
+                    ? "\u0110ang ch\u1edd gh\u00e9p"
+                    : "\u0110\u0103ng k\u00fd"
+        );
+
+        return parts.join(" \u00b7 ");
+    }
+
+    function tournamentSectionEmpty(text) {
+        return `<div class="tournament-native-empty">${escapeHtml(text)}</div>`;
+    }
+
+    function renderTournamentInfoLine(label, value, boldValue) {
+        return [
+            '<p class="tournament-native-line">',
+            `${escapeHtml(label)}: `,
+            `<strong class="${boldValue ? "is-bold" : ""}">${escapeHtml(value)}</strong>`,
+            "</p>"
+        ].join("");
+    }
+
+    function renderTournamentActionLink(label, icon, href) {
+        return [
+            `<a class="tournament-native-action" href="${escapeHtml(buildSafeHref(href, "#"))}">`,
+            `<ion-icon name="${escapeHtml(icon)}"></ion-icon>`,
+            `<span>${escapeHtml(label)}</span>`,
+            "</a>"
+        ].join("");
+    }
+
+    function renderTournamentRegistrationCard(item) {
+        const title = buildTournamentTeamName(item);
+        const badgeText = item?.success
+            ? "\u0110\u00e3 gh\u00e9p c\u1eb7p"
+            : item?.waitingPair
+                ? "\u0110ang ch\u1edd gh\u00e9p"
+                : "\u0110\u0103ng k\u00fd";
+        const badgeClass = item?.success
+            ? "is-success"
+            : item?.waitingPair
+                ? "is-waiting"
+                : "";
+        const avatarUrl = item?.player1?.avatar || item?.player2?.avatar || "";
+
+        return [
+            '<article class="tournament-registration-card">',
+            avatarMarkup(title, avatarUrl, "tournament-registration-card__avatar"),
+            '<div class="tournament-registration-card__copy">',
+            `<h4>${escapeHtml(title)}</h4>`,
+            `<p>${escapeHtml(buildTournamentRegistrationMeta(item))}</p>`,
+            "</div>",
+            `<span class="tournament-registration-card__badge ${badgeClass}">${escapeHtml(badgeText)}</span>`,
+            "</article>"
+        ].join("");
+    }
+
+    function renderTournamentRegistrationList(title, items, emptyText) {
+        const list = Array.isArray(items) ? items : [];
+
+        return [
+            '<section class="tournament-registration-list">',
+            '<div class="tournament-registration-list__head">',
+            `<h4>${escapeHtml(title)}</h4>`,
+            `<span>${list.length}</span>`,
+            "</div>",
+            list.length > 0
+                ? `<div class="tournament-registration-list__body">${list.slice(0, 4).map(renderTournamentRegistrationCard).join("")}</div>`
+                : tournamentSectionEmpty(emptyText),
+            list.length > 4
+                ? `<p class="tournament-registration-list__more">+${list.length - 4} \u0111\u0103ng k\u00fd kh\u00e1c</p>`
+                : "",
+            "</section>"
+        ].join("");
+    }
+
+    function renderTournamentRegistrationsSection(detail, registrations, rounds) {
+        const counts = registrations?.counts || {};
+        const successItems = Array.isArray(registrations?.successItems) ? registrations.successItems : [];
+        const waitingItems = Array.isArray(registrations?.waitingItems) ? registrations.waitingItems : [];
+        const registeredCount = detail?.registeredCount != null
+            ? detail.registeredCount
+            : toNumber(counts.success) + toNumber(counts.waiting);
+        const pairedCount = detail?.pairedCount != null
+            ? detail.pairedCount
+            : toNumber(counts.success);
+
+        return [
+            '<section id="tournament-registrations" class="tournament-native-block tournament-native-block--spacious">',
+            '<h3 class="tournament-native-section-title">\u0110\u0103ng k\u00fd c\u00f4ng khai</h3>',
+            '<div class="tournament-native-stats">',
+            `<div class="tournament-native-stat"><small>Th\u00e0nh vi\u00ean \u0111\u00e3 \u0111\u0103ng k\u00fd</small><strong>${escapeHtml(String(registeredCount))}</strong></div>`,
+            `<div class="tournament-native-stat"><small>Th\u00e0nh vi\u00ean \u0111\u00e3 gh\u00e9p c\u1eb7p</small><strong>${escapeHtml(String(pairedCount))}</strong></div>`,
+            `<div class="tournament-native-stat"><small>\u0110\u1ed9i th\u00e0nh c\u00f4ng</small><strong>${escapeHtml(String(toNumber(counts.success)))}</strong></div>`,
+            `<div class="tournament-native-stat"><small>C\u00f2n ch\u1ed7</small><strong>${escapeHtml(String(toNumber(counts.capacityLeft)))}</strong></div>`,
+            `<div class="tournament-native-stat"><small>\u0110ang ch\u1edd gh\u00e9p</small><strong>${escapeHtml(String(toNumber(counts.waiting)))}</strong></div>`,
+            `<div class="tournament-native-stat"><small>S\u1ed1 v\u00f2ng \u0111\u1ea5u</small><strong>${escapeHtml(String(Array.isArray(rounds) ? rounds.length : 0))}</strong></div>`,
+            "</div>",
+            '<div class="tournament-registration-grid">',
+            renderTournamentRegistrationList(
+                "\u0110\u00e3 gh\u00e9p c\u1eb7p",
+                successItems,
+                "Ch\u01b0a c\u00f3 \u0111\u1ed9i n\u00e0o \u0111\u01b0\u1ee3c x\u00e1c nh\u1eadn."
+            ),
+            renderTournamentRegistrationList(
+                "\u0110ang ch\u1edd gh\u00e9p",
+                waitingItems,
+                "Hi\u1ec7n kh\u00f4ng c\u00f2n \u0111\u0103ng k\u00fd ch\u1edd gh\u00e9p."
+            ),
+            "</div>",
+            "</section>"
+        ].join("");
+    }
+
+    function buildTournamentRoundItems(rounds) {
+        return (Array.isArray(rounds) ? rounds : []).map(function (round, index) {
+            return {
+                key: String(round?.tournamentRoundMapId || round?.roundKey || `round-${index + 1}`),
+                label: trimToEmpty(round?.roundLabel) || `V\u00f2ng ${index + 1}`,
+                round: round
+            };
+        });
+    }
+
+    function renderTournamentRoundTabs(groupName, items) {
+        if (!Array.isArray(items) || items.length === 0) {
+            return "";
+        }
+
+        return [
+            `<div class="tournament-native-tabs" data-tournament-tab-group="${escapeHtml(groupName)}">`,
+            items.map(function (item, index) {
+                return `<button class="tournament-native-tab ${index === 0 ? "is-active" : ""}" type="button" data-tournament-tab-target="${escapeHtml(item.key)}">${escapeHtml(item.label)}</button>`;
+            }).join(""),
+            "</div>"
+        ].join("");
+    }
+
+    function renderTournamentScheduleMatch(match, index) {
+        const teamA = trimToEmpty(match?.team1?.displayName) || "\u0110\u1ed9i ch\u01b0a x\u00e1c \u0111\u1ecbnh";
+        const teamB = trimToEmpty(match?.team2?.displayName) || "\u0110\u1ed9i ch\u01b0a x\u00e1c \u0111\u1ecbnh";
+        const hasWinner = !!match?.winnerRegistrationId || !!match?.winner || trimToEmpty(match?.winnerTeam);
+        const isWinnerA = hasWinner && match?.winnerRegistrationId === match?.team1RegistrationId;
+        const isWinnerB = hasWinner && match?.winnerRegistrationId === match?.team2RegistrationId;
+        const videoHref = trimToEmpty(match?.videoUrl) ? buildSafeHref(match.videoUrl, "#") : "";
+        const matchHref = buildSafeHref(`/PickleballWeb/Match/${match?.matchId}`, "#");
+        const courtText = trimToEmpty(match?.addressText) || trimToEmpty(match?.courtText) || "Ch\u01b0a c\u1eadp nh\u1eadt";
+
+        return [
+            `<div class="tournament-match-card ${hasWinner ? "is-finished" : ""}">`,
+            `<div class="tournament-match-card__index ${hasWinner ? "is-finished" : ""}">${index + 1}</div>`,
+            '<div class="tournament-match-card__body">',
+            `<p class="tournament-match-card__meta">#${escapeHtml(String(match?.matchId || index + 1))} (${escapeHtml(formatClock(match?.startAt))}; S\u00e2n: ${escapeHtml(courtText)})</p>`,
+            '<div class="tournament-match-card__teams">',
+            '<div class="tournament-match-card__teamnames">',
+            `<strong class="${isWinnerA ? "is-winner" : ""}">${escapeHtml(teamA)}</strong>`,
+            `<strong class="${isWinnerB ? "is-winner" : ""}">${escapeHtml(teamB)}</strong>`,
+            "</div>",
+            '<div class="tournament-match-card__scores">',
+            `<span class="${isWinnerA ? "is-winner" : ""}">${escapeHtml(String(toNumber(match?.scoreTeam1)))}</span>`,
+            `<span class="${isWinnerB ? "is-winner" : ""}">${escapeHtml(String(toNumber(match?.scoreTeam2)))}</span>`,
+            "</div>",
+            "</div>",
+            '<div class="tournament-match-card__actions">',
+            videoHref
+                ? `<a class="tournament-match-card__action is-video" href="${escapeHtml(videoHref)}" target="_blank" rel="noreferrer"><ion-icon name="play-circle-outline"></ion-icon><span>Xem video</span></a>`
+                : '<span class="tournament-match-card__action is-disabled"><ion-icon name="play-circle-outline"></ion-icon><span>Xem video</span></span>',
+            `<a class="tournament-match-card__action is-strong" href="${escapeHtml(matchHref)}"><ion-icon name="flag-outline"></ion-icon><span>Di\u1ec5n bi\u1ebfn</span></a>`,
+            "</div>",
+            "</div>",
+            "</div>"
+        ].join("");
+    }
+
+    function renderTournamentScheduleGroup(roundKey, group, groupIndex) {
+        const matches = Array.isArray(group?.matches) ? group.matches : [];
+        const groupName = trimToEmpty(group?.groupName) || String(groupIndex + 1);
+        const groupId = `${roundKey}-${group?.tournamentRoundGroupId || groupIndex + 1}`;
+
+        return [
+            `<article class="tournament-schedule-group is-open" data-tournament-group="${escapeHtml(groupId)}">`,
+            `<button class="tournament-schedule-group__header" type="button" data-tournament-group-toggle="${escapeHtml(groupId)}">`,
+            '<span class="tournament-schedule-group__left">',
+            '<ion-icon class="tournament-schedule-group__caret" name="chevron-down"></ion-icon>',
+            '<span class="tournament-schedule-group__copy">',
+            `<strong>B\u1ea3ng ${escapeHtml(groupName)}</strong>`,
+            `<small>${escapeHtml(String(matches.length))} tr\u1eadn</small>`,
+            "</span>",
+            "</span>",
+            '<ion-icon name="ellipsis-horizontal"></ion-icon>',
+            "</button>",
+            `<div class="tournament-schedule-group__body">`,
+            matches.length > 0
+                ? matches.map(function (match, index) {
+                    return renderTournamentScheduleMatch(match, index);
+                }).join("")
+                : tournamentSectionEmpty("V\u00f2ng n\u00e0y ch\u01b0a c\u00f3 tr\u1eadn \u0111\u1ea5u c\u00f4ng khai."),
+            "</div>",
+            "</article>"
+        ].join("");
+    }
+
+    function renderTournamentScheduleSection(detail, rounds) {
+        const roundItems = buildTournamentRoundItems(rounds);
+
+        return [
+            '<section id="tournament-schedule" class="tournament-native-subscreen">',
+            '<div class="tournament-native-subscreen__head">',
+            '<h3 class="tournament-native-section-title">L\u1ecbch thi \u0111\u1ea5u</h3>',
+            '<p class="tournament-native-section-caption">Theo d\u00f5i b\u1ea3ng \u0111\u1ea5u, s\u00e2n thi \u0111\u1ea5u v\u00e0 k\u1ebft qu\u1ea3 t\u1eebng tr\u1eadn.</p>',
+            "</div>",
+            '<div class="tournament-native-meta-row">',
+            '<div class="tournament-native-meta-item">',
+            '<ion-icon name="git-branch-outline"></ion-icon>',
+            `<span>${escapeHtml(trimToEmpty(detail?.playoffType) || "Ch\u01b0a c\u1eadp nh\u1eadt")}</span>`,
+            "</div>",
+            '<div class="tournament-native-meta-item is-right">',
+            '<ion-icon name="people-outline"></ion-icon>',
+            `<span><strong>${escapeHtml(String(toNumber(detail?.expectedTeams)))}</strong> \u0111\u1ed9i - <strong>${escapeHtml(String(toNumber(detail?.matchesCount)))}</strong> tr\u1eadn \u0111\u1ea5u</span>`,
+            "</div>",
+            "</div>",
+            renderTournamentRoundTabs("schedule", roundItems),
+            roundItems.length > 0
+                ? roundItems.map(function (item, index) {
+                    const groups = Array.isArray(item.round?.groups) ? item.round.groups : [];
+
+                    return [
+                        `<div class="tournament-native-panel ${index === 0 ? "is-active" : ""}" data-tournament-panel-group="schedule" data-tournament-panel-key="${escapeHtml(item.key)}" ${index === 0 ? "" : "hidden"}>`,
+                        groups.length > 0
+                            ? groups.map(function (group, groupIndex) {
+                                return renderTournamentScheduleGroup(item.key, group, groupIndex);
+                            }).join("")
+                            : tournamentSectionEmpty("\u0110ang ch\u1edd c\u1eadp nh\u1eadt l\u1ecbch thi \u0111\u1ea5u cho v\u00f2ng n\u00e0y."),
+                        "</div>"
+                    ].join("");
+                }).join("")
+                : tournamentSectionEmpty("Gi\u1ea3i \u0111\u1ea5u n\u00e0y ch\u01b0a c\u00f3 l\u1ecbch thi \u0111\u1ea5u c\u00f4ng khai."),
+            "</section>"
+        ].join("");
+    }
+
+    function renderTournamentStandingsGroup(group) {
+        const rows = Array.isArray(group?.rows) ? group.rows : [];
+
+        return [
+            '<article class="tournament-standing-card">',
+            `<h4>${escapeHtml(trimToEmpty(group?.groupName) || "B\u1ea3ng \u0111\u1ea5u")}</h4>`,
+            '<div class="tournament-standing-table">',
+            '<div class="tournament-standing-table__head">',
+            '<span class="is-team">\u0110\u1ed9i</span>',
+            '<span>Th\u1eafng</span>',
+            '<span>\u0110i\u1ec3m</span>',
+            '<span>HS\u1ed1</span>',
+            '<span>H\u1ea1ng</span>',
+            "</div>",
+            rows.length > 0
+                ? rows.map(function (row) {
+                    const isTop = toNumber(row?.rank) === 1;
+
+                    return [
+                        `<div class="tournament-standing-table__row ${isTop ? "is-top" : ""}">`,
+                        `<strong class="is-team">${escapeHtml(trimToEmpty(row?.teamName) || "\u0110\u1ed9i thi \u0111\u1ea5u")}</strong>`,
+                        `<span>${escapeHtml(String(toNumber(row?.wins)))}</span>`,
+                        `<span>${escapeHtml(String(toNumber(row?.points)))}</span>`,
+                        `<span>${escapeHtml(formatSignedNumber(row?.scoreDiff))}</span>`,
+                        `<span>${escapeHtml(String(toNumber(row?.rank)))}</span>`,
+                        "</div>"
+                    ].join("");
+                }).join("")
+                : tournamentSectionEmpty("Ch\u01b0a c\u00f3 d\u1eef li\u1ec7u x\u1ebfp h\u1ea1ng."),
+            "</div>",
+            "</article>"
+        ].join("");
+    }
+
+    function renderTournamentStandingsSection(rounds, standingsByRoundMapId) {
+        const roundItems = buildTournamentRoundItems(rounds).map(function (item) {
+            return {
+                key: item.key,
+                label: item.label,
+                standing: standingsByRoundMapId ? standingsByRoundMapId[item.key] : null
+            };
+        }).filter(function (item) {
+            return !!item.standing;
+        });
+
+        return [
+            '<section id="tournament-standings" class="tournament-native-subscreen">',
+            '<div class="tournament-native-subscreen__head">',
+            '<h3 class="tournament-native-section-title">B\u1ea3ng x\u1ebfp h\u1ea1ng</h3>',
+            '<p class="tournament-native-section-caption">T\u1ed5ng h\u1ee3p \u0111i\u1ec3m, tr\u1eadn th\u1eafng v\u00e0 hi\u1ec7u s\u1ed1 c\u1ee7a t\u1eebng b\u1ea3ng \u0111\u1ea5u.</p>',
+            "</div>",
+            renderTournamentRoundTabs("standings", roundItems),
+            roundItems.length > 0
+                ? roundItems.map(function (item, index) {
+                    const groups = Array.isArray(item.standing?.groups) ? item.standing.groups : [];
+
+                    return [
+                        `<div class="tournament-native-panel ${index === 0 ? "is-active" : ""}" data-tournament-panel-group="standings" data-tournament-panel-key="${escapeHtml(item.key)}" ${index === 0 ? "" : "hidden"}>`,
+                        groups.length > 0
+                            ? groups.map(renderTournamentStandingsGroup).join("")
+                            : tournamentSectionEmpty("V\u00f2ng n\u00e0y ch\u01b0a c\u00f3 d\u1eef li\u1ec7u x\u1ebfp h\u1ea1ng."),
+                        "</div>"
+                    ].join("");
+                }).join("")
+                : tournamentSectionEmpty("Gi\u1ea3i \u0111\u1ea5u n\u00e0y ch\u01b0a c\u00f3 b\u1ea3ng x\u1ebfp h\u1ea1ng c\u00f4ng khai."),
+            "</section>"
+        ].join("");
+    }
+
+    async function loadTournamentNativeDetail(id) {
+        return {
+            detail: await fetchJson(`/api/public/tournaments/${id}`)
+        };
+    }
+
+    function renderTournamentNativeDetail(data) {
+        const detail = data?.detail || {};
+        const contentHtml = normalizeRichHtml(detail?.content);
+        const bannerUrl = normalizeMediaUrl(detail?.bannerUrl);
+
+        return [
+            '<div class="tournament-native-detail">',
+            bannerUrl
+                ? `<img class="tournament-native-detail__banner" src="${escapeHtml(bannerUrl)}" alt="${escapeHtml(trimToEmpty(detail?.title) || "Gi\u1ea3i \u0111\u1ea5u")}" loading="lazy">`
+                : '<div class="tournament-native-detail__banner tournament-native-detail__banner--fallback"><ion-icon name="trophy-outline"></ion-icon></div>',
+            '<div class="tournament-native-detail__body">',
+            `<h2 class="tournament-native-detail__title">${escapeHtml(trimToEmpty(detail?.title) || "Chi ti\u1ebft gi\u1ea3i \u0111\u1ea5u")}</h2>`,
+            '<div class="tournament-native-detail__info">',
+            renderTournamentInfoLine("Ng\u00e0y", formatSlashDateTime(detail?.startTime), true),
+            renderTournamentInfoLine("H\u1ea1n \u0111\u0103ng k\u00fd", formatSlashDateTime(detail?.registerDeadline), true),
+            renderTournamentInfoLine("Th\u1ec3 th\u1ee9c", trimToEmpty(detail?.playoffType) || "-", true),
+            renderTournamentInfoLine("Gi\u1ea3i", tournamentGameTypeLabel(detail?.gameType), true),
+            '<div class="tournament-native-two-col">',
+            renderTournamentInfoLine("Gi\u1edbi h\u1ea1n tr\u00ecnh \u0111\u01a1n t\u1ed1i \u0111a", formatFlexibleNumber(detail?.singleLimit), true),
+            renderTournamentInfoLine("C\u1eb7p t\u1ed1i \u0111a", formatFlexibleNumber(detail?.doubleLimit), true),
+            "</div>",
+            renderTournamentInfoLine("\u0110\u1ecba \u0111i\u1ec3m", trimToEmpty(detail?.locationText) || "-", true),
+            '<div class="tournament-native-two-col">',
+            renderTournamentInfoLine("S\u1ed1 \u0111\u1ed9i d\u1ef1 ki\u1ebfn", String(toNumber(detail?.expectedTeams)), true),
+            renderTournamentInfoLine("S\u1ed1 tr\u1eadn thi \u0111\u1ea5u", String(toNumber(detail?.matchesCount)), true),
+            "</div>",
+            '<div class="tournament-native-two-col">',
+            renderTournamentInfoLine("T\u00ecnh tr\u1ea1ng", trimToEmpty(detail?.statusText) || trimToEmpty(detail?.status) || "-", true),
+            renderTournamentInfoLine("D\u1ea1ng", trimToEmpty(detail?.formatText) || "-", true),
+            "</div>",
+            renderTournamentInfoLine("\u0110\u01a1n v\u1ecb t\u1ed5 ch\u1ee9c", trimToEmpty(detail?.organizer) || "-", false),
+            renderTournamentInfoLine("Ng\u01b0\u1eddi t\u1ea1o gi\u1ea3i", trimToEmpty(detail?.creatorName) || "-", true),
+            detail?.registeredCount != null
+                ? renderTournamentInfoLine("Th\u00e0nh vi\u00ean \u0111\u00e3 \u0111\u0103ng k\u00fd", String(detail.registeredCount), true)
+                : "",
+            detail?.pairedCount != null
+                ? renderTournamentInfoLine("Th\u00e0nh vi\u00ean \u0111\u00e3 gh\u00e9p c\u1eb7p", String(detail.pairedCount), true)
+                : "",
+            "</div>",
+            '<section id="tournament-content" class="tournament-native-block">',
+            '<h3 class="tournament-native-section-title">N\u1ed9i dung</h3>',
+            contentHtml
+                ? `<div class="page-richtext tournament-native-richtext">${contentHtml}</div>`
+                : '<p class="tournament-native-empty-text">Ch\u01b0a c\u00f3 n\u1ed9i dung gi\u1ea3i \u0111\u1ea5u.</p>',
+            "</section>",
+            '<p class="tournament-native-caps">QU\u1ea2N L\u00dd GI\u1ea2I \u0110\u1ea4U</p>',
+            '<div class="tournament-native-actions">',
+            renderTournamentActionLink("Danh s\u00e1ch \u0111\u0103ng k\u00fd", "list", `/PickleballWeb/Tournament/${detail?.tournamentId}/Registrations`),
+            renderTournamentActionLink("Th\u1ec3 l\u1ec7 gi\u1ea3i", "hammer", `/PickleballWeb/Tournament/${detail?.tournamentId}/Rule`),
+            renderTournamentActionLink("L\u1ecbch thi \u0111\u1ea5u", "calendar", `/PickleballWeb/Tournament/${detail?.tournamentId}/Schedule`),
+            renderTournamentActionLink("B\u1ea3ng x\u1ebfp h\u1ea1ng", "stats-chart", `/PickleballWeb/Tournament/${detail?.tournamentId}/Standings`),
+            "</div>",
+            "</div>",
+            "</div>"
+        ].join("");
+    }
+
+    function normalizeSearchText(value) {
+        return String(value || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
+    }
+
+    function registrationInitial(name) {
+        const words = trimToEmpty(name).split(/\s+/).filter(Boolean);
+        const lastWord = words.length > 0 ? words[words.length - 1] : "?";
+        return lastWord.charAt(0).toUpperCase() || "?";
+    }
+
+    function renderRegistrationAvatar(name, avatarUrl, className) {
+        const src = normalizeMediaUrl(avatarUrl);
+        const cssClass = className || "tournament-registration-page__avatar";
+
+        if (src) {
+            return `<span class="${escapeHtml(cssClass)}"><img src="${escapeHtml(src)}" alt="${escapeHtml(name)}" loading="lazy"></span>`;
+        }
+
+        return `<span class="${escapeHtml(cssClass)}">${escapeHtml(registrationInitial(name))}</span>`;
+    }
+
+    function buildTournamentRegistrationPageItems(registrations) {
+        const successItems = Array.isArray(registrations?.successItems) ? registrations.successItems : [];
+        const waitingItems = Array.isArray(registrations?.waitingItems) ? registrations.waitingItems : [];
+        const merged = successItems.concat(waitingItems);
+
+        return merged.map(function (item) {
+            const player1 = item?.player1 || {};
+            const player2 = item?.player2 || {};
+            const player2Resolved = item?.player2
+                ? player2
+                : {
+                    name: "Ch\u1edd gh\u00e9p",
+                    avatar: "",
+                    level: 0,
+                    verified: false,
+                    isGuest: true
+                };
+
+            return {
+                id: String(item?.registrationId || Math.random()),
+                index: toNumber(item?.regIndex),
+                regCode: trimToEmpty(item?.regCode),
+                regTime: formatSlashDateTime(item?.regTime),
+                points: item?.points ?? 0,
+                success: !!item?.success,
+                waitingPair: !!item?.waitingPair,
+                player1: {
+                    name: trimToEmpty(player1?.name) || "-",
+                    avatar: player1?.avatar || "",
+                    level: player1?.level ?? 0,
+                    verified: !!player1?.verified,
+                    isGuest: !!player1?.isGuest
+                },
+                player2: {
+                    name: trimToEmpty(player2Resolved?.name) || "-",
+                    avatar: player2Resolved?.avatar || "",
+                    level: player2Resolved?.level ?? 0,
+                    verified: !!player2Resolved?.verified,
+                    isGuest: !!player2Resolved?.isGuest
+                }
+            };
+        });
+    }
+
+    function renderTournamentRegistrationPlayer(player) {
+        const name = trimToEmpty(player?.name) || "-";
+        const level = formatFlexibleNumber(player?.level);
+        const verified = !!player?.verified;
+        const guest = !!player?.isGuest;
+
+        return [
+            '<div class="tournament-registration-page__player">',
+            '<div class="tournament-registration-page__avatar-ring">',
+            renderRegistrationAvatar(name, player?.avatar || "", "tournament-registration-page__avatar"),
+            "</div>",
+            `<strong>${escapeHtml(name)}</strong>`,
+            `<span>(${escapeHtml(level)})</span>`,
+            verified
+                ? '<em class="is-verified">\u0110\u00e3 x\u00e1c th\u1ef1c</em>'
+                : `<em class="is-pill">${escapeHtml(guest ? "Kh\u00e1ch" : "Ch\u1edd x\u00e1c th\u1ef1c")}</em>`,
+            "</div>"
+        ].join("");
+    }
+
+    function renderTournamentRegistrationRow(item) {
+        const searchText = normalizeSearchText([
+            item?.regCode,
+            item?.regTime,
+            item?.player1?.name,
+            item?.player2?.name
+        ].join(" "));
+
+        return [
+            `<article class="tournament-registration-page__item" data-registration-search="${escapeHtml(searchText)}">`,
+            '<div class="tournament-registration-page__item-head">',
+            `<strong>${escapeHtml(String(toNumber(item?.index)))}</strong>`,
+            `<p>M\u00e3 \u0111k: <span>${escapeHtml(trimToEmpty(item?.regCode) || "-")}</span> ${escapeHtml(trimToEmpty(item?.regTime) || "")}</p>`,
+            "</div>",
+            '<div class="tournament-registration-page__grid">',
+            renderTournamentRegistrationPlayer(item?.player1),
+            renderTournamentRegistrationPlayer(item?.player2),
+            `<div class="tournament-registration-page__points">${escapeHtml(formatFlexibleNumber(item?.points))}</div>`,
+            "</div>",
+            "</article>"
+        ].join("");
+    }
+
+    async function loadTournamentRegistrationsPage(id) {
+        const results = await Promise.allSettled([
+            fetchJson(`/api/public/tournaments/${id}`),
+            fetchJson(`/api/public/tournaments/${id}/registrations`),
+            fetchJson(`/api/links?type=zalo`)
+        ]);
+
+        if (results[1].status !== "fulfilled") {
+            throw new Error("tournament-registrations");
+        }
+
+        return {
+            detail: results[0].status === "fulfilled" ? results[0].value : null,
+            registrations: results[1].value,
+            links: results[2].status === "fulfilled" ? results[2].value : null
+        };
+    }
+
+    function renderTournamentRegistrationsPage(data) {
+        const items = buildTournamentRegistrationPageItems(data?.registrations);
+        const counts = data?.registrations?.counts || {};
+        const detail = data?.detail || {};
+        const zaloItem = Array.isArray(data?.links?.items)
+            ? data.links.items.find(function (item) {
+                return trimToEmpty(item?.type).toLowerCase() === "zalo";
+            })
+            : null;
+        const zaloHref = trimToEmpty(zaloItem?.link) ? buildSafeHref(zaloItem.link, "#") : "";
+        const capacityLeft = counts?.capacityLeft ?? detail?.expectedTeams ?? 0;
+
+        return [
+            '<div class="tournament-registration-page">',
+            zaloHref
+                ? `<div class="tournament-registration-page__links"><a class="tournament-registration-page__link" href="${escapeHtml(zaloHref)}" target="_blank" rel="noreferrer"><ion-icon name="link-outline"></ion-icon><span>Link nh\u00f3m Zalo</span></a></div>`
+                : "",
+            '<div class="tournament-registration-page__stats">',
+            `<div class="tournament-registration-page__badge is-green"><span>Th\u00e0nh c\u00f4ng</span><strong>${escapeHtml(String(toNumber(counts?.success)))}</strong></div>`,
+            `<div class="tournament-registration-page__badge is-orange"><span>Ch\u1edd gh\u00e9p</span><strong>${escapeHtml(String(toNumber(counts?.waiting)))}</strong></div>`,
+            `<div class="tournament-registration-page__badge is-grey"><span>C\u00f2n ch\u1ed7</span><strong>${escapeHtml(String(toNumber(capacityLeft)))}</strong></div>`,
+            "</div>",
+            '<div class="tournament-registration-page__search">',
+            '<div class="tournament-registration-page__searchbox">',
+            '<input type="search" placeholder="Nh\u1eadp t\u00ean, m\u00e3 \u0111\u0103ng k\u00fd \u0111\u1ec3 t\u00ecm ki\u1ebfm..." data-registration-search-input>',
+            '<ion-icon name="search"></ion-icon>',
+            "</div>",
+            "</div>",
+            '<div class="tournament-registration-page__tablehead">',
+            '<span class="is-player">V\u0110V1</span>',
+            '<span class="is-player">V\u0110V2</span>',
+            '<span class="is-points">\u0110i\u1ec3m</span>',
+            "</div>",
+            `<div class="tournament-registration-page__list" data-registration-list>${items.map(renderTournamentRegistrationRow).join("")}</div>`,
+            '<p class="tournament-registration-page__empty" data-registration-empty hidden>Kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u \u0111\u0103ng k\u00fd.</p>',
+            "</div>"
+        ].join("");
+    }
+
+    async function loadTournamentRulePage(id) {
+        return fetchJson(`/api/tournaments/${id}/rule`);
+    }
+
+    function renderTournamentRulePage(data) {
+        const ruleHtml = normalizeRichHtml(data?.tournamentRule);
+
+        return [
+            '<div class="tournament-rule-page">',
+            '<div class="tournament-rule-page__card">',
+            ruleHtml
+                ? `<div class="page-richtext tournament-native-richtext">${ruleHtml}</div>`
+                : '<p class="tournament-native-empty-text">Ch\u01b0a c\u00f3 th\u1ec3 l\u1ec7 gi\u1ea3i.</p>',
+            "</div>",
+            "</div>"
+        ].join("");
+    }
+
+    async function loadTournamentSchedulePage(id) {
+        return fetchJson(`/api/tournaments/${id}/rounds-with-matches`);
+    }
+
+    function renderTournamentSchedulePage(data) {
+        const tournament = data?.tournament || {};
+        const rounds = Array.isArray(data?.rounds) ? data.rounds : [];
+        const roundItems = buildTournamentRoundItems(rounds);
+
+        return [
+            '<div class="tournament-subpage tournament-subpage--schedule">',
+            '<div class="tournament-native-meta-row tournament-native-meta-row--page">',
+            '<div class="tournament-native-meta-item">',
+            '<ion-icon name="git-branch-outline"></ion-icon>',
+            `<span>${escapeHtml(trimToEmpty(tournament?.playoffType) || "Ch\u01b0a c\u1eadp nh\u1eadt")}</span>`,
+            "</div>",
+            '<div class="tournament-native-meta-item is-right">',
+            '<ion-icon name="people-outline"></ion-icon>',
+            `<span><strong>${escapeHtml(String(toNumber(tournament?.expectedTeams)))}</strong> \u0111\u1ed9i - <strong>${escapeHtml(String(toNumber(tournament?.matchesCount)))}</strong> tr\u1eadn \u0111\u1ea5u</span>`,
+            "</div>",
+            "</div>",
+            renderTournamentRoundTabs("schedule", roundItems),
+            roundItems.length > 0
+                ? roundItems.map(function (item, index) {
+                    const groups = Array.isArray(item.round?.groups) ? item.round.groups : [];
+
+                    return [
+                        `<div class="tournament-native-panel ${index === 0 ? "is-active" : ""}" data-tournament-panel-group="schedule" data-tournament-panel-key="${escapeHtml(item.key)}" ${index === 0 ? "" : "hidden"}>`,
+                        groups.length > 0
+                            ? groups.map(function (group, groupIndex) {
+                                return renderTournamentScheduleGroup(item.key, group, groupIndex);
+                            }).join("")
+                            : tournamentSectionEmpty("V\u00f2ng \u0111\u1ea5u n\u00e0y ch\u01b0a c\u00f3 tr\u1eadn n\u00e0o."),
+                        "</div>"
+                    ].join("");
+                }).join("")
+                : tournamentSectionEmpty("Gi\u1ea3i \u0111\u1ea5u n\u00e0y ch\u01b0a c\u00f3 l\u1ecbch thi \u0111\u1ea5u c\u00f4ng khai."),
+            "</div>"
+        ].join("");
+    }
+
+    async function loadTournamentStandingsPage(id) {
+        const roundsPayload = await fetchJson(`/api/tournaments/${id}/rounds-with-matches`);
+        const rounds = Array.isArray(roundsPayload?.rounds) ? roundsPayload.rounds : [];
+        const standingsByRoundMapId = Object.create(null);
+
+        if (rounds.length > 0) {
+            const standingResults = await Promise.allSettled(
+                rounds.map(function (round) {
+                    return fetchJson(`/api/tournaments/${id}/round-maps/${round.tournamentRoundMapId}/standings`);
+                })
+            );
+
+            standingResults.forEach(function (result, index) {
+                if (result.status === "fulfilled") {
+                    standingsByRoundMapId[String(rounds[index]?.tournamentRoundMapId)] = result.value;
+                }
+            });
+        }
+
+        return {
+            tournament: roundsPayload?.tournament || null,
+            rounds: rounds,
+            standingsByRoundMapId: standingsByRoundMapId
+        };
+    }
+
+    function renderTournamentStandingsPage(data) {
+        const rounds = Array.isArray(data?.rounds) ? data.rounds : [];
+        const roundItems = buildTournamentRoundItems(rounds).map(function (item) {
+            return {
+                key: item.key,
+                label: item.label,
+                standing: data?.standingsByRoundMapId ? data.standingsByRoundMapId[item.key] : null
+            };
+        });
+
+        return [
+            '<div class="tournament-subpage tournament-subpage--standings">',
+            renderTournamentRoundTabs("standings", roundItems),
+            roundItems.length > 0
+                ? roundItems.map(function (item, index) {
+                    const groups = Array.isArray(item.standing?.groups) ? item.standing.groups : [];
+
+                    return [
+                        `<div class="tournament-native-panel ${index === 0 ? "is-active" : ""}" data-tournament-panel-group="standings" data-tournament-panel-key="${escapeHtml(item.key)}" ${index === 0 ? "" : "hidden"}>`,
+                        groups.length > 0
+                            ? groups.map(renderTournamentStandingsGroup).join("")
+                            : tournamentSectionEmpty("Ch\u01b0a c\u00f3 d\u1eef li\u1ec7u b\u1ea3ng x\u1ebfp h\u1ea1ng cho v\u00f2ng n\u00e0y."),
+                        "</div>"
+                    ].join("");
+                }).join("")
+                : tournamentSectionEmpty("Ch\u01b0a c\u00f3 v\u00f2ng \u0111\u1ea5u n\u00e0o."),
+            "</div>"
+        ].join("");
+    }
+
     const detailConfigs = {
         "member-detail": {
             load: async function (id) {
@@ -1603,7 +2416,73 @@
         return renderCoachLikeDetail(item, "Trọng tài", "Khu vực công tác");
     };
 
-    function applyCoachDetailShell(root) {
+    detailConfigs["referee-detail"].render = renderRefereeDetail;
+    detailConfigs["tournament-detail"].load = loadTournamentNativeDetail;
+    detailConfigs["tournament-detail"].render = renderTournamentNativeDetail;
+    detailConfigs["tournament-registrations"] = {
+        load: loadTournamentRegistrationsPage,
+        render: renderTournamentRegistrationsPage
+    };
+    detailConfigs["tournament-rule-page"] = {
+        load: loadTournamentRulePage,
+        render: renderTournamentRulePage
+    };
+    detailConfigs["tournament-schedule-page"] = {
+        load: loadTournamentSchedulePage,
+        render: renderTournamentSchedulePage
+    };
+    detailConfigs["tournament-standings-page"] = {
+        load: loadTournamentStandingsPage,
+        render: renderTournamentStandingsPage
+    };
+
+    function applyTournamentDetailShell(root, titleText, shareEnabled) {
+        root.classList.add("detail-screen--tournament-native");
+
+        const title = qs(".page-hero h1", root);
+        const eyebrow = qs(".page-hero__eyebrow", root);
+        const description = qs(".page-hero p", root);
+        const backText = qs(".page-hero__back span", root);
+        const tabbar = qs(".mobile-tabbar--page", root);
+        const headerContainer = qs(".page-hero .mobile-web-screen__container", root);
+        const oldAction = qs("[data-tournament-share]", root);
+
+        if (title) {
+            title.textContent = trimToEmpty(titleText) || "Chi ti\u1ebft gi\u1ea3i \u0111\u1ea5u";
+        }
+
+        if (eyebrow) {
+            eyebrow.hidden = true;
+        }
+
+        if (description) {
+            description.hidden = true;
+        }
+
+        if (backText) {
+            backText.hidden = true;
+        }
+
+        if (tabbar) {
+            tabbar.hidden = true;
+        }
+
+        if (oldAction) {
+            oldAction.remove();
+        }
+
+        if (shareEnabled && headerContainer && !qs("[data-tournament-share]", headerContainer)) {
+            const actionButton = document.createElement("button");
+            actionButton.type = "button";
+            actionButton.className = "page-hero__action";
+            actionButton.setAttribute("aria-label", "Chia s\u1ebb");
+            actionButton.setAttribute("data-tournament-share", "true");
+            actionButton.innerHTML = '<ion-icon name="share-social"></ion-icon>';
+            headerContainer.appendChild(actionButton);
+        }
+    }
+
+    function applyCoachDetailShell(root, titleText) {
         root.classList.add("detail-screen--coach-native");
 
         const title = qs(".page-hero h1", root);
@@ -1618,6 +2497,10 @@
 
         if (title) {
             title.textContent = "Thông tin HLV";
+        }
+
+        if (title) {
+            title.textContent = trimToEmpty(titleText) || title.textContent;
         }
 
         if (eyebrow) {
@@ -1658,6 +2541,148 @@
         });
     }
 
+    async function shareCurrentPage(titleText) {
+        const shareUrl = window.location.href;
+
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: titleText,
+                    text: titleText,
+                    url: shareUrl
+                });
+                return;
+            } catch (error) {
+                if (error?.name === "AbortError") {
+                    return;
+                }
+            }
+        }
+
+        if (navigator.clipboard?.writeText) {
+            try {
+                await navigator.clipboard.writeText(shareUrl);
+                window.alert("\u0110\u00e3 sao ch\u00e9p li\u00ean k\u1ebft gi\u1ea3i \u0111\u1ea5u.");
+                return;
+            } catch (_error) {
+                // Fallback handled below.
+            }
+        }
+
+        window.prompt("Sao ch\u00e9p li\u00ean k\u1ebft gi\u1ea3i \u0111\u1ea5u:", shareUrl);
+    }
+
+    function initTournamentTabGroup(root, groupName) {
+        const buttons = qsa(`[data-tournament-tab-group="${groupName}"] [data-tournament-tab-target]`, root);
+        const panels = qsa(`[data-tournament-panel-group="${groupName}"]`, root);
+
+        if (buttons.length === 0 || panels.length === 0) {
+            return;
+        }
+
+        buttons.forEach(function (button) {
+            button.addEventListener("click", function () {
+                const target = trimToEmpty(button.getAttribute("data-tournament-tab-target"));
+
+                buttons.forEach(function (item) {
+                    item.classList.toggle("is-active", item === button);
+                });
+
+                panels.forEach(function (panel) {
+                    const isActive = trimToEmpty(panel.getAttribute("data-tournament-panel-key")) === target;
+                    panel.hidden = !isActive;
+                    panel.classList.toggle("is-active", isActive);
+                });
+            });
+        });
+    }
+
+    function initTournamentGroupToggles(root) {
+        qsa("[data-tournament-group-toggle]", root).forEach(function (button) {
+            button.addEventListener("click", function () {
+                const target = trimToEmpty(button.getAttribute("data-tournament-group-toggle"));
+                const group = qs(`[data-tournament-group="${target}"]`, root);
+                const body = qs(".tournament-schedule-group__body", group);
+                const caret = qs(".tournament-schedule-group__caret", button);
+                const isOpen = group?.classList.contains("is-open");
+
+                group?.classList.toggle("is-open", !isOpen);
+
+                if (body) {
+                    body.hidden = !!isOpen;
+                }
+
+                if (caret) {
+                    caret.setAttribute("name", isOpen ? "chevron-forward" : "chevron-down");
+                }
+            });
+        });
+    }
+
+    function initTournamentRegistrationSearch(root) {
+        const input = qs("[data-registration-search-input]", root);
+        const rows = qsa("[data-registration-search]", root);
+        const empty = qs("[data-registration-empty]", root);
+
+        if (!input || rows.length === 0) {
+            return;
+        }
+
+        const applyFilter = function () {
+            const query = normalizeSearchText(input.value);
+            let visibleCount = 0;
+
+            rows.forEach(function (row) {
+                const haystack = trimToEmpty(row.getAttribute("data-registration-search"));
+                const isVisible = !query || haystack.includes(query);
+                row.hidden = !isVisible;
+
+                if (isVisible) {
+                    visibleCount += 1;
+                }
+            });
+
+            if (empty) {
+                empty.hidden = visibleCount !== 0;
+            }
+        };
+
+        input.addEventListener("input", applyFilter);
+        applyFilter();
+    }
+
+    function initTournamentDetailInteractions(root, data, kind) {
+        const shareButton = qs("[data-tournament-share]", root);
+        const titleText =
+            trimToEmpty(data?.detail?.title) ||
+            trimToEmpty(data?.tournament?.title) ||
+            trimToEmpty(data?.title) ||
+            "Chi ti\u1ebft gi\u1ea3i \u0111\u1ea5u";
+
+        if (shareButton) {
+            shareButton.onclick = function () {
+                shareCurrentPage(titleText);
+            };
+        }
+
+        if (kind === "tournament-rule-page") {
+            const headerTitle = qs(".page-hero h1", root);
+            if (headerTitle && trimToEmpty(data?.title)) {
+                headerTitle.textContent = trimToEmpty(data.title);
+            }
+        }
+
+        if (kind === "tournament-registrations") {
+            initTournamentRegistrationSearch(root);
+        }
+
+        if (kind === "tournament-schedule-page" || kind === "tournament-standings-page") {
+            initTournamentTabGroup(root, "schedule");
+            initTournamentTabGroup(root, "standings");
+            initTournamentGroupToggles(root);
+        }
+    }
+
     async function initDetailPage(root) {
         const kind = trimToEmpty(root.getAttribute("data-detail-kind"));
         const id = Number(root.getAttribute("data-detail-id"));
@@ -1672,16 +2697,51 @@
             return;
         }
 
-        if (kind === "coach-detail") {
-            applyCoachDetailShell(root);
+        if (kind === "coach-detail" || kind === "referee-detail") {
+            applyCoachDetailShell(
+                root,
+                kind === "coach-detail" ? "Th\u00f4ng tin HLV" : "Th\u00f4ng tin Tr\u1ecdng t\u00e0i"
+            );
+        }
+
+        if (
+            kind === "tournament-detail" ||
+            kind === "tournament-registrations" ||
+            kind === "tournament-rule-page" ||
+            kind === "tournament-schedule-page" ||
+            kind === "tournament-standings-page"
+        ) {
+            applyTournamentDetailShell(
+                root,
+                kind === "tournament-registrations"
+                    ? "Danh s\u00e1ch \u0111\u0103ng k\u00fd"
+                    : kind === "tournament-rule-page"
+                        ? "Th\u1ec3 l\u1ec7 gi\u1ea3i"
+                        : kind === "tournament-schedule-page"
+                            ? "L\u1ecbch thi \u0111\u1ea5u"
+                            : kind === "tournament-standings-page"
+                                ? "B\u1ea3ng x\u1ebfp h\u1ea1ng"
+                                : "Chi ti\u1ebft gi\u1ea3i \u0111\u1ea5u",
+                kind === "tournament-detail" || kind === "tournament-schedule-page"
+            );
         }
 
         try {
             const data = await config.load(id);
             body.innerHTML = config.render(data);
 
-            if (kind === "coach-detail") {
+            if (kind === "coach-detail" || kind === "referee-detail") {
                 initCoachDetailInteractions(root);
+            }
+
+            if (
+                kind === "tournament-detail" ||
+                kind === "tournament-registrations" ||
+                kind === "tournament-rule-page" ||
+                kind === "tournament-schedule-page" ||
+                kind === "tournament-standings-page"
+            ) {
+                initTournamentDetailInteractions(root, data, kind);
             }
         } catch (error) {
             body.innerHTML = [

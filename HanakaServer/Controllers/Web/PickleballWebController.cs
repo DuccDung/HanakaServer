@@ -1,6 +1,6 @@
+using HanakaServer.ViewModels.PickleballWeb;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using HanakaServer.ViewModels.PickleballWeb;
 
 namespace HanakaServer.Controllers.Web
 {
@@ -39,6 +39,32 @@ namespace HanakaServer.Controllers.Web
         }
 
         [HttpGet]
+        public IActionResult Notifications()
+        {
+            return View("Page", BuildPage(
+                title: "Thông Báo",
+                eyebrow: "Lịch thi đấu của bạn",
+                description: "Theo dõi các thông báo trận đấu sắp diễn ra giống với màn hình thông báo trong ứng dụng.",
+                pageKind: "notifications",
+                icon: "notifications-outline",
+                showSearch: false,
+                activeTab: "home"));
+        }
+
+        [HttpGet]
+        public IActionResult Settings()
+        {
+            return View("Page", BuildPage(
+                title: "Cài Đặt",
+                eyebrow: "Tùy biến tài khoản",
+                description: "Màn hình cài đặt theo phong cách app với các lối tắt tài khoản, an toàn cộng đồng và thông tin ứng dụng.",
+                pageKind: "settings",
+                icon: "settings-outline",
+                showSearch: false,
+                activeTab: "home"));
+        }
+
+        [HttpGet]
         public IActionResult Members()
         {
             return View("Members", BuildPage(
@@ -54,9 +80,9 @@ namespace HanakaServer.Controllers.Web
         public IActionResult HanakaRatingInfo()
         {
             return View("HanakaRatingInfo", BuildPage(
-                title: "CÃ¡ch Cháº¥m TrÃ¬nh",
+                title: "Cách Chấm Trình",
                 eyebrow: "Hanaka rating",
-                description: "Quy Ä‘á»‹nh cháº¥m trÃ¬nh, Ä‘iá»ƒm exp vÃ  cÃ¡ch há»‡ thá»‘ng Hanaka Sport Ä‘iá»u chá»‰nh má»©c Ä‘iá»ƒm ngÆ°á»i chÆ¡i.",
+                description: "Quy định chấm trình, điểm exp và cách hệ thống Hanaka Sport điều chỉnh mức điểm người chơi.",
                 pageKind: "hanaka-rating-info",
                 icon: "ribbon-outline",
                 showSearch: false));
@@ -198,6 +224,62 @@ namespace HanakaServer.Controllers.Web
                 activeTab: "tournaments"));
         }
 
+        [HttpGet("/PickleballWeb/Tournament/{id:long}/Registrations")]
+        public IActionResult TournamentRegistrations(long id)
+        {
+            return View("Detail", BuildDetailPage(
+                title: "Danh Sách Đăng Ký",
+                eyebrow: "Public registrations",
+                description: "Danh sách vận động viên, trạng thái ghép cặp và chỉ số đăng ký công khai của giải đấu.",
+                pageKind: "tournament-registrations",
+                entityId: id,
+                backHref: $"/PickleballWeb/Tournament/{id}",
+                backLabel: "Chi tiết",
+                activeTab: "tournaments"));
+        }
+
+        [HttpGet("/PickleballWeb/Tournament/{id:long}/Rule")]
+        public IActionResult TournamentRule(long id)
+        {
+            return View("Detail", BuildDetailPage(
+                title: "Thể Lệ Giải",
+                eyebrow: "Tournament rule",
+                description: "Thể lệ công khai, quy định tham gia và hướng dẫn thi đấu của giải.",
+                pageKind: "tournament-rule-page",
+                entityId: id,
+                backHref: $"/PickleballWeb/Tournament/{id}",
+                backLabel: "Chi tiết",
+                activeTab: "tournaments"));
+        }
+
+        [HttpGet("/PickleballWeb/Tournament/{id:long}/Schedule")]
+        public IActionResult TournamentSchedule(long id)
+        {
+            return View("Detail", BuildDetailPage(
+                title: "Lịch Thi Đấu",
+                eyebrow: "Tournament schedule",
+                description: "Theo dõi vòng đấu, bảng đấu, sân thi đấu và diễn biến trận từ giải đấu.",
+                pageKind: "tournament-schedule-page",
+                entityId: id,
+                backHref: $"/PickleballWeb/Tournament/{id}",
+                backLabel: "Chi tiết",
+                activeTab: "tournaments"));
+        }
+
+        [HttpGet("/PickleballWeb/Tournament/{id:long}/Standings")]
+        public IActionResult TournamentStandings(long id)
+        {
+            return View("Detail", BuildDetailPage(
+                title: "Bảng Xếp Hạng",
+                eyebrow: "Tournament standings",
+                description: "Theo dõi thứ hạng các đội, điểm số và hiệu số theo từng vòng đấu công khai.",
+                pageKind: "tournament-standings-page",
+                entityId: id,
+                backHref: $"/PickleballWeb/Tournament/{id}",
+                backLabel: "Chi tiết",
+                activeTab: "tournaments"));
+        }
+
         [HttpGet]
         public IActionResult Exchanges()
         {
@@ -278,6 +360,7 @@ namespace HanakaServer.Controllers.Web
             string pageKind,
             long entityId,
             string backHref,
+            string backLabel = "Danh sách",
             string activeTab = "")
         {
             return new PickleballWebDetailPageViewModel
@@ -288,7 +371,7 @@ namespace HanakaServer.Controllers.Web
                 PageKind = pageKind,
                 EntityId = entityId,
                 BackHref = backHref,
-                BackLabel = "Danh sách",
+                BackLabel = backLabel,
                 ActiveTab = activeTab
             };
         }

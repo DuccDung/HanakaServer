@@ -41,6 +41,10 @@
         return href;
     }
 
+    function isExternalHref(href) {
+        return /^(https?:\/\/|mailto:|tel:|sms:)/i.test(trimToEmpty(href));
+    }
+
     function normalizeExternalHref(value) {
         var href = trimToEmpty(value);
 
@@ -1386,6 +1390,196 @@
         load(true);
     }
 
+    function buildNotificationOpponentText(item) {
+        var player1 = trimToEmpty(item && item.opponentTeam && item.opponentTeam.player1 && item.opponentTeam.player1.name);
+        var player2 = trimToEmpty(item && item.opponentTeam && item.opponentTeam.player2 && item.opponentTeam.player2.name);
+
+        if (player1 && player2) {
+            return player1 + " - " + player2;
+        }
+
+        if (player1) {
+            return player1;
+        }
+
+        return "Chua xac dinh doi thu";
+    }
+
+    function renderNotificationCard(item) {
+        var startAtText = trimToEmpty(item && item.match && item.match.startAtText) || "Chua cap nhat";
+        var addressText = trimToEmpty(item && item.match && item.match.addressText) || "Chua cap nhat";
+        var courtText = trimToEmpty(item && item.match && item.match.courtText) || "Chua cap nhat";
+
+        return [
+            '<article class="native-notification-card">',
+            '<h2 class="native-notification-card__title">' + escapeHtml(trimToEmpty(item && item.title) || "Hanaka Sport - Thong bao") + "</h2>",
+            '<p class="native-notification-card__line">' + escapeHtml(trimToEmpty(item && item.message) || "Thong bao se duoc cap nhat tai day.") + "</p>",
+            '<p class="native-notification-card__line"><strong>Doi thu:</strong> ' + escapeHtml(buildNotificationOpponentText(item)) + "</p>",
+            '<p class="native-notification-card__line"><strong>Thoi gian:</strong> ' + escapeHtml(startAtText) + "</p>",
+            '<p class="native-notification-card__line"><strong>Dia diem:</strong> ' + escapeHtml(addressText) + "</p>",
+            '<p class="native-notification-card__line"><strong>San:</strong> ' + escapeHtml(courtText) + "</p>",
+            '<p class="native-notification-card__time">' + escapeHtml(startAtText) + "</p>",
+            "</article>"
+        ].join("");
+    }
+
+    function renderNotificationLoginPrompt() {
+        var loginHref = "/PickleballWeb/Login?returnUrl=" + encodeURIComponent("/PickleballWeb/Notifications");
+
+        return [
+            '<article class="native-auth-prompt">',
+            '<span class="native-auth-prompt__icon"><ion-icon name="notifications-outline"></ion-icon></span>',
+            "<strong>Dang nhap de xem thong bao</strong>",
+            "<p>Trang nay se hien thi cac tran dau sap toi cua tai khoan giong trong ban app.</p>",
+            '<a class="native-auth-prompt__button" href="' + escapeHtml(loginHref) + '">Dang nhap</a>',
+            "</article>"
+        ].join("");
+    }
+
+    function renderSettingsRow(options) {
+        var href = buildSafeHref(options && options.href, "#");
+        var external = isExternalHref(href);
+        var danger = !!(options && options.danger);
+        var attrs = external ? ' target="_blank" rel="noreferrer"' : "";
+
+        return [
+            '<a class="native-settings-row' + (danger ? " native-settings-row--danger" : "") + '" href="' + escapeHtml(href) + '"' + attrs + ">",
+            '<span class="native-settings-row__left">',
+            '<ion-icon class="native-settings-row__icon" name="' + escapeHtml(options && options.icon || "chevron-forward-outline") + '"></ion-icon>',
+            '<span class="native-settings-row__label">' + escapeHtml(options && options.label || "Tuy chon") + "</span>",
+            "</span>",
+            '<ion-icon class="native-settings-row__chevron" name="chevron-forward"></ion-icon>',
+            "</a>"
+        ].join("");
+    }
+
+    function renderSettingsPage() {
+        return [
+            '<section class="native-settings-section">',
+            '<h2 class="native-settings-section__title">Tai khoan</h2>',
+            renderSettingsRow({
+                label: "Quan ly tai khoan",
+                icon: "person-circle-outline",
+                href: "/PickleballWeb/Account"
+            }),
+            renderSettingsRow({
+                label: "Doi mat khau",
+                icon: "key-outline",
+                href: "/PickleballWeb/ChangePassword"
+            }),
+            renderSettingsRow({
+                label: "Xoa tai khoan",
+                icon: "trash-outline",
+                href: "/PickleballWeb/Account",
+                danger: true
+            }),
+            '<p class="native-settings-note">Flow xoa tai khoan tren web duoc dat ben trong man Tai khoan de giong cach van hanh hien tai cua he thong.</p>',
+            "</section>",
+            '<div class="native-settings-divider"></div>',
+            '<section class="native-settings-section">',
+            '<h2 class="native-settings-section__title">An toan cong dong</h2>',
+            renderSettingsRow({
+                label: "Dieu khoan, moderation va block list",
+                icon: "shield-checkmark-outline",
+                href: "/PickleballWeb/CommunitySafety"
+            }),
+            renderSettingsRow({
+                label: "Chinh sach quyen rieng tu",
+                icon: "document-text-outline",
+                href: "https://hanakasport.click/policy/index"
+            }),
+            '<p class="native-settings-note">Chat CLB da bat bo loc noi dung, co che bao cao vi pham, chan nguoi dung va cam ket xu ly moderation trong vong 24 gio.</p>',
+            "</section>",
+            '<div class="native-settings-divider"></div>',
+            '<section class="native-settings-section">',
+            '<h2 class="native-settings-section__title">Thong tin ung dung</h2>',
+            '<p class="native-settings-version">Phien ban: 1.0.0</p>',
+            "</section>"
+        ].join("");
+    }
+
+    function initNotificationsPage(root) {
+        var refs = getCommonRefs(root);
+        var state = {
+            loading: false,
+            error: "",
+            authRequired: false,
+            items: []
+        };
+
+        setHeaderAction(root, null);
+        setHeaderExtra(root, "");
+        renderEmptyState(refs, "Hien chua co thong bao thi dau sap toi.");
+
+        function render() {
+            refs.list.className = "native-page-list native-page-list--notifications";
+
+            if (state.authRequired) {
+                refs.list.innerHTML = renderNotificationLoginPrompt();
+            } else {
+                refs.list.innerHTML = state.items.map(renderNotificationCard).join("");
+            }
+
+            toggleCommonState(refs, {
+                loading: state.loading,
+                itemsLength: state.authRequired ? 1 : state.items.length,
+                error: state.error,
+                hasMore: false
+            });
+        }
+
+        async function load() {
+            if (state.loading) {
+                return;
+            }
+
+            state.loading = true;
+            state.error = "";
+            state.authRequired = false;
+            render();
+
+            try {
+                var session = await fetchJson("/api/web-auth/me");
+                if (!(session && session.isAuthenticated)) {
+                    state.items = [];
+                    state.authRequired = true;
+                    return;
+                }
+
+                var payload = await fetchJson("/api/notifications/upcoming-matches");
+                state.items = Array.isArray(payload && payload.items) ? payload.items : [];
+            } catch (error) {
+                state.items = [];
+                state.error = "Khong tai duoc thong bao thi dau.";
+            } finally {
+                state.loading = false;
+                render();
+            }
+        }
+
+        if (refs.retry) {
+            refs.retry.onclick = function () { load(); };
+        }
+
+        load();
+    }
+
+    function initSettingsPage(root) {
+        var refs = getCommonRefs(root);
+
+        setHeaderAction(root, null);
+        setHeaderExtra(root, "");
+        refs.list.className = "native-page-list native-page-list--settings";
+        refs.list.innerHTML = renderSettingsPage();
+
+        toggleCommonState(refs, {
+            loading: false,
+            itemsLength: 1,
+            error: "",
+            hasMore: false
+        });
+    }
+
     function initNativePage(root) {
         var kind = trimToEmpty(root.getAttribute("data-native-page-kind"));
 
@@ -1456,6 +1650,16 @@
 
         if (kind === "matches") {
             initMatchesPage(root);
+            return;
+        }
+
+        if (kind === "notifications") {
+            initNotificationsPage(root);
+            return;
+        }
+
+        if (kind === "settings") {
+            initSettingsPage(root);
         }
     }
 

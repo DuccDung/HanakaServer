@@ -467,7 +467,7 @@
             const description = trimToEmpty(item.content) || `Tối đa ${toCount(item.expectedTeams)} đội và ${toCount(item.matchesCount)} trận.`;
 
             return [
-                '<article class="data-card tournament-card">',
+                `<a class="data-card tournament-card" href="${escapeHtml(buildSafeHref(`/PickleballWeb/Tournament/${item.tournamentId}`, "/PickleballWeb/Tournaments"))}">`,
                 `<div class="data-card__media">${mediaMarkup(item.bannerUrl, item.title || "Giải đấu Hanaka Sport", "Giải đấu Hanaka Sport")}</div>`,
                 '<div class="data-card__body">',
                 '<div class="meta-row">',
@@ -481,7 +481,7 @@
                 `<span>${escapeHtml(`${toCount(item.expectedTeams)} đội`)}</span>`,
                 "</div>",
                 "</div>",
-                "</article>"
+                "</a>"
             ].join("");
         }).join("");
     }
@@ -513,7 +513,7 @@
             const phone = trimToEmpty(item.phone);
 
             return [
-                '<article class="data-card court-card">',
+                `<a class="data-card court-card" href="${escapeHtml(buildSafeHref(`/PickleballWeb/Court/${item.courtId}`, "/PickleballWeb/Courts"))}">`,
                 '<div class="court-card__images">',
                 images.map(function (imageUrl, index) {
                     if (imageUrl) {
@@ -531,7 +531,7 @@
                 `<span>${escapeHtml(phone || "Liên hệ tại app")}</span>`,
                 "</div>",
                 "</div>",
-                "</article>"
+                "</a>"
             ].join("");
         }).join("");
     }
@@ -779,7 +779,8 @@
     function updateAuthEntry() {
         const avatarLink = qs(".app-bar__actions .avatar-icon");
         const actionLinks = qsa(".app-bar__actions .round-icon");
-        const logoutLink = actionLinks.length > 1 ? actionLinks[1] : null;
+        const notificationLink = actionLinks.length > 0 ? actionLinks[0] : null;
+        const settingsLink = actionLinks.length > 1 ? actionLinks[1] : null;
         const session = state.session;
         const isAuthenticated = !!(session && session.isAuthenticated && session.user);
 
@@ -829,17 +830,18 @@
             }
         }
 
-        if (logoutLink) {
-            logoutLink.hidden = !isAuthenticated;
+        if (notificationLink) {
+            notificationLink.hidden = false;
+            notificationLink.href = "/PickleballWeb/Notifications";
+            notificationLink.setAttribute("aria-label", "Thong bao");
+            notificationLink.title = "Thong bao";
+        }
 
-            if (isAuthenticated) {
-                logoutLink.href = "#logout";
-                logoutLink.setAttribute("aria-label", "Dang xuat");
-                logoutLink.title = "Dang xuat";
-            } else {
-                logoutLink.href = "#tournaments";
-                logoutLink.removeAttribute("title");
-            }
+        if (settingsLink) {
+            settingsLink.hidden = false;
+            settingsLink.href = "/PickleballWeb/Settings";
+            settingsLink.setAttribute("aria-label", "Cai dat");
+            settingsLink.title = "Cai dat";
         }
     }
 
@@ -859,33 +861,7 @@
     }
 
     function bindAuthActions() {
-        const actionLinks = qsa(".app-bar__actions .round-icon");
-        const logoutLink = actionLinks.length > 1 ? actionLinks[1] : null;
-
-        if (!logoutLink) {
-            return;
-        }
-
-        logoutLink.addEventListener("click", async function (event) {
-            if (!(state.session && state.session.isAuthenticated)) {
-                return;
-            }
-
-            event.preventDefault();
-
-            try {
-                await requestJson("/api/web-auth/logout", {
-                    method: "POST",
-                    body: JSON.stringify({})
-                });
-            } catch (error) {
-                // Ignore logout response failures and still clear local UI state.
-            }
-
-            state.session = { isAuthenticated: false };
-            updateAuthEntry();
-            window.location.href = "/";
-        });
+        updateAuthEntry();
     }
 
     async function loadLandingPage() {

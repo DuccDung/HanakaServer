@@ -710,6 +710,7 @@ ion-icon {
 }
 
 .data-card {
+    display: block;
     overflow: hidden;
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
@@ -1187,6 +1188,27 @@ ion-icon {
     }
 
     #tournaments .tournament-card {
+        scroll-snap-align: start;
+    }
+
+    #courts .cards-grid--two {
+        grid-template-columns: none;
+        grid-auto-flow: column;
+        grid-auto-columns: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding-bottom: 8px;
+        scroll-snap-type: x mandatory;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    #courts .cards-grid--two::-webkit-scrollbar {
+        display: none;
+    }
+
+    #courts .court-card {
         scroll-snap-align: start;
     }
 
