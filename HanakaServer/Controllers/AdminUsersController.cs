@@ -1,7 +1,9 @@
 ﻿using HanakaServer.Data;
+using HanakaServer.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace HanakaServer.Controllers
 {
@@ -13,7 +15,78 @@ namespace HanakaServer.Controllers
         private readonly PickleballDbContext _db;
         public AdminUsersController(PickleballDbContext db) { _db = db; }
 
-       
+        private sealed class RatingSnapshot
+        {
+            public decimal? RatingSingle { get; set; }
+            public decimal? RatingDouble { get; set; }
+            public DateTime? RatedAt { get; set; }
+        }
+
+        private async Task<RatingSnapshot?> GetLatestRatingAsync(long userId)
+        {
+            return await _db.UserRatingHistories
+                .AsNoTracking()
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.RatedAt)
+                .ThenByDescending(x => x.RatingHistoryId)
+                .Select(x => new RatingSnapshot
+                {
+                    RatingSingle = x.RatingSingle,
+                    RatingDouble = x.RatingDouble,
+                    RatedAt = x.RatedAt
+                })
+                .FirstOrDefaultAsync();
+        }
+
+        private static decimal? NormalizeRating(decimal? value)
+        {
+            return value.HasValue ? Math.Round(value.Value, 2) : null;
+        }
+
+        private static bool IsValidRating(decimal? value)
+        {
+            return !value.HasValue || (value.Value >= 0m && value.Value <= 5m);
+        }
+
+        private long? GetRatedByUserId()
+        {
+            var raw = User.FindFirstValue("uid") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return long.TryParse(raw, out var userId) ? userId : null;
+        }
+
+        private async Task SyncCoachShadowFromUserAsync(User user, decimal? latestSingle, decimal? latestDouble)
+        {
+            var coach = await _db.Coaches.FirstOrDefaultAsync(x => x.ExternalId == user.UserId.ToString());
+            if (coach == null) return;
+
+            coach.FullName = user.FullName;
+            coach.City = user.City;
+            coach.AvatarUrl = user.AvatarUrl;
+
+            if (latestSingle.HasValue)
+                coach.LevelSingle = latestSingle.Value;
+
+            if (latestDouble.HasValue)
+                coach.LevelDouble = latestDouble.Value;
+        }
+
+        private async Task SyncRefereeShadowFromUserAsync(User user, decimal? latestSingle, decimal? latestDouble)
+        {
+            var referee = await _db.Referees.FirstOrDefaultAsync(x => x.ExternalId == user.UserId.ToString());
+            if (referee == null) return;
+
+            referee.FullName = user.FullName;
+            referee.City = user.City;
+            referee.AvatarUrl = user.AvatarUrl;
+
+            if (latestSingle.HasValue)
+                referee.LevelSingle = latestSingle.Value;
+
+            if (latestDouble.HasValue)
+                referee.LevelDouble = latestDouble.Value;
+
+            referee.UpdatedAt = DateTime.UtcNow;
+        }
 
         // (optional) search nếu sau này bạn muốn autocomplete
         // GET /api/admin/users/search?q=duy
@@ -26,11 +99,29 @@ namespace HanakaServer.Controllers
             var users = await _db.Users
                 .Where(u => u.FullName.Contains(q))
                 .OrderBy(u => u.FullName)
-                .Select(u => new { u.UserId, u.FullName, u.AvatarUrl, u.RatingSingle })
+                .Select(u => new
+                {
+                    u.UserId,
+                    u.FullName,
+                    u.AvatarUrl,
+                    LegacyRatingSingle = u.RatingSingle,
+                    LatestRating = _db.UserRatingHistories
+                        .Where(r => r.UserId == u.UserId)
+                        .OrderByDescending(r => r.RatedAt)
+                        .ThenByDescending(r => r.RatingHistoryId)
+                        .Select(r => new { r.RatingSingle })
+                        .FirstOrDefault()
+                })
                 .Take(20)
                 .ToListAsync();
 
-            return Ok(users);
+            return Ok(users.Select(u => new
+            {
+                u.UserId,
+                u.FullName,
+                u.AvatarUrl,
+                RatingSingle = u.LatestRating?.RatingSingle ?? u.LegacyRatingSingle
+            }));
         }
 
         // GET /api/admin/users?keyword=&verified=&active=&page=&pageSize=
@@ -61,28 +152,59 @@ namespace HanakaServer.Controllers
 
             var total = await q.CountAsync();
 
-            var items = await q.OrderByDescending(x => x.CreatedAt)
-                               .Skip((page - 1) * pageSize)
-                               .Take(pageSize)
-                               .Select(x => new
-                               {
-                                   userId = x.UserId,
-                                   fullName = x.FullName,
-                                   email = x.Email,
-                                   phone = x.Phone,
-                                   city = x.City,
-                                   gender = x.Gender,
-                                   bio = x.Bio,
-                                   birthOfDate = x.BirthOfDate,
-                                   verified = x.Verified,
-                                   isActive = x.IsActive,
-                                   ratingSingle = x.RatingSingle,
-                                   ratingDouble = x.RatingDouble,
-                                   avatarUrl = x.AvatarUrl,
-                                   createdAt = x.CreatedAt,
-                                   updatedAt = x.UpdatedAt
-                               })
-                               .ToListAsync();
+            var rows = await q.OrderByDescending(x => x.CreatedAt)
+                              .Skip((page - 1) * pageSize)
+                              .Take(pageSize)
+                              .Select(x => new
+                              {
+                                  x.UserId,
+                                  x.FullName,
+                                  x.Email,
+                                  x.Phone,
+                                  x.City,
+                                  x.Gender,
+                                  x.Bio,
+                                  x.BirthOfDate,
+                                  x.Verified,
+                                  x.IsActive,
+                                  LegacyRatingSingle = x.RatingSingle,
+                                  LegacyRatingDouble = x.RatingDouble,
+                                  x.AvatarUrl,
+                                  x.CreatedAt,
+                                  x.UpdatedAt,
+                                  LatestRating = _db.UserRatingHistories
+                                      .Where(r => r.UserId == x.UserId)
+                                      .OrderByDescending(r => r.RatedAt)
+                                      .ThenByDescending(r => r.RatingHistoryId)
+                                      .Select(r => new
+                                      {
+                                          r.RatingSingle,
+                                          r.RatingDouble,
+                                          r.RatedAt
+                                      })
+                                      .FirstOrDefault()
+                              })
+                              .ToListAsync();
+
+            var items = rows.Select(x => new
+            {
+                userId = x.UserId,
+                fullName = x.FullName,
+                email = x.Email,
+                phone = x.Phone,
+                city = x.City,
+                gender = x.Gender,
+                bio = x.Bio,
+                birthOfDate = x.BirthOfDate,
+                verified = x.Verified,
+                isActive = x.IsActive,
+                ratingSingle = x.LatestRating?.RatingSingle ?? x.LegacyRatingSingle,
+                ratingDouble = x.LatestRating?.RatingDouble ?? x.LegacyRatingDouble,
+                ratingUpdatedAt = x.LatestRating?.RatedAt,
+                avatarUrl = x.AvatarUrl,
+                createdAt = x.CreatedAt,
+                updatedAt = x.UpdatedAt
+            });
 
             return Ok(new { total, page, pageSize, items });
         }
@@ -95,26 +217,55 @@ namespace HanakaServer.Controllers
                 .Where(x => x.UserId == id)
                 .Select(x => new
                 {
-                    userId = x.UserId,
-                    fullName = x.FullName,
-                    email = x.Email,
-                    phone = x.Phone,
-                    city = x.City,
-                    gender = x.Gender,
-                    bio = x.Bio,
-                    birthOfDate = x.BirthOfDate,
-                    verified = x.Verified,
-                    isActive = x.IsActive,
-                    ratingSingle = x.RatingSingle,
-                    ratingDouble = x.RatingDouble,
-                    avatarUrl = x.AvatarUrl,
-                    createdAt = x.CreatedAt,
-                    updatedAt = x.UpdatedAt
+                    x.UserId,
+                    x.FullName,
+                    x.Email,
+                    x.Phone,
+                    x.City,
+                    x.Gender,
+                    x.Bio,
+                    x.BirthOfDate,
+                    x.Verified,
+                    x.IsActive,
+                    LegacyRatingSingle = x.RatingSingle,
+                    LegacyRatingDouble = x.RatingDouble,
+                    x.AvatarUrl,
+                    x.CreatedAt,
+                    x.UpdatedAt,
+                    LatestRating = _db.UserRatingHistories
+                        .Where(r => r.UserId == x.UserId)
+                        .OrderByDescending(r => r.RatedAt)
+                        .ThenByDescending(r => r.RatingHistoryId)
+                        .Select(r => new
+                        {
+                            r.RatingSingle,
+                            r.RatingDouble,
+                            r.RatedAt
+                        })
+                        .FirstOrDefault()
                 })
                 .FirstOrDefaultAsync();
 
             if (u == null) return NotFound(new { message = "User not found." });
-            return Ok(u);
+            return Ok(new
+            {
+                userId = u.UserId,
+                fullName = u.FullName,
+                email = u.Email,
+                phone = u.Phone,
+                city = u.City,
+                gender = u.Gender,
+                bio = u.Bio,
+                birthOfDate = u.BirthOfDate,
+                verified = u.Verified,
+                isActive = u.IsActive,
+                ratingSingle = u.LatestRating?.RatingSingle ?? u.LegacyRatingSingle,
+                ratingDouble = u.LatestRating?.RatingDouble ?? u.LegacyRatingDouble,
+                ratingUpdatedAt = u.LatestRating?.RatedAt,
+                avatarUrl = u.AvatarUrl,
+                createdAt = u.CreatedAt,
+                updatedAt = u.UpdatedAt
+            });
         }
 
         public class UpdateUserDto
@@ -136,6 +287,9 @@ namespace HanakaServer.Controllers
             var u = await _db.Users.FirstOrDefaultAsync(x => x.UserId == id);
             if (u == null) return NotFound(new { message = "User not found." });
 
+            if (!IsValidRating(dto.RatingSingle) || !IsValidRating(dto.RatingDouble))
+                return BadRequest(new { message = "Điểm trình phải nằm trong khoảng 0 đến 5." });
+
             if (!string.IsNullOrWhiteSpace(dto.FullName)) u.FullName = dto.FullName.Trim();
             u.Email = string.IsNullOrWhiteSpace(dto.Email) ? null : dto.Email.Trim();
             u.Phone = string.IsNullOrWhiteSpace(dto.Phone) ? null : dto.Phone.Trim();
@@ -143,10 +297,42 @@ namespace HanakaServer.Controllers
             u.Gender = string.IsNullOrWhiteSpace(dto.Gender) ? null : dto.Gender.Trim();
             u.Bio = string.IsNullOrWhiteSpace(dto.Bio) ? null : dto.Bio.Trim();
 
-            u.RatingSingle = dto.RatingSingle;
-            u.RatingDouble = dto.RatingDouble;
+            var latestRating = await GetLatestRatingAsync(u.UserId);
+            var ratingWasSubmitted = dto.RatingSingle.HasValue || dto.RatingDouble.HasValue;
+            var targetSingle = dto.RatingSingle.HasValue
+                ? NormalizeRating(dto.RatingSingle)
+                : latestRating?.RatingSingle ?? u.RatingSingle;
+            var targetDouble = dto.RatingDouble.HasValue
+                ? NormalizeRating(dto.RatingDouble)
+                : latestRating?.RatingDouble ?? u.RatingDouble;
+
+            if (ratingWasSubmitted)
+            {
+                var hasRatingValue = targetSingle.HasValue || targetDouble.HasValue;
+                var ratingChanged = latestRating == null
+                    || latestRating.RatingSingle != targetSingle
+                    || latestRating.RatingDouble != targetDouble;
+
+                if (hasRatingValue && ratingChanged)
+                {
+                    _db.UserRatingHistories.Add(new UserRatingHistory
+                    {
+                        UserId = u.UserId,
+                        RatingSingle = targetSingle,
+                        RatingDouble = targetDouble,
+                        RatedByUserId = GetRatedByUserId(),
+                        Note = "Admin cập nhật điểm trình.",
+                        RatedAt = DateTime.UtcNow
+                    });
+                }
+
+                u.RatingSingle = targetSingle;
+                u.RatingDouble = targetDouble;
+            }
 
             u.UpdatedAt = DateTime.UtcNow;
+            await SyncCoachShadowFromUserAsync(u, u.RatingSingle, u.RatingDouble);
+            await SyncRefereeShadowFromUserAsync(u, u.RatingSingle, u.RatingDouble);
 
             await _db.SaveChangesAsync();
 
@@ -196,13 +382,30 @@ namespace HanakaServer.Controllers
                         userId = x.UserId,
                         fullName = x.FullName,
                         avatarUrl = x.AvatarUrl,
-                        ratingSingle = x.RatingSingle ?? 0m,
-                        ratingDouble = x.RatingDouble ?? 0m
+                        legacyRatingSingle = x.RatingSingle,
+                        legacyRatingDouble = x.RatingDouble,
+                        latestRating = _db.UserRatingHistories
+                            .Where(r => r.UserId == x.UserId)
+                            .OrderByDescending(r => r.RatedAt)
+                            .ThenByDescending(r => r.RatingHistoryId)
+                            .Select(r => new
+                            {
+                                r.RatingSingle,
+                                r.RatingDouble
+                            })
+                            .FirstOrDefault()
                     })
                     .FirstOrDefaultAsync();
 
                 if (u == null) return NotFound(new { message = "User not found." });
-                return Ok(u);
+                return Ok(new
+                {
+                    u.userId,
+                    u.fullName,
+                    u.avatarUrl,
+                    ratingSingle = u.latestRating?.RatingSingle ?? u.legacyRatingSingle ?? 0m,
+                    ratingDouble = u.latestRating?.RatingDouble ?? u.legacyRatingDouble ?? 0m
+                });
             }
             catch (Exception ex)
             {
@@ -225,13 +428,30 @@ namespace HanakaServer.Controllers
                     userId = u.UserId,
                     fullName = u.FullName,
                     avatarUrl = u.AvatarUrl,
-                    ratingSingle = u.RatingSingle ?? 0m,
-                    ratingDouble = u.RatingDouble ?? 0m
+                    legacyRatingSingle = u.RatingSingle,
+                    legacyRatingDouble = u.RatingDouble,
+                    latestRating = _db.UserRatingHistories
+                        .Where(r => r.UserId == u.UserId)
+                        .OrderByDescending(r => r.RatedAt)
+                        .ThenByDescending(r => r.RatingHistoryId)
+                        .Select(r => new
+                        {
+                            r.RatingSingle,
+                            r.RatingDouble
+                        })
+                        .FirstOrDefault()
                 })
                 .Take(20)
                 .ToListAsync();
 
-            return Ok(users);
+            return Ok(users.Select(u => new
+            {
+                u.userId,
+                u.fullName,
+                u.avatarUrl,
+                ratingSingle = u.latestRating?.RatingSingle ?? u.legacyRatingSingle ?? 0m,
+                ratingDouble = u.latestRating?.RatingDouble ?? u.legacyRatingDouble ?? 0m
+            }));
         }
     }
 }
