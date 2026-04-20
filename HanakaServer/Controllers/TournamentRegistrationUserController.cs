@@ -402,6 +402,7 @@ public class TournamentRegistrationUserController : ControllerBase
                 {
                     pairRequest.PairRequestId,
                     tournament.TournamentId,
+                    pairRequest.ExpiresAt,
                     tournament.Title,
                     requestedBy = ToUserBrief(requester),
                     requestedTo = ToUserBrief(partner)
@@ -496,8 +497,8 @@ public class TournamentRegistrationUserController : ControllerBase
             var notification = BuildNotification(
                 pairRequest.RequestedByUserId,
                 "PAIR_ACCEPTED",
-                "Lời mời đã được chấp nhận",
-                $"{partner.FullName} đã chấp nhận ghép cặp tại giải {tournament.Title}.",
+                "Ghép cặp thành công",
+                $"{partner.FullName} đã đồng ý ghép cặp tại giải {tournament.Title}.",
                 "PAIR_REQUEST",
                 pairRequest.PairRequestId,
                 new
@@ -592,7 +593,17 @@ public class TournamentRegistrationUserController : ControllerBase
                 pairRequest.PairRequestId,
                 pairRequest.TournamentId,
                 pairRequest.Tournament.Title,
-                responseNote = pairRequest.ResponseNote
+                responseNote = pairRequest.ResponseNote,
+                requestedTo = ToUserBrief(new UserRegistrationSnapshot
+                {
+                    UserId = pairRequest.RequestedToUser.UserId,
+                    FullName = pairRequest.RequestedToUser.FullName,
+                    AvatarUrl = pairRequest.RequestedToUser.AvatarUrl,
+                    AvatarUrlAbsolute = ToAbsoluteUrl(pairRequest.RequestedToUser.AvatarUrl),
+                    Verified = pairRequest.RequestedToUser.Verified,
+                    RatingSingle = pairRequest.RequestedToUser.RatingSingle ?? 0m,
+                    RatingDouble = pairRequest.RequestedToUser.RatingDouble ?? 0m
+                })
             });
 
         _db.UserNotifications.Add(notification);
@@ -876,6 +887,20 @@ public class TournamentRegistrationUserController : ControllerBase
 
     private async Task SendTournamentNotificationAsync(long userId, UserNotification notification, long tournamentId, long pairRequestId, CancellationToken ct)
     {
+        JsonElement? details = null;
+
+        if (!string.IsNullOrWhiteSpace(notification.PayloadJson))
+        {
+            try
+            {
+                details = JsonSerializer.Deserialize<JsonElement>(notification.PayloadJson);
+            }
+            catch
+            {
+                details = null;
+            }
+        }
+
         await _realtimeHub.SendTournamentNotificationToUserAsync(userId.ToString(), new
         {
             notification.NotificationId,
@@ -886,7 +911,8 @@ public class TournamentRegistrationUserController : ControllerBase
             notification.RefId,
             notification.CreatedAt,
             TournamentId = tournamentId,
-            PairRequestId = pairRequestId
+            PairRequestId = pairRequestId,
+            Details = details
         });
     }
 

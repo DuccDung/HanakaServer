@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Security.Claims;
+using System.Text.Json;
 
 namespace HanakaServer.Controllers
 {
@@ -67,6 +68,186 @@ namespace HanakaServer.Controllers
         {
             // dùng utc để so sánh nếu StartAt lưu UTC
             return DateTime.UtcNow;
+        }
+
+        private static string? ReadJsonString(JsonElement element, string propertyName)
+        {
+            if (!element.TryGetProperty(propertyName, out var value) || value.ValueKind == JsonValueKind.Null)
+                return null;
+
+            return value.ValueKind == JsonValueKind.String ? value.GetString() : value.ToString();
+        }
+
+        private static long? ReadJsonLong(JsonElement element, string propertyName)
+        {
+            if (!element.TryGetProperty(propertyName, out var value) || value.ValueKind == JsonValueKind.Null)
+                return null;
+
+            if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out var number))
+                return number;
+
+            if (value.ValueKind == JsonValueKind.String && long.TryParse(value.GetString(), out number))
+                return number;
+
+            return null;
+        }
+
+        private static bool? ReadJsonBool(JsonElement element, string propertyName)
+        {
+            if (!element.TryGetProperty(propertyName, out var value) || value.ValueKind == JsonValueKind.Null)
+                return null;
+
+            if (value.ValueKind == JsonValueKind.True) return true;
+            if (value.ValueKind == JsonValueKind.False) return false;
+            if (value.ValueKind == JsonValueKind.String && bool.TryParse(value.GetString(), out var result))
+                return result;
+
+            return null;
+        }
+
+        private static object? ReadUserBrief(JsonElement element, string propertyName)
+        {
+            if (!element.TryGetProperty(propertyName, out var value) || value.ValueKind != JsonValueKind.Object)
+                return null;
+
+            return new
+            {
+                userId = ReadJsonLong(value, "userId") ?? 0,
+                fullName = ReadJsonString(value, "fullName") ?? "",
+                avatarUrl = ReadJsonString(value, "avatarUrl"),
+                verified = ReadJsonBool(value, "verified") ?? false
+            };
+        }
+
+        [HttpGet("inbox")]
+        public async Task<IActionResult> GetInboxNotifications(CancellationToken ct)
+        {
+            var userId = GetUserIdFromToken();
+
+            var unreadTotal = await _db.UserNotifications
+                .AsNoTracking()
+                .CountAsync(x => x.UserId == userId && !x.IsRead, ct);
+
+            var unreadNonPairTotal = await _db.UserNotifications
+                .AsNoTracking()
+                .CountAsync(x =>
+                    x.UserId == userId &&
+                    !x.IsRead &&
+                    x.NotificationType != "PAIR_REQUEST", ct);
+
+            var rows = await _db.UserNotifications
+                .AsNoTracking()
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.CreatedAt)
+                .Take(30)
+                .Select(x => new
+                {
+                    x.NotificationId,
+                    x.NotificationType,
+                    x.Title,
+                    x.Body,
+                    x.RefType,
+                    x.RefId,
+                    x.IsRead,
+                    x.ReadAt,
+                    x.CreatedAt,
+                    x.PayloadJson
+                })
+                .ToListAsync(ct);
+
+            var items = rows.Select(x =>
+            {
+                long pairRequestId = 0;
+                long tournamentId = 0;
+                long registrationId = 0;
+                string? tournamentTitle = null;
+                string? responseNote = null;
+                object? acceptedBy = null;
+                object? requestedBy = null;
+                object? requestedTo = null;
+
+                if (!string.IsNullOrWhiteSpace(x.PayloadJson))
+                {
+                    try
+                    {
+                        using var document = JsonDocument.Parse(x.PayloadJson);
+                        var root = document.RootElement;
+
+                        pairRequestId = ReadJsonLong(root, "pairRequestId") ?? (x.RefType == "PAIR_REQUEST" ? x.RefId ?? 0 : 0);
+                        tournamentId = ReadJsonLong(root, "tournamentId") ?? 0;
+                        registrationId = ReadJsonLong(root, "registrationId") ?? 0;
+                        tournamentTitle = ReadJsonString(root, "tournamentTitle") ?? ReadJsonString(root, "title");
+                        responseNote = ReadJsonString(root, "responseNote");
+                        acceptedBy = ReadUserBrief(root, "acceptedBy");
+                        requestedBy = ReadUserBrief(root, "requestedBy");
+                        requestedTo = ReadUserBrief(root, "requestedTo");
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                return new
+                {
+                    id = x.NotificationId,
+                    notificationId = x.NotificationId,
+                    type = x.NotificationType,
+                    notificationType = x.NotificationType,
+                    title = x.Title,
+                    message = x.Body,
+                    x.IsRead,
+                    x.ReadAt,
+                    x.CreatedAt,
+                    x.RefType,
+                    x.RefId,
+                    pairRequestId,
+                    tournamentId,
+                    tournamentTitle,
+                    registrationId,
+                    responseNote,
+                    acceptedBy,
+                    requestedBy,
+                    requestedTo
+                };
+            }).ToList();
+
+            return Ok(new
+            {
+                unreadTotal,
+                unreadNonPairTotal,
+                total = items.Count,
+                items
+            });
+        }
+
+        [HttpPost("inbox/read-all")]
+        public async Task<IActionResult> MarkInboxNotificationsRead(CancellationToken ct)
+        {
+            var userId = GetUserIdFromToken();
+            var now = DateTime.UtcNow;
+
+            var notifications = await _db.UserNotifications
+                .Where(x => x.UserId == userId && !x.IsRead)
+                .ToListAsync(ct);
+
+            if (notifications.Count == 0)
+            {
+                return Ok(new { ok = true, count = 0 });
+            }
+
+            foreach (var notification in notifications)
+            {
+                notification.IsRead = true;
+                notification.ReadAt = now;
+            }
+
+            await _db.SaveChangesAsync(ct);
+
+            return Ok(new
+            {
+                ok = true,
+                count = notifications.Count
+            });
         }
 
         [HttpGet("upcoming-matches")]

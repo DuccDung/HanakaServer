@@ -133,6 +133,7 @@
         authenticated: false,
         knownPairRequestIds: Object.create(null),
         pendingPairItems: [],
+        queuedPopupItem: null,
         popupRoot: null,
         activePopupRequestId: 0,
         realtimeListener: null,
@@ -223,16 +224,16 @@
         return null;
     }
 
+    function getNotificationType(item) {
+        return trimToEmpty(item && (item.type || item.notificationType || item.NotificationType)).toUpperCase();
+    }
+
+    function isPairRequestNotification(item) {
+        return getNotificationType(item) === "PAIR_REQUEST";
+    }
+
     function canPresentRealtimePairPopup() {
-        if (document.visibilityState === "hidden") {
-            return false;
-        }
-
-        if (typeof document.hasFocus === "function" && !document.hasFocus()) {
-            return false;
-        }
-
-        return true;
+        return document.visibilityState !== "hidden";
     }
 
     function closePairRequestPopup() {
@@ -250,7 +251,9 @@
         var requestedBy = item && item.requestedBy ? item.requestedBy : {};
         var requesterName = trimToEmpty(requestedBy.fullName) || "Thanh vien Hanaka";
         var avatarUrl = normalizeMediaUrl(requestedBy.avatarUrl);
-        var tournamentTitle = trimToEmpty(item && item.tournamentTitle) || "Giai dau";
+        var popupTitle = trimToEmpty(item && item.title) || "Loi moi ghep doi";
+        var popupMessage = trimToEmpty(item && item.message) || (requesterName + " moi ban ghep cap.");
+        var tournamentTitle = trimToEmpty(item && item.tournamentTitle) || trimToEmpty(item && item.title) || "Giai dau";
         var expiresAt = formatDateTime(item && item.expiresAt) || "Sap het han";
         var detailHref = tournamentId > 0
             ? "/PickleballWeb/Tournament/" + tournamentId + "/Register"
@@ -263,20 +266,80 @@
                 ? '<span class="native-notification-card__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(requesterName) + '" loading="lazy"></span>'
                 : '<span class="native-notification-card__avatar"><ion-icon name="person-outline"></ion-icon></span>',
             '<div>',
-            '<h2 class="web-pair-popup__title" id="web-pair-popup-title">' + escapeHtml(requesterName) + "</h2>",
-            '<p class="web-pair-popup__message">' + escapeHtml(trimToEmpty(item && item.message) || (requesterName + " moi ban ghep cap.")) + "</p>",
+            '<h2 class="web-pair-popup__title" id="web-pair-popup-title">' + escapeHtml(popupTitle) + "</h2>",
+            '<p class="web-pair-popup__message">' + escapeHtml(popupMessage) + "</p>",
             "</div>",
             "</div>",
             '<div class="web-pair-popup__meta">',
+            '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">Nguoi moi</span><span class="web-pair-popup__meta-value">' + escapeHtml(requesterName) + "</span></div>",
             '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">Giai dau</span><span class="web-pair-popup__meta-value">' + escapeHtml(tournamentTitle) + "</span></div>",
             '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">Het han</span><span class="web-pair-popup__meta-value">' + escapeHtml(expiresAt) + "</span></div>",
             "</div>",
             '<div class="web-pair-popup__actions">',
-            '<button type="button" data-pair-popup-action="accept" data-pair-request-id="' + escapeHtml(requestId || "") + '">Chap nhan</button>',
+            '<button type="button" class="is-primary" data-pair-popup-action="accept" data-pair-request-id="' + escapeHtml(requestId || "") + '">Chap nhan</button>',
             '<button type="button" data-pair-popup-action="reject" data-pair-request-id="' + escapeHtml(requestId || "") + '">Tu choi</button>',
             '<a href="' + escapeHtml(detailHref) + '">Xem chi tiet</a>',
             "</div>"
         ].join("");
+    }
+
+    function renderInfoNotificationPopupContent(item) {
+        var notificationType = getNotificationType(item);
+        var tournamentId = Number(item && item.tournamentId);
+        var actor = item && item.acceptedBy
+            ? item.acceptedBy
+            : item && item.requestedTo
+                ? item.requestedTo
+                : item && item.requestedBy
+                    ? item.requestedBy
+                    : null;
+        var actorName = trimToEmpty(actor && actor.fullName) || "Thanh vien Hanaka";
+        var avatarUrl = normalizeMediaUrl(actor && actor.avatarUrl);
+        var popupTitle = trimToEmpty(item && item.title) || "Thong bao ghep doi";
+        var popupMessage = trimToEmpty(item && item.message) || "Ban co thong bao moi ve ghep doi.";
+        var tournamentTitle = trimToEmpty(item && item.tournamentTitle) || "Giai dau";
+        var responseNote = trimToEmpty(item && item.responseNote);
+        var detailHref = tournamentId > 0
+            ? "/PickleballWeb/Tournament/" + tournamentId + "/Register"
+            : "/PickleballWeb/Notifications";
+        var detailText = tournamentId > 0 ? "Xem dang ky" : "Mo thong bao";
+        var eyebrowText = notificationType === "PAIR_ACCEPTED"
+            ? "Ghep cap thanh cong"
+            : notificationType === "PAIR_REJECTED"
+                ? "Phan hoi loi moi"
+                : "Thong bao moi";
+        var timeText = formatDateTime(item && item.createdAt) || "Vua xong";
+
+        return [
+            '<div class="web-pair-popup__eyebrow"><ion-icon name="notifications-outline"></ion-icon><span>' + escapeHtml(eyebrowText) + "</span></div>",
+            '<div class="web-pair-popup__head">',
+            avatarUrl
+                ? '<span class="native-notification-card__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(actorName) + '" loading="lazy"></span>'
+                : '<span class="native-notification-card__avatar"><ion-icon name="person-outline"></ion-icon></span>',
+            '<div>',
+            '<h2 class="web-pair-popup__title" id="web-pair-popup-title">' + escapeHtml(popupTitle) + "</h2>",
+            '<p class="web-pair-popup__message">' + escapeHtml(popupMessage) + "</p>",
+            "</div>",
+            "</div>",
+            '<div class="web-pair-popup__meta">',
+            '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">Nguoi phan hoi</span><span class="web-pair-popup__meta-value">' + escapeHtml(actorName) + "</span></div>",
+            '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">Giai dau</span><span class="web-pair-popup__meta-value">' + escapeHtml(tournamentTitle) + "</span></div>",
+            '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">Thoi gian</span><span class="web-pair-popup__meta-value">' + escapeHtml(timeText) + "</span></div>",
+            responseNote
+                ? '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">Ghi chu</span><span class="web-pair-popup__meta-value">' + escapeHtml(responseNote) + "</span></div>"
+                : "",
+            "</div>",
+            '<div class="web-pair-popup__actions">',
+            '<a class="is-primary" href="' + escapeHtml(detailHref) + '">' + escapeHtml(detailText) + "</a>",
+            '<button type="button" data-pair-popup-close>Dong</button>',
+            "</div>"
+        ].join("");
+    }
+
+    function renderNotificationPopupContent(item) {
+        return isPairRequestNotification(item)
+            ? renderPairRequestPopupContent(item)
+            : renderInfoNotificationPopupContent(item);
     }
 
     function ensurePairRequestPopup() {
@@ -335,18 +398,109 @@
     }
 
     function showPairRequestPopup(item) {
-        var requestId = Number(item && item.pairRequestId);
         var popup = ensurePairRequestPopup();
         var content = qs("[data-pair-popup-content]", popup);
 
-        if (!content || !Number.isFinite(requestId) || requestId <= 0) {
+        if (!content || !item) {
             return;
         }
 
-        content.innerHTML = renderPairRequestPopupContent(item);
+        content.innerHTML = renderNotificationPopupContent(item);
         popup.hidden = false;
-        notificationCenter.activePopupRequestId = requestId;
+        notificationCenter.queuedPopupItem = null;
+        notificationCenter.activePopupRequestId = isPairRequestNotification(item)
+            ? (Number(item && item.pairRequestId) || 0)
+            : 0;
         document.body.classList.add("has-web-pair-popup");
+    }
+
+    function normalizeUserBrief(payload) {
+        if (!payload || typeof payload !== "object") {
+            return null;
+        }
+
+        var fullName = trimToEmpty(payload.fullName || payload.FullName);
+        var avatarUrl = trimToEmpty(payload.avatarUrl || payload.AvatarUrl);
+        var verified = payload.verified;
+
+        return {
+            userId: Number(payload.userId || payload.UserId) || 0,
+            fullName: fullName,
+            avatarUrl: avatarUrl,
+            verified: typeof verified === "boolean" ? verified : !!verified
+        };
+    }
+
+    function normalizeRealtimePairRequest(payload) {
+        var source = payload && payload.details ? payload.details : payload;
+        var requestId = Number((source && (source.pairRequestId || source.PairRequestId)) || (payload && (payload.pairRequestId || payload.PairRequestId)));
+        var tournamentId = Number((source && (source.tournamentId || source.TournamentId)) || (payload && (payload.tournamentId || payload.TournamentId)));
+
+        if (!Number.isFinite(requestId) || requestId <= 0) {
+            return null;
+        }
+
+        var tournamentTitle = trimToEmpty(source && (source.tournamentTitle || source.TournamentTitle || source.title || source.Title));
+        var requestedBy = normalizeUserBrief(source && (source.requestedBy || source.RequestedBy));
+        var requestedTo = normalizeUserBrief(source && (source.requestedTo || source.RequestedTo));
+
+        return {
+            type: "PAIR_REQUEST",
+            pairRequestId: requestId,
+            tournamentId: Number.isFinite(tournamentId) && tournamentId > 0 ? tournamentId : 0,
+            tournamentTitle: tournamentTitle,
+            expiresAt: source && (source.expiresAt || source.ExpiresAt),
+            title: trimToEmpty(payload && (payload.title || payload.Title)) || "Loi moi ghep doi",
+            message: trimToEmpty(payload && (payload.body || payload.Body)) || ((requestedBy && requestedBy.fullName) ? (requestedBy.fullName + " moi ban ghep cap.") : "Ban co loi moi ghep doi moi."),
+            requestedBy: requestedBy,
+            requestedTo: requestedTo
+        };
+    }
+
+    function normalizeRealtimeUserNotification(payload) {
+        var source = payload && payload.details ? payload.details : payload;
+        var notificationId = Number(payload && (payload.notificationId || payload.NotificationId));
+        var pairRequestId = Number((source && (source.pairRequestId || source.PairRequestId)) || (payload && (payload.pairRequestId || payload.PairRequestId)));
+        var tournamentId = Number((source && (source.tournamentId || source.TournamentId)) || (payload && (payload.tournamentId || payload.TournamentId)));
+        var registrationId = Number((source && (source.registrationId || source.RegistrationId)) || (payload && (payload.registrationId || payload.RegistrationId)));
+        var notificationType = getNotificationType(payload);
+
+        if (!notificationType) {
+            return null;
+        }
+
+        return {
+            id: Number.isFinite(notificationId) && notificationId > 0 ? notificationId : 0,
+            notificationId: Number.isFinite(notificationId) && notificationId > 0 ? notificationId : 0,
+            type: notificationType,
+            notificationType: notificationType,
+            title: trimToEmpty(payload && (payload.title || payload.Title)) || "Thong bao moi",
+            message: trimToEmpty(payload && (payload.body || payload.Body)) || "Ban co thong bao ghep doi moi.",
+            createdAt: payload && (payload.createdAt || payload.CreatedAt),
+            pairRequestId: Number.isFinite(pairRequestId) && pairRequestId > 0 ? pairRequestId : 0,
+            tournamentId: Number.isFinite(tournamentId) && tournamentId > 0 ? tournamentId : 0,
+            tournamentTitle: trimToEmpty(source && (source.tournamentTitle || source.TournamentTitle || source.title || source.Title)),
+            registrationId: Number.isFinite(registrationId) && registrationId > 0 ? registrationId : 0,
+            responseNote: trimToEmpty(source && (source.responseNote || source.ResponseNote)),
+            acceptedBy: normalizeUserBrief(source && (source.acceptedBy || source.AcceptedBy)),
+            requestedBy: normalizeUserBrief(source && (source.requestedBy || source.RequestedBy)),
+            requestedTo: normalizeUserBrief(source && (source.requestedTo || source.RequestedTo)),
+            isRead: false
+        };
+    }
+
+    function presentRealtimePairPopup(item) {
+        if (!item) {
+            return false;
+        }
+
+        if (!canPresentRealtimePairPopup()) {
+            notificationCenter.queuedPopupItem = item;
+            return false;
+        }
+
+        showPairRequestPopup(item);
+        return true;
     }
 
     async function performPairRequestAction(requestId, action, options) {
@@ -418,7 +572,8 @@
         try {
             var results = await Promise.allSettled([
                 fetchJson("/api/notifications/pair-requests"),
-                fetchJson("/api/notifications/upcoming-matches")
+                fetchJson("/api/notifications/upcoming-matches"),
+                fetchJson("/api/notifications/inbox")
             ]);
 
             if (syncToken !== notificationCenter.syncToken) {
@@ -431,13 +586,24 @@
             var matchItems = results[1].status === "fulfilled" && Array.isArray(results[1].value && results[1].value.items)
                 ? results[1].value.items
                 : [];
+            var inboxPayload = results[2].status === "fulfilled" && results[2].value
+                ? results[2].value
+                : null;
+            var unreadNonPairTotal = Math.max(0, Number(inboxPayload && inboxPayload.unreadNonPairTotal) || 0);
             var previousIds = notificationCenter.knownPairRequestIds;
             var activePopupId = Number(notificationCenter.activePopupRequestId);
             var nextPopupItem = null;
 
             notificationCenter.pendingPairItems = pairItems.slice();
             notificationCenter.knownPairRequestIds = buildPairRequestIdMap(pairItems);
-            setNotificationBellCount(pairItems.length + matchItems.length);
+            setNotificationBellCount(pairItems.length + matchItems.length + unreadNonPairTotal);
+
+            if (notificationCenter.queuedPopupItem && isPairRequestNotification(notificationCenter.queuedPopupItem)) {
+                var queuedId = Number(notificationCenter.queuedPopupItem.pairRequestId);
+                if (!findPairRequestById(pairItems, queuedId)) {
+                    notificationCenter.queuedPopupItem = null;
+                }
+            }
 
             if (activePopupId > 0) {
                 nextPopupItem = findPairRequestById(pairItems, activePopupId);
@@ -456,8 +622,8 @@
                     }) || null;
                 }
 
-                if (nextPopupItem && canPresentRealtimePairPopup()) {
-                    showPairRequestPopup(nextPopupItem);
+                if (nextPopupItem) {
+                    presentRealtimePairPopup(nextPopupItem);
                 }
             }
 
@@ -489,6 +655,10 @@
 
         notificationCenter.onVisibilityChange = function () {
             if (document.visibilityState === "visible" && notificationCenter.authenticated) {
+                if (notificationCenter.queuedPopupItem) {
+                    presentRealtimePairPopup(notificationCenter.queuedPopupItem);
+                }
+
                 syncNotificationCenter({ allowPopup: false });
             }
         };
@@ -516,6 +686,17 @@
                         var payload = event && event.payload ? event.payload : {};
                         var notificationType = trimToEmpty(payload.notificationType || payload.NotificationType).toUpperCase();
                         var popupRequestId = Number(payload.pairRequestId || payload.PairRequestId);
+                        var popupItem = null;
+
+                        if (notificationType === "PAIR_REQUEST") {
+                            popupItem = normalizeRealtimePairRequest(payload);
+                        } else if (notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED") {
+                            popupItem = normalizeRealtimeUserNotification(payload);
+                        }
+
+                        if (popupItem) {
+                            presentRealtimePairPopup(popupItem);
+                        }
 
                         syncNotificationCenter({
                             allowPopup: notificationType === "PAIR_REQUEST",
@@ -2167,10 +2348,20 @@
     }
 
     function renderNotificationCard(item) {
-        if (trimToEmpty(item && item.type).toUpperCase() === "PAIR_REQUEST") {
+        var notificationType = getNotificationType(item);
+
+        if (notificationType === "PAIR_REQUEST") {
             return renderPairRequestNotificationCard(item);
         }
 
+        if (notificationType === "TOURNAMENT_MATCH") {
+            return renderMatchNotificationCard(item);
+        }
+
+        return renderUserNotificationCard(item);
+    }
+
+    function renderMatchNotificationCard(item) {
         var startAtText = trimToEmpty(item && item.match && item.match.startAtText) || "Chua cap nhat";
         var addressText = trimToEmpty(item && item.match && item.match.addressText) || "Chua cap nhat";
         var courtText = trimToEmpty(item && item.match && item.match.courtText) || "Chua cap nhat";
@@ -2184,6 +2375,74 @@
             '<p class="native-notification-card__line"><strong>Dia diem:</strong> ' + escapeHtml(addressText) + "</p>",
             '<p class="native-notification-card__line"><strong>San:</strong> ' + escapeHtml(courtText) + "</p>",
             '<p class="native-notification-card__time">' + escapeHtml(startAtText) + "</p>",
+            "</article>"
+        ].join("");
+    }
+
+    function getUserNotificationActor(item) {
+        if (item && item.acceptedBy) {
+            return item.acceptedBy;
+        }
+
+        if (item && item.requestedTo) {
+            return item.requestedTo;
+        }
+
+        if (item && item.requestedBy) {
+            return item.requestedBy;
+        }
+
+        return null;
+    }
+
+    function buildNotificationDetailHref(item) {
+        var tournamentId = Number(item && item.tournamentId);
+        return tournamentId > 0
+            ? "/PickleballWeb/Tournament/" + tournamentId + "/Register"
+            : "/PickleballWeb/Notifications";
+    }
+
+    function renderUserNotificationCard(item) {
+        var actor = getUserNotificationActor(item);
+        var actorName = trimToEmpty(actor && actor.fullName) || "Thanh vien Hanaka";
+        var avatarUrl = normalizeMediaUrl(actor && actor.avatarUrl);
+        var tournamentTitle = trimToEmpty(item && item.tournamentTitle) || "Giai dau";
+        var createdAtText = formatDateTime(item && item.createdAt) || "Vua xong";
+        var responseNote = trimToEmpty(item && item.responseNote);
+        var notificationType = getNotificationType(item);
+        var isUnread = item && (item.isRead === false || item.IsRead === false);
+        var eyebrowText = notificationType === "PAIR_ACCEPTED"
+            ? "Chap nhan loi moi"
+            : notificationType === "PAIR_REJECTED"
+                ? "Tu choi loi moi"
+                : "Thong bao";
+        var detailHref = buildNotificationDetailHref(item);
+        var detailText = Number(item && item.tournamentId) > 0 ? "Xem dang ky" : "Mo thong bao";
+
+        return [
+            '<article class="native-notification-card native-notification-card--system' + (isUnread ? " native-notification-card--unread" : "") + '">',
+            '<div class="native-notification-card__pair-head">',
+            avatarUrl
+                ? '<span class="native-notification-card__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(actorName) + '" loading="lazy"></span>'
+                : '<span class="native-notification-card__avatar"><ion-icon name="person-outline"></ion-icon></span>',
+            '<div>',
+            '<div class="native-notification-card__topline">',
+            '<span class="native-notification-card__badge">' + escapeHtml(eyebrowText) + "</span>",
+            isUnread ? '<span class="native-notification-card__badge native-notification-card__badge--unread">Moi</span>' : "",
+            "</div>",
+            '<h2 class="native-notification-card__title">' + escapeHtml(trimToEmpty(item && item.title) || "Thong bao") + "</h2>",
+            '<p class="native-notification-card__line">' + escapeHtml(trimToEmpty(item && item.message) || "Thong bao se duoc cap nhat tai day.") + "</p>",
+            "</div>",
+            "</div>",
+            '<p class="native-notification-card__line"><strong>Nguoi phan hoi:</strong> ' + escapeHtml(actorName) + "</p>",
+            '<p class="native-notification-card__line"><strong>Giai dau:</strong> ' + escapeHtml(tournamentTitle) + "</p>",
+            responseNote
+                ? '<p class="native-notification-card__line"><strong>Ghi chu:</strong> ' + escapeHtml(responseNote) + "</p>"
+                : "",
+            '<div class="native-notification-card__actions">',
+            '<a class="is-primary" href="' + escapeHtml(detailHref) + '">' + escapeHtml(detailText) + "</a>",
+            "</div>",
+            '<p class="native-notification-card__time">' + escapeHtml(createdAtText) + "</p>",
             "</article>"
         ].join("");
     }
@@ -2348,7 +2607,8 @@
 
                 var results = await Promise.allSettled([
                     fetchJson("/api/notifications/pair-requests"),
-                    fetchJson("/api/notifications/upcoming-matches")
+                    fetchJson("/api/notifications/upcoming-matches"),
+                    fetchJson("/api/notifications/inbox")
                 ]);
 
                 var pairItems = results[0].status === "fulfilled" && Array.isArray(results[0].value && results[0].value.items)
@@ -2357,8 +2617,38 @@
                 var matchItems = results[1].status === "fulfilled" && Array.isArray(results[1].value && results[1].value.items)
                     ? results[1].value.items
                     : [];
+                var inboxPayload = results[2].status === "fulfilled" && results[2].value
+                    ? results[2].value
+                    : null;
+                var inboxItems = inboxPayload && Array.isArray(inboxPayload.items)
+                    ? inboxPayload.items.filter(function (item) {
+                        return getNotificationType(item) !== "PAIR_REQUEST";
+                    })
+                    : [];
+                var unreadNonPairTotal = Math.max(0, Number(inboxPayload && inboxPayload.unreadNonPairTotal) || 0);
 
-                state.items = pairItems.concat(matchItems);
+                state.items = pairItems.concat(inboxItems, matchItems);
+
+                if (unreadNonPairTotal > 0) {
+                    try {
+                        await requestJson("/api/notifications/inbox/read-all", {
+                            method: "POST"
+                        });
+
+                        state.items = state.items.map(function (item) {
+                            if (getNotificationType(item) === "TOURNAMENT_MATCH" || getNotificationType(item) === "PAIR_REQUEST") {
+                                return item;
+                            }
+
+                            var nextItem = Object.assign({}, item);
+                            nextItem.isRead = true;
+                            return nextItem;
+                        });
+
+                        await syncNotificationCenter({ allowPopup: false });
+                    } catch (_error) {
+                    }
+                }
             } catch (error) {
                 state.items = [];
                 state.error = "Khong tai duoc thong bao.";

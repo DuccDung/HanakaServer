@@ -3794,7 +3794,12 @@
             }
 
             const payload = event && event.payload ? event.payload : {};
+            const notificationType = trimToEmpty(payload.notificationType || payload.NotificationType).toUpperCase();
             if (Number(payload.tournamentId || payload.TournamentId) !== tournamentId) {
+                return;
+            }
+
+            if (notificationType.startsWith("PAIR_")) {
                 return;
             }
 
