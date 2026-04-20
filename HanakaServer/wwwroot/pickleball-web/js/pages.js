@@ -2592,6 +2592,12 @@
             }).join(""),
             "</div>",
             "</div>",
+            '<div class="tournament-bracket-controls" aria-label="\u0110i\u1ec1u khi\u1ec3n s\u01a1 \u0111\u1ed3">',
+            '<button type="button" data-bracket-pan="left" aria-label="Sang tr\u00e1i"><ion-icon name="chevron-back"></ion-icon></button>',
+            '<button type="button" data-bracket-pan="up" aria-label="L\u00ean tr\u00ean"><ion-icon name="chevron-up"></ion-icon></button>',
+            '<button type="button" data-bracket-pan="down" aria-label="Xu\u1ed1ng d\u01b0\u1edbi"><ion-icon name="chevron-down"></ion-icon></button>',
+            '<button type="button" data-bracket-pan="right" aria-label="Sang ph\u1ea3i"><ion-icon name="chevron-forward"></ion-icon></button>',
+            "</div>",
             "</div>"
         ].join("");
     }
@@ -3051,17 +3057,43 @@
         let startScrollLeft = 0;
         let startScrollTop = 0;
 
+        function startPan(clientX, clientY) {
+            dragging = true;
+            startX = clientX;
+            startY = clientY;
+            startScrollLeft = scroller.scrollLeft;
+            startScrollTop = scroller.scrollTop;
+            scroller.classList.add("is-dragging");
+        }
+
+        function movePan(clientX, clientY) {
+            if (!dragging) {
+                return;
+            }
+
+            scroller.scrollLeft = startScrollLeft - (clientX - startX);
+            scroller.scrollTop = startScrollTop - (clientY - startY);
+        }
+
+        function endPan() {
+            if (!dragging) {
+                return;
+            }
+
+            dragging = false;
+            scroller.classList.remove("is-dragging");
+        }
+
         scroller.addEventListener("pointerdown", function (event) {
+            if (event.pointerType !== "mouse") {
+                return;
+            }
+
             if (event.button !== undefined && event.button !== 0) {
                 return;
             }
 
-            dragging = true;
-            startX = event.clientX;
-            startY = event.clientY;
-            startScrollLeft = scroller.scrollLeft;
-            startScrollTop = scroller.scrollTop;
-            scroller.classList.add("is-dragging");
+            startPan(event.clientX, event.clientY);
             try {
                 scroller.setPointerCapture?.(event.pointerId);
             } catch (_error) {
@@ -3075,8 +3107,7 @@
             }
 
             event.preventDefault();
-            scroller.scrollLeft = startScrollLeft - (event.clientX - startX);
-            scroller.scrollTop = startScrollTop - (event.clientY - startY);
+            movePan(event.clientX, event.clientY);
         });
 
         function stopDragging(event) {
@@ -3084,8 +3115,7 @@
                 return;
             }
 
-            dragging = false;
-            scroller.classList.remove("is-dragging");
+            endPan();
             try {
                 scroller.releasePointerCapture?.(event.pointerId);
             } catch (_error) {
@@ -3096,6 +3126,50 @@
         scroller.addEventListener("pointerup", stopDragging);
         scroller.addEventListener("pointercancel", stopDragging);
         scroller.addEventListener("pointerleave", stopDragging);
+
+        scroller.addEventListener("touchstart", function (event) {
+            if (!event.touches || event.touches.length !== 1) {
+                return;
+            }
+
+            const touch = event.touches[0];
+            startPan(touch.clientX, touch.clientY);
+        }, { passive: true });
+
+        scroller.addEventListener("touchmove", function (event) {
+            if (!dragging || !event.touches || event.touches.length !== 1) {
+                return;
+            }
+
+            const touch = event.touches[0];
+            event.preventDefault();
+            movePan(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        scroller.addEventListener("touchend", endPan, { passive: true });
+        scroller.addEventListener("touchcancel", endPan, { passive: true });
+
+        qsa("[data-bracket-pan]", root).forEach(function (button) {
+            button.addEventListener("click", function () {
+                const direction = trimToEmpty(button.getAttribute("data-bracket-pan"));
+                const stepX = Math.max(160, Math.round(scroller.clientWidth * 0.72));
+                const stepY = Math.max(140, Math.round(scroller.clientHeight * 0.42));
+                const left =
+                    direction === "left" ? -stepX :
+                        direction === "right" ? stepX :
+                            0;
+                const top =
+                    direction === "up" ? -stepY :
+                        direction === "down" ? stepY :
+                            0;
+
+                scroller.scrollBy({
+                    left: left,
+                    top: top,
+                    behavior: "smooth"
+                });
+            });
+        });
     }
 
     function initTournamentRegistrationSearch(root) {
