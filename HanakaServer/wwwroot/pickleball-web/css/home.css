@@ -1009,6 +1009,27 @@ ion-icon {
     white-space: nowrap;
 }
 
+.mobile-tabbar--five {
+    gap: 1px;
+    padding-left: 6px;
+    padding-right: 6px;
+}
+
+.mobile-tabbar--five .mobile-tabbar__item {
+    min-height: 56px;
+    padding: 4px 2px;
+    font-size: 0.64rem;
+}
+
+.mobile-tabbar--five .mobile-tabbar__item ion-icon {
+    font-size: 1.12rem;
+}
+
+.mobile-tabbar--five .mobile-tabbar__item span {
+    white-space: normal;
+    line-height: 1.06;
+}
+
 .mobile-tabbar__item.is-active {
     color: #FFFFFF;
 }

@@ -5,7 +5,9 @@
     ViewData["Description"] = Model.Description;
 }
 
-<div class="native-page-screen native-page-screen--@Model.PageKind" data-native-page-kind="@Model.PageKind">
+<div class="native-page-screen native-page-screen--@Model.PageKind"
+     data-native-page-kind="@Model.PageKind"
+     data-native-page-id="@(Model.EntityId?.ToString() ?? string.Empty)">
     <header class="native-page-header">
         <div class="container mobile-web-screen__container">
             <div class="native-page-header__top">
@@ -50,14 +52,22 @@
         </div>
     </main>
 
-    <nav class="mobile-tabbar mobile-tabbar--page" aria-label="Điều hướng app mobile">
+    <nav class="mobile-tabbar mobile-tabbar--page mobile-tabbar--five" aria-label="Điều hướng app mobile">
         <a class="mobile-tabbar__item @(Model.ActiveTab == "home" ? "is-active" : string.Empty)" href="/">
             <ion-icon name="home"></ion-icon>
             <span>Trang Chủ</span>
         </a>
+        <a class="mobile-tabbar__item @(Model.ActiveTab == "videos" ? "is-active" : string.Empty)" href="/PickleballWeb/Videos">
+            <ion-icon name="play-circle-outline"></ion-icon>
+            <span>Video</span>
+        </a>
         <a class="mobile-tabbar__item @(Model.ActiveTab == "tournaments" ? "is-active" : string.Empty)" href="/PickleballWeb/Tournaments">
             <ion-icon name="trophy-outline"></ion-icon>
             <span>Giải Đấu</span>
+        </a>
+        <a class="mobile-tabbar__item @(Model.ActiveTab == "chat" ? "is-active" : string.Empty)" href="/PickleballWeb/Chats">
+            <ion-icon name="chatbubbles-outline"></ion-icon>
+            <span>Trò chuyện</span>
         </a>
         <a class="mobile-tabbar__item @(Model.ActiveTab == "courts" ? "is-active" : string.Empty)" href="/PickleballWeb/Courts">
             <ion-icon name="location-outline"></ion-icon>

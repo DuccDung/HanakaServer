@@ -6,6 +6,7 @@ namespace HanakaServer.ViewModels.PickleballWeb
         public string Eyebrow { get; set; } = string.Empty;
         public string Description { get; set; } = string.Empty;
         public string PageKind { get; set; } = string.Empty;
+        public long? EntityId { get; set; }
         public string BackHref { get; set; } = "/";
         public string BackLabel { get; set; } = "Trang chu";
         public string Icon { get; set; } = "apps-outline";

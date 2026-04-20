@@ -65,6 +65,64 @@ namespace HanakaServer.Controllers.Web
         }
 
         [HttpGet]
+        public IActionResult Videos()
+        {
+            return View("Page", BuildPage(
+                title: "Videos",
+                eyebrow: "Match video",
+                description: "Danh sách video trận đấu, phân loại theo tab và cách hiển thị gần với ứng dụng mobile.",
+                pageKind: "videos",
+                icon: "play-circle-outline",
+                showSearch: false,
+                activeTab: "videos"));
+        }
+
+        [HttpGet("/PickleballWeb/Video/{id:long}")]
+        public IActionResult VideoDetail(long id)
+        {
+            return View("Page", BuildPage(
+                title: "Xem video",
+                eyebrow: "Video player",
+                description: "Màn hình xem video trận đấu theo phong cách app Hanaka Sport.",
+                pageKind: "video-player",
+                icon: "play-circle-outline",
+                showSearch: false,
+                activeTab: "videos",
+                entityId: id,
+                backHref: "/PickleballWeb/Videos",
+                backLabel: "Videos"));
+        }
+
+        [HttpGet]
+        public IActionResult Chats()
+        {
+            return View("Page", BuildPage(
+                title: "Trò chuyện",
+                eyebrow: "Tin nhắn CLB",
+                description: "Danh sách phòng chat câu lạc bộ và trạng thái tin nhắn gần nhất giống luồng app.",
+                pageKind: "chat-list",
+                icon: "chatbubbles-outline",
+                showSearch: false,
+                activeTab: "chat"));
+        }
+
+        [HttpGet("/PickleballWeb/Chat/{id:long}")]
+        public IActionResult ChatRoom(long id)
+        {
+            return View("Page", BuildPage(
+                title: "Chat CLB",
+                eyebrow: "Phòng chat",
+                description: "Màn hình tin nhắn CLB với luồng xem và gửi tin cơ bản trên web.",
+                pageKind: "chat-room",
+                icon: "chatbubbles-outline",
+                showSearch: false,
+                activeTab: "chat",
+                entityId: id,
+                backHref: "/PickleballWeb/Chats",
+                backLabel: "Trò chuyện"));
+        }
+
+        [HttpGet]
         public IActionResult Members()
         {
             return View("Members", BuildPage(
@@ -336,7 +394,10 @@ namespace HanakaServer.Controllers.Web
             string icon,
             bool showSearch = true,
             string searchPlaceholder = "Tìm kiếm...",
-            string activeTab = "")
+            string activeTab = "",
+            long? entityId = null,
+            string backHref = "/",
+            string backLabel = "Trang chủ")
         {
             return new PickleballWebPageViewModel
             {
@@ -344,8 +405,9 @@ namespace HanakaServer.Controllers.Web
                 Eyebrow = eyebrow,
                 Description = description,
                 PageKind = pageKind,
-                BackHref = "/",
-                BackLabel = "Trang chủ",
+                EntityId = entityId,
+                BackHref = backHref,
+                BackLabel = backLabel,
                 Icon = icon,
                 ShowSearch = showSearch,
                 SearchPlaceholder = searchPlaceholder,

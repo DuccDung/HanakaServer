@@ -95,6 +95,194 @@
         return response.json();
     }
 
+    async function requestJson(url, options) {
+        var init = Object.assign({
+            credentials: "same-origin",
+            cache: "no-store"
+        }, options || {});
+
+        init.headers = Object.assign({
+            Accept: "application/json"
+        }, options && options.body ? {
+            "Content-Type": "application/json"
+        } : {}, options && options.headers ? options.headers : {});
+
+        var response = await fetch(url, init);
+        var contentType = response.headers.get("content-type") || "";
+        var payload = contentType.indexOf("application/json") >= 0
+            ? await response.json().catch(function () { return null; })
+            : await response.text().catch(function () { return ""; });
+
+        if (!response.ok) {
+            var message = typeof payload === "string"
+                ? trimToEmpty(payload)
+                : trimToEmpty(payload && (payload.message || payload.title));
+            var error = new Error(message || ("Request failed: " + response.status));
+            error.status = response.status;
+            error.payload = payload;
+            throw error;
+        }
+
+        return payload;
+    }
+
+    var realtime = {
+        ws: null,
+        reconnectTimer: null,
+        pingTimer: null,
+        manualClose: false,
+        listeners: [],
+        openHandlers: [],
+        subscriptions: {},
+        reconnectDelay: 2500
+    };
+
+    function buildRealtimeUrl() {
+        var protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        return protocol + "//" + window.location.host + "/ws";
+    }
+
+    function emitRealtime(event) {
+        realtime.listeners.slice().forEach(function (listener) {
+            try {
+                listener(event);
+            } catch (_error) {
+            }
+        });
+    }
+
+    function addRealtimeListener(listener) {
+        if (typeof listener !== "function") {
+            return function () { };
+        }
+
+        realtime.listeners.push(listener);
+        return function () {
+            realtime.listeners = realtime.listeners.filter(function (item) {
+                return item !== listener;
+            });
+        };
+    }
+
+    function startRealtimePing() {
+        window.clearInterval(realtime.pingTimer);
+        realtime.pingTimer = window.setInterval(function () {
+            sendRealtime({ type: "ping" });
+        }, 25000);
+    }
+
+    function flushRealtimeSubscriptions() {
+        Object.keys(realtime.subscriptions).forEach(function (clubId) {
+            if (realtime.subscriptions[clubId]) {
+                sendRealtime({
+                    type: "club.subscribe",
+                    clubId: Number(clubId)
+                });
+            }
+        });
+    }
+
+    function connectRealtime() {
+        if (!("WebSocket" in window)) {
+            return false;
+        }
+
+        if (realtime.ws && (
+            realtime.ws.readyState === WebSocket.OPEN ||
+            realtime.ws.readyState === WebSocket.CONNECTING
+        )) {
+            return true;
+        }
+
+        realtime.manualClose = false;
+
+        try {
+            realtime.ws = new WebSocket(buildRealtimeUrl());
+        } catch (_error) {
+            return false;
+        }
+
+        realtime.ws.addEventListener("open", function () {
+            emitRealtime({ type: "__socket_open__" });
+            flushRealtimeSubscriptions();
+            startRealtimePing();
+        });
+
+        realtime.ws.addEventListener("message", function (event) {
+            try {
+                emitRealtime(JSON.parse(event.data));
+            } catch (_error) {
+            }
+        });
+
+        realtime.ws.addEventListener("close", function () {
+            emitRealtime({ type: "__socket_close__" });
+            window.clearInterval(realtime.pingTimer);
+            realtime.ws = null;
+
+            if (!realtime.manualClose) {
+                window.clearTimeout(realtime.reconnectTimer);
+                realtime.reconnectTimer = window.setTimeout(function () {
+                    connectRealtime();
+                }, realtime.reconnectDelay);
+            }
+        });
+
+        realtime.ws.addEventListener("error", function () {
+            emitRealtime({ type: "__socket_error__" });
+        });
+
+        return true;
+    }
+
+    function sendRealtime(payload) {
+        if (!realtime.ws || realtime.ws.readyState !== WebSocket.OPEN) {
+            connectRealtime();
+            return false;
+        }
+
+        try {
+            realtime.ws.send(JSON.stringify(payload));
+            return true;
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    function subscribeClubRealtime(clubId) {
+        var id = Number(clubId);
+        if (!Number.isFinite(id) || id <= 0) {
+            return false;
+        }
+
+        realtime.subscriptions[String(id)] = true;
+        connectRealtime();
+        return sendRealtime({ type: "club.subscribe", clubId: id });
+    }
+
+    function unsubscribeClubRealtime(clubId) {
+        var id = Number(clubId);
+        if (!Number.isFinite(id) || id <= 0) {
+            return false;
+        }
+
+        delete realtime.subscriptions[String(id)];
+        return sendRealtime({ type: "club.unsubscribe", clubId: id });
+    }
+
+    function sendClubTypingRealtime(clubId, isTyping) {
+        var id = Number(clubId);
+        if (!Number.isFinite(id) || id <= 0) {
+            return false;
+        }
+
+        return sendRealtime({
+            type: "club.typing",
+            clubId: id,
+            isTyping: !!isTyping
+        });
+    }
+
     function parseDate(value) {
         if (!value) {
             return null;
@@ -1580,6 +1768,1146 @@
         });
     }
 
+    function normalizeSearchText(value) {
+        return String(value || "")
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
+    }
+
+    function formatRoomTime(value) {
+        var date = parseDate(value);
+        if (!date) {
+            return "";
+        }
+
+        var now = new Date();
+        var sameDay = date.getFullYear() === now.getFullYear() &&
+            date.getMonth() === now.getMonth() &&
+            date.getDate() === now.getDate();
+
+        if (sameDay) {
+            return pad2(date.getHours()) + ":" + pad2(date.getMinutes());
+        }
+
+        return pad2(date.getDate()) + "/" + pad2(date.getMonth() + 1);
+    }
+
+    function formatMessageTime(value) {
+        var date = parseDate(value);
+        if (!date) {
+            return "";
+        }
+
+        return pad2(date.getHours()) + ":" + pad2(date.getMinutes());
+    }
+
+    function renderTextWithBreaks(value) {
+        return escapeHtml(String(value || "")).replace(/\r?\n/g, "<br>");
+    }
+
+    function getSessionUserId(session) {
+        var raw = session && session.user
+            ? session.user.userId ?? session.user.id ?? session.user.UserId
+            : "";
+
+        return trimToEmpty(raw);
+    }
+
+    function renderAuthPrompt(options) {
+        var returnUrl = trimToEmpty(options && options.returnUrl) || window.location.pathname;
+        var icon = trimToEmpty(options && options.icon) || "log-in-outline";
+        var loginHref = "/PickleballWeb/Login?returnUrl=" + encodeURIComponent(returnUrl);
+
+        return [
+            '<article class="native-auth-prompt native-auth-prompt--panel">',
+            '<span class="native-auth-prompt__icon"><ion-icon name="' + escapeHtml(icon) + '"></ion-icon></span>',
+            "<strong>" + escapeHtml(trimToEmpty(options && options.title) || "Dang nhap de tiep tuc") + "</strong>",
+            "<p>" + escapeHtml(trimToEmpty(options && options.body) || "Vui long dang nhap de xem noi dung nay.") + "</p>",
+            '<a class="native-auth-prompt__button" href="' + escapeHtml(loginHref) + '">Dang nhap</a>',
+            "</article>"
+        ].join("");
+    }
+
+    function buildMatchVideoTitle(item) {
+        var team1 = trimToEmpty(item && (item.team1Name || item.team1DisplayName || item.team1));
+        var team2 = trimToEmpty(item && (item.team2Name || item.team2DisplayName || item.team2));
+        var roundLabel = trimToEmpty(item && item.roundLabel);
+        var groupName = trimToEmpty(item && item.groupName);
+        var parts = [];
+
+        if (team1 || team2) {
+            parts.push((team1 || "Doi 1") + " vs " + (team2 || "Doi 2"));
+        }
+
+        if (roundLabel) {
+            parts.push(roundLabel);
+        }
+
+        if (groupName) {
+            parts.push(formatVideoGroupLabel(groupName));
+        }
+
+        return parts.join(" • ");
+    }
+
+    function formatVideoGroupLabel(groupName) {
+        var label = trimToEmpty(groupName).replace(/^bang\s+/i, "");
+
+        if (!label) {
+            return "";
+        }
+
+        return /^bảng\b/i.test(label) ? label : "Bảng " + label;
+    }
+
+    function getYoutubeId(url) {
+        var href = trimToEmpty(url);
+
+        if (!href) {
+            return "";
+        }
+
+        try {
+            var parsed = new URL(href, window.location.origin);
+
+            if (parsed.hostname.indexOf("youtu.be") >= 0) {
+                return parsed.pathname.replace(/^\/+/, "");
+            }
+
+            if (parsed.searchParams.get("v")) {
+                return parsed.searchParams.get("v") || "";
+            }
+
+            if (parsed.pathname.indexOf("/shorts/") === 0 || parsed.pathname.indexOf("/embed/") === 0) {
+                return parsed.pathname.split("/")[2] || "";
+            }
+        } catch (_error) {
+            return "";
+        }
+
+        return "";
+    }
+
+    function buildVideoPlayable(url) {
+        var href = trimToEmpty(url);
+
+        if (!href) {
+            return { type: "none", src: "" };
+        }
+
+        var youtubeId = getYoutubeId(href);
+        if (youtubeId) {
+            return {
+                type: "youtube",
+                src: "https://www.youtube.com/embed/" + youtubeId + "?playsinline=1&rel=0"
+            };
+        }
+
+        if (/\.(mp4|webm|ogg|mov|m4v)(?:$|[?#])/i.test(href)) {
+            return { type: "file", src: href };
+        }
+
+        return { type: "frame", src: href };
+    }
+
+    function renderVideoCard(item) {
+        var matchId = item && item.matchId;
+        var href = matchId ? "/PickleballWeb/Video/" + matchId : "#";
+        var bannerUrl = normalizeMediaUrl(item && item.tournamentBannerUrl);
+        var tournamentTitle = trimToEmpty(item && item.tournamentTitle) || "Hanaka Sport";
+        var title = buildMatchVideoTitle(item) || tournamentTitle;
+        var team1Player1 = trimToEmpty(item && item.team1Player1Name) || trimToEmpty(item && item.team1Name) || "Doi 1";
+        var team1Player2 = trimToEmpty(item && item.team1Player2Name);
+        var team2Player1 = trimToEmpty(item && item.team2Player1Name) || trimToEmpty(item && item.team2Name) || "Doi 2";
+        var team2Player2 = trimToEmpty(item && item.team2Player2Name);
+
+        function renderPlayer(name, avatar) {
+            var avatarUrl = normalizeMediaUrl(avatar);
+
+            return [
+                '<div class="native-video-card__player">',
+                avatarUrl
+                    ? '<span class="native-video-card__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(name || "Player") + '" loading="lazy"></span>'
+                    : '<span class="native-video-card__avatar native-video-card__avatar--fallback"><ion-icon name="person-outline"></ion-icon></span>',
+                '<span class="native-video-card__player-name">' + escapeHtml(name || "Player") + "</span>",
+                "</div>"
+            ].join("");
+        }
+
+        return [
+            '<a class="native-video-card" href="' + escapeHtml(href) + '">',
+            bannerUrl
+                ? '<img class="native-video-card__banner" src="' + escapeHtml(bannerUrl) + '" alt="' + escapeHtml(tournamentTitle) + '" loading="lazy">'
+                : '<div class="native-video-card__banner native-video-card__banner--fallback"><ion-icon name="image-outline"></ion-icon></div>',
+            '<div class="native-video-card__body">',
+            '<div class="native-video-card__meta">',
+            '<span>' + escapeHtml(formatDateTime(item && item.startAt) || "Chua co lich") + "</span>",
+            trimToEmpty(item && item.roundLabel) ? '<span>• ' + escapeHtml(item.roundLabel) + "</span>" : "",
+            "</div>",
+            '<h2 class="native-video-card__title">' + escapeHtml(title) + "</h2>",
+            '<p class="native-video-card__tournament">' + escapeHtml(tournamentTitle) + "</p>",
+            (trimToEmpty(item && item.groupName) || trimToEmpty(item && item.courtText))
+                ? '<p class="native-video-card__submeta">' + escapeHtml([trimToEmpty(item && item.groupName) ? formatVideoGroupLabel(item.groupName) : "", trimToEmpty(item && item.courtText)].filter(Boolean).join(" • ")) + "</p>"
+                : "",
+            '<div class="native-video-card__teams">',
+            '<div class="native-video-card__team">',
+            renderPlayer(team1Player1, item && item.team1Player1Avatar),
+            team1Player2 ? renderPlayer(team1Player2, item && item.team1Player2Avatar) : "",
+            '<strong class="native-video-card__score">' + escapeHtml(item && item.scoreTeam1 != null ? item.scoreTeam1 : 0) + "</strong>",
+            "</div>",
+            '<div class="native-video-card__team">',
+            renderPlayer(team2Player1, item && item.team2Player1Avatar),
+            team2Player2 ? renderPlayer(team2Player2, item && item.team2Player2Avatar) : "",
+            '<strong class="native-video-card__score">' + escapeHtml(item && item.scoreTeam2 != null ? item.scoreTeam2 : 0) + "</strong>",
+            "</div>",
+            "</div>",
+            '<div class="native-video-card__foot ' + (trimToEmpty(item && item.videoUrl) ? "is-live" : "is-muted") + '">',
+            '<ion-icon name="play-circle-outline"></ion-icon>',
+            '<span>' + (trimToEmpty(item && item.videoUrl) ? "Xem video" : "Chua co video") + "</span>",
+            "</div>",
+            "</div>",
+            "</a>"
+        ].join("");
+    }
+
+    function initVideosPage(root) {
+        var refs = getCommonRefs(root);
+        var state = {
+            tab: "all",
+            query: "",
+            page: 1,
+            pageSize: 10,
+            hasMore: true,
+            items: [],
+            loading: false,
+            error: ""
+        };
+
+        setHeaderTitle(root, "Videos");
+        setHeaderAction(root, null);
+        setHeaderExtra(root, [
+            '<div class="native-video-toolbar">',
+            '<label class="native-inline-search__box native-inline-search__box--video">',
+            '<input type="search" placeholder="Tim video, VDV, bang dau..." autocomplete="off" data-video-query-input>',
+            '<ion-icon name="search"></ion-icon>',
+            "</label>",
+            '<div class="native-tabs native-tabs--video">',
+            '<button class="native-tabs__item is-active" type="button" data-video-tab="all">Tat ca</button>',
+            '<button class="native-tabs__item" type="button" data-video-tab="suggested">De xuat</button>',
+            '<button class="native-tabs__item" type="button" data-video-tab="live">Hom nay</button>',
+            "</div>",
+            "</div>"
+        ].join(""));
+        renderEmptyState(refs, "Khong co video tran dau phu hop.");
+
+        function filteredItems() {
+            var query = normalizeSearchText(state.query);
+
+            if (!query) {
+                return state.items;
+            }
+
+            return state.items.filter(function (item) {
+                var haystack = normalizeSearchText([
+                    item && item.tournamentTitle,
+                    buildMatchVideoTitle(item),
+                    item && item.roundLabel,
+                    item && item.groupName,
+                    item && item.team1Name,
+                    item && item.team1Player1Name,
+                    item && item.team1Player2Name,
+                    item && item.team2Name,
+                    item && item.team2Player1Name,
+                    item && item.team2Player2Name
+                ].filter(Boolean).join(" "));
+
+                return haystack.indexOf(query) >= 0;
+            });
+        }
+
+        function render() {
+            var items = filteredItems();
+            refs.list.className = "native-page-list native-page-list--videos";
+            refs.list.innerHTML = items.map(renderVideoCard).join("");
+
+            toggleCommonState(refs, {
+                loading: state.loading,
+                itemsLength: items.length,
+                error: state.error,
+                hasMore: state.hasMore
+            });
+        }
+
+        async function load(reset) {
+            if (state.loading) {
+                return;
+            }
+
+            if (!reset && !state.hasMore) {
+                return;
+            }
+
+            state.loading = true;
+            if (reset) {
+                state.error = "";
+            }
+            render();
+
+            try {
+                var nextPage = reset ? 1 : state.page + 1;
+                var payload = await fetchJson("/api/videos/videos?tab=" + encodeURIComponent(state.tab) + "&page=" + nextPage + "&pageSize=" + state.pageSize);
+                var nextItems = Array.isArray(payload && payload.items) ? payload.items : [];
+
+                state.items = reset ? nextItems : state.items.concat(nextItems);
+                state.page = Number(payload && payload.page) || nextPage;
+                state.hasMore = !!(payload && payload.hasMore);
+            } catch (_error) {
+                state.error = "Khong tai duoc danh sach video.";
+                if (reset) {
+                    state.items = [];
+                    state.page = 1;
+                    state.hasMore = false;
+                }
+            } finally {
+                state.loading = false;
+                render();
+            }
+        }
+
+        if (refs.retry) {
+            refs.retry.onclick = function () { load(true); };
+        }
+
+        var queryInput = qs("[data-video-query-input]", root);
+        if (queryInput) {
+            queryInput.addEventListener("input", function () {
+                state.query = trimToEmpty(queryInput.value);
+                render();
+            });
+        }
+
+        Array.from(root.querySelectorAll("[data-video-tab]")).forEach(function (button) {
+            button.addEventListener("click", function () {
+                var nextTab = trimToEmpty(button.getAttribute("data-video-tab")) || "all";
+                if (nextTab === state.tab) {
+                    return;
+                }
+
+                state.tab = nextTab;
+                Array.from(root.querySelectorAll("[data-video-tab]")).forEach(function (node) {
+                    node.classList.toggle("is-active", node === button);
+                });
+                load(true);
+            });
+        });
+
+        setupInfiniteObserver(refs.sentinel, function () {
+            if (!state.loading && state.hasMore) {
+                load(false);
+            }
+        });
+
+        load(true);
+    }
+
+    function renderVideoPlayerFallback(title, bannerUrl, videoUrl) {
+        return [
+            '<div class="native-video-player__fallback"' + (bannerUrl ? ' style="background-image:url(\'' + escapeHtml(bannerUrl) + '\')"' : "") + '>',
+            '<div class="native-video-player__fallback-overlay"></div>',
+            '<div class="native-video-player__fallback-copy">',
+            '<ion-icon name="play-circle-outline"></ion-icon>',
+            '<strong>' + escapeHtml(title || "Khong mo duoc video trong web") + "</strong>",
+            "<p>Video nay can mo bang trinh duyet ngoai hoac dich vu video goc.</p>",
+            videoUrl ? '<a class="native-video-player__external" href="' + escapeHtml(buildSafeHref(videoUrl, "#")) + '" target="_blank" rel="noreferrer">Mo video ben ngoai</a>' : "",
+            "</div>",
+            "</div>"
+        ].join("");
+    }
+
+    function renderVideoTeamSummary(team, score, isWinner) {
+        var player1 = team && team.player1 ? team.player1 : {};
+        var player2 = team && team.player2 ? team.player2 : null;
+
+        function renderPlayer(player) {
+            var avatarUrl = normalizeMediaUrl(player && player.avatar);
+            var name = trimToEmpty(player && player.name) || "Thanh vien";
+
+            return [
+                '<div class="native-video-meta__player">',
+                avatarUrl
+                    ? '<span class="native-video-meta__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(name) + '" loading="lazy"></span>'
+                    : '<span class="native-video-meta__avatar native-video-meta__avatar--fallback"><ion-icon name="person-outline"></ion-icon></span>',
+                '<span class="native-video-meta__name">' + escapeHtml(name) + "</span>",
+                "</div>"
+            ].join("");
+        }
+
+        return [
+            '<article class="native-video-meta__team' + (isWinner ? " is-winner" : "") + '">',
+            '<div class="native-video-meta__team-head">',
+            '<div>',
+            '<h3>' + escapeHtml(trimToEmpty(team && team.displayName) || "Doi thi dau") + "</h3>",
+            '<span>' + escapeHtml(trimToEmpty(team && team.regCode) || "Dang cap nhat") + "</span>",
+            "</div>",
+            '<strong>' + escapeHtml(score != null ? score : 0) + "</strong>",
+            "</div>",
+            '<div class="native-video-meta__roster">',
+            renderPlayer(player1),
+            player2 ? renderPlayer(player2) : "",
+            "</div>",
+            "</article>"
+        ].join("");
+    }
+
+    function initVideoPlayerPage(root) {
+        var refs = getCommonRefs(root);
+        var matchId = Number(root.getAttribute("data-native-page-id"));
+
+        renderEmptyState(refs, "Khong tim thay video tran dau.");
+
+        async function load() {
+            if (!Number.isFinite(matchId) || matchId <= 0) {
+                refs.list.className = "native-page-list native-page-list--video-player";
+                refs.list.innerHTML = renderVideoPlayerFallback("Khong tim thay tran dau", "", "");
+                toggleCommonState(refs, {
+                    loading: false,
+                    itemsLength: 1,
+                    error: "",
+                    hasMore: false
+                });
+                return;
+            }
+
+            toggleCommonState(refs, {
+                loading: true,
+                itemsLength: 0,
+                error: "",
+                hasMore: false
+            });
+
+            try {
+                var payload = await fetchJson("/api/tournaments/matches/" + matchId);
+                var tournament = payload && payload.tournament ? payload.tournament : {};
+                var match = payload && payload.match ? payload.match : {};
+                var round = payload && payload.round ? payload.round : {};
+                var group = payload && payload.group ? payload.group : {};
+                var bannerUrl = normalizeMediaUrl(tournament && tournament.bannerUrl);
+                var videoUrl = trimToEmpty(match && match.videoUrl);
+                var title = buildMatchVideoTitle({
+                    team1Name: match && match.team1 && match.team1.displayName,
+                    team2Name: match && match.team2 && match.team2.displayName,
+                    roundLabel: round && round.roundLabel,
+                    groupName: group && group.groupName
+                }) || trimToEmpty(tournament && tournament.title) || "Xem video";
+                var playable = buildVideoPlayable(videoUrl);
+
+                setHeaderTitle(root, trimToEmpty(tournament && tournament.title) || "Xem video");
+                setHeaderAction(root, videoUrl ? {
+                    html: '<ion-icon name="open-outline"></ion-icon>',
+                    onClick: function () {
+                        window.open(buildSafeHref(videoUrl, "#"), "_blank", "noopener");
+                    }
+                } : null);
+                setHeaderExtra(root, "");
+
+                refs.list.className = "native-page-list native-page-list--video-player";
+                refs.list.innerHTML = [
+                    '<section class="native-video-player">',
+                    '<div class="native-video-player__surface">',
+                    playable.type === "youtube" || playable.type === "frame"
+                        ? '<iframe class="native-video-player__frame" src="' + escapeHtml(playable.src) + '" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>'
+                        : playable.type === "file"
+                            ? '<video class="native-video-player__media" controls playsinline poster="' + escapeHtml(bannerUrl) + '" src="' + escapeHtml(playable.src) + '"></video>'
+                            : renderVideoPlayerFallback(title, bannerUrl, videoUrl),
+                    "</div>",
+                    '<div class="native-video-meta">',
+                    '<p class="native-video-meta__eyebrow">' + escapeHtml(trimToEmpty(tournament && tournament.title) || "Hanaka Sport") + "</p>",
+                    '<h2 class="native-video-meta__title">' + escapeHtml(title) + "</h2>",
+                    '<div class="native-video-meta__chips">',
+                    trimToEmpty(round && round.roundLabel) ? '<span>' + escapeHtml(round.roundLabel) + "</span>" : "",
+                    trimToEmpty(group && group.groupName) ? '<span>' + escapeHtml(formatVideoGroupLabel(group.groupName)) + "</span>" : "",
+                    match && match.isCompleted ? '<span class="is-completed">Da ket thuc</span>' : '<span class="is-open">Dang dien ra</span>',
+                    "</div>",
+                    '<div class="native-video-meta__info">',
+                    formatDateTime(match && match.startAt) ? '<div><small>Thoi gian</small><strong>' + escapeHtml(formatDateTime(match.startAt)) + "</strong></div>" : "",
+                    trimToEmpty(match && match.courtText) ? '<div><small>San</small><strong>' + escapeHtml(match.courtText) + "</strong></div>" : "",
+                    trimToEmpty(match && match.addressText) ? '<div><small>Dia diem</small><strong>' + escapeHtml(match.addressText) + "</strong></div>" : "",
+                    videoUrl ? '<div><small>Video</small><strong><a href="' + escapeHtml(buildSafeHref(videoUrl, "#")) + '" target="_blank" rel="noreferrer">Mo lien ket goc</a></strong></div>' : "",
+                    "</div>",
+                    '<div class="native-video-meta__teams">',
+                    renderVideoTeamSummary(match && match.team1, match && match.scoreTeam1, trimToEmpty(match && match.winnerTeam) === "TEAM1"),
+                    renderVideoTeamSummary(match && match.team2, match && match.scoreTeam2, trimToEmpty(match && match.winnerTeam) === "TEAM2"),
+                    "</div>",
+                    "</div>",
+                    "</section>"
+                ].join("");
+
+                toggleCommonState(refs, {
+                    loading: false,
+                    itemsLength: 1,
+                    error: "",
+                    hasMore: false
+                });
+            } catch (_error) {
+                refs.list.className = "native-page-list native-page-list--video-player";
+                refs.list.innerHTML = renderVideoPlayerFallback("Khong tai duoc chi tiet video", "", "");
+                toggleCommonState(refs, {
+                    loading: false,
+                    itemsLength: 1,
+                    error: "",
+                    hasMore: false
+                });
+            }
+        }
+
+        load();
+    }
+
+    function renderChatRoomCard(item) {
+        var coverUrl = normalizeMediaUrl(item && item.clubCoverUrl);
+        var clubName = trimToEmpty(item && item.clubName) || "CLB Hanaka";
+        var previewText = trimToEmpty(item && item.lastMessagePreview) || "Chua co tin nhan";
+
+        return [
+            '<a class="native-chat-room-card" href="/PickleballWeb/Chat/' + escapeHtml(item && item.clubId) + '">',
+            coverUrl
+                ? '<span class="native-chat-room-card__cover"><img src="' + escapeHtml(coverUrl) + '" alt="' + escapeHtml(clubName) + '" loading="lazy"></span>'
+                : '<span class="native-chat-room-card__cover native-chat-room-card__cover--fallback"><ion-icon name="people-outline"></ion-icon></span>',
+            '<span class="native-chat-room-card__body">',
+            '<span class="native-chat-room-card__top">',
+            '<strong>' + escapeHtml(clubName) + "</strong>",
+            '<span>' + escapeHtml(formatRoomTime(item && item.lastMessageAt)) + "</span>",
+            "</span>",
+            trimToEmpty(item && item.areaText)
+                ? '<span class="native-chat-room-card__area">' + escapeHtml(item.areaText) + "</span>"
+                : "",
+            '<span class="native-chat-room-card__preview">' + escapeHtml(trimToEmpty(item && item.lastSenderName) ? item.lastSenderName + ": " + previewText : previewText) + "</span>",
+            "</span>",
+            "</a>"
+        ].join("");
+    }
+
+    function initChatListPage(root) {
+        var refs = getCommonRefs(root);
+        var state = {
+            session: null,
+            query: "",
+            loading: false,
+            error: "",
+            authRequired: false,
+            items: []
+        };
+        var refreshTimer = null;
+        var removeRealtimeListener = null;
+
+        setHeaderTitle(root, "Tin nhan CLB");
+        setHeaderAction(root, null);
+        setHeaderExtra(root, [
+            '<div class="native-chat-toolbar">',
+            '<label class="native-inline-search__box native-inline-search__box--video">',
+            '<input type="search" placeholder="Tim ten CLB, khu vuc..." autocomplete="off" data-chat-room-query-input>',
+            '<ion-icon name="search"></ion-icon>',
+            "</label>",
+            '<p class="native-chat-toolbar__note">Chi hien thi cac phong chat CLB ma tai khoan da tham gia.</p>',
+            "</div>"
+        ].join(""));
+        renderEmptyState(refs, "Ban chua co phong chat CLB nao.");
+
+        function filteredItems() {
+            var query = normalizeSearchText(state.query);
+
+            if (!query) {
+                return state.items;
+            }
+
+            return state.items.filter(function (item) {
+                return normalizeSearchText([
+                    item && item.clubName,
+                    item && item.areaText,
+                    item && item.lastMessagePreview,
+                    item && item.lastSenderName
+                ].filter(Boolean).join(" ")).indexOf(query) >= 0;
+            });
+        }
+
+        function render() {
+            var items = filteredItems();
+            refs.list.className = "native-page-list native-page-list--chat-rooms";
+
+            if (state.authRequired) {
+                refs.list.innerHTML = renderAuthPrompt({
+                    icon: "chatbubbles-outline",
+                    title: "Dang nhap de vao chat CLB",
+                    body: "Chi thanh vien CLB da dang nhap moi xem duoc danh sach phong chat.",
+                    returnUrl: "/PickleballWeb/Chats"
+                });
+            } else {
+                refs.list.innerHTML = items.map(renderChatRoomCard).join("");
+            }
+
+            toggleCommonState(refs, {
+                loading: state.loading,
+                itemsLength: state.authRequired ? 1 : items.length,
+                error: state.error,
+                hasMore: false
+            });
+        }
+
+        function syncRoomSubscriptions() {
+            state.items.forEach(function (item) {
+                if (item && item.clubId) {
+                    subscribeClubRealtime(item.clubId);
+                }
+            });
+        }
+
+        async function refreshRooms(options) {
+            var silent = !!(options && options.silent);
+
+            if (state.loading && !silent) {
+                return;
+            }
+
+            if (!silent) {
+                state.loading = true;
+                state.error = "";
+                state.authRequired = false;
+                render();
+            }
+
+            try {
+                var payload = await requestJson("/api/clubs/chat-rooms?page=1&pageSize=50", {
+                    method: "GET",
+                    headers: { Accept: "application/json" }
+                });
+
+                state.items = Array.isArray(payload && payload.items) ? payload.items : [];
+                syncRoomSubscriptions();
+            } catch (_error) {
+                if (!silent) {
+                    state.items = [];
+                    state.error = "Khong tai duoc danh sach phong chat.";
+                }
+            } finally {
+                if (!silent) {
+                    state.loading = false;
+                }
+                render();
+            }
+        }
+
+        function scheduleRefreshRooms() {
+            window.clearTimeout(refreshTimer);
+            refreshTimer = window.setTimeout(function () {
+                refreshRooms({ silent: true });
+            }, 250);
+        }
+
+        async function load() {
+            if (state.loading) {
+                return;
+            }
+
+            state.loading = true;
+            state.error = "";
+            state.authRequired = false;
+            render();
+
+            try {
+                var session = await requestJson("/api/web-auth/me", {
+                    method: "GET",
+                    headers: { Accept: "application/json" }
+                });
+
+                if (!(session && session.isAuthenticated)) {
+                    state.session = null;
+                    state.items = [];
+                    state.authRequired = true;
+                    return;
+                }
+
+                state.session = session;
+                connectRealtime();
+                await refreshRooms({ silent: true });
+            } catch (_error) {
+                state.items = [];
+                state.error = "Khong tai duoc danh sach phong chat.";
+            } finally {
+                state.loading = false;
+                render();
+            }
+        }
+
+        if (refs.retry) {
+            refs.retry.onclick = function () { load(); };
+        }
+
+        var queryInput = qs("[data-chat-room-query-input]", root);
+        if (queryInput) {
+            queryInput.addEventListener("input", function () {
+                state.query = trimToEmpty(queryInput.value);
+                render();
+            });
+        }
+
+        removeRealtimeListener = addRealtimeListener(function (event) {
+            var type = trimToEmpty(event && event.type);
+
+            if (type === "__socket_open__") {
+                syncRoomSubscriptions();
+                return;
+            }
+
+            if (
+                type === "club.notification" ||
+                type === "club.message.created" ||
+                type === "club.message.deleted"
+            ) {
+                scheduleRefreshRooms();
+            }
+        });
+
+        window.addEventListener("pagehide", function () {
+            window.clearTimeout(refreshTimer);
+            if (removeRealtimeListener) {
+                removeRealtimeListener();
+                removeRealtimeListener = null;
+            }
+        }, { once: true });
+
+        load();
+    }
+
+    function renderChatRoomHeader(club) {
+        if (!club) {
+            return "";
+        }
+
+        var coverUrl = normalizeMediaUrl(club && (club.coverUrl || club.clubCoverUrl));
+        var clubName = trimToEmpty(club && (club.clubName || club.name)) || "Chat CLB";
+        var areaText = trimToEmpty(club && club.areaText);
+
+        return [
+            '<div class="native-chat-room-head">',
+            coverUrl
+                ? '<span class="native-chat-room-head__cover"><img src="' + escapeHtml(coverUrl) + '" alt="' + escapeHtml(clubName) + '" loading="lazy"></span>'
+                : '<span class="native-chat-room-head__cover native-chat-room-head__cover--fallback"><ion-icon name="people-outline"></ion-icon></span>',
+            '<div class="native-chat-room-head__copy">',
+            '<strong>' + escapeHtml(clubName) + "</strong>",
+            areaText ? '<span>' + escapeHtml(areaText) + "</span>" : "",
+            "</div>",
+            '<a class="native-chat-room-head__link" href="/PickleballWeb/Club/' + escapeHtml(club && club.clubId) + '"><ion-icon name="open-outline"></ion-icon></a>',
+            "</div>"
+        ].join("");
+    }
+
+    function renderChatMessage(item, myUserId) {
+        var senderId = trimToEmpty(item && (item.senderUserId || item.sender && item.sender.userId));
+        var isMine = senderId && myUserId && senderId === myUserId;
+        var senderName = trimToEmpty(item && item.sender && item.sender.fullName) || "Thanh vien";
+        var avatarUrl = normalizeMediaUrl(item && item.sender && item.sender.avatarUrl);
+        var content = trimToEmpty(item && item.content);
+        var mediaUrl = normalizeMediaUrl(item && item.mediaUrl);
+
+        return [
+            '<div class="native-chat-message' + (isMine ? " is-mine" : "") + '">',
+            isMine
+                ? ""
+                : avatarUrl
+                    ? '<span class="native-chat-message__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(senderName) + '" loading="lazy"></span>'
+                    : '<span class="native-chat-message__avatar native-chat-message__avatar--fallback"><ion-icon name="person-outline"></ion-icon></span>',
+            '<div class="native-chat-message__stack">',
+            isMine ? "" : '<span class="native-chat-message__sender">' + escapeHtml(senderName) + "</span>",
+            '<div class="native-chat-message__bubble' + (isMine ? " is-mine" : "") + '">',
+            mediaUrl ? '<img class="native-chat-message__media" src="' + escapeHtml(mediaUrl) + '" alt="Tin nhan hinh anh" loading="lazy">' : "",
+            content ? '<p class="native-chat-message__text">' + renderTextWithBreaks(content) + "</p>" : "",
+            !content && !mediaUrl ? '<p class="native-chat-message__text">[Tin nhan]</p>' : "",
+            "</div>",
+            '<span class="native-chat-message__time">' + escapeHtml(formatMessageTime(item && item.sentAt)) + "</span>",
+            "</div>",
+            "</div>"
+        ].join("");
+    }
+
+    function renderChatRoomAccessPrompt(clubId) {
+        return [
+            '<article class="native-auth-prompt native-auth-prompt--panel">',
+            '<span class="native-auth-prompt__icon"><ion-icon name="shield-outline"></ion-icon></span>',
+            "<strong>Ban chua co quyen vao phong chat nay</strong>",
+            "<p>He thong chi cho phep thanh vien CLB xem va gui tin nhan trong phong chat.</p>",
+            '<a class="native-auth-prompt__button" href="/PickleballWeb/Club/' + escapeHtml(clubId) + '">Mo trang CLB</a>',
+            "</article>"
+        ].join("");
+    }
+
+    function scrollChatToBottom(root) {
+        var anchor = qs("[data-chat-room-bottom]", root);
+        if (anchor) {
+            window.requestAnimationFrame(function () {
+                anchor.scrollIntoView({ block: "end" });
+            });
+        }
+    }
+
+    function initChatRoomPage(root) {
+        var refs = getCommonRefs(root);
+        var clubId = Number(root.getAttribute("data-native-page-id"));
+        var state = {
+            session: null,
+            club: null,
+            items: [],
+            typingUsers: [],
+            loading: false,
+            error: "",
+            authRequired: false,
+            accessDenied: false,
+            composerText: "",
+            sending: false
+        };
+        var removeRealtimeListener = null;
+        var typingTimer = null;
+        var typingExpiryTimers = {};
+
+        renderEmptyState(refs, "Chua co tin nhan trong phong chat nay.");
+
+        function getMessageId(item) {
+            return trimToEmpty(item && item.messageId);
+        }
+
+        function upsertMessage(item) {
+            if (!item) {
+                return false;
+            }
+
+            var messageId = getMessageId(item);
+            var replaced = false;
+
+            if (messageId) {
+                state.items = state.items.map(function (existing) {
+                    if (getMessageId(existing) === messageId) {
+                        replaced = true;
+                        return item;
+                    }
+
+                    return existing;
+                });
+
+                if (replaced) {
+                    return false;
+                }
+            }
+
+            state.items = state.items.concat([item]).sort(function (a, b) {
+                var aDate = parseDate(a && a.sentAt);
+                var bDate = parseDate(b && b.sentAt);
+                return (aDate ? aDate.getTime() : 0) - (bDate ? bDate.getTime() : 0);
+            });
+
+            return true;
+        }
+
+        function removeMessage(messageId) {
+            var id = trimToEmpty(messageId);
+            if (!id) {
+                return;
+            }
+
+            state.items = state.items.filter(function (item) {
+                return getMessageId(item) !== id;
+            });
+        }
+
+        function clearTypingUser(userId) {
+            var id = trimToEmpty(userId);
+            if (!id) {
+                return;
+            }
+
+            window.clearTimeout(typingExpiryTimers[id]);
+            delete typingExpiryTimers[id];
+            state.typingUsers = state.typingUsers.filter(function (item) {
+                return trimToEmpty(item && item.userId) !== id;
+            });
+        }
+
+        function setTypingUser(event) {
+            var userId = trimToEmpty(event && event.userId);
+            var myUserId = getSessionUserId(state.session);
+
+            if (!userId || userId === myUserId) {
+                return;
+            }
+
+            if (!(event && event.isTyping)) {
+                clearTypingUser(userId);
+                render();
+                return;
+            }
+
+            var fullName = trimToEmpty(event && event.fullName) || "Thanh vien";
+            var exists = false;
+            state.typingUsers = state.typingUsers.map(function (item) {
+                if (trimToEmpty(item && item.userId) === userId) {
+                    exists = true;
+                    return {
+                        userId: userId,
+                        fullName: fullName
+                    };
+                }
+
+                return item;
+            });
+
+            if (!exists) {
+                state.typingUsers = state.typingUsers.concat([{
+                    userId: userId,
+                    fullName: fullName
+                }]);
+            }
+
+            window.clearTimeout(typingExpiryTimers[userId]);
+            typingExpiryTimers[userId] = window.setTimeout(function () {
+                clearTypingUser(userId);
+                render();
+            }, 2800);
+
+            render();
+        }
+
+        function renderTypingIndicator() {
+            if (!state.typingUsers.length) {
+                return "";
+            }
+
+            var names = state.typingUsers
+                .map(function (item) { return trimToEmpty(item && item.fullName); })
+                .filter(Boolean)
+                .slice(0, 2)
+                .join(", ");
+
+            return [
+                '<div class="native-chat-typing">',
+                '<span class="native-chat-typing__dots"><i></i><i></i><i></i></span>',
+                '<span>' + escapeHtml((names || "Thanh vien") + " dang nhap...") + "</span>",
+                "</div>"
+            ].join("");
+        }
+
+        function render() {
+            refs.list.className = "native-page-list native-page-list--chat-room";
+
+            if (state.authRequired) {
+                refs.list.innerHTML = renderAuthPrompt({
+                    icon: "chatbubbles-outline",
+                    title: "Dang nhap de vao phong chat",
+                    body: "Ban can dang nhap bang tai khoan da tham gia CLB de xem va gui tin nhan.",
+                    returnUrl: "/PickleballWeb/Chat/" + clubId
+                });
+            } else if (state.accessDenied) {
+                refs.list.innerHTML = renderChatRoomAccessPrompt(clubId);
+            } else {
+                refs.list.innerHTML = [
+                    '<section class="native-chat-room">',
+                    state.items.length > 0
+                        ? '<div class="native-chat-room__thread">' + state.items.map(function (item) {
+                            return renderChatMessage(item, getSessionUserId(state.session));
+                        }).join("") + renderTypingIndicator() + '<div data-chat-room-bottom></div></div>'
+                        : '<div class="native-chat-room__empty">Chua co tin nhan nao trong phong chat nay.</div>',
+                    '<form class="native-chat-composer" data-chat-compose-form>',
+                    '<textarea class="native-chat-composer__input" rows="1" placeholder="Nhap tin nhan..." data-chat-compose-input>' + escapeHtml(state.composerText) + '</textarea>',
+                    '<button class="native-chat-composer__send" type="submit" data-chat-compose-send ' + ((state.sending || !trimToEmpty(state.composerText)) ? "disabled" : "") + '>',
+                    state.sending ? "Dang gui" : '<ion-icon name="send"></ion-icon>',
+                    "</button>",
+                    "</form>",
+                    "</section>"
+                ].join("");
+
+                var form = qs("[data-chat-compose-form]", root);
+                var input = qs("[data-chat-compose-input]", root);
+                var sendButton = qs("[data-chat-compose-send]", root);
+
+                if (input) {
+                    input.value = state.composerText;
+                    input.addEventListener("input", function () {
+                        state.composerText = input.value;
+                        if (sendButton) {
+                            sendButton.disabled = state.sending || !trimToEmpty(state.composerText);
+                        }
+
+                        sendClubTypingRealtime(clubId, trimToEmpty(state.composerText).length > 0);
+                        window.clearTimeout(typingTimer);
+                        typingTimer = window.setTimeout(function () {
+                            sendClubTypingRealtime(clubId, false);
+                        }, 1200);
+                    });
+                }
+
+                if (form) {
+                    form.addEventListener("submit", async function (event) {
+                        event.preventDefault();
+
+                        var content = trimToEmpty(state.composerText);
+                        if (!content || state.sending) {
+                            return;
+                        }
+
+                        state.sending = true;
+                        render();
+
+                        try {
+                            var payload = await requestJson("/api/clubs/" + clubId + "/messages", {
+                                method: "POST",
+                                body: JSON.stringify({
+                                    messageType: "TEXT",
+                                    content: content
+                                })
+                            });
+                            var saved = payload && payload.item ? payload.item : null;
+                            if (saved) {
+                                upsertMessage(saved);
+                            }
+                            state.composerText = "";
+                            sendClubTypingRealtime(clubId, false);
+                        } catch (error) {
+                            window.alert(error.message || "Khong gui duoc tin nhan.");
+                        } finally {
+                            state.sending = false;
+                            render();
+                            scrollChatToBottom(root);
+                        }
+                    });
+                }
+            }
+
+            toggleCommonState(refs, {
+                loading: state.loading,
+                itemsLength: state.authRequired || state.accessDenied ? 1 : state.items.length + 1,
+                error: state.error,
+                hasMore: false
+            });
+        }
+
+        async function load() {
+            if (state.loading) {
+                return;
+            }
+
+            state.loading = true;
+            state.error = "";
+            state.authRequired = false;
+            state.accessDenied = false;
+            render();
+
+            try {
+                var session = await requestJson("/api/web-auth/me", {
+                    method: "GET",
+                    headers: { Accept: "application/json" }
+                });
+
+                if (!(session && session.isAuthenticated)) {
+                    state.session = null;
+                    state.club = null;
+                    state.items = [];
+                    state.authRequired = true;
+                    return;
+                }
+
+                state.session = session;
+
+                var clubPromise = requestJson("/api/clubs/" + clubId, {
+                    method: "GET",
+                    headers: { Accept: "application/json" }
+                }).catch(function () { return null; });
+
+                var messagePayload = await requestJson("/api/clubs/" + clubId + "/messages?page=1&pageSize=100", {
+                    method: "GET",
+                    headers: { Accept: "application/json" }
+                });
+
+                state.club = await clubPromise;
+                state.items = Array.isArray(messagePayload && messagePayload.items) ? messagePayload.items : [];
+                setHeaderTitle(root, trimToEmpty(state.club && state.club.clubName) || "Chat CLB");
+                setHeaderExtra(root, renderChatRoomHeader(state.club));
+                connectRealtime();
+                subscribeClubRealtime(clubId);
+            } catch (error) {
+                state.items = [];
+                if (error && error.status === 403) {
+                    state.accessDenied = true;
+                    setHeaderExtra(root, "");
+                } else {
+                    state.error = "Khong tai duoc phong chat.";
+                }
+            } finally {
+                state.loading = false;
+                render();
+                if (!state.authRequired && !state.accessDenied && !state.error) {
+                    scrollChatToBottom(root);
+                }
+            }
+        }
+
+        if (refs.retry) {
+            refs.retry.onclick = function () { load(); };
+        }
+
+        removeRealtimeListener = addRealtimeListener(function (event) {
+            var type = trimToEmpty(event && event.type);
+            var eventClubId = Number(event && event.clubId);
+
+            if (type === "__socket_open__") {
+                if (state.session && !state.authRequired && !state.accessDenied) {
+                    subscribeClubRealtime(clubId);
+                }
+                return;
+            }
+
+            if (eventClubId !== clubId) {
+                return;
+            }
+
+            if (type === "club.message.created") {
+                var item = event && event.item ? event.item : null;
+                var added = upsertMessage(item);
+                clearTypingUser(item && item.senderUserId);
+                render();
+                if (added) {
+                    scrollChatToBottom(root);
+                }
+                return;
+            }
+
+            if (type === "club.message.deleted") {
+                removeMessage(event && event.messageId);
+                render();
+                return;
+            }
+
+            if (type === "club.typing") {
+                setTypingUser(event);
+            }
+        });
+
+        window.addEventListener("pagehide", function () {
+            window.clearTimeout(typingTimer);
+            Object.keys(typingExpiryTimers).forEach(function (key) {
+                window.clearTimeout(typingExpiryTimers[key]);
+            });
+            sendClubTypingRealtime(clubId, false);
+            unsubscribeClubRealtime(clubId);
+            if (removeRealtimeListener) {
+                removeRealtimeListener();
+                removeRealtimeListener = null;
+            }
+        }, { once: true });
+
+        setHeaderTitle(root, "Chat CLB");
+        setHeaderAction(root, null);
+        setHeaderExtra(root, "");
+        load();
+    }
+
     function initNativePage(root) {
         var kind = trimToEmpty(root.getAttribute("data-native-page-kind"));
 
@@ -1640,6 +2968,26 @@
 
         if (kind === "tournaments") {
             initTournamentsPage(root);
+            return;
+        }
+
+        if (kind === "videos") {
+            initVideosPage(root);
+            return;
+        }
+
+        if (kind === "video-player") {
+            initVideoPlayerPage(root);
+            return;
+        }
+
+        if (kind === "chat-list") {
+            initChatListPage(root);
+            return;
+        }
+
+        if (kind === "chat-room") {
+            initChatRoomPage(root);
             return;
         }
 

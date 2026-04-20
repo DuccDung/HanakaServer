@@ -162,6 +162,20 @@
         }
     }
 
+    function normalizeDisplayMediaUrl(value) {
+        const url = trimToEmpty(value);
+
+        if (!url) {
+            return "";
+        }
+
+        try {
+            return new URL(url, window.location.origin).href;
+        } catch (_error) {
+            return url;
+        }
+    }
+
     function mediaMarkup(url, alt, fallbackText) {
         const src = normalizeMediaUrl(url);
 
@@ -1417,6 +1431,61 @@
         ].join("");
     }
 
+    function renderCourtNativeDetail(item) {
+        const images = (Array.isArray(item?.images) ? item.images : [])
+            .map(normalizeDisplayMediaUrl)
+            .filter(Boolean);
+        const courtName = trimToEmpty(item?.courtName) || "Chưa có tên sân";
+        const areaText = trimToEmpty(item?.areaText) || "Chưa cập nhật";
+        const managerName = trimToEmpty(item?.managerName) || "Chưa cập nhật";
+        const phone = trimToEmpty(item?.phone);
+        const phoneText = phone || "Chưa cập nhật";
+        const callHref = phone ? buildSafeHref(`tel:${phone}`, "#") : "#";
+        const smsHref = phone ? buildSafeHref(`sms:${phone}`, "#") : "#";
+
+        function renderHeroImage(url, index) {
+            return `<img class="court-native-hero__image" src="${escapeHtml(url)}" alt="${escapeHtml(`${courtName} ${index + 1}`)}" loading="lazy">`;
+        }
+
+        function renderFallback() {
+            return [
+                '<div class="court-native-hero__fallback">',
+                '<ion-icon name="image-outline"></ion-icon>',
+                "</div>"
+            ].join("");
+        }
+
+        return [
+            '<div class="court-native-detail">',
+            images.length > 0
+                ? `<div class="court-native-hero" aria-label="Hình ảnh sân">${images.map(renderHeroImage).join("")}</div>`
+                : `<div class="court-native-hero">${renderFallback()}</div>`,
+            '<article class="court-native-card">',
+            `<h2 class="court-native-card__name">${escapeHtml(courtName)}</h2>`,
+            `<p class="court-native-card__line">Khu vực: <strong>${escapeHtml(areaText)}</strong></p>`,
+            `<p class="court-native-card__line">Quản lý: <strong>${escapeHtml(managerName)}</strong></p>`,
+            `<p class="court-native-card__line">Điện thoại: <strong>${escapeHtml(phoneText)}</strong></p>`,
+            '<div class="court-native-actions">',
+            `<a class="court-native-button court-native-button--primary" href="${escapeHtml(callHref)}" ${phone ? "" : 'data-court-phone-missing="true"'}><ion-icon name="call"></ion-icon><span>Gọi điện</span></a>`,
+            `<a class="court-native-button court-native-button--secondary" href="${escapeHtml(smsHref)}" ${phone ? "" : 'data-court-phone-missing="true"'}><ion-icon name="chatbubble"></ion-icon><span>Nhắn tin</span></a>`,
+            "</div>",
+            "</article>",
+            images.length > 0
+                ? [
+                    '<section class="court-native-gallery">',
+                    '<h3>Hình ảnh sân</h3>',
+                    '<div class="court-native-gallery__list">',
+                    images.map(function (url, index) {
+                        return `<img class="court-native-gallery__image" src="${escapeHtml(url)}" alt="${escapeHtml(`${courtName} thumbnail ${index + 1}`)}" loading="lazy">`;
+                    }).join(""),
+                    "</div>",
+                    "</section>"
+                ].join("")
+                : "",
+            "</div>"
+        ].join("");
+    }
+
     function renderTournamentMatches(rounds) {
         if (!Array.isArray(rounds) || rounds.length === 0) {
             return '<div class="detail-note">Chưa có dữ liệu vòng đấu công khai.</div>';
@@ -2373,7 +2442,7 @@
         },
         "court-detail": {
             load: function (id) { return fetchJson(`/api/public/courts/${id}`); },
-            render: renderCourtDetail
+            render: renderCourtNativeDetail
         },
         "tournament-detail": {
             load: async function (id) {
@@ -2435,6 +2504,41 @@
         load: loadTournamentStandingsPage,
         render: renderTournamentStandingsPage
     };
+
+    function applyCourtDetailShell(root) {
+        root.classList.add("detail-screen--court-native");
+
+        const title = qs(".page-hero h1", root);
+        const eyebrow = qs(".page-hero__eyebrow", root);
+        const description = qs(".page-hero p", root);
+        const backText = qs(".page-hero__back span", root);
+        const backIcon = qs(".page-hero__back ion-icon", root);
+        const tabbar = qs(".mobile-tabbar--page", root);
+
+        if (title) {
+            title.textContent = "Chi tiết sân";
+        }
+
+        if (eyebrow) {
+            eyebrow.hidden = true;
+        }
+
+        if (description) {
+            description.hidden = true;
+        }
+
+        if (backText) {
+            backText.hidden = true;
+        }
+
+        if (backIcon) {
+            backIcon.setAttribute("name", "arrow-back");
+        }
+
+        if (tabbar) {
+            tabbar.hidden = true;
+        }
+    }
 
     function applyTournamentDetailShell(root, titleText, shareEnabled) {
         root.classList.add("detail-screen--tournament-native");
@@ -2537,6 +2641,15 @@
                 if (icon) {
                     icon.setAttribute("name", isOpen ? "chevron-forward" : "chevron-up");
                 }
+            });
+        });
+    }
+
+    function initCourtDetailInteractions(root) {
+        qsa("[data-court-phone-missing]", root).forEach(function (link) {
+            link.addEventListener("click", function (event) {
+                event.preventDefault();
+                window.alert("Sân chưa có số điện thoại.");
             });
         });
     }
@@ -2704,6 +2817,10 @@
             );
         }
 
+        if (kind === "court-detail") {
+            applyCourtDetailShell(root);
+        }
+
         if (
             kind === "tournament-detail" ||
             kind === "tournament-registrations" ||
@@ -2732,6 +2849,10 @@
 
             if (kind === "coach-detail" || kind === "referee-detail") {
                 initCoachDetailInteractions(root);
+            }
+
+            if (kind === "court-detail") {
+                initCourtDetailInteractions(root);
             }
 
             if (
