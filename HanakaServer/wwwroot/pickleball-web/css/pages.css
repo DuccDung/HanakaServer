@@ -1766,15 +1766,100 @@
     padding: 14px 18px 24px;
 }
 
+.native-notification-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 18px 0;
+}
+
+.native-notification-toolbar__chip,
+.native-notification-toolbar__meta {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 12px;
+    border-radius: 999px;
+    background: #F3F4F6;
+    color: #4B5563;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.native-notification-toolbar__chip.is-unread {
+    background: rgba(10, 102, 194, 0.1);
+    color: var(--primary);
+}
+
+.native-notification-section + .native-notification-section {
+    margin-top: 20px;
+}
+
+.native-notification-section__body {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 720px;
+}
+
+.native-notification-section__head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 0 6px;
+}
+
+.native-notification-section__title {
+    margin: 0;
+    color: #111827;
+    font-size: 0.95rem;
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+.native-notification-section__meta {
+    margin: 4px 0 0;
+    color: #6B7280;
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+.native-notification-section__footer {
+    display: flex;
+    justify-content: center;
+    padding-top: 4px;
+}
+
+.native-notification-loadmore {
+    min-height: 38px;
+    padding: 0 16px;
+    border: 1px solid #D9E5F1;
+    border-radius: 999px;
+    background: #FFFFFF;
+    color: var(--primary);
+    font-size: 0.8125rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.native-notification-loadmore[disabled] {
+    opacity: 0.72;
+    cursor: default;
+}
+
 .native-page-list--settings {
     padding: 18px 20px 32px;
 }
 
 .native-notification-card {
+    position: relative;
     margin-bottom: 18px;
     padding: 12px 12px 10px;
     border-radius: 12px;
     background: #F1F1F1;
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 220px;
 }
 
 .native-notification-card__title {
@@ -1815,9 +1900,27 @@
     background: #FFFFFF;
 }
 
+.native-notification-card--read {
+    border-color: #E5E7EB;
+    background: #FCFCFD;
+    opacity: 0.82;
+}
+
 .native-notification-card--unread {
     border-color: rgba(10, 102, 194, 0.28);
+    background: #FFFFFF;
     box-shadow: 0 10px 28px rgba(10, 102, 194, 0.08);
+}
+
+.native-notification-card--unread::before {
+    content: "";
+    position: absolute;
+    top: 12px;
+    bottom: 12px;
+    left: 0;
+    width: 4px;
+    border-radius: 999px;
+    background: var(--primary);
 }
 
 .native-notification-card__pair-head {
@@ -1851,6 +1954,11 @@
 .native-notification-card__badge--unread {
     background: rgba(255, 91, 110, 0.12);
     color: #D92D20;
+}
+
+.native-notification-card__badge--read {
+    background: #F3F4F6;
+    color: #6B7280;
 }
 
 .native-notification-card__avatar {
@@ -4629,6 +4737,42 @@ body.has-web-pair-popup {
     border-radius: 6px;
     background: #F97316;
     color: #FFFFFF;
+}
+
+.tournament-registration-page__invite {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 24px;
+    margin-top: 8px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 6px;
+    background: #F97316;
+    color: #FFFFFF;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    cursor: pointer;
+}
+
+.tournament-registration-page__invite[disabled] {
+    opacity: 0.72;
+    cursor: default;
+}
+
+.tournament-registration-page__feedback {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #ECFDF5;
+    color: #047857;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+}
+
+.tournament-registration-page__feedback.is-error {
+    background: #FEF2F2;
+    color: #B91C1C;
 }
 
 .tournament-registration-page__points {

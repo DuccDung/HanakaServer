@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Security.Claims;
 using System.Text.Json;
 using HanakaServer.Data;
@@ -333,6 +333,7 @@ public class TournamentRegistrationUserController : ControllerBase
     {
         var requestedByUserId = GetUserIdFromToken();
         var requestedToUserId = request?.RequestedToUserId ?? 0;
+        var requestedToRegistrationId = request?.RequestedToRegistrationId ?? 0;
 
         await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
@@ -346,6 +347,98 @@ public class TournamentRegistrationUserController : ControllerBase
             if (!IsDoubleLike(gameType))
                 return BadRequest(new { message = "Ghép cặp chỉ áp dụng cho giải đôi." });
 
+            if (requestedToRegistrationId > 0)
+            {
+                var waitingRequester = await LoadUserSnapshotAsync(requestedByUserId, ct);
+                if (waitingRequester == null)
+                    return NotFound(new { message = "User not found." });
+
+                var waitingValidation = await ValidateWaitingRegistrationInviteTargetAsync(
+                    tournament,
+                    requestedByUserId,
+                    requestedToRegistrationId,
+                    ct);
+
+                if (!waitingValidation.Ok)
+                    return BadRequest(new { message = waitingValidation.Message });
+
+                var waitingRegistration = waitingValidation.Registration!;
+                var waitingPartner = waitingValidation.TargetUser!;
+                requestedToUserId = waitingPartner.UserId;
+                var requester = waitingRequester;
+
+                if (await IsBlockedBetweenAsync(requestedByUserId, requestedToUserId, ct))
+                    return BadRequest(new { message = "KhÃ´ng thá»ƒ gá»­i lá»i má»i vÃ¬ hai tÃ i khoáº£n Ä‘ang cháº·n nhau." });
+
+                var waitingHasPendingBetween = await _db.TournamentPairRequests.AnyAsync(x =>
+                    x.TournamentId == tournamentId &&
+                    x.Status == "PENDING" &&
+                    ((x.RequestedByUserId == requestedByUserId && x.RequestedToUserId == requestedToUserId) ||
+                     (x.RequestedByUserId == requestedToUserId && x.RequestedToUserId == requestedByUserId)), ct);
+
+                if (waitingHasPendingBetween)
+                    return BadRequest(new { message = "Hai ngÆ°á»i Ä‘ang cÃ³ lá»i má»i ghÃ©p Ä‘Ã´i chá» xá»­ lÃ½." });
+
+                var hasPendingOnRegistration = await _db.TournamentPairRequests.AnyAsync(x =>
+                    x.TournamentId == tournamentId &&
+                    x.RegistrationId == requestedToRegistrationId &&
+                    x.Status == "PENDING", ct);
+
+                if (hasPendingOnRegistration)
+                    return BadRequest(new { message = "Vận động viên này đang có yêu cầu ghép cặp chờ xử lý." });
+
+                var waitingTotalPoints = waitingRequester.RatingDouble + waitingPartner.RatingDouble;
+                if (tournament.DoubleLimit > 0 && waitingTotalPoints > tournament.DoubleLimit)
+                    return BadRequest(new { message = "Tá»•ng Ä‘iá»ƒm trÃ¬nh Ä‘Ã´i vÆ°á»£t giá»›i háº¡n cá»§a giáº£i." });
+
+                var waitingNow = DateTime.UtcNow;
+                var waitingPairRequest = new TournamentPairRequest
+                {
+                    TournamentId = tournamentId,
+                    RequestedByUserId = requestedByUserId,
+                    RequestedToUserId = requestedToUserId,
+                    RegistrationId = waitingRegistration.RegistrationId,
+                    Status = "PENDING",
+                    RequestedAt = waitingNow,
+                    ExpiresAt = waitingNow.AddHours(PairRequestExpiryHours)
+                };
+
+                _db.TournamentPairRequests.Add(waitingPairRequest);
+                await _db.SaveChangesAsync(ct);
+
+                var waitingNotification = BuildNotification(
+                    requestedToUserId,
+                    "PAIR_REQUEST",
+                    "Lời mời ghép đôi",
+                    $"{requester.FullName} muốn ghép cặp với bạn tại giải {tournament.Title}.",
+                    "PAIR_REQUEST",
+                    waitingPairRequest.PairRequestId,
+                    new
+                    {
+                        waitingPairRequest.PairRequestId,
+                        tournament.TournamentId,
+                        waitingPairRequest.ExpiresAt,
+                        registrationId = waitingRegistration.RegistrationId,
+                        tournament.Title,
+                        requestedBy = ToUserBrief(waitingRequester),
+                        requestedTo = ToUserBrief(waitingPartner)
+                    });
+
+                _db.UserNotifications.Add(waitingNotification);
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+
+                await SendTournamentNotificationAsync(requestedToUserId, waitingNotification, tournamentId, waitingPairRequest.PairRequestId, ct);
+
+                return Ok(new
+                {
+                    ok = true,
+                    message = "Đã gửi yêu cầu ghép cặp.",
+                    pairRequestId = waitingPairRequest.PairRequestId
+                });
+            }
+
+            {
             if (requestedByUserId == requestedToUserId)
                 return BadRequest(new { message = "Bạn không thể tự ghép cặp với chính mình." });
 
@@ -420,6 +513,7 @@ public class TournamentRegistrationUserController : ControllerBase
                 message = "Đã gửi lời mời ghép đôi.",
                 pairRequestId = pairRequest.PairRequestId
             });
+            }
         }
         catch (DbUpdateException ex)
         {
@@ -464,6 +558,96 @@ public class TournamentRegistrationUserController : ControllerBase
             if (!IsDoubleLike(gameType))
                 return BadRequest(new { message = "Giải này không phải giải đôi." });
 
+            if (pairRequest.RegistrationId.HasValue)
+            {
+                var waitingRequester = await LoadUserSnapshotAsync(pairRequest.RequestedByUserId, ct);
+                if (waitingRequester == null)
+                    return NotFound(new { message = "KhÃ´ng tÃ¬m tháº¥y ngÆ°á»i chÆ¡i." });
+
+                var waitingValidation = await ValidateWaitingRegistrationInviteTargetAsync(
+                    tournament,
+                    pairRequest.RequestedByUserId,
+                    pairRequest.RegistrationId.Value,
+                    ct);
+
+                if (!waitingValidation.Ok)
+                    return BadRequest(new { message = waitingValidation.Message });
+
+                var waitingReg = waitingValidation.Registration!;
+                var waitingPartner = waitingValidation.TargetUser!;
+                var partner = waitingPartner;
+
+                if (waitingReg.Player1UserId != pairRequest.RequestedToUserId)
+                    return BadRequest(new { message = "ÄÄƒng kÃ½ chá» ghÃ©p nÃ y khÃ´ng cÃ²n há»£p lá»‡." });
+
+                if (await IsBlockedBetweenAsync(pairRequest.RequestedByUserId, pairRequest.RequestedToUserId, ct))
+                    return BadRequest(new { message = "KhÃ´ng thá»ƒ cháº¥p nháº­n vÃ¬ hai tÃ i khoáº£n Ä‘ang cháº·n nhau." });
+
+                var waitingTotalPoints = waitingRequester.RatingDouble + waitingPartner.RatingDouble;
+                if (tournament.DoubleLimit > 0 && waitingTotalPoints > tournament.DoubleLimit)
+                    return BadRequest(new { message = "Tá»•ng Ä‘iá»ƒm trÃ¬nh Ä‘Ã´i vÆ°á»£t giá»›i háº¡n cá»§a giáº£i." });
+
+                waitingReg.Player1Name = waitingPartner.FullName;
+                waitingReg.Player1Avatar = waitingPartner.AvatarUrl;
+                waitingReg.Player1Level = waitingPartner.RatingDouble;
+                waitingReg.Player1Verified = waitingPartner.Verified;
+                waitingReg.Player2UserId = waitingRequester.UserId;
+                waitingReg.Player2Name = waitingRequester.FullName;
+                waitingReg.Player2Avatar = waitingRequester.AvatarUrl;
+                waitingReg.Player2Level = waitingRequester.RatingDouble;
+                waitingReg.Player2Verified = waitingRequester.Verified;
+                waitingReg.Points = waitingTotalPoints;
+                waitingReg.WaitingPair = false;
+                waitingReg.Success = true;
+
+                pairRequest.Status = "ACCEPTED";
+                pairRequest.RespondedAt = now;
+                pairRequest.RegistrationId = waitingReg.RegistrationId;
+
+                var relatedPendingRequests = await _db.TournamentPairRequests
+                    .Where(x =>
+                        x.RegistrationId == waitingReg.RegistrationId &&
+                        x.Status == "PENDING" &&
+                        x.PairRequestId != pairRequest.PairRequestId)
+                    .ToListAsync(ct);
+
+                foreach (var relatedRequest in relatedPendingRequests)
+                {
+                    relatedRequest.Status = "CANCELED";
+                    relatedRequest.RespondedAt = now;
+                }
+
+                var waitingNotification = BuildNotification(
+                    pairRequest.RequestedByUserId,
+                    "PAIR_ACCEPTED",
+                    "Ghép cặp thành công",
+                    $"{partner.FullName} đã đồng ý ghép cặp tại giải {tournament.Title}.",
+                    "PAIR_REQUEST",
+                    pairRequest.PairRequestId,
+                    new
+                    {
+                        pairRequest.PairRequestId,
+                        tournament.TournamentId,
+                        tournament.Title,
+                        registrationId = waitingReg.RegistrationId,
+                        acceptedBy = ToUserBrief(waitingPartner)
+                    });
+
+                _db.UserNotifications.Add(waitingNotification);
+                await _db.SaveChangesAsync(ct);
+                await tx.CommitAsync(ct);
+
+                await SendTournamentNotificationAsync(pairRequest.RequestedByUserId, waitingNotification, tournament.TournamentId, pairRequest.PairRequestId, ct);
+
+                return Ok(new
+                {
+                    ok = true,
+                    message = "Đã chấp nhận lời mời và ghép cặp thành công.",
+                    registrationId = waitingReg.RegistrationId
+                });
+            }
+
+            {
             var validation = await ValidateUserCanCreateRegistrationAsync(
                 tournament,
                 pairRequest.RequestedByUserId,
@@ -522,6 +706,7 @@ public class TournamentRegistrationUserController : ControllerBase
                 message = "Đã chấp nhận lời mời và tạo đăng ký chính thức.",
                 registrationId = reg.RegistrationId
             });
+            }
         }
         catch (DbUpdateException ex)
         {
@@ -613,6 +798,59 @@ public class TournamentRegistrationUserController : ControllerBase
         await SendTournamentNotificationAsync(pairRequest.RequestedByUserId, notification, pairRequest.TournamentId, pairRequest.PairRequestId, ct);
 
         return Ok(new { ok = true, message = "Đã từ chối lời mời ghép đôi." });
+    }
+
+    private async Task<(bool Ok, string Message, TournamentRegistration? Registration, UserRegistrationSnapshot? TargetUser)>
+        ValidateWaitingRegistrationInviteTargetAsync(
+            Tournament tournament,
+            long requestedByUserId,
+            long registrationId,
+            CancellationToken ct)
+    {
+        var tournamentValidation = ValidateTournamentRegistrationWindow(
+            tournament.Status,
+            tournament.RegisterDeadline);
+
+        if (!tournamentValidation.CanRegister)
+            return (false, tournamentValidation.Reason, null, null);
+
+        var successCount = await _db.TournamentRegistrations
+            .Where(x => x.TournamentId == tournament.TournamentId && x.Success)
+            .CountAsync(ct);
+
+        if (tournament.ExpectedTeams - successCount <= 0)
+            return (false, "Giáº£i Ä‘Ã£ Ä‘á»§ sá»‘ Ä‘á»™i Ä‘Äƒng kÃ½.", null, null);
+
+        var registration = await _db.TournamentRegistrations
+            .FirstOrDefaultAsync(x =>
+                x.TournamentId == tournament.TournamentId &&
+                x.RegistrationId == registrationId, ct);
+
+        if (registration == null)
+            return (false, "KhÃ´ng tÃ¬m tháº¥y Ä‘Äƒng kÃ½ chá» ghÃ©p.", null, null);
+
+        if (!registration.WaitingPair || registration.Success || registration.Player2UserId.HasValue)
+            return (false, "ÄÄƒng kÃ½ nÃ y khÃ´ng cÃ²n á»Ÿ tráº¡ng thÃ¡i chá» ghÃ©p.", null, null);
+
+        if (!registration.Player1UserId.HasValue)
+            return (false, "KhÃ´ng thá»ƒ gá»­i yÃªu cáº§u cho Ä‘Äƒng kÃ½ khÃ¡ch.", null, null);
+
+        if (registration.Player1UserId.Value == requestedByUserId)
+            return (false, "Báº¡n khÃ´ng thá»ƒ tá»± ghÃ©p cáº·p vá»›i chÃ­nh mÃ¬nh.", null, null);
+
+        var requesterHasRegistration = await _db.TournamentRegistrations.AnyAsync(x =>
+            x.TournamentId == tournament.TournamentId &&
+            ((x.Player1UserId.HasValue && x.Player1UserId.Value == requestedByUserId) ||
+             (x.Player2UserId.HasValue && x.Player2UserId.Value == requestedByUserId)), ct);
+
+        if (requesterHasRegistration)
+            return (false, "Váº­n Ä‘á»™ng viÃªn Ä‘Ã£ cÃ³ Ä‘Äƒng kÃ½ trong giáº£i nÃ y.", null, null);
+
+        var targetUser = await LoadUserSnapshotAsync(registration.Player1UserId.Value, ct);
+        if (targetUser == null)
+            return (false, "KhÃ´ng tÃ¬m tháº¥y ngÆ°á»i chÆ¡i Ä‘ang chá» ghÃ©p.", null, null);
+
+        return (true, "", registration, targetUser);
     }
 
     private async Task<Tournament?> LoadTournamentForUpdateAsync(long tournamentId, CancellationToken ct)
@@ -985,6 +1223,7 @@ public class TournamentRegistrationUserController : ControllerBase
     public sealed class CreatePairRequestDto
     {
         public long RequestedToUserId { get; set; }
+        public long RequestedToRegistrationId { get; set; }
     }
 
     public sealed class PairRequestResponseDto

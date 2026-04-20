@@ -2332,6 +2332,7 @@
 
             return {
                 id: String(item?.registrationId || Math.random()),
+                registrationId: toNumber(item?.registrationId),
                 index: toNumber(item?.regIndex),
                 regCode: trimToEmpty(item?.regCode),
                 regTime: formatSlashDateTime(item?.regTime),
@@ -2339,6 +2340,7 @@
                 success: !!item?.success,
                 waitingPair: !!item?.waitingPair,
                 player1: {
+                    userId: toNumber(player1?.userId),
                     name: trimToEmpty(player1?.name) || "-",
                     avatar: player1?.avatar || "",
                     level: player1?.level ?? 0,
@@ -2346,21 +2348,134 @@
                     isGuest: !!player1?.isGuest
                 },
                 player2: {
+                    userId: toNumber(player2Resolved?.userId),
                     name: trimToEmpty(player2Resolved?.name) || "-",
                     avatar: player2Resolved?.avatar || "",
                     level: player2Resolved?.level ?? 0,
                     verified: !!player2Resolved?.verified,
-                    isGuest: !!player2Resolved?.isGuest
+                    isGuest: !!player2Resolved?.isGuest,
+                    isWaitingSlot: !item?.player2 && !!item?.waitingPair
                 }
             };
         });
     }
 
-    function renderTournamentRegistrationPlayer(player) {
+    function buildTournamentRegistrationViewerState(data) {
+        const session = data?.session && data.session.isAuthenticated ? data.session : null;
+        const state = data?.state || null;
+        const pendingSent = Array.isArray(state?.pendingSent) ? state.pendingSent : [];
+        const pendingReceived = Array.isArray(state?.pendingReceived) ? state.pendingReceived : [];
+        const pendingSentUserMap = Object.create(null);
+
+        pendingSent.forEach(function (item) {
+            const userId = toNumber(item?.user?.userId);
+            if (userId > 0) {
+                pendingSentUserMap[String(userId)] = true;
+            }
+        });
+
+        return {
+            session: session,
+            state: state,
+            isAuthenticated: !!session,
+            currentUserId: toNumber(session?.user?.userId),
+            hasExistingRegistration: !!state?.existingRegistration,
+            hasPendingPair: pendingSent.length > 0 || pendingReceived.length > 0,
+            pendingSentUserMap: pendingSentUserMap,
+            canRegister: state ? !!state.canRegister : true
+        };
+    }
+
+    function resolveTournamentRegistrationInvite(item, data) {
+        if (!item?.waitingPair || !item?.player2?.isWaitingSlot) {
+            return null;
+        }
+
+        const ownerUserId = toNumber(item?.player1?.userId);
+        if (ownerUserId <= 0) {
+            return null;
+        }
+
+        const viewer = buildTournamentRegistrationViewerState(data);
+
+        if (!viewer.isAuthenticated) {
+            return {
+                registrationId: toNumber(item?.registrationId || item?.id),
+                requestedToUserId: ownerUserId,
+                label: "Khách",
+                mode: "login",
+                disabled: false
+            };
+        }
+
+        if (viewer.currentUserId === ownerUserId) {
+            return {
+                registrationId: toNumber(item?.registrationId || item?.id),
+                requestedToUserId: ownerUserId,
+                label: "Của bạn",
+                mode: "self",
+                disabled: true
+            };
+        }
+
+        if (viewer.pendingSentUserMap[String(ownerUserId)]) {
+            return {
+                registrationId: toNumber(item?.registrationId || item?.id),
+                requestedToUserId: ownerUserId,
+                label: "Đã gửi",
+                mode: "sent",
+                disabled: true
+            };
+        }
+
+        if (viewer.hasExistingRegistration) {
+            return {
+                registrationId: toNumber(item?.registrationId || item?.id),
+                requestedToUserId: ownerUserId,
+                label: "Đã đăng ký",
+                mode: "locked",
+                disabled: true
+            };
+        }
+
+        if (viewer.hasPendingPair || !viewer.canRegister) {
+            return {
+                registrationId: toNumber(item?.registrationId || item?.id),
+                requestedToUserId: ownerUserId,
+                label: "Đang chờ",
+                mode: "locked",
+                disabled: true
+            };
+        }
+
+        return {
+            registrationId: toNumber(item?.registrationId || item?.id),
+            requestedToUserId: ownerUserId,
+            label: "Khách",
+            mode: "invite",
+            disabled: false
+        };
+    }
+
+    function renderTournamentRegistrationPlayer(player, options) {
         const name = trimToEmpty(player?.name) || "-";
         const level = formatFlexibleNumber(player?.level);
         const verified = !!player?.verified;
         const guest = !!player?.isGuest;
+        const invite = options?.invite || null;
+
+        let statusMarkup = "";
+        if (invite) {
+            const attrs = invite.disabled
+                ? "disabled"
+                : `data-registration-invite="${escapeHtml(invite.registrationId)}" data-registration-invite-user="${escapeHtml(invite.requestedToUserId)}" data-registration-invite-mode="${escapeHtml(invite.mode)}"`;
+
+            statusMarkup = `<button class="tournament-registration-page__invite" type="button" ${attrs}>${escapeHtml(invite.label)}</button>`;
+        } else {
+            statusMarkup = verified
+                ? '<em class="is-verified">\u0110\u00e3 x\u00e1c th\u1ef1c</em>'
+                : `<em class="is-pill">${escapeHtml(guest ? "Kh\u00e1ch" : "Ch\u1edd x\u00e1c th\u1ef1c")}</em>`;
+        }
 
         return [
             '<div class="tournament-registration-page__player">',
@@ -2369,20 +2484,19 @@
             "</div>",
             `<strong>${escapeHtml(name)}</strong>`,
             `<span>(${escapeHtml(level)})</span>`,
-            verified
-                ? '<em class="is-verified">\u0110\u00e3 x\u00e1c th\u1ef1c</em>'
-                : `<em class="is-pill">${escapeHtml(guest ? "Kh\u00e1ch" : "Ch\u1edd x\u00e1c th\u1ef1c")}</em>`,
+            statusMarkup,
             "</div>"
         ].join("");
     }
 
-    function renderTournamentRegistrationRow(item) {
+    function renderTournamentRegistrationRow(item, data) {
         const searchText = normalizeSearchText([
             item?.regCode,
             item?.regTime,
             item?.player1?.name,
             item?.player2?.name
         ].join(" "));
+        const invite = resolveTournamentRegistrationInvite(item, data);
 
         return [
             `<article class="tournament-registration-page__item" data-registration-search="${escapeHtml(searchText)}">`,
@@ -2392,7 +2506,7 @@
             "</div>",
             '<div class="tournament-registration-page__grid">',
             renderTournamentRegistrationPlayer(item?.player1),
-            renderTournamentRegistrationPlayer(item?.player2),
+            renderTournamentRegistrationPlayer(item?.player2, { invite: invite }),
             `<div class="tournament-registration-page__points">${escapeHtml(formatFlexibleNumber(item?.points))}</div>`,
             "</div>",
             "</article>"
@@ -2403,17 +2517,31 @@
         const results = await Promise.allSettled([
             fetchJson(`/api/public/tournaments/${id}`),
             fetchJson(`/api/public/tournaments/${id}/registrations`),
-            fetchJson(`/api/links?type=zalo`)
+            fetchJson(`/api/links?type=zalo`),
+            requestJson("/api/web-auth/me", { method: "GET" })
         ]);
 
         if (results[1].status !== "fulfilled") {
             throw new Error("tournament-registrations");
         }
 
+        const session = results[3].status === "fulfilled" ? results[3].value : null;
+        let state = null;
+
+        if (session?.isAuthenticated) {
+            try {
+                state = await requestJson(`/api/tournament-registrations/tournaments/${id}/me`, { method: "GET" });
+            } catch (_error) {
+                state = null;
+            }
+        }
+
         return {
             detail: results[0].status === "fulfilled" ? results[0].value : null,
             registrations: results[1].value,
-            links: results[2].status === "fulfilled" ? results[2].value : null
+            links: results[2].status === "fulfilled" ? results[2].value : null,
+            session: session,
+            state: state
         };
     }
 
@@ -2450,12 +2578,13 @@
             '<ion-icon name="search"></ion-icon>',
             "</div>",
             "</div>",
+            '<p class="tournament-registration-page__feedback" data-registration-feedback hidden></p>',
             '<div class="tournament-registration-page__tablehead">',
             '<span class="is-player">V\u0110V1</span>',
             '<span class="is-player">V\u0110V2</span>',
             '<span class="is-points">\u0110i\u1ec3m</span>',
             "</div>",
-            `<div class="tournament-registration-page__list" data-registration-list>${items.map(renderTournamentRegistrationRow).join("")}</div>`,
+            `<div class="tournament-registration-page__list" data-registration-list>${items.map(function (item) { return renderTournamentRegistrationRow(item, data); }).join("")}</div>`,
             '<p class="tournament-registration-page__empty" data-registration-empty hidden>Kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u \u0111\u0103ng k\u00fd.</p>',
             "</div>"
         ].join("");
@@ -3549,6 +3678,140 @@
         applyFilter();
     }
 
+    function initTournamentRegistrationsPageInteractions(root, data) {
+        const container = qs(".tournament-registration-page", root);
+        const list = qs("[data-registration-list]", root);
+        const feedback = qs("[data-registration-feedback]", root);
+        const tournamentId = toNumber(data?.detail?.tournamentId || data?.registrations?.tournament?.tournamentId);
+        let removeRealtimeListener = null;
+        let handleNotificationCenterChange = null;
+
+        if (!container || !list || tournamentId <= 0) {
+            return;
+        }
+
+        function setFeedback(text, isError) {
+            if (!feedback) {
+                if (text) {
+                    window.alert(text);
+                }
+                return;
+            }
+
+            feedback.hidden = !text;
+            feedback.textContent = text || "";
+            feedback.classList.toggle("is-error", !!isError);
+        }
+
+        function setBusy(button, busyText) {
+            const previousText = button.textContent;
+            const previousMode = trimToEmpty(button.getAttribute("data-registration-invite-mode"));
+
+            button.disabled = true;
+            button.textContent = busyText || "Đang gửi...";
+
+            return function restore() {
+                if (!button.isConnected) {
+                    return;
+                }
+
+                button.textContent = previousText;
+                button.disabled = false;
+                if (previousMode) {
+                    button.setAttribute("data-registration-invite-mode", previousMode);
+                }
+            };
+        }
+
+        list.addEventListener("click", async function (event) {
+            const button = event.target.closest("[data-registration-invite], [data-registration-invite-mode='login']");
+            if (!button) {
+                return;
+            }
+
+            const mode = trimToEmpty(button.getAttribute("data-registration-invite-mode")).toLowerCase();
+            if (mode === "login") {
+                window.location.href = `/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+                return;
+            }
+
+            const requestedToRegistrationId = toNumber(button.getAttribute("data-registration-invite"));
+            const requestedToUserId = toNumber(button.getAttribute("data-registration-invite-user"));
+            if (requestedToRegistrationId <= 0 || requestedToUserId <= 0) {
+                return;
+            }
+
+            const restore = setBusy(button, "Đang gửi...");
+            setFeedback("", false);
+
+            try {
+                const payload = await requestJson(`/api/tournament-registrations/tournaments/${tournamentId}/pair-requests`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        requestedToUserId: requestedToUserId,
+                        requestedToRegistrationId: requestedToRegistrationId
+                    })
+                });
+
+                button.textContent = "Đã gửi";
+                button.disabled = true;
+                button.setAttribute("data-registration-invite-mode", "sent");
+                setFeedback(trimToEmpty(payload?.message) || "Đã gửi yêu cầu ghép cặp.", false);
+            } catch (error) {
+                restore();
+
+                if (error?.status === 401) {
+                    window.location.href = `/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+                    return;
+                }
+
+                setFeedback(error?.message || "Không thể gửi yêu cầu ghép cặp.", true);
+            }
+        });
+
+        connectTournamentRealtime();
+        removeRealtimeListener = addTournamentRealtimeListener(function (event) {
+            if (trimToEmpty(event?.type) !== "tournament.notification") {
+                return;
+            }
+
+            const payload = event?.payload || {};
+            const notificationType = trimToEmpty(payload.notificationType || payload.NotificationType).toUpperCase();
+            if (toNumber(payload.tournamentId || payload.TournamentId) !== tournamentId) {
+                return;
+            }
+
+            if (notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED") {
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 500);
+            }
+        });
+
+        handleNotificationCenterChange = function (event) {
+            const detail = event?.detail || {};
+            if (detail.action === "accept" || detail.action === "reject") {
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 250);
+            }
+        };
+
+        window.addEventListener("hanaka:notifications-changed", handleNotificationCenterChange);
+
+        window.addEventListener("pagehide", function () {
+            if (removeRealtimeListener) {
+                removeRealtimeListener();
+                removeRealtimeListener = null;
+            }
+
+            if (handleNotificationCenterChange) {
+                window.removeEventListener("hanaka:notifications-changed", handleNotificationCenterChange);
+                handleNotificationCenterChange = null;
+            }
+        }, { once: true });
+    }
+
     function initTournamentRegisterPageInteractions(root, data) {
         const page = qs("[data-tournament-register-page]", root);
         if (!page) {
@@ -3841,6 +4104,7 @@
 
         if (kind === "tournament-registrations") {
             initTournamentRegistrationSearch(root);
+            initTournamentRegistrationsPageInteractions(root, data);
         }
 
         if (kind === "tournament-register-page") {

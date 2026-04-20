@@ -13,6 +13,9 @@ namespace HanakaServer.Controllers
     [Authorize(AuthenticationSchemes = "Bearer")]
     public class NotificationsController : ControllerBase
     {
+        private const int DefaultInboxPageSize = 20;
+        private const int MaxInboxPageSize = 50;
+
         private readonly PickleballDbContext _db;
         private readonly IConfiguration _config;
 
@@ -120,134 +123,203 @@ namespace HanakaServer.Controllers
         }
 
         [HttpGet("inbox")]
-        public async Task<IActionResult> GetInboxNotifications(CancellationToken ct)
+        public async Task<IActionResult> GetInboxNotifications([FromQuery] int page = 1, [FromQuery] int pageSize = DefaultInboxPageSize, CancellationToken ct = default)
         {
-            var userId = GetUserIdFromToken();
-
-            var unreadTotal = await _db.UserNotifications
-                .AsNoTracking()
-                .CountAsync(x => x.UserId == userId && !x.IsRead, ct);
-
-            var unreadNonPairTotal = await _db.UserNotifications
-                .AsNoTracking()
-                .CountAsync(x =>
-                    x.UserId == userId &&
-                    !x.IsRead &&
-                    x.NotificationType != "PAIR_REQUEST", ct);
-
-            var rows = await _db.UserNotifications
-                .AsNoTracking()
-                .Where(x => x.UserId == userId)
-                .OrderByDescending(x => x.CreatedAt)
-                .Take(30)
-                .Select(x => new
-                {
-                    x.NotificationId,
-                    x.NotificationType,
-                    x.Title,
-                    x.Body,
-                    x.RefType,
-                    x.RefId,
-                    x.IsRead,
-                    x.ReadAt,
-                    x.CreatedAt,
-                    x.PayloadJson
-                })
-                .ToListAsync(ct);
-
-            var items = rows.Select(x =>
+            try
             {
-                long pairRequestId = 0;
-                long tournamentId = 0;
-                long registrationId = 0;
-                string? tournamentTitle = null;
-                string? responseNote = null;
-                object? acceptedBy = null;
-                object? requestedBy = null;
-                object? requestedTo = null;
+                var userId = GetUserIdFromToken();
+                var normalizedPage = page < 1 ? 1 : page;
+                var normalizedPageSize = pageSize < 1
+                    ? DefaultInboxPageSize
+                    : Math.Min(pageSize, MaxInboxPageSize);
+                var skip = (normalizedPage - 1) * normalizedPageSize;
+                var inboxQuery = _db.UserNotifications
+                    .AsNoTracking()
+                    .Where(x => x.UserId == userId && x.NotificationType != "PAIR_REQUEST");
 
-                if (!string.IsNullOrWhiteSpace(x.PayloadJson))
-                {
-                    try
+                var unreadTotal = await _db.UserNotifications
+                    .AsNoTracking()
+                    .CountAsync(x => x.UserId == userId && !x.IsRead, ct);
+
+                var unreadNonPairTotal = await _db.UserNotifications
+                    .AsNoTracking()
+                    .CountAsync(x =>
+                        x.UserId == userId &&
+                        !x.IsRead &&
+                        x.NotificationType != "PAIR_REQUEST", ct);
+
+                var total = await inboxQuery.CountAsync(ct);
+
+                var rows = await inboxQuery
+                    .OrderByDescending(x => x.CreatedAt)
+                    .Skip(skip)
+                    .Take(normalizedPageSize)
+                    .Select(x => new
                     {
-                        using var document = JsonDocument.Parse(x.PayloadJson);
-                        var root = document.RootElement;
+                        x.NotificationId,
+                        x.NotificationType,
+                        x.Title,
+                        x.Body,
+                        x.RefType,
+                        x.RefId,
+                        x.IsRead,
+                        x.ReadAt,
+                        x.CreatedAt,
+                        x.PayloadJson
+                    })
+                    .ToListAsync(ct);
 
-                        pairRequestId = ReadJsonLong(root, "pairRequestId") ?? (x.RefType == "PAIR_REQUEST" ? x.RefId ?? 0 : 0);
-                        tournamentId = ReadJsonLong(root, "tournamentId") ?? 0;
-                        registrationId = ReadJsonLong(root, "registrationId") ?? 0;
-                        tournamentTitle = ReadJsonString(root, "tournamentTitle") ?? ReadJsonString(root, "title");
-                        responseNote = ReadJsonString(root, "responseNote");
-                        acceptedBy = ReadUserBrief(root, "acceptedBy");
-                        requestedBy = ReadUserBrief(root, "requestedBy");
-                        requestedTo = ReadUserBrief(root, "requestedTo");
-                    }
-                    catch
-                    {
-                    }
-                }
-
-                return new
+                var items = rows.Select(x =>
                 {
-                    id = x.NotificationId,
-                    notificationId = x.NotificationId,
-                    type = x.NotificationType,
-                    notificationType = x.NotificationType,
-                    title = x.Title,
-                    message = x.Body,
-                    x.IsRead,
-                    x.ReadAt,
-                    x.CreatedAt,
-                    x.RefType,
-                    x.RefId,
-                    pairRequestId,
-                    tournamentId,
-                    tournamentTitle,
-                    registrationId,
-                    responseNote,
-                    acceptedBy,
-                    requestedBy,
-                    requestedTo
-                };
-            }).ToList();
+                    long pairRequestId = 0;
+                    long tournamentId = 0;
+                    long registrationId = 0;
+                    string? tournamentTitle = null;
+                    string? responseNote = null;
+                    object? acceptedBy = null;
+                    object? requestedBy = null;
+                    object? requestedTo = null;
 
-            return Ok(new
+                    if (!string.IsNullOrWhiteSpace(x.PayloadJson))
+                    {
+                        try
+                        {
+                            using var document = JsonDocument.Parse(x.PayloadJson);
+                            var root = document.RootElement;
+
+                            pairRequestId = ReadJsonLong(root, "pairRequestId") ?? (x.RefType == "PAIR_REQUEST" ? x.RefId ?? 0 : 0);
+                            tournamentId = ReadJsonLong(root, "tournamentId") ?? 0;
+                            registrationId = ReadJsonLong(root, "registrationId") ?? 0;
+                            tournamentTitle = ReadJsonString(root, "tournamentTitle") ?? ReadJsonString(root, "title");
+                            responseNote = ReadJsonString(root, "responseNote");
+                            acceptedBy = ReadUserBrief(root, "acceptedBy");
+                            requestedBy = ReadUserBrief(root, "requestedBy");
+                            requestedTo = ReadUserBrief(root, "requestedTo");
+                        }
+                        catch
+                        {
+                        }
+                    }
+
+                    return new
+                    {
+                        id = x.NotificationId,
+                        notificationId = x.NotificationId,
+                        type = x.NotificationType,
+                        notificationType = x.NotificationType,
+                        title = x.Title,
+                        message = x.Body,
+                        x.IsRead,
+                        x.ReadAt,
+                        x.CreatedAt,
+                        x.RefType,
+                        x.RefId,
+                        pairRequestId,
+                        tournamentId,
+                        tournamentTitle,
+                        registrationId,
+                        responseNote,
+                        acceptedBy,
+                        requestedBy,
+                        requestedTo
+                    };
+                }).ToList();
+
+                return Ok(new
+                {
+                    page = normalizedPage,
+                    pageSize = normalizedPageSize,
+                    unreadTotal,
+                    unreadNonPairTotal,
+                    total,
+                    hasMore = skip + items.Count < total,
+                    items
+                });
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested || HttpContext.RequestAborted.IsCancellationRequested)
             {
-                unreadTotal,
-                unreadNonPairTotal,
-                total = items.Count,
-                items
-            });
+                return new EmptyResult();
+            }
         }
 
         [HttpPost("inbox/read-all")]
         public async Task<IActionResult> MarkInboxNotificationsRead(CancellationToken ct)
         {
-            var userId = GetUserIdFromToken();
-            var now = DateTime.UtcNow;
-
-            var notifications = await _db.UserNotifications
-                .Where(x => x.UserId == userId && !x.IsRead)
-                .ToListAsync(ct);
-
-            if (notifications.Count == 0)
+            try
             {
-                return Ok(new { ok = true, count = 0 });
+                var userId = GetUserIdFromToken();
+                var now = DateTime.UtcNow;
+
+                var notifications = await _db.UserNotifications
+                    .Where(x => x.UserId == userId && !x.IsRead && x.NotificationType != "PAIR_REQUEST")
+                    .ToListAsync(ct);
+
+                if (notifications.Count == 0)
+                {
+                    return Ok(new { ok = true, count = 0 });
+                }
+
+                foreach (var notification in notifications)
+                {
+                    notification.IsRead = true;
+                    notification.ReadAt = now;
+                }
+
+                await _db.SaveChangesAsync(ct);
+
+                return Ok(new
+                {
+                    ok = true,
+                    count = notifications.Count
+                });
             }
-
-            foreach (var notification in notifications)
+            catch (OperationCanceledException) when (ct.IsCancellationRequested || HttpContext.RequestAborted.IsCancellationRequested)
             {
+                return new EmptyResult();
+            }
+        }
+
+        [HttpPost("inbox/{notificationId:long}/read")]
+        public async Task<IActionResult> MarkInboxNotificationRead(long notificationId, CancellationToken ct)
+        {
+            try
+            {
+                var userId = GetUserIdFromToken();
+                var notification = await _db.UserNotifications
+                    .FirstOrDefaultAsync(x =>
+                        x.NotificationId == notificationId &&
+                        x.UserId == userId &&
+                        x.NotificationType != "PAIR_REQUEST", ct);
+
+                if (notification == null)
+                {
+                    return NotFound(new { message = "Không tìm thấy thông báo." });
+                }
+
+                if (notification.IsRead)
+                {
+                    return Ok(new
+                    {
+                        ok = true,
+                        alreadyRead = true,
+                        notificationId = notification.NotificationId
+                    });
+                }
+
                 notification.IsRead = true;
-                notification.ReadAt = now;
+                notification.ReadAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync(ct);
+
+                return Ok(new
+                {
+                    ok = true,
+                    notificationId = notification.NotificationId
+                });
             }
-
-            await _db.SaveChangesAsync(ct);
-
-            return Ok(new
+            catch (OperationCanceledException) when (ct.IsCancellationRequested || HttpContext.RequestAborted.IsCancellationRequested)
             {
-                ok = true,
-                count = notifications.Count
-            });
+                return new EmptyResult();
+            }
         }
 
         [HttpGet("upcoming-matches")]
@@ -382,74 +454,81 @@ namespace HanakaServer.Controllers
         [HttpGet("pair-requests")]
         public async Task<IActionResult> GetPairRequestNotifications(CancellationToken ct)
         {
-            var userId = GetUserIdFromToken();
-            var now = DateTime.UtcNow;
-
-            var expired = await _db.TournamentPairRequests
-                .Where(x =>
-                    x.RequestedToUserId == userId &&
-                    x.Status == "PENDING" &&
-                    x.ExpiresAt.HasValue &&
-                    x.ExpiresAt.Value <= now)
-                .ToListAsync(ct);
-
-            if (expired.Count > 0)
+            try
             {
-                foreach (var item in expired)
+                var userId = GetUserIdFromToken();
+                var now = DateTime.UtcNow;
+
+                var expired = await _db.TournamentPairRequests
+                    .Where(x =>
+                        x.RequestedToUserId == userId &&
+                        x.Status == "PENDING" &&
+                        x.ExpiresAt.HasValue &&
+                        x.ExpiresAt.Value <= now)
+                    .ToListAsync(ct);
+
+                if (expired.Count > 0)
                 {
-                    item.Status = "EXPIRED";
-                    item.RespondedAt = now;
+                    foreach (var item in expired)
+                    {
+                        item.Status = "EXPIRED";
+                        item.RespondedAt = now;
+                    }
+
+                    await _db.SaveChangesAsync(ct);
                 }
 
-                await _db.SaveChangesAsync(ct);
-            }
+                var pendingRows = await _db.TournamentPairRequests
+                    .AsNoTracking()
+                    .Where(x => x.RequestedToUserId == userId && x.Status == "PENDING")
+                    .OrderByDescending(x => x.RequestedAt)
+                    .Select(x => new
+                    {
+                        x.PairRequestId,
+                        x.TournamentId,
+                        TournamentTitle = x.Tournament.Title,
+                        TournamentGameType = x.Tournament.GameType,
+                        x.RequestedAt,
+                        x.ExpiresAt,
+                        x.Status,
+                        RequestedByUserId = x.RequestedByUser.UserId,
+                        RequestedByName = x.RequestedByUser.FullName,
+                        RequestedByAvatar = x.RequestedByUser.AvatarUrl,
+                        RequestedByVerified = x.RequestedByUser.Verified
+                    })
+                    .ToListAsync(ct);
 
-            var pendingRows = await _db.TournamentPairRequests
-                .AsNoTracking()
-                .Where(x => x.RequestedToUserId == userId && x.Status == "PENDING")
-                .OrderByDescending(x => x.RequestedAt)
-                .Select(x => new
+                var pendingItems = pendingRows.Select(x => new
                 {
+                    type = "PAIR_REQUEST",
                     x.PairRequestId,
                     x.TournamentId,
-                    TournamentTitle = x.Tournament.Title,
-                    TournamentGameType = x.Tournament.GameType,
+                    tournamentTitle = x.TournamentTitle,
+                    tournamentGameType = x.TournamentGameType,
                     x.RequestedAt,
                     x.ExpiresAt,
                     x.Status,
-                    RequestedByUserId = x.RequestedByUser.UserId,
-                    RequestedByName = x.RequestedByUser.FullName,
-                    RequestedByAvatar = x.RequestedByUser.AvatarUrl,
-                    RequestedByVerified = x.RequestedByUser.Verified
-                })
-                .ToListAsync(ct);
+                    title = "Lời mời ghép đôi",
+                    message = $"{x.RequestedByName} mời bạn ghép cặp tại giải {x.TournamentTitle}.",
+                    requestedBy = new
+                    {
+                        userId = x.RequestedByUserId,
+                        fullName = x.RequestedByName,
+                        avatarUrl = ToAbsoluteUrl(x.RequestedByAvatar),
+                        verified = x.RequestedByVerified
+                    }
+                }).ToList();
 
-            var pendingItems = pendingRows.Select(x => new
-            {
-                type = "PAIR_REQUEST",
-                x.PairRequestId,
-                x.TournamentId,
-                tournamentTitle = x.TournamentTitle,
-                tournamentGameType = x.TournamentGameType,
-                x.RequestedAt,
-                x.ExpiresAt,
-                x.Status,
-                title = "Lời mời ghép đôi",
-                message = $"{x.RequestedByName} mời bạn ghép cặp tại giải {x.TournamentTitle}.",
-                requestedBy = new
+                return Ok(new
                 {
-                    userId = x.RequestedByUserId,
-                    fullName = x.RequestedByName,
-                    avatarUrl = ToAbsoluteUrl(x.RequestedByAvatar),
-                    verified = x.RequestedByVerified
-                }
-            }).ToList();
-
-            return Ok(new
+                    total = pendingItems.Count,
+                    items = pendingItems
+                });
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested || HttpContext.RequestAborted.IsCancellationRequested)
             {
-                total = pendingItems.Count,
-                items = pendingItems
-            });
+                return new EmptyResult();
+            }
         }
     }
 }
