@@ -354,9 +354,55 @@ namespace HanakaServer.Controllers
             var reg = await _db.TournamentRegistrations.FirstOrDefaultAsync(x => x.RegistrationId == id);
             if (reg == null) return NotFound(new { message = "Registration not found." });
 
+            var matchTeamRefCount = await _db.TournamentGroupMatches
+                .CountAsync(x => x.Team1RegistrationId == id || x.Team2RegistrationId == id);
+
+            var matchWinnerRefCount = await _db.TournamentGroupMatches
+                .CountAsync(x => x.WinnerRegistrationId == id);
+
+            var scoreHistoryWinnerRefCount = await _db.TournamentMatchScoreHistories
+                .CountAsync(x => x.WinnerRegistrationId == id);
+
+            var prizeRefCount = await _db.TournamentPrizes
+                .CountAsync(x => x.RegistrationId == id);
+
+            if (matchTeamRefCount > 0 || matchWinnerRefCount > 0 || scoreHistoryWinnerRefCount > 0 || prizeRefCount > 0)
+            {
+                return BadRequest(new
+                {
+                    message = BuildDeleteBlockedMessage(
+                        matchTeamRefCount,
+                        matchWinnerRefCount,
+                        scoreHistoryWinnerRefCount,
+                        prizeRefCount),
+                    details = new
+                    {
+                        matchTeamRefCount,
+                        matchWinnerRefCount,
+                        scoreHistoryWinnerRefCount,
+                        prizeRefCount
+                    }
+                });
+            }
+
+            var pairRequests = await _db.TournamentPairRequests
+                .Where(x => x.RegistrationId == id)
+                .ToListAsync();
+
+            await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+
+            foreach (var pairRequest in pairRequests)
+                pairRequest.RegistrationId = null;
+
             _db.TournamentRegistrations.Remove(reg);
             await _db.SaveChangesAsync();
-            return Ok(new { ok = true });
+            await tx.CommitAsync();
+
+            return Ok(new
+            {
+                ok = true,
+                detachedPairRequestCount = pairRequests.Count
+            });
         }
 
         // =========================
@@ -366,6 +412,33 @@ namespace HanakaServer.Controllers
         {
             gameType = (gameType ?? "").ToUpperInvariant();
             return gameType == "DOUBLE" ? (p1 + (p2 ?? 0)) : p1;
+        }
+
+        private static string BuildDeleteBlockedMessage(
+            int matchTeamRefCount,
+            int matchWinnerRefCount,
+            int scoreHistoryWinnerRefCount,
+            int prizeRefCount)
+        {
+            var blockers = new List<string>();
+
+            if (matchTeamRefCount > 0)
+                blockers.Add($"{matchTeamRefCount} trận đấu đang dùng đội này");
+
+            if (matchWinnerRefCount > 0)
+                blockers.Add($"{matchWinnerRefCount} trận đấu đang ghi nhận đội này là bên thắng");
+
+            if (scoreHistoryWinnerRefCount > 0)
+                blockers.Add($"{scoreHistoryWinnerRefCount} lịch sử chấm điểm đang ghi nhận đội này là bên thắng");
+
+            if (prizeRefCount > 0)
+                blockers.Add($"{prizeRefCount} giải thưởng đang gán cho đội này");
+
+            var blockerText = blockers.Count > 0
+                ? string.Join("; ", blockers)
+                : "registration đang được dữ liệu khác tham chiếu";
+
+            return $"Không thể xoá đăng ký này vì {blockerText}. Hãy gỡ các liên kết đó trước rồi thử lại.";
         }
 
         private static RegistrationAdminItemDto ToAdminDto(TournamentRegistration r)

@@ -1743,6 +1743,10 @@
     }
 
     function renderNotificationCard(item) {
+        if (trimToEmpty(item && item.type).toUpperCase() === "PAIR_REQUEST") {
+            return renderPairRequestNotificationCard(item);
+        }
+
         var startAtText = trimToEmpty(item && item.match && item.match.startAtText) || "Chua cap nhat";
         var addressText = trimToEmpty(item && item.match && item.match.addressText) || "Chua cap nhat";
         var courtText = trimToEmpty(item && item.match && item.match.courtText) || "Chua cap nhat";
@@ -1756,6 +1760,39 @@
             '<p class="native-notification-card__line"><strong>Dia diem:</strong> ' + escapeHtml(addressText) + "</p>",
             '<p class="native-notification-card__line"><strong>San:</strong> ' + escapeHtml(courtText) + "</p>",
             '<p class="native-notification-card__time">' + escapeHtml(startAtText) + "</p>",
+            "</article>"
+        ].join("");
+    }
+
+    function renderPairRequestNotificationCard(item) {
+        var requestId = Number(item && item.pairRequestId);
+        var tournamentId = Number(item && item.tournamentId);
+        var requestedBy = item && item.requestedBy ? item.requestedBy : {};
+        var requesterName = trimToEmpty(requestedBy.fullName) || "Thanh vien Hanaka";
+        var tournamentTitle = trimToEmpty(item && item.tournamentTitle) || "Giai dau";
+        var expiresAt = formatDateTime(item && item.expiresAt);
+        var avatarUrl = normalizeMediaUrl(requestedBy.avatarUrl);
+
+        return [
+            '<article class="native-notification-card native-notification-card--pair" data-pair-request-card="' + escapeHtml(requestId || "") + '">',
+            '<div class="native-notification-card__pair-head">',
+            avatarUrl
+                ? '<span class="native-notification-card__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(requesterName) + '" loading="lazy"></span>'
+                : '<span class="native-notification-card__avatar"><ion-icon name="person-outline"></ion-icon></span>',
+            '<div>',
+            '<h2 class="native-notification-card__title">' + escapeHtml(trimToEmpty(item && item.title) || "Loi moi ghep doi") + "</h2>",
+            '<p class="native-notification-card__line">' + escapeHtml(trimToEmpty(item && item.message) || (requesterName + " moi ban ghep cap.")) + "</p>",
+            "</div>",
+            "</div>",
+            '<p class="native-notification-card__line"><strong>Giai dau:</strong> ' + escapeHtml(tournamentTitle) + "</p>",
+            '<p class="native-notification-card__line"><strong>Het han:</strong> ' + escapeHtml(expiresAt) + "</p>",
+            '<div class="native-notification-card__actions">',
+            '<button type="button" data-pair-request-accept="' + escapeHtml(requestId || "") + '">Chap nhan</button>',
+            '<button type="button" data-pair-request-reject="' + escapeHtml(requestId || "") + '">Tu choi</button>',
+            tournamentId > 0
+                ? '<a href="/PickleballWeb/Tournament/' + escapeHtml(tournamentId) + '/Register">Xem phieu</a>'
+                : "",
+            "</div>",
             "</article>"
         ].join("");
     }
@@ -1843,10 +1880,11 @@
             authRequired: false,
             items: []
         };
+        var removeRealtimeListener = null;
 
         setHeaderAction(root, null);
         setHeaderExtra(root, "");
-        renderEmptyState(refs, "Hien chua co thong bao thi dau sap toi.");
+        renderEmptyState(refs, "Hien chua co thong bao moi.");
 
         function render() {
             refs.list.className = "native-page-list native-page-list--notifications";
@@ -1883,11 +1921,22 @@
                     return;
                 }
 
-                var payload = await fetchJson("/api/notifications/upcoming-matches");
-                state.items = Array.isArray(payload && payload.items) ? payload.items : [];
+                var results = await Promise.allSettled([
+                    fetchJson("/api/notifications/pair-requests"),
+                    fetchJson("/api/notifications/upcoming-matches")
+                ]);
+
+                var pairItems = results[0].status === "fulfilled" && Array.isArray(results[0].value && results[0].value.items)
+                    ? results[0].value.items
+                    : [];
+                var matchItems = results[1].status === "fulfilled" && Array.isArray(results[1].value && results[1].value.items)
+                    ? results[1].value.items
+                    : [];
+
+                state.items = pairItems.concat(matchItems);
             } catch (error) {
                 state.items = [];
-                state.error = "Khong tai duoc thong bao thi dau.";
+                state.error = "Khong tai duoc thong bao.";
             } finally {
                 state.loading = false;
                 render();
@@ -1897,6 +1946,56 @@
         if (refs.retry) {
             refs.retry.onclick = function () { load(); };
         }
+
+        if (refs.list) {
+            refs.list.addEventListener("click", async function (event) {
+                var acceptButton = event.target.closest("[data-pair-request-accept]");
+                var rejectButton = event.target.closest("[data-pair-request-reject]");
+                var button = acceptButton || rejectButton;
+
+                if (!button) {
+                    return;
+                }
+
+                var requestId = Number(button.getAttribute(acceptButton ? "data-pair-request-accept" : "data-pair-request-reject"));
+                if (!Number.isFinite(requestId) || requestId <= 0) {
+                    return;
+                }
+
+                var action = acceptButton ? "accept" : "reject";
+                var oldText = button.textContent;
+                button.disabled = true;
+                button.textContent = "Dang xu ly...";
+
+                try {
+                    await requestJson("/api/tournament-registrations/pair-requests/" + requestId + "/" + action, {
+                        method: "POST",
+                        body: action === "reject" ? JSON.stringify({ responseNote: "" }) : null
+                    });
+
+                    await load();
+                } catch (error) {
+                    window.alert(error && error.message ? error.message : "Khong the xu ly loi moi.");
+                } finally {
+                    button.disabled = false;
+                    button.textContent = oldText;
+                }
+            });
+        }
+
+        connectRealtime();
+        removeRealtimeListener = addRealtimeListener(function (event) {
+            if (trimToEmpty(event && event.type) === "tournament.notification") {
+                load();
+            }
+        });
+
+        window.addEventListener("pagehide", function () {
+            if (removeRealtimeListener) {
+                removeRealtimeListener();
+                removeRealtimeListener = null;
+            }
+        }, { once: true });
 
         load();
     }

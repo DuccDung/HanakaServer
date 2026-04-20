@@ -154,6 +154,15 @@ namespace HanakaServer.Services
             });
         }
 
+        public Task SendTournamentNotificationToUserAsync(string userId, object payload)
+        {
+            return SendToUserAsync(userId, new
+            {
+                type = "tournament.notification",
+                payload
+            });
+        }
+
         public async Task DisconnectUserAsync(string userId, string reason = "session_revoked")
         {
             if (!_userSockets.TryGetValue(userId, out var sockets) || sockets.IsEmpty)

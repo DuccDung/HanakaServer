@@ -296,6 +296,20 @@ namespace HanakaServer.Controllers.Web
                 activeTab: "tournaments"));
         }
 
+        [HttpGet("/PickleballWeb/Tournament/{id:long}/Register")]
+        public IActionResult TournamentRegister(long id)
+        {
+            return View("Detail", BuildDetailPage(
+                title: "Dang Ki Giai",
+                eyebrow: "Tournament registration",
+                description: "Chon hinh thuc dang ky, gui loi moi ghep cap hoac dang ky cho ghep theo dung the thuc cua giai.",
+                pageKind: "tournament-register-page",
+                entityId: id,
+                backHref: $"/PickleballWeb/Tournament/{id}/Registrations",
+                backLabel: "Danh sach",
+                activeTab: "tournaments"));
+        }
+
         [HttpGet("/PickleballWeb/Tournament/{id:long}/Rule")]
         public IActionResult TournamentRule(long id)
         {

@@ -43,6 +43,7 @@ builder.Services.AddSingleton<IWebAuthCookieService, WebAuthCookieService>();
 
 builder.Services.AddSingleton<RealtimeHub>();
 builder.Services.AddScoped<WebSocketHandler>();
+builder.Services.AddHostedService<TournamentPairRequestExpiryService>();
 
 // Authentication
 builder.Services.AddAuthentication(options =>

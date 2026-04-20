@@ -272,6 +272,126 @@
         return response.json();
     }
 
+    async function requestJson(url, options) {
+        const hasBody = options && options.body;
+        const response = await fetch(url, Object.assign({
+            credentials: "same-origin",
+            cache: "no-store",
+            headers: Object.assign({
+                Accept: "application/json"
+            }, hasBody ? { "Content-Type": "application/json" } : {})
+        }, options || {}));
+
+        const contentType = response.headers.get("content-type") || "";
+        const payload = contentType.indexOf("application/json") >= 0
+            ? await response.json().catch(function () { return null; })
+            : await response.text().catch(function () { return ""; });
+
+        if (!response.ok) {
+            const message = typeof payload === "string"
+                ? trimToEmpty(payload)
+                : trimToEmpty(payload && (payload.message || payload.title));
+            const error = new Error(message || `Request failed: ${response.status}`);
+            error.status = response.status;
+            error.payload = payload;
+            throw error;
+        }
+
+        return payload;
+    }
+
+    const tournamentRealtime = {
+        ws: null,
+        listeners: [],
+        reconnectTimer: null,
+        pingTimer: null,
+        manualClose: false
+    };
+
+    function addTournamentRealtimeListener(listener) {
+        if (typeof listener !== "function") {
+            return function () { };
+        }
+
+        tournamentRealtime.listeners.push(listener);
+        return function () {
+            tournamentRealtime.listeners = tournamentRealtime.listeners.filter(function (item) {
+                return item !== listener;
+            });
+        };
+    }
+
+    function emitTournamentRealtime(event) {
+        tournamentRealtime.listeners.slice().forEach(function (listener) {
+            try {
+                listener(event);
+            } catch (_error) {
+            }
+        });
+    }
+
+    function sendTournamentRealtime(payload) {
+        if (!tournamentRealtime.ws || tournamentRealtime.ws.readyState !== WebSocket.OPEN) {
+            connectTournamentRealtime();
+            return false;
+        }
+
+        try {
+            tournamentRealtime.ws.send(JSON.stringify(payload));
+            return true;
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    function connectTournamentRealtime() {
+        if (!("WebSocket" in window)) {
+            return false;
+        }
+
+        if (tournamentRealtime.ws && (
+            tournamentRealtime.ws.readyState === WebSocket.OPEN ||
+            tournamentRealtime.ws.readyState === WebSocket.CONNECTING
+        )) {
+            return true;
+        }
+
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        tournamentRealtime.manualClose = false;
+
+        try {
+            tournamentRealtime.ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+        } catch (_error) {
+            return false;
+        }
+
+        tournamentRealtime.ws.addEventListener("open", function () {
+            window.clearInterval(tournamentRealtime.pingTimer);
+            tournamentRealtime.pingTimer = window.setInterval(function () {
+                sendTournamentRealtime({ type: "ping" });
+            }, 25000);
+        });
+
+        tournamentRealtime.ws.addEventListener("message", function (event) {
+            try {
+                emitTournamentRealtime(JSON.parse(event.data));
+            } catch (_error) {
+            }
+        });
+
+        tournamentRealtime.ws.addEventListener("close", function () {
+            window.clearInterval(tournamentRealtime.pingTimer);
+            tournamentRealtime.ws = null;
+
+            if (!tournamentRealtime.manualClose) {
+                window.clearTimeout(tournamentRealtime.reconnectTimer);
+                tournamentRealtime.reconnectTimer = window.setTimeout(connectTournamentRealtime, 2500);
+            }
+        });
+
+        return true;
+    }
+
     function totalText(total, noun) {
         const number = toNumber(total);
         return `${number} ${noun}`;
@@ -2301,6 +2421,7 @@
         const items = buildTournamentRegistrationPageItems(data?.registrations);
         const counts = data?.registrations?.counts || {};
         const detail = data?.detail || {};
+        const tournamentId = detail?.tournamentId || data?.registrations?.tournament?.tournamentId || "";
         const zaloItem = Array.isArray(data?.links?.items)
             ? data.links.items.find(function (item) {
                 return trimToEmpty(item?.type).toLowerCase() === "zalo";
@@ -2308,12 +2429,16 @@
             : null;
         const zaloHref = trimToEmpty(zaloItem?.link) ? buildSafeHref(zaloItem.link, "#") : "";
         const capacityLeft = counts?.capacityLeft ?? detail?.expectedTeams ?? 0;
+        const registerHref = tournamentId ? `/PickleballWeb/Tournament/${tournamentId}/Register` : "#";
 
         return [
             '<div class="tournament-registration-page">',
+            '<div class="tournament-registration-page__links tournament-registration-page__links--split">',
+            `<a class="tournament-registration-page__register" href="${escapeHtml(registerHref)}"><ion-icon name="create-outline"></ion-icon><span>\u0110\u0103ng k\u00ed</span></a>`,
             zaloHref
-                ? `<div class="tournament-registration-page__links"><a class="tournament-registration-page__link" href="${escapeHtml(zaloHref)}" target="_blank" rel="noreferrer"><ion-icon name="link-outline"></ion-icon><span>Link nh\u00f3m Zalo</span></a></div>`
+                ? `<a class="tournament-registration-page__link" href="${escapeHtml(zaloHref)}" target="_blank" rel="noreferrer"><ion-icon name="link-outline"></ion-icon><span>Link nh\u00f3m Zalo</span></a>`
                 : "",
+            "</div>",
             '<div class="tournament-registration-page__stats">',
             `<div class="tournament-registration-page__badge is-green"><span>Th\u00e0nh c\u00f4ng</span><strong>${escapeHtml(String(toNumber(counts?.success)))}</strong></div>`,
             `<div class="tournament-registration-page__badge is-orange"><span>Ch\u1edd gh\u00e9p</span><strong>${escapeHtml(String(toNumber(counts?.waiting)))}</strong></div>`,
@@ -2332,6 +2457,166 @@
             "</div>",
             `<div class="tournament-registration-page__list" data-registration-list>${items.map(renderTournamentRegistrationRow).join("")}</div>`,
             '<p class="tournament-registration-page__empty" data-registration-empty hidden>Kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u \u0111\u0103ng k\u00fd.</p>',
+            "</div>"
+        ].join("");
+    }
+
+    async function loadTournamentRegisterPage(id) {
+        const results = await Promise.allSettled([
+            fetchJson(`/api/public/tournaments/${id}`),
+            requestJson(`/api/tournament-registrations/tournaments/${id}/me`, { method: "GET" })
+        ]);
+
+        if (results[0].status !== "fulfilled") {
+            throw new Error("tournament-register-page");
+        }
+
+        return {
+            detail: results[0].value,
+            state: results[1].status === "fulfilled" ? results[1].value : null,
+            authRequired: results[1].status === "rejected" && results[1].reason && results[1].reason.status === 401
+        };
+    }
+
+    function renderTournamentRegisterAuthPrompt(id) {
+        const returnUrl = `/PickleballWeb/Tournament/${id}/Register`;
+
+        return [
+            '<div class="tournament-register-page">',
+            '<article class="tournament-register-card tournament-register-card--center">',
+            '<span class="tournament-register-card__icon"><ion-icon name="log-in-outline"></ion-icon></span>',
+            '<h2>\u0110\u0103ng nh\u1eadp \u0111\u1ec3 \u0111\u0103ng k\u00fd</h2>',
+            '<p>T\u00e0i kho\u1ea3n Hanaka Sport gi\u00fap h\u1ec7 th\u1ed1ng l\u1ea5y \u0111\u00fang h\u1ecd t\u00ean, avatar v\u00e0 \u0111i\u1ec3m tr\u00ecnh khi t\u1ea1o phi\u1ebfu.</p>',
+            `<a class="tournament-register-primary" href="/PickleballWeb/Login?returnUrl=${encodeURIComponent(returnUrl)}">\u0110\u0103ng nh\u1eadp</a>`,
+            "</article>",
+            "</div>"
+        ].join("");
+    }
+
+    function renderTournamentRegisterUser(user, label, scoreMode) {
+        const name = trimToEmpty(user?.fullName) || "Thanh vien";
+        const score = scoreMode === "single" ? user?.ratingSingle : user?.ratingDouble;
+
+        return [
+            '<div class="tournament-register-user">',
+            renderRegistrationAvatar(name, user?.avatarUrl || "", "tournament-register-user__avatar"),
+            '<div>',
+            `<span>${escapeHtml(label)}</span>`,
+            `<strong>${escapeHtml(name)}</strong>`,
+            `<em>${scoreMode === "single" ? "Single" : "Double"} ${escapeHtml(formatFlexibleNumber(score))}</em>`,
+            "</div>",
+            "</div>"
+        ].join("");
+    }
+
+    function renderTournamentRegisterRequest(item, type) {
+        const user = item?.user || {};
+        const name = trimToEmpty(user?.fullName) || "Thanh vien";
+        const expires = item?.expiresAt ? formatSlashDateTime(item.expiresAt) : "-";
+
+        return [
+            `<article class="tournament-pair-request" data-pair-request-id="${escapeHtml(item?.pairRequestId || "")}">`,
+            renderRegistrationAvatar(name, user?.avatarUrl || "", "tournament-pair-request__avatar"),
+            '<div class="tournament-pair-request__body">',
+            `<strong>${escapeHtml(name)}</strong>`,
+            `<span>${type === "sent" ? "\u0110ang ch\u1edd ph\u1ea3n h\u1ed3i" : "M\u1eddi b\u1ea1n gh\u00e9p c\u1eb7p"} \u00b7 h\u1ebft h\u1ea1n ${escapeHtml(expires)}</span>`,
+            "</div>",
+            '<div class="tournament-pair-request__actions">',
+            type === "received"
+                ? [
+                    '<button type="button" data-pair-accept>Ch\u1ea5p nh\u1eadn</button>',
+                    '<button type="button" data-pair-reject>T\u1eeb ch\u1ed1i</button>'
+                ].join("")
+                : '<button type="button" data-pair-cancel>H\u1ee7y</button>',
+            "</div>",
+            "</article>"
+        ].join("");
+    }
+
+    function renderTournamentRegisterBlocked(reason) {
+        return [
+            '<article class="tournament-register-card tournament-register-card--notice">',
+            '<span class="tournament-register-card__icon"><ion-icon name="information-circle-outline"></ion-icon></span>',
+            '<h2>Tr\u1ea1ng th\u00e1i \u0111\u0103ng k\u00fd</h2>',
+            `<p>${escapeHtml(reason || "B\u1ea1n ch\u01b0a th\u1ec3 t\u1ea1o phi\u1ebfu \u0111\u0103ng k\u00fd m\u1edbi.")}</p>`,
+            "</article>"
+        ].join("");
+    }
+
+    function renderTournamentRegisterPage(data) {
+        const detail = data?.detail || {};
+        const state = data?.state || {};
+        const tournament = state?.tournament || detail;
+        const tournamentId = tournament?.tournamentId || detail?.tournamentId;
+        const gameType = trimToEmpty(tournament?.gameType || detail?.gameType).toUpperCase();
+        const isSingle = gameType === "SINGLE";
+        const isDoubleLike = gameType === "DOUBLE" || gameType === "MIXED";
+
+        if (data?.authRequired || !state) {
+            return renderTournamentRegisterAuthPrompt(tournamentId || "");
+        }
+
+        const me = state?.me || {};
+        const pendingReceived = Array.isArray(state?.pendingReceived) ? state.pendingReceived : [];
+        const pendingSent = Array.isArray(state?.pendingSent) ? state.pendingSent : [];
+        const existing = state?.existingRegistration;
+        const canRegister = !!state?.canRegister;
+
+        return [
+            `<div class="tournament-register-page" data-tournament-register-page data-tournament-id="${escapeHtml(tournamentId || "")}" data-game-type="${escapeHtml(gameType || "")}">`,
+            '<section class="tournament-register-hero">',
+            `<span>${escapeHtml(tournamentGameTypeLabel(gameType))}</span>`,
+            `<h2>${escapeHtml(trimToEmpty(tournament?.title) || "Dang ky giai dau")}</h2>`,
+            `<p>Han dang ky: ${escapeHtml(formatSlashDateTime(tournament?.registerDeadline))} \u00b7 Con cho: ${escapeHtml(String(toNumber(tournament?.capacityLeft)))}</p>`,
+            "</section>",
+            pendingReceived.length > 0
+                ? [
+                    '<section class="tournament-register-card">',
+                    '<h3>L\u1eddi m\u1eddi \u0111ang ch\u1edd b\u1ea1n</h3>',
+                    pendingReceived.map(function (item) { return renderTournamentRegisterRequest(item, "received"); }).join(""),
+                    "</section>"
+                ].join("")
+                : "",
+            pendingSent.length > 0
+                ? [
+                    '<section class="tournament-register-card">',
+                    '<h3>L\u1eddi m\u1eddi b\u1ea1n \u0111\u00e3 g\u1eedi</h3>',
+                    pendingSent.map(function (item) { return renderTournamentRegisterRequest(item, "sent"); }).join(""),
+                    "</section>"
+                ].join("")
+                : "",
+            existing
+                ? renderTournamentRegisterBlocked(existing.waitingPair ? "Bạn đã đăng ký chờ ghép trong giải này." : "Bạn đã có đăng ký chính thức trong giải này.")
+                : !canRegister
+                    ? renderTournamentRegisterBlocked(state?.reason)
+                    : [
+                        '<form class="tournament-register-card tournament-register-form" data-tournament-register-form>',
+                        '<h3>Phi\u1ebfu \u0111\u0103ng k\u00fd</h3>',
+                        renderTournamentRegisterUser(me, "V\u1eadn \u0111\u1ed9ng vi\u00ean 1", isSingle ? "single" : "double"),
+                        isSingle
+                            ? '<input type="hidden" name="mode" value="single">'
+                            : "",
+                        isDoubleLike
+                            ? [
+                                '<div class="tournament-register-options" role="radiogroup" aria-label="Hinh thuc dang ky">',
+                                '<label><input type="radio" name="mode" value="waiting" checked><span>Ch\u1edd gh\u00e9p</span><small>H\u1ec7 th\u1ed1ng t\u1ea1o phi\u1ebfu 1 ng\u01b0\u1eddi.</small></label>',
+                                '<label><input type="radio" name="mode" value="pair"><span>Gh\u00e9p c\u1eb7p</span><small>G\u1eedi l\u1eddi m\u1eddi cho ng\u01b0\u1eddi b\u1ea1n ch\u1ecdn.</small></label>',
+                                "</div>",
+                                '<div class="tournament-register-partner" data-partner-panel hidden>',
+                                '<label class="tournament-register-field">',
+                                '<span>T\u00ecm v\u1eadn \u0111\u1ed9ng vi\u00ean 2</span>',
+                                '<input type="search" placeholder="Nh\u1eadp t\u00ean, s\u1ed1 \u0111i\u1ec7n tho\u1ea1i, email ho\u1eb7c ID..." autocomplete="off" data-partner-search>',
+                                "</label>",
+                                '<input type="hidden" data-partner-id>',
+                                '<div class="tournament-register-partner__results" data-partner-results></div>',
+                                '<div class="tournament-register-partner__selected" data-partner-selected hidden></div>',
+                                "</div>"
+                            ].join("")
+                            : "",
+                        '<p class="tournament-register-message" data-register-message hidden></p>',
+                        '<button class="tournament-register-primary" type="submit"><ion-icon name="send-outline"></ion-icon><span>G\u1eedi \u0111\u0103ng k\u00fd</span></button>',
+                        "</form>"
+                    ].join(""),
             "</div>"
         ].join("");
     }
@@ -2856,6 +3141,10 @@
         load: loadTournamentRegistrationsPage,
         render: renderTournamentRegistrationsPage
     };
+    detailConfigs["tournament-register-page"] = {
+        load: loadTournamentRegisterPage,
+        render: renderTournamentRegisterPage
+    };
     detailConfigs["tournament-rule-page"] = {
         load: loadTournamentRulePage,
         render: renderTournamentRulePage
@@ -3260,6 +3549,270 @@
         applyFilter();
     }
 
+    function initTournamentRegisterPageInteractions(root, data) {
+        const page = qs("[data-tournament-register-page]", root);
+        if (!page) {
+            return;
+        }
+
+        const tournamentId = Number(page.getAttribute("data-tournament-id"));
+        const gameType = trimToEmpty(page.getAttribute("data-game-type")).toUpperCase();
+        const form = qs("[data-tournament-register-form]", page);
+        const partnerPanel = qs("[data-partner-panel]", page);
+        const partnerSearch = qs("[data-partner-search]", page);
+        const partnerResults = qs("[data-partner-results]", page);
+        const partnerSelected = qs("[data-partner-selected]", page);
+        const partnerIdInput = qs("[data-partner-id]", page);
+        const message = qs("[data-register-message]", page);
+        let searchTimer = null;
+        let selectedPartner = null;
+        let removeRealtimeListener = null;
+
+        function setMessage(text, isError) {
+            if (!message) {
+                if (text) {
+                    window.alert(text);
+                }
+                return;
+            }
+
+            message.hidden = !text;
+            message.textContent = text || "";
+            message.classList.toggle("is-error", !!isError);
+            message.classList.toggle("is-success", !!text && !isError);
+        }
+
+        function setBusy(button, busyText) {
+            if (!button) {
+                return function () { };
+            }
+
+            const oldHtml = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = busyText || "\u0110ang x\u1eed l\u00fd...";
+
+            return function () {
+                button.disabled = false;
+                button.innerHTML = oldHtml;
+            };
+        }
+
+        function syncMode() {
+            if (!form || !partnerPanel) {
+                return;
+            }
+
+            const mode = form.elements.mode ? trimToEmpty(form.elements.mode.value) : "";
+            partnerPanel.hidden = mode !== "pair";
+        }
+
+        function renderPartnerResults(items) {
+            if (!partnerResults) {
+                return;
+            }
+
+            if (!Array.isArray(items) || items.length === 0) {
+                partnerResults.innerHTML = '<p class="tournament-register-partner__empty">Kh\u00f4ng t\u00ecm th\u1ea5y v\u1eadn \u0111\u1ed9ng vi\u00ean ph\u00f9 h\u1ee3p.</p>';
+                return;
+            }
+
+            partnerResults.innerHTML = items.map(function (item) {
+                const disabled = !item.canInvite;
+                const reason = item.isBlocked
+                    ? "Dang chan nhau"
+                    : item.isRegistered
+                        ? "Da dang ky"
+                        : `Double ${formatFlexibleNumber(item.ratingDouble)}`;
+
+                return [
+                    `<button class="tournament-register-partner__item" type="button" data-partner-pick="${escapeHtml(item.userId)}" ${disabled ? "disabled" : ""}>`,
+                    renderRegistrationAvatar(item.fullName, item.avatarUrl || "", "tournament-register-partner__avatar"),
+                    '<span>',
+                    `<strong>${escapeHtml(trimToEmpty(item.fullName) || "Thanh vien")}</strong>`,
+                    `<em>${escapeHtml(reason)}</em>`,
+                    "</span>",
+                    "</button>"
+                ].join("");
+            }).join("");
+
+            qsa("[data-partner-pick]", partnerResults).forEach(function (button) {
+                button.addEventListener("click", function () {
+                    const id = Number(button.getAttribute("data-partner-pick"));
+                    selectedPartner = items.find(function (item) { return Number(item.userId) === id; }) || null;
+
+                    if (partnerIdInput) {
+                        partnerIdInput.value = selectedPartner ? String(selectedPartner.userId) : "";
+                    }
+
+                    if (partnerSelected) {
+                        partnerSelected.hidden = !selectedPartner;
+                        partnerSelected.innerHTML = selectedPartner
+                            ? [
+                                '<span>\u0110\u00e3 ch\u1ecdn</span>',
+                                `<strong>${escapeHtml(selectedPartner.fullName)}</strong>`,
+                                `<em>Double ${escapeHtml(formatFlexibleNumber(selectedPartner.ratingDouble))}</em>`
+                            ].join("")
+                            : "";
+                    }
+                });
+            });
+        }
+
+        async function searchPartners() {
+            const query = trimToEmpty(partnerSearch && partnerSearch.value);
+
+            selectedPartner = null;
+            if (partnerIdInput) {
+                partnerIdInput.value = "";
+            }
+            if (partnerSelected) {
+                partnerSelected.hidden = true;
+                partnerSelected.innerHTML = "";
+            }
+
+            if (!query || query.length < 2) {
+                if (partnerResults) {
+                    partnerResults.innerHTML = '<p class="tournament-register-partner__empty">Nh\u1eadp t\u1eeb 2 k\u00fd t\u1ef1 \u0111\u1ec3 t\u00ecm partner.</p>';
+                }
+                return;
+            }
+
+            if (partnerResults) {
+                partnerResults.innerHTML = '<p class="tournament-register-partner__empty">\u0110ang t\u00ecm...</p>';
+            }
+
+            try {
+                const payload = await requestJson(`/api/tournament-registrations/tournaments/${tournamentId}/partner-search?query=${encodeURIComponent(query)}&pageSize=10`, { method: "GET" });
+                renderPartnerResults(Array.isArray(payload?.items) ? payload.items : []);
+            } catch (error) {
+                renderPartnerResults([]);
+            }
+        }
+
+        qsa('input[name="mode"]', form || page).forEach(function (radio) {
+            radio.addEventListener("change", syncMode);
+        });
+        syncMode();
+
+        if (partnerSearch) {
+            partnerSearch.addEventListener("input", function () {
+                window.clearTimeout(searchTimer);
+                searchTimer = window.setTimeout(searchPartners, 260);
+            });
+        }
+
+        if (form) {
+            form.addEventListener("submit", async function (event) {
+                event.preventDefault();
+                setMessage("", false);
+
+                const mode = form.elements.mode ? trimToEmpty(form.elements.mode.value) : (gameType === "SINGLE" ? "single" : "waiting");
+                let url = "";
+                let body = null;
+
+                if (mode === "single") {
+                    url = `/api/tournament-registrations/tournaments/${tournamentId}/single`;
+                } else if (mode === "waiting") {
+                    url = `/api/tournament-registrations/tournaments/${tournamentId}/waiting`;
+                } else if (mode === "pair") {
+                    const partnerId = Number(partnerIdInput && partnerIdInput.value);
+                    if (!Number.isFinite(partnerId) || partnerId <= 0) {
+                        setMessage("Vui long chon van dong vien 2.", true);
+                        return;
+                    }
+
+                    url = `/api/tournament-registrations/tournaments/${tournamentId}/pair-requests`;
+                    body = JSON.stringify({ requestedToUserId: partnerId });
+                }
+
+                const submitButton = qs('button[type="submit"]', form);
+                const restore = setBusy(submitButton, "\u0110ang g\u1eedi...");
+
+                try {
+                    const payload = await requestJson(url, {
+                        method: "POST",
+                        body: body
+                    });
+
+                    setMessage(trimToEmpty(payload && payload.message) || "Da xu ly thanh cong.", false);
+                    window.setTimeout(function () {
+                        window.location.reload();
+                    }, 700);
+                } catch (error) {
+                    if (error && error.status === 401) {
+                        window.location.href = `/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname)}`;
+                        return;
+                    }
+
+                    setMessage(error && error.message ? error.message : "Khong the gui dang ky.", true);
+                } finally {
+                    restore();
+                }
+            });
+        }
+
+        page.addEventListener("click", async function (event) {
+            const actionButton = event.target.closest("[data-pair-accept], [data-pair-reject], [data-pair-cancel]");
+            if (!actionButton) {
+                return;
+            }
+
+            const row = actionButton.closest("[data-pair-request-id]");
+            const pairRequestId = Number(row && row.getAttribute("data-pair-request-id"));
+            if (!Number.isFinite(pairRequestId) || pairRequestId <= 0) {
+                return;
+            }
+
+            const action = actionButton.hasAttribute("data-pair-accept")
+                ? "accept"
+                : actionButton.hasAttribute("data-pair-reject")
+                    ? "reject"
+                    : "cancel";
+            const restore = setBusy(actionButton, "\u0110ang x\u1eed l\u00fd...");
+
+            try {
+                const payload = await requestJson(`/api/tournament-registrations/pair-requests/${pairRequestId}/${action}`, {
+                    method: "POST",
+                    body: action === "reject" ? JSON.stringify({ responseNote: "" }) : null
+                });
+
+                setMessage(trimToEmpty(payload && payload.message) || "Da cap nhat loi moi.", false);
+                window.setTimeout(function () {
+                    window.location.reload();
+                }, 700);
+            } catch (error) {
+                setMessage(error && error.message ? error.message : "Khong the xu ly loi moi.", true);
+            } finally {
+                restore();
+            }
+        });
+
+        connectTournamentRealtime();
+        removeRealtimeListener = addTournamentRealtimeListener(function (event) {
+            if (trimToEmpty(event && event.type) !== "tournament.notification") {
+                return;
+            }
+
+            const payload = event && event.payload ? event.payload : {};
+            if (Number(payload.tournamentId || payload.TournamentId) !== tournamentId) {
+                return;
+            }
+
+            setMessage(trimToEmpty(payload.title || payload.Title) || "Co cap nhat moi cho dang ky giai.", false);
+            window.setTimeout(function () {
+                window.location.reload();
+            }, 900);
+        });
+
+        window.addEventListener("pagehide", function () {
+            window.clearTimeout(searchTimer);
+            if (removeRealtimeListener) {
+                removeRealtimeListener();
+                removeRealtimeListener = null;
+            }
+        }, { once: true });
+    }
+
     function initTournamentDetailInteractions(root, data, kind) {
         const shareButton = qs("[data-tournament-share]", root);
         const titleText =
@@ -3283,6 +3836,10 @@
 
         if (kind === "tournament-registrations") {
             initTournamentRegistrationSearch(root);
+        }
+
+        if (kind === "tournament-register-page") {
+            initTournamentRegisterPageInteractions(root, data);
         }
 
         if (kind === "tournament-schedule-page" || kind === "tournament-standings-page") {
@@ -3324,6 +3881,7 @@
         if (
             kind === "tournament-detail" ||
             kind === "tournament-registrations" ||
+            kind === "tournament-register-page" ||
             kind === "tournament-rule-page" ||
             kind === "tournament-schedule-page" ||
             kind === "tournament-bracket-page" ||
@@ -3333,6 +3891,8 @@
                 root,
                 kind === "tournament-registrations"
                     ? "Danh s\u00e1ch \u0111\u0103ng k\u00fd"
+                    : kind === "tournament-register-page"
+                        ? "\u0110\u0103ng k\u00ed gi\u1ea3i"
                     : kind === "tournament-rule-page"
                         ? "Th\u1ec3 l\u1ec7 gi\u1ea3i"
                         : kind === "tournament-schedule-page"
@@ -3361,6 +3921,7 @@
             if (
                 kind === "tournament-detail" ||
                 kind === "tournament-registrations" ||
+                kind === "tournament-register-page" ||
                 kind === "tournament-rule-page" ||
                 kind === "tournament-schedule-page" ||
                 kind === "tournament-bracket-page" ||

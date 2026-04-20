@@ -197,5 +197,78 @@ namespace HanakaServer.Controllers
                 items
             });
         }
+
+        [HttpGet("pair-requests")]
+        public async Task<IActionResult> GetPairRequestNotifications(CancellationToken ct)
+        {
+            var userId = GetUserIdFromToken();
+            var now = DateTime.UtcNow;
+
+            var expired = await _db.TournamentPairRequests
+                .Where(x =>
+                    x.RequestedToUserId == userId &&
+                    x.Status == "PENDING" &&
+                    x.ExpiresAt.HasValue &&
+                    x.ExpiresAt.Value <= now)
+                .ToListAsync(ct);
+
+            if (expired.Count > 0)
+            {
+                foreach (var item in expired)
+                {
+                    item.Status = "EXPIRED";
+                    item.RespondedAt = now;
+                }
+
+                await _db.SaveChangesAsync(ct);
+            }
+
+            var pendingRows = await _db.TournamentPairRequests
+                .AsNoTracking()
+                .Where(x => x.RequestedToUserId == userId && x.Status == "PENDING")
+                .OrderByDescending(x => x.RequestedAt)
+                .Select(x => new
+                {
+                    x.PairRequestId,
+                    x.TournamentId,
+                    TournamentTitle = x.Tournament.Title,
+                    TournamentGameType = x.Tournament.GameType,
+                    x.RequestedAt,
+                    x.ExpiresAt,
+                    x.Status,
+                    RequestedByUserId = x.RequestedByUser.UserId,
+                    RequestedByName = x.RequestedByUser.FullName,
+                    RequestedByAvatar = x.RequestedByUser.AvatarUrl,
+                    RequestedByVerified = x.RequestedByUser.Verified
+                })
+                .ToListAsync(ct);
+
+            var pendingItems = pendingRows.Select(x => new
+            {
+                type = "PAIR_REQUEST",
+                x.PairRequestId,
+                x.TournamentId,
+                tournamentTitle = x.TournamentTitle,
+                tournamentGameType = x.TournamentGameType,
+                x.RequestedAt,
+                x.ExpiresAt,
+                x.Status,
+                title = "Lời mời ghép đôi",
+                message = $"{x.RequestedByName} mời bạn ghép cặp tại giải {x.TournamentTitle}.",
+                requestedBy = new
+                {
+                    userId = x.RequestedByUserId,
+                    fullName = x.RequestedByName,
+                    avatarUrl = ToAbsoluteUrl(x.RequestedByAvatar),
+                    verified = x.RequestedByVerified
+                }
+            }).ToList();
+
+            return Ok(new
+            {
+                total = pendingItems.Count,
+                items = pendingItems
+            });
+        }
     }
 }

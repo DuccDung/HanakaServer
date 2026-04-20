@@ -504,8 +504,13 @@
 
           async function delReg(id){
             if(!confirm("Xoá đăng ký này?")) return;
-            await axios.delete(`/api/admin/registrations/${id}`);
-            await load(CURRENT_TAB);
+            try{
+              await axios.delete(`/api/admin/registrations/${id}`);
+              await load(CURRENT_TAB);
+            } catch(err){
+              const msg = err?.response?.data?.message || err?.message || "Không thể xoá đăng ký.";
+              alert(msg);
+            }
           }
 
           function paidHtml(reg){
