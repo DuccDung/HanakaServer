@@ -57,4 +57,5 @@ public partial class TournamentRegistration
 
     public virtual Tournament Tournament { get; set; } = null!;
     public virtual ICollection<TournamentPrize> TournamentPrizes { get; set; } = new List<TournamentPrize>();
+    public virtual ICollection<TournamentPairRequest> TournamentPairRequests { get; set; } = new List<TournamentPairRequest>();
 }

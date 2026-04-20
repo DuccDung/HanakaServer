@@ -36,9 +36,13 @@ public partial class PickleballDbContext : DbContext
 
     public virtual DbSet<TournamentRegistration> TournamentRegistrations { get; set; }
 
+    public virtual DbSet<TournamentPairRequest> TournamentPairRequests { get; set; }
+
     public virtual DbSet<TournamentRound> TournamentRounds { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
+
+    public virtual DbSet<UserNotification> UserNotifications { get; set; }
 
     public virtual DbSet<UserRole> UserRoles { get; set; }
 
@@ -949,6 +953,70 @@ public partial class PickleballDbContext : DbContext
                 .HasConstraintName("FK_Reg_Tournament");
         });
 
+        modelBuilder.Entity<TournamentPairRequest>(entity =>
+        {
+            entity.ToTable("TournamentPairRequests", "dbo");
+
+            entity.HasKey(e => e.PairRequestId)
+                .HasName("PK_TournamentPairRequests");
+
+            entity.HasIndex(e => new { e.TournamentId, e.RequestedByUserId, e.RequestedToUserId }, "UX_TournamentPairRequests_PendingPair")
+                .IsUnique()
+                .HasFilter("[Status] = 'PENDING'");
+
+            entity.HasIndex(e => new { e.RequestedToUserId, e.Status, e.RequestedAt }, "IX_TournamentPairRequests_Target_Status_RequestedAt")
+                .IsDescending(false, false, true);
+
+            entity.Property(e => e.Status)
+                .HasMaxLength(20)
+                .IsUnicode(false)
+                .HasDefaultValue("PENDING");
+
+            entity.Property(e => e.RequestedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.Property(e => e.RespondedAt)
+                .HasPrecision(0);
+
+            entity.Property(e => e.ExpiresAt)
+                .HasPrecision(0);
+
+            entity.Property(e => e.ResponseNote)
+                .HasMaxLength(500);
+
+            entity.ToTable(t => t.HasCheckConstraint(
+                "CK_TournamentPairRequests_Status",
+                "[Status] IN ('PENDING','ACCEPTED','REJECTED','CANCELED','EXPIRED')"));
+
+            entity.ToTable(t => t.HasCheckConstraint(
+                "CK_TournamentPairRequests_NotSelf",
+                "[RequestedByUserId] <> [RequestedToUserId]"));
+
+            entity.HasOne(d => d.Tournament)
+                .WithMany(p => p.TournamentPairRequests)
+                .HasForeignKey(d => d.TournamentId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_TournamentPairRequests_Tournament");
+
+            entity.HasOne(d => d.RequestedByUser)
+                .WithMany(p => p.TournamentPairRequestsRequestedBy)
+                .HasForeignKey(d => d.RequestedByUserId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_TournamentPairRequests_RequestedBy");
+
+            entity.HasOne(d => d.RequestedToUser)
+                .WithMany(p => p.TournamentPairRequestsRequestedTo)
+                .HasForeignKey(d => d.RequestedToUserId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_TournamentPairRequests_RequestedTo");
+
+            entity.HasOne(d => d.Registration)
+                .WithMany(p => p.TournamentPairRequests)
+                .HasForeignKey(d => d.RegistrationId)
+                .HasConstraintName("FK_TournamentPairRequests_Registration");
+        });
+
         modelBuilder.Entity<TournamentRound>(entity =>
         {
             entity.HasKey(e => e.RoundKey);
@@ -983,6 +1051,47 @@ public partial class PickleballDbContext : DbContext
             entity.Property(e => e.RatingDouble).HasColumnType("decimal(4, 2)");
             entity.Property(e => e.RatingSingle).HasColumnType("decimal(4, 2)");
             entity.Property(e => e.UpdatedAt).HasPrecision(0);
+        });
+
+        modelBuilder.Entity<UserNotification>(entity =>
+        {
+            entity.ToTable("UserNotifications", "dbo");
+
+            entity.HasKey(e => e.NotificationId)
+                .HasName("PK_UserNotifications");
+
+            entity.HasIndex(e => new { e.UserId, e.IsRead, e.CreatedAt }, "IX_UserNotifications_User_IsRead_CreatedAt")
+                .IsDescending(false, false, true);
+
+            entity.Property(e => e.NotificationType)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+
+            entity.Property(e => e.Title)
+                .HasMaxLength(200);
+
+            entity.Property(e => e.Body)
+                .HasMaxLength(1000);
+
+            entity.Property(e => e.RefType)
+                .HasMaxLength(30)
+                .IsUnicode(false);
+
+            entity.Property(e => e.IsRead)
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.ReadAt)
+                .HasPrecision(0);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.HasOne(d => d.User)
+                .WithMany(p => p.UserNotifications)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_UserNotifications_User");
         });
 
         modelBuilder.Entity<UserRole>(entity =>

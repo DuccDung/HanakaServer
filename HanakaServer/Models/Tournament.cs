@@ -61,5 +61,6 @@ public partial class Tournament
     public virtual ICollection<TournamentRegistration> TournamentRegistrations { get; set; } = new List<TournamentRegistration>();
     public virtual ICollection<UserAchievement> UserAchievements { get; set; } = new List<UserAchievement>();
     public virtual ICollection<TournamentPrize> TournamentPrizes { get; set; } = new List<TournamentPrize>();
+    public virtual ICollection<TournamentPairRequest> TournamentPairRequests { get; set; } = new List<TournamentPairRequest>();
 
 }

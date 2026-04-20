@@ -197,6 +197,87 @@ Hieu nhanh:
 - `TournamentGroupMatch` la tran dau cu the giua 2 registration.
 - `TournamentRegistration` la doi dang ky / cap doi / nguoi choi.
 
+Tinh trang dang ky giai hien tai:
+
+- App mobile hien chi doc va hien thi danh sach dang ky giai, chua co luong de VDV tu dang ky tham gia giai.
+- Man hinh mobile lien quan:
+  - `hanaka-sport/src/screens/Tournament/TournamentDetailScreen.js`
+    - co nut vao danh sach dang ky, the le, lich thi dau, bang xep hang
+    - chua co nut/form submit dang ky tham gia giai
+  - `hanaka-sport/src/screens/Tournament/RegistrationListScreen.js`
+    - chi goi `publicListTournamentRegistrations()`
+    - chi doc `GET /api/public/tournaments/{id}/registrations`
+  - `hanaka-sport/src/services/tournamentService.js`
+    - co `publicListTournamentRegistrations()`
+    - chua co ham POST tao registration cho user mobile
+- Server hien co:
+  - `GET /api/public/tournaments/{id}/registrations`
+    - trong `PublicTournamentsController.PublicRegistrations`
+    - public read-only
+  - `POST /api/admin/tournaments/{tournamentId}/registrations`
+    - trong `AdminRegistrationsController.Create`
+    - chi danh cho admin cookie auth / role Admin
+  - `POST /api/admin/registrations/{registrationId}/pair`
+    - trong `AdminRegistrationsController.Pair`
+    - ghep 2 dang ky waiting thanh 1 doi success
+- Server hien chua co endpoint JWT cho mobile user tu dang ky, vi du:
+  - `POST /api/tournaments/{tournamentId}/registrations/me`
+
+Finding quan trong ve registration:
+
+1. App chua co self-registration:
+   - VDV trong app khong the tu dang ky giai bang API hien tai.
+   - Neu can tinh nang nay, phai lam ca API JWT va UI mobile.
+
+2. `MIXED` chua duoc xu ly dung trong admin registration:
+   - `Tournament.GameType` va public display co xu ly `MIXED` nhu double-like.
+   - `AdminRegistrationsController.Create` hien chi chap nhan `SINGLE` va `DOUBLE`.
+   - `Views/Registrations/Index.cshtml` cung chi co select `SINGLE`/`DOUBLE`, lock UI theo 2 gia tri nay.
+   - He qua: giai `MIXED` co the khong tao registration duoc, bi roi ve UI double, hoac khong pair duoc.
+
+3. Chua chan trung VDV trong cung giai:
+   - Admin create chua check user da nam trong registration nao cua tournament hay chua.
+   - Chua chan `Player1UserId == Player2UserId`.
+   - Pair 2 waiting registrations cung can check de khong ghep 2 entry cua cung mot user.
+   - Neu khong chan, co the lam sai boc bang, lich dau, diem va prize.
+
+4. Public registration hien thi rating co the lech snapshot:
+   - `TournamentRegistration.Player1Level`, `Player2Level`, `Points` la snapshot luc dang ky.
+   - `PublicTournamentsController.PublicRegistrations` lai lay rating hien tai tu `Users.RatingSingle/RatingDouble` neu registration co `PlayerUserId`.
+   - Neu admin/app sua diem trinh sau khi dang ky, UI public/mobile co the hien level moi trong khi `Points` van la diem cu.
+   - Can quyet dinh ro:
+     - hien thi snapshot registration de khop `Points`; hoac
+     - cap nhat lai snapshot/points co chu y khi rating thay doi.
+
+5. Rating source of truth:
+   - He thong moi xem `UserRatingHistories` la source of truth.
+   - Nhieu doan registration van doc `Users.RatingSingle/RatingDouble`.
+   - Neu sua registration, can can nhac doc latest rating tu `UserRatingHistories` hoac dung snapshot da luu trong `TournamentRegistration`.
+
+Huong sua de lam self-registration cho mobile:
+
+- Tao API JWT rieng cho user dang nhap, khong dung endpoint admin.
+- Server lay user hien tai tu claim `uid`, khong tin `player1UserId` client gui len.
+- Validate:
+  - tournament ton tai va khong phai `DRAFT`
+  - status dang cho dang ky, kha nang la `OPEN`
+  - `RegisterDeadline` chua qua han
+  - capacity con cho
+  - user chua dang ky trong tournament nay
+  - partner khac current user va chua dang ky trong tournament nay
+  - rating nam trong gioi han cua giai
+- Voi `SINGLE`:
+  - tao success registration cho current user
+  - diem dung single rating
+- Voi `DOUBLE`/`MIXED`:
+  - cho phep dang ky waiting hoac dang ky kem partner
+  - diem dung double rating
+  - full pair moi tinh vao `ExpectedTeams`
+- Khi tao registration:
+  - luu snapshot vao `Player1Level`, `Player2Level`
+  - tinh `Points` tu snapshot
+  - tranh recompute silent tu rating hien tai khi hien thi public neu product muon snapshot on dinh
+
 ### 6.4 Referee
 
 File quan trong:

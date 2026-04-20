@@ -64,4 +64,7 @@ public partial class User
     public virtual ICollection<TournamentMatchScoreHistory> RefereeScoreHistories { get; set; } = new List<TournamentMatchScoreHistory>();
     public virtual ICollection<UserBlock> UserBlocksBlockedByMe { get; set; } = new List<UserBlock>();
     public virtual ICollection<UserBlock> UserBlocksBlockingMe { get; set; } = new List<UserBlock>();
+    public virtual ICollection<UserNotification> UserNotifications { get; set; } = new List<UserNotification>();
+    public virtual ICollection<TournamentPairRequest> TournamentPairRequestsRequestedBy { get; set; } = new List<TournamentPairRequest>();
+    public virtual ICollection<TournamentPairRequest> TournamentPairRequestsRequestedTo { get; set; } = new List<TournamentPairRequest>();
 }
