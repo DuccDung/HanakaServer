@@ -182,6 +182,7 @@ ion-icon {
 
 .round-icon,
 .avatar-icon {
+    position: relative;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -216,6 +217,31 @@ ion-icon {
 .avatar-icon:hover {
     transform: translateY(-1px);
     background: rgba(255, 255, 255, 0.16);
+}
+
+.web-notification-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border: 2px solid var(--primary-dark);
+    border-radius: 999px;
+    background: #FF5B6E;
+    box-shadow: 0 10px 20px rgba(255, 91, 110, 0.28);
+    color: #FFFFFF;
+    font-size: 0.625rem;
+    font-weight: 800;
+    line-height: 1;
+    pointer-events: none;
+}
+
+.web-notification-badge[hidden] {
+    display: none;
 }
 
 .hero-grid {

@@ -127,6 +127,430 @@
         return payload;
     }
 
+    var NOTIFICATION_CENTER_EVENT = "hanaka:notifications-changed";
+    var notificationCenter = {
+        initialized: false,
+        authenticated: false,
+        knownPairRequestIds: Object.create(null),
+        pendingPairItems: [],
+        popupRoot: null,
+        activePopupRequestId: 0,
+        realtimeListener: null,
+        onNotificationChange: null,
+        onVisibilityChange: null,
+        syncToken: 0
+    };
+
+    function dispatchNotificationCenterChange(detail) {
+        try {
+            window.dispatchEvent(new CustomEvent(NOTIFICATION_CENTER_EVENT, {
+                detail: detail || {}
+            }));
+        } catch (_error) {
+        }
+    }
+
+    function getNotificationBellLinks() {
+        var items = Array.prototype.slice.call(document.querySelectorAll(
+            "[data-web-notification-bell], .app-bar__actions .round-icon[href=\"/PickleballWeb/Notifications\"]"
+        ));
+        var seen = [];
+
+        return items.filter(function (item) {
+            if (!item || seen.indexOf(item) >= 0) {
+                return false;
+            }
+
+            seen.push(item);
+            return true;
+        });
+    }
+
+    function setNotificationBellCount(count) {
+        var total = Math.max(0, Number(count) || 0);
+        var text = total > 99 ? "99+" : String(total);
+
+        getNotificationBellLinks().forEach(function (link) {
+            var badge = qs("[data-web-notification-badge]", link);
+            var baseLabel = trimToEmpty(link.getAttribute("data-bell-label")) || trimToEmpty(link.getAttribute("aria-label")) || "Thong bao";
+
+            if (!badge) {
+                badge = document.createElement("span");
+                badge.className = "web-notification-badge";
+                badge.setAttribute("data-web-notification-badge", "");
+                badge.setAttribute("aria-hidden", "true");
+                link.appendChild(badge);
+            }
+
+            if (!link.hasAttribute("data-bell-label")) {
+                link.setAttribute("data-bell-label", baseLabel);
+            }
+
+            badge.hidden = total <= 0;
+            badge.textContent = text;
+            link.classList.toggle("has-badge", total > 0);
+            link.setAttribute("aria-label", total > 0 ? (baseLabel + " (" + total + ")") : baseLabel);
+        });
+    }
+
+    function buildPairRequestIdMap(items) {
+        var map = Object.create(null);
+
+        (Array.isArray(items) ? items : []).forEach(function (item) {
+            var requestId = Number(item && item.pairRequestId);
+            if (Number.isFinite(requestId) && requestId > 0) {
+                map[String(requestId)] = true;
+            }
+        });
+
+        return map;
+    }
+
+    function findPairRequestById(items, requestId) {
+        var targetId = Number(requestId);
+        if (!Number.isFinite(targetId) || targetId <= 0) {
+            return null;
+        }
+
+        var list = Array.isArray(items) ? items : [];
+        for (var i = 0; i < list.length; i += 1) {
+            var itemId = Number(list[i] && list[i].pairRequestId);
+            if (itemId === targetId) {
+                return list[i];
+            }
+        }
+
+        return null;
+    }
+
+    function canPresentRealtimePairPopup() {
+        if (document.visibilityState === "hidden") {
+            return false;
+        }
+
+        if (typeof document.hasFocus === "function" && !document.hasFocus()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function closePairRequestPopup() {
+        if (notificationCenter.popupRoot) {
+            notificationCenter.popupRoot.hidden = true;
+        }
+
+        notificationCenter.activePopupRequestId = 0;
+        document.body.classList.remove("has-web-pair-popup");
+    }
+
+    function renderPairRequestPopupContent(item) {
+        var requestId = Number(item && item.pairRequestId);
+        var tournamentId = Number(item && item.tournamentId);
+        var requestedBy = item && item.requestedBy ? item.requestedBy : {};
+        var requesterName = trimToEmpty(requestedBy.fullName) || "Thanh vien Hanaka";
+        var avatarUrl = normalizeMediaUrl(requestedBy.avatarUrl);
+        var tournamentTitle = trimToEmpty(item && item.tournamentTitle) || "Giai dau";
+        var expiresAt = formatDateTime(item && item.expiresAt) || "Sap het han";
+        var detailHref = tournamentId > 0
+            ? "/PickleballWeb/Tournament/" + tournamentId + "/Register"
+            : "/PickleballWeb/Notifications";
+
+        return [
+            '<div class="web-pair-popup__eyebrow"><ion-icon name="notifications-outline"></ion-icon><span>Loi moi ghep doi moi</span></div>',
+            '<div class="web-pair-popup__head">',
+            avatarUrl
+                ? '<span class="native-notification-card__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(requesterName) + '" loading="lazy"></span>'
+                : '<span class="native-notification-card__avatar"><ion-icon name="person-outline"></ion-icon></span>',
+            '<div>',
+            '<h2 class="web-pair-popup__title" id="web-pair-popup-title">' + escapeHtml(requesterName) + "</h2>",
+            '<p class="web-pair-popup__message">' + escapeHtml(trimToEmpty(item && item.message) || (requesterName + " moi ban ghep cap.")) + "</p>",
+            "</div>",
+            "</div>",
+            '<div class="web-pair-popup__meta">',
+            '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">Giai dau</span><span class="web-pair-popup__meta-value">' + escapeHtml(tournamentTitle) + "</span></div>",
+            '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">Het han</span><span class="web-pair-popup__meta-value">' + escapeHtml(expiresAt) + "</span></div>",
+            "</div>",
+            '<div class="web-pair-popup__actions">',
+            '<button type="button" data-pair-popup-action="accept" data-pair-request-id="' + escapeHtml(requestId || "") + '">Chap nhan</button>',
+            '<button type="button" data-pair-popup-action="reject" data-pair-request-id="' + escapeHtml(requestId || "") + '">Tu choi</button>',
+            '<a href="' + escapeHtml(detailHref) + '">Xem chi tiet</a>',
+            "</div>"
+        ].join("");
+    }
+
+    function ensurePairRequestPopup() {
+        if (notificationCenter.popupRoot && document.body.contains(notificationCenter.popupRoot)) {
+            return notificationCenter.popupRoot;
+        }
+
+        var root = document.createElement("div");
+        root.className = "web-pair-popup";
+        root.hidden = true;
+        root.innerHTML = [
+            '<div class="web-pair-popup__backdrop" data-pair-popup-close></div>',
+            '<section class="web-pair-popup__dialog" role="dialog" aria-modal="true" aria-labelledby="web-pair-popup-title">',
+            '<button class="web-pair-popup__close" type="button" aria-label="Dong" data-pair-popup-close>',
+            '<ion-icon name="close-outline"></ion-icon>',
+            "</button>",
+            '<div data-pair-popup-content></div>',
+            "</section>"
+        ].join("");
+
+        root.addEventListener("click", async function (event) {
+            var closeTarget = event.target.closest("[data-pair-popup-close]");
+            if (closeTarget) {
+                closePairRequestPopup();
+                return;
+            }
+
+            var actionButton = event.target.closest("[data-pair-popup-action]");
+            if (!actionButton) {
+                return;
+            }
+
+            var requestId = Number(actionButton.getAttribute("data-pair-request-id"));
+            var action = trimToEmpty(actionButton.getAttribute("data-pair-popup-action")).toLowerCase();
+            var controls = Array.prototype.slice.call(root.querySelectorAll("[data-pair-popup-action]"));
+
+            if (!Number.isFinite(requestId) || requestId <= 0 || (action !== "accept" && action !== "reject")) {
+                return;
+            }
+
+            try {
+                await performPairRequestAction(requestId, action, {
+                    control: actionButton,
+                    controls: controls
+                });
+                closePairRequestPopup();
+                await syncNotificationCenter({ allowPopup: false });
+            } catch (error) {
+                window.alert(error && error.message ? error.message : "Khong the xu ly loi moi ghep doi.");
+            }
+        });
+
+        document.body.appendChild(root);
+        notificationCenter.popupRoot = root;
+        return root;
+    }
+
+    function showPairRequestPopup(item) {
+        var requestId = Number(item && item.pairRequestId);
+        var popup = ensurePairRequestPopup();
+        var content = qs("[data-pair-popup-content]", popup);
+
+        if (!content || !Number.isFinite(requestId) || requestId <= 0) {
+            return;
+        }
+
+        content.innerHTML = renderPairRequestPopupContent(item);
+        popup.hidden = false;
+        notificationCenter.activePopupRequestId = requestId;
+        document.body.classList.add("has-web-pair-popup");
+    }
+
+    async function performPairRequestAction(requestId, action, options) {
+        var targetId = Number(requestId);
+        var normalizedAction = trimToEmpty(action).toLowerCase();
+        var control = options && options.control ? options.control : null;
+        var controls = Array.isArray(options && options.controls) ? options.controls.filter(Boolean) : [];
+
+        if (control && controls.indexOf(control) < 0) {
+            controls.unshift(control);
+        }
+
+        if (!Number.isFinite(targetId) || targetId <= 0 || (normalizedAction !== "accept" && normalizedAction !== "reject")) {
+            throw new Error("Yeu cau ghep doi khong hop le.");
+        }
+
+        var snapshots = controls.map(function (item) {
+            return {
+                node: item,
+                disabled: !!item.disabled,
+                text: item.textContent
+            };
+        });
+
+        controls.forEach(function (item) {
+            item.disabled = true;
+        });
+
+        if (control) {
+            control.textContent = normalizedAction === "reject" ? "Dang tu choi..." : "Dang chap nhan...";
+        }
+
+        try {
+            var payload = await requestJson("/api/tournament-registrations/pair-requests/" + targetId + "/" + normalizedAction, {
+                method: "POST",
+                body: normalizedAction === "reject" ? JSON.stringify({ responseNote: "" }) : null
+            });
+
+            dispatchNotificationCenterChange({
+                requestId: targetId,
+                action: normalizedAction,
+                payload: payload
+            });
+
+            return payload;
+        } finally {
+            snapshots.forEach(function (snapshot) {
+                if (!snapshot.node) {
+                    return;
+                }
+
+                snapshot.node.disabled = snapshot.disabled;
+                snapshot.node.textContent = snapshot.text;
+            });
+        }
+    }
+
+    async function syncNotificationCenter(options) {
+        if (!notificationCenter.authenticated) {
+            setNotificationBellCount(0);
+            closePairRequestPopup();
+            return 0;
+        }
+
+        var syncToken = ++notificationCenter.syncToken;
+        var requestedPopupId = Number(options && options.popupRequestId);
+        var allowPopup = !!(options && options.allowPopup);
+
+        try {
+            var results = await Promise.allSettled([
+                fetchJson("/api/notifications/pair-requests"),
+                fetchJson("/api/notifications/upcoming-matches")
+            ]);
+
+            if (syncToken !== notificationCenter.syncToken) {
+                return 0;
+            }
+
+            var pairItems = results[0].status === "fulfilled" && Array.isArray(results[0].value && results[0].value.items)
+                ? results[0].value.items
+                : [];
+            var matchItems = results[1].status === "fulfilled" && Array.isArray(results[1].value && results[1].value.items)
+                ? results[1].value.items
+                : [];
+            var previousIds = notificationCenter.knownPairRequestIds;
+            var activePopupId = Number(notificationCenter.activePopupRequestId);
+            var nextPopupItem = null;
+
+            notificationCenter.pendingPairItems = pairItems.slice();
+            notificationCenter.knownPairRequestIds = buildPairRequestIdMap(pairItems);
+            setNotificationBellCount(pairItems.length + matchItems.length);
+
+            if (activePopupId > 0) {
+                nextPopupItem = findPairRequestById(pairItems, activePopupId);
+                if (!nextPopupItem) {
+                    closePairRequestPopup();
+                }
+            }
+
+            if (allowPopup) {
+                nextPopupItem = findPairRequestById(pairItems, requestedPopupId);
+
+                if (!nextPopupItem) {
+                    nextPopupItem = pairItems.find(function (item) {
+                        var itemId = Number(item && item.pairRequestId);
+                        return Number.isFinite(itemId) && itemId > 0 && !previousIds[String(itemId)];
+                    }) || null;
+                }
+
+                if (nextPopupItem && canPresentRealtimePairPopup()) {
+                    showPairRequestPopup(nextPopupItem);
+                }
+            }
+
+            return pairItems.length + matchItems.length;
+        } catch (_error) {
+            if (syncToken !== notificationCenter.syncToken) {
+                return 0;
+            }
+
+            notificationCenter.pendingPairItems = [];
+            notificationCenter.knownPairRequestIds = Object.create(null);
+            setNotificationBellCount(0);
+            closePairRequestPopup();
+            return 0;
+        }
+    }
+
+    function initNotificationCenter() {
+        if (notificationCenter.initialized) {
+            return;
+        }
+
+        notificationCenter.initialized = true;
+        setNotificationBellCount(0);
+
+        notificationCenter.onNotificationChange = function () {
+            syncNotificationCenter({ allowPopup: false });
+        };
+
+        notificationCenter.onVisibilityChange = function () {
+            if (document.visibilityState === "visible" && notificationCenter.authenticated) {
+                syncNotificationCenter({ allowPopup: false });
+            }
+        };
+
+        window.addEventListener(NOTIFICATION_CENTER_EVENT, notificationCenter.onNotificationChange);
+        document.addEventListener("visibilitychange", notificationCenter.onVisibilityChange);
+
+        fetchJson("/api/web-auth/me")
+            .then(function (session) {
+                notificationCenter.authenticated = !!(session && session.isAuthenticated);
+
+                if (!notificationCenter.authenticated) {
+                    setNotificationBellCount(0);
+                    return;
+                }
+
+                connectRealtime();
+
+                if (!notificationCenter.realtimeListener) {
+                    notificationCenter.realtimeListener = addRealtimeListener(function (event) {
+                        if (trimToEmpty(event && event.type) !== "tournament.notification") {
+                            return;
+                        }
+
+                        var payload = event && event.payload ? event.payload : {};
+                        var notificationType = trimToEmpty(payload.notificationType || payload.NotificationType).toUpperCase();
+                        var popupRequestId = Number(payload.pairRequestId || payload.PairRequestId);
+
+                        syncNotificationCenter({
+                            allowPopup: notificationType === "PAIR_REQUEST",
+                            popupRequestId: popupRequestId
+                        });
+                    });
+                }
+
+                syncNotificationCenter({ allowPopup: false });
+            })
+            .catch(function () {
+                notificationCenter.authenticated = false;
+                setNotificationBellCount(0);
+            });
+
+        window.addEventListener("pagehide", function () {
+            closePairRequestPopup();
+
+            if (notificationCenter.realtimeListener) {
+                notificationCenter.realtimeListener();
+                notificationCenter.realtimeListener = null;
+            }
+
+            if (notificationCenter.onNotificationChange) {
+                window.removeEventListener(NOTIFICATION_CENTER_EVENT, notificationCenter.onNotificationChange);
+                notificationCenter.onNotificationChange = null;
+            }
+
+            if (notificationCenter.onVisibilityChange) {
+                document.removeEventListener("visibilitychange", notificationCenter.onVisibilityChange);
+                notificationCenter.onVisibilityChange = null;
+            }
+        }, { once: true });
+    }
+
     var realtime = {
         ws: null,
         reconnectTimer: null,
@@ -1881,6 +2305,7 @@
             items: []
         };
         var removeRealtimeListener = null;
+        var handleNotificationCenterChange = null;
 
         setHeaderAction(root, null);
         setHeaderExtra(root, "");
@@ -1963,25 +2388,29 @@
                 }
 
                 var action = acceptButton ? "accept" : "reject";
-                var oldText = button.textContent;
-                button.disabled = true;
-                button.textContent = "Dang xu ly...";
+                var card = button.closest("[data-pair-request-card]");
+                var controls = card
+                    ? Array.prototype.slice.call(card.querySelectorAll("[data-pair-request-accept], [data-pair-request-reject]"))
+                    : [button];
 
                 try {
-                    await requestJson("/api/tournament-registrations/pair-requests/" + requestId + "/" + action, {
-                        method: "POST",
-                        body: action === "reject" ? JSON.stringify({ responseNote: "" }) : null
+                    await performPairRequestAction(requestId, action, {
+                        control: button,
+                        controls: controls
                     });
 
                     await load();
                 } catch (error) {
                     window.alert(error && error.message ? error.message : "Khong the xu ly loi moi.");
-                } finally {
-                    button.disabled = false;
-                    button.textContent = oldText;
                 }
             });
         }
+
+        handleNotificationCenterChange = function () {
+            load();
+        };
+
+        window.addEventListener(NOTIFICATION_CENTER_EVENT, handleNotificationCenterChange);
 
         connectRealtime();
         removeRealtimeListener = addRealtimeListener(function (event) {
@@ -1994,6 +2423,11 @@
             if (removeRealtimeListener) {
                 removeRealtimeListener();
                 removeRealtimeListener = null;
+            }
+
+            if (handleNotificationCenterChange) {
+                window.removeEventListener(NOTIFICATION_CENTER_EVENT, handleNotificationCenterChange);
+                handleNotificationCenterChange = null;
             }
         }, { once: true });
 
@@ -3262,6 +3696,8 @@
     }
 
     document.addEventListener("DOMContentLoaded", function () {
+        initNotificationCenter();
+
         var root = qs("[data-native-page-kind]");
         if (root) {
             initNativePage(root);
