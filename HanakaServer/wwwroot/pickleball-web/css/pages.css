@@ -3031,6 +3031,12 @@
     cursor: default;
 }
 
+.native-club-card__button:disabled,
+.native-club-card__button.is-loading {
+    cursor: wait;
+    opacity: 0.85;
+}
+
 .native-club-card__button--green {
     background: #16A34A;
 }
@@ -4539,6 +4545,15 @@
     font-weight: 700;
 }
 
+.tournament-native-meta-item--link {
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.tournament-native-meta-item--link:hover {
+    color: var(--primary);
+}
+
 .tournament-native-tabs {
     display: flex;
     gap: 0;
@@ -4772,6 +4787,267 @@
 
 .tournament-match-card__action ion-icon {
     font-size: 1.125rem;
+}
+
+.tournament-bracket-page {
+    min-height: calc(100vh - 64px);
+    padding: 12px;
+    background:
+        radial-gradient(circle at 18% 10%, rgba(37, 99, 235, 0.18), transparent 30%),
+        linear-gradient(180deg, #111827 0%, #070B10 100%);
+    color: #E5E7EB;
+}
+
+.tournament-bracket-intro {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+    padding: 12px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.78);
+}
+
+.tournament-bracket-intro p,
+.tournament-bracket-intro strong {
+    display: block;
+    margin: 0;
+}
+
+.tournament-bracket-intro p {
+    color: #94A3B8;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.tournament-bracket-intro strong {
+    margin-top: 4px;
+    color: #F8FAFC;
+    font-size: 0.9375rem;
+    line-height: 1.35;
+}
+
+.tournament-bracket-intro span {
+    max-width: 130px;
+    color: #CBD5E1;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.45;
+    text-align: right;
+}
+
+.tournament-bracket-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.tournament-bracket-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 26px;
+    padding: 0 10px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.72);
+    color: #CBD5E1;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.tournament-bracket-legend i {
+    display: block;
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+}
+
+.tournament-bracket-legend i.is-real {
+    background: #FACC15;
+}
+
+.tournament-bracket-legend i.is-virtual {
+    background: #475569;
+}
+
+.tournament-bracket-legend i.is-line {
+    height: 2px;
+    border-radius: 2px;
+    background: #F97316;
+}
+
+.tournament-bracket-scroll {
+    width: 100%;
+    height: min(72vh, 680px);
+    overflow: auto;
+    border: 1px solid rgba(226, 232, 240, 0.55);
+    border-radius: 14px;
+    background:
+        linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px),
+        #05080D;
+    background-size: 28px 28px;
+    cursor: grab;
+    overscroll-behavior: contain;
+    touch-action: none;
+    scrollbar-color: #475569 #0F172A;
+}
+
+.tournament-bracket-scroll.is-dragging {
+    cursor: grabbing;
+    user-select: none;
+}
+
+.tournament-bracket-board {
+    position: relative;
+    min-width: 100%;
+    min-height: 100%;
+}
+
+.tournament-bracket-lines {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+.tournament-bracket-lines path {
+    fill: none;
+    stroke: #F97316;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.9;
+    vector-effect: non-scaling-stroke;
+}
+
+.tournament-bracket-round-title {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 2px;
+    background: #172433;
+    color: #CBD5E1;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+}
+
+.tournament-bracket-round-title strong {
+    color: #CBD5E1;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.tournament-bracket-round-title span {
+    color: #94A3B8;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.tournament-bracket-match {
+    position: absolute;
+    z-index: 3;
+    overflow: hidden;
+    border-radius: 5px;
+    background: #0E141C;
+    box-shadow: 0 16px 28px rgba(0, 0, 0, 0.28);
+}
+
+.tournament-bracket-match.is-real {
+    outline: 1px solid rgba(250, 204, 21, 0.18);
+}
+
+.tournament-bracket-match__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    height: 20px;
+    padding: 0 8px;
+    background: #32363A;
+}
+
+.tournament-bracket-match.is-real .tournament-bracket-match__head {
+    background: #FACC15;
+    color: #111827;
+}
+
+.tournament-bracket-match__head strong {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tournament-bracket-match__head span {
+    flex: 0 0 auto;
+    color: inherit;
+    font-size: 0.625rem;
+    font-weight: 800;
+    opacity: 0.72;
+}
+
+.tournament-bracket-match__row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 24px;
+    align-items: center;
+    gap: 8px;
+    height: 22px;
+    padding: 0 8px;
+    color: #CBD5E1;
+}
+
+.tournament-bracket-match__row span {
+    min-width: 0;
+    overflow: hidden;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 22px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tournament-bracket-match__row b {
+    color: #CBD5E1;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-align: right;
+}
+
+.tournament-bracket-match__row .is-winner {
+    color: #86EFAC;
+    font-weight: 900;
+}
+
+.tournament-bracket-match.is-virtual .tournament-bracket-match__row {
+    color: #94A3B8;
+}
+
+.tournament-bracket-match.has-video::after {
+    content: "";
+    position: absolute;
+    right: 7px;
+    bottom: 7px;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: #22C55E;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
 }
 
 .tournament-standing-card {

@@ -85,6 +85,7 @@
     async function fetchJson(url) {
         var response = await fetch(url, {
             headers: { Accept: "application/json" },
+            credentials: "same-origin",
             cache: "no-store"
         });
 
@@ -416,6 +417,11 @@
         window.alert(message);
     }
 
+    function redirectToWebLogin(returnUrl) {
+        var target = trimToEmpty(returnUrl) || (window.location.pathname + window.location.search);
+        window.location.href = "/PickleballWeb/Login?returnUrl=" + encodeURIComponent(target);
+    }
+
     function getCommonRefs(root) {
         return {
             list: qs("[data-native-page-list]", root),
@@ -472,20 +478,21 @@
 
     function renderClubButton(item) {
         var status = trimToEmpty(item.myClubStatus).toUpperCase();
+        var isJoining = !!item.isJoining;
 
         if (status === "MANAGER") {
-            return '<a class="native-club-card__button native-club-card__button--green" href="/PickleballWeb/Club/' + escapeHtml(item.clubId) + '">Quan ly</a>';
+            return '<a class="native-club-card__button native-club-card__button--green" href="/PickleballWeb/Club/' + escapeHtml(item.clubId) + '">Quản lý</a>';
         }
 
         if (status === "MEMBER") {
-            return '<span class="native-club-card__button native-club-card__button--green is-disabled">Thanh vien</span>';
+            return '<span class="native-club-card__button native-club-card__button--green is-disabled">Thành viên</span>';
         }
 
         if (status === "PENDING") {
-            return '<span class="native-club-card__button native-club-card__button--amber is-disabled">Cho duyet</span>';
+            return '<button class="native-club-card__button native-club-card__button--amber' + (isJoining ? " is-loading" : "") + '" type="button" data-club-cancel="' + escapeHtml(item.clubId) + '"' + (isJoining ? " disabled" : "") + ">" + (isJoining ? "Đang hủy..." : "Chờ duyệt") + "</button>";
         }
 
-        return '<button class="native-club-card__button native-club-card__button--red" type="button" data-club-join="' + escapeHtml(item.clubId) + '">Xin vao</button>';
+        return '<button class="native-club-card__button native-club-card__button--red' + (isJoining ? " is-loading" : "") + '" type="button" data-club-join="' + escapeHtml(item.clubId) + '"' + (isJoining ? " disabled" : "") + ">" + (isJoining ? "Đang gửi..." : "Xin vào") + "</button>";
     }
 
     function renderClubCard(item) {
@@ -511,7 +518,7 @@
             "</div>",
             '<div class="native-club-card__actions">',
             renderClubButton(item),
-            '<a class="native-club-card__button native-club-card__button--cyan" href="/PickleballWeb/Club/' + escapeHtml(item.clubId) + '">Xem chi tiet</a>',
+            '<a class="native-club-card__button native-club-card__button--cyan" href="/PickleballWeb/Club/' + escapeHtml(item.clubId) + '">Xem chi tiết</a>',
             "</div>",
             "</div>",
             "</article>"
@@ -784,6 +791,8 @@
             total: 0,
             items: [],
             loading: false,
+            joiningClubId: null,
+            session: null,
             error: ""
         };
 
@@ -791,7 +800,13 @@
         setHeaderAction(root, {
             html: '<ion-icon name="add"></ion-icon>',
             onClick: function () {
-                showAppOnlyAlert("Vui long dang nhap tren app de tao cau lac bo.");
+                if (!(state.session && state.session.isAuthenticated)) {
+                    window.alert("Bạn chưa đăng nhập. Vui lòng đăng nhập để tạo câu lạc bộ.");
+                    redirectToWebLogin("/PickleballWeb/Clubs");
+                    return;
+                }
+
+                showAppOnlyAlert("Chức năng tạo câu lạc bộ hiện đang thực hiện trên app.");
             }
         });
         setHeaderExtra(root, [
@@ -811,17 +826,27 @@
 
         refs.list.addEventListener("click", function (event) {
             var button = event.target.closest("[data-club-join]");
-            if (!button) {
+            var cancelButton = event.target.closest("[data-club-cancel]");
+            if (button) {
+                event.preventDefault();
+                handleJoinClub(button);
                 return;
             }
 
-            event.preventDefault();
-            showAppOnlyAlert("Vui long dang nhap tren app de gui yeu cau tham gia cau lac bo.");
+            if (cancelButton) {
+                event.preventDefault();
+                handleCancelJoinClub(cancelButton);
+            }
         });
 
         function render() {
             refs.list.className = "native-page-list native-page-list--cards";
-            refs.list.innerHTML = state.items.map(renderClubCard).join("");
+            refs.list.innerHTML = state.items.map(function (item) {
+                var clubId = Number(item && item.clubId);
+                return renderClubCard(Object.assign({}, item, {
+                    isJoining: Number.isFinite(clubId) && clubId === state.joiningClubId
+                }));
+            }).join("");
             if (filterText) {
                 filterText.textContent = state.query ? ("Tu khoa: " + state.query) : "Tat ca cau lac bo";
             }
@@ -832,6 +857,128 @@
                 error: state.error,
                 hasMore: state.items.length < state.total
             });
+        }
+
+        async function refreshSession() {
+            try {
+                state.session = await requestJson("/api/web-auth/me", { method: "GET" });
+            } catch (_error) {
+                state.session = { isAuthenticated: false };
+            }
+        }
+
+        function updateClubRelation(clubId, relation) {
+            var nextStatus = trimToEmpty(relation && relation.myClubStatus) || "PENDING";
+
+            state.items = state.items.map(function (club) {
+                if (Number(club && club.clubId) !== clubId) {
+                    return club;
+                }
+
+                return Object.assign({}, club, {
+                    myClubStatus: nextStatus,
+                    myMemberRole: nextStatus === "NONE" ? null : (trimToEmpty(relation && relation.myMemberRole) || "MEMBER"),
+                    canManage: !!(relation && relation.canManage)
+                });
+            });
+        }
+
+        async function handleJoinClub(button) {
+            var clubId = Number(button.getAttribute("data-club-join"));
+            if (!Number.isFinite(clubId) || clubId <= 0 || state.joiningClubId) {
+                return;
+            }
+
+            if (!(state.session && state.session.isAuthenticated)) {
+                await refreshSession();
+            }
+
+            if (!(state.session && state.session.isAuthenticated)) {
+                window.alert("Bạn chưa đăng nhập. Vui lòng đăng nhập để gửi yêu cầu tham gia câu lạc bộ.");
+                redirectToWebLogin("/PickleballWeb/Clubs");
+                return;
+            }
+
+            state.joiningClubId = clubId;
+            render();
+
+            try {
+                var payload = await requestJson("/api/clubs/" + clubId + "/join", {
+                    method: "POST"
+                });
+
+                updateClubRelation(clubId, {
+                    myClubStatus: trimToEmpty(payload && payload.myClubStatus) || "PENDING",
+                    myMemberRole: "MEMBER",
+                    canManage: false
+                });
+                window.alert(trimToEmpty(payload && payload.message) || "Đã gửi yêu cầu tham gia. Vui lòng chờ duyệt.");
+            } catch (error) {
+                if (error && error.status === 401) {
+                    state.session = { isAuthenticated: false };
+                    window.alert("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để gửi yêu cầu tham gia câu lạc bộ.");
+                    redirectToWebLogin("/PickleballWeb/Clubs");
+                    return;
+                }
+
+                if (error && error.payload && error.payload.myClubStatus) {
+                    updateClubRelation(clubId, error.payload);
+                }
+
+                window.alert((error && error.message) || "Không thể gửi yêu cầu tham gia.");
+            } finally {
+                state.joiningClubId = null;
+                render();
+            }
+        }
+
+        async function handleCancelJoinClub(button) {
+            var clubId = Number(button.getAttribute("data-club-cancel"));
+            if (!Number.isFinite(clubId) || clubId <= 0 || state.joiningClubId) {
+                return;
+            }
+
+            if (!(state.session && state.session.isAuthenticated)) {
+                await refreshSession();
+            }
+
+            if (!(state.session && state.session.isAuthenticated)) {
+                window.alert("Bạn chưa đăng nhập. Vui lòng đăng nhập để hủy yêu cầu tham gia câu lạc bộ.");
+                redirectToWebLogin("/PickleballWeb/Clubs");
+                return;
+            }
+
+            state.joiningClubId = clubId;
+            render();
+
+            try {
+                var payload = await requestJson("/api/clubs/" + clubId + "/join", {
+                    method: "DELETE"
+                });
+
+                updateClubRelation(clubId, {
+                    myClubStatus: trimToEmpty(payload && payload.myClubStatus) || "NONE",
+                    myMemberRole: null,
+                    canManage: false
+                });
+                window.alert(trimToEmpty(payload && payload.message) || "Đã hủy yêu cầu tham gia CLB.");
+            } catch (error) {
+                if (error && error.status === 401) {
+                    state.session = { isAuthenticated: false };
+                    window.alert("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để hủy yêu cầu tham gia câu lạc bộ.");
+                    redirectToWebLogin("/PickleballWeb/Clubs");
+                    return;
+                }
+
+                if (error && error.payload && error.payload.myClubStatus) {
+                    updateClubRelation(clubId, error.payload);
+                }
+
+                window.alert((error && error.message) || "Không thể hủy yêu cầu tham gia.");
+            } finally {
+                state.joiningClubId = null;
+                render();
+            }
         }
 
         async function load(reset) {
@@ -893,7 +1040,9 @@
             }
         });
 
-        load(true);
+        refreshSession().finally(function () {
+            load(true);
+        });
     }
 
     function initCoachLikePage(root, options) {

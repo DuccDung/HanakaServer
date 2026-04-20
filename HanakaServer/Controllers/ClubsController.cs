@@ -446,6 +446,51 @@ namespace HanakaServer.Controllers
         }
 
         // =========================================================
+        // DELETE: api/clubs/{id}/join
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpDelete("{id:long}/join")]
+        public async Task<IActionResult> CancelJoinClub(long id)
+        {
+            var userId = GetUserIdFromToken();
+
+            var clubExists = await _db.Clubs.AnyAsync(x => x.ClubId == id && x.IsActive);
+            if (!clubExists)
+                return NotFound(new { message = "Club not found." });
+
+            var member = await _db.ClubMembers
+                .FirstOrDefaultAsync(x => x.ClubId == id && x.UserId == userId);
+
+            if (member == null)
+            {
+                return Ok(new
+                {
+                    message = "Bạn chưa gửi yêu cầu tham gia CLB này.",
+                    myClubStatus = "NONE"
+                });
+            }
+
+            if (member.IsActive)
+            {
+                return BadRequest(new
+                {
+                    message = member.MemberRole == "OWNER"
+                        ? "Bạn là chủ CLB nên không thể hủy yêu cầu tham gia."
+                        : "Bạn đã là thành viên của CLB.",
+                    myClubStatus = member.MemberRole == "OWNER" ? "MANAGER" : "MEMBER"
+                });
+            }
+
+            _db.ClubMembers.Remove(member);
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                message = "Đã hủy yêu cầu tham gia CLB.",
+                myClubStatus = "NONE"
+            });
+        }
+
+        // =========================================================
         // GET: api/clubs/{id}
         [AllowAnonymous]
         [HttpGet("{id:long}")]

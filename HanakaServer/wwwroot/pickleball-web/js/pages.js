@@ -1941,6 +1941,8 @@
 
     function renderTournamentScheduleSection(detail, rounds) {
         const roundItems = buildTournamentRoundItems(rounds);
+        const tournamentId = detail?.tournamentId || "";
+        const bracketHref = tournamentId ? `/PickleballWeb/Tournament/${tournamentId}/Bracket` : "#";
 
         return [
             '<section id="tournament-schedule" class="tournament-native-subscreen">',
@@ -1949,10 +1951,10 @@
             '<p class="tournament-native-section-caption">Theo d\u00f5i b\u1ea3ng \u0111\u1ea5u, s\u00e2n thi \u0111\u1ea5u v\u00e0 k\u1ebft qu\u1ea3 t\u1eebng tr\u1eadn.</p>',
             "</div>",
             '<div class="tournament-native-meta-row">',
-            '<div class="tournament-native-meta-item">',
+            `<a class="tournament-native-meta-item tournament-native-meta-item--link" href="${escapeHtml(buildSafeHref(bracketHref, "#"))}">`,
             '<ion-icon name="git-branch-outline"></ion-icon>',
-            `<span>${escapeHtml(trimToEmpty(detail?.playoffType) || "Ch\u01b0a c\u1eadp nh\u1eadt")}</span>`,
-            "</div>",
+            '<span>Chia b\u1ea3ng \u0111\u1ea5u</span>',
+            "</a>",
             '<div class="tournament-native-meta-item is-right">',
             '<ion-icon name="people-outline"></ion-icon>',
             `<span><strong>${escapeHtml(String(toNumber(detail?.expectedTeams)))}</strong> \u0111\u1ed9i - <strong>${escapeHtml(String(toNumber(detail?.matchesCount)))}</strong> tr\u1eadn \u0111\u1ea5u</span>`,
@@ -2300,18 +2302,318 @@
         return fetchJson(`/api/tournaments/${id}/rounds-with-matches`);
     }
 
+    function nextPowerOfTwo(value) {
+        let current = 1;
+        const target = Math.max(2, Math.ceil(Number(value) || 2));
+
+        while (current < target) {
+            current *= 2;
+        }
+
+        return current;
+    }
+
+    function flattenTournamentBracketRound(round) {
+        const groups = Array.isArray(round?.groups) ? round.groups : [];
+        const items = [];
+
+        groups.forEach(function (group, groupIndex) {
+            const matches = Array.isArray(group?.matches) ? group.matches : [];
+
+            matches.forEach(function (match, matchIndex) {
+                items.push({
+                    match: match,
+                    group: group,
+                    groupIndex: groupIndex,
+                    matchIndex: matchIndex
+                });
+            });
+        });
+
+        return items;
+    }
+
+    function formatBracketScore(value) {
+        if (value === null || value === undefined || value === "") {
+            return "0";
+        }
+
+        return String(toNumber(value));
+    }
+
+    function buildBracketActualTitle(match, fallbackIndex) {
+        const id = trimToEmpty(match?.matchId) || fallbackIndex;
+        const clock = formatClock(match?.startAt);
+        const courtText = trimToEmpty(match?.addressText) || trimToEmpty(match?.courtText);
+        const details = [];
+
+        if (clock && clock !== "--:--") {
+            details.push(clock);
+        }
+
+        if (courtText) {
+            details.push(`S\u00e2n: ${courtText}`);
+        }
+
+        return `#${id}${details.length > 0 ? ` (${details.join("; ")})` : ""}`;
+    }
+
+    function buildBracketRoundLabel(roundIndex, matchCount, teamSlots, actualRound) {
+        if (matchCount <= 1) {
+            return "Chung k\u1ebft";
+        }
+
+        if (matchCount === 2) {
+            return "B\u00e1n k\u1ebft";
+        }
+
+        if (matchCount === 4) {
+            return "T\u1ee9 k\u1ebft";
+        }
+
+        const generatedSize = Math.max(2, Math.round(teamSlots / Math.pow(2, roundIndex)));
+        return trimToEmpty(actualRound?.roundLabel) || `V\u00f2ng 1/${generatedSize}`;
+    }
+
+    function buildBracketTeamName(team, fallback) {
+        return trimToEmpty(team?.displayName) || fallback;
+    }
+
+    function createTournamentBracketMatch(roundIndex, matchIndex, actualEntry) {
+        const match = actualEntry?.match || null;
+        const isReal = !!match;
+        const sequence = matchIndex + 1;
+        const roundNo = roundIndex + 1;
+        const code = roundIndex === 0
+            ? `V${roundNo}-B${sequence}`
+            : `V${roundNo}-B${sequence}`;
+        const previousRoundNo = roundIndex;
+        const previousSeed = matchIndex * 2 + 1;
+        const winnerId = match?.winnerRegistrationId;
+        const isWinnerA = !!winnerId && winnerId === match?.team1RegistrationId;
+        const isWinnerB = !!winnerId && winnerId === match?.team2RegistrationId;
+
+        if (isReal) {
+            return {
+                isReal: true,
+                isCompleted: !!match.isCompleted,
+                hasVideo: !!trimToEmpty(match.videoUrl),
+                title: buildBracketActualTitle(match, sequence),
+                teamA: buildBracketTeamName(match.team1, `V${roundNo}-B${sequence}-#1`),
+                teamB: buildBracketTeamName(match.team2, `V${roundNo}-B${sequence}-#2`),
+                scoreA: formatBracketScore(match.scoreTeam1),
+                scoreB: formatBracketScore(match.scoreTeam2),
+                isWinnerA: isWinnerA,
+                isWinnerB: isWinnerB,
+                matchId: match.matchId
+            };
+        }
+
+        return {
+            isReal: false,
+            isCompleted: false,
+            hasVideo: false,
+            title: roundIndex === 0 ? `${code} (--:--)` : code,
+            teamA: roundIndex === 0 ? `V1-B${sequence}-#1` : `W-V${previousRoundNo}-B${previousSeed}`,
+            teamB: roundIndex === 0 ? `V1-B${sequence}-#2` : `W-V${previousRoundNo}-B${previousSeed + 1}`,
+            scoreA: "0",
+            scoreB: "0",
+            isWinnerA: false,
+            isWinnerB: false,
+            matchId: null
+        };
+    }
+
+    function buildTournamentBracketLayout(data) {
+        const tournament = data?.tournament || {};
+        const apiRounds = Array.isArray(data?.rounds) ? data.rounds : [];
+        const actualRounds = apiRounds.map(function (round) {
+            return {
+                round: round,
+                matches: flattenTournamentBracketRound(round)
+            };
+        });
+        const firstRoundMatches = actualRounds[0]?.matches || [];
+        const expectedTeams = Math.max(
+            toNumber(tournament?.expectedTeams),
+            firstRoundMatches.length * 2,
+            2
+        );
+        const teamSlots = nextPowerOfTwo(expectedTeams);
+        const baseMatchCount = Math.max(1, teamSlots / 2);
+        const naturalRoundCount = Math.max(1, Math.ceil(Math.log2(teamSlots)));
+        const roundCount = Math.max(naturalRoundCount, actualRounds.length || 0);
+        const cardWidth = 196;
+        const cardHeight = 64;
+        const columnGap = 58;
+        const baseStep = 82;
+        const leftOffset = 18;
+        const topOffset = 74;
+        const headerTop = 20;
+        const rounds = [];
+
+        for (let roundIndex = 0; roundIndex < roundCount; roundIndex += 1) {
+            const actualRound = actualRounds[roundIndex];
+            const expectedMatchCount = Math.max(1, Math.ceil(baseMatchCount / Math.pow(2, roundIndex)));
+            const matchCount = Math.max(expectedMatchCount, actualRound?.matches?.length || 0);
+            const x = leftOffset + roundIndex * (cardWidth + columnGap);
+            const matches = [];
+
+            for (let matchIndex = 0; matchIndex < matchCount; matchIndex += 1) {
+                const slotDepth = Math.pow(2, roundIndex);
+                const y = topOffset + (matchIndex * slotDepth + (slotDepth - 1) / 2) * baseStep;
+                matches.push({
+                    ...createTournamentBracketMatch(roundIndex, matchIndex, actualRound?.matches?.[matchIndex]),
+                    x: x,
+                    y: y,
+                    width: cardWidth,
+                    height: cardHeight
+                });
+            }
+
+            rounds.push({
+                x: x,
+                width: cardWidth,
+                label: buildBracketRoundLabel(roundIndex, matchCount, teamSlots, actualRound?.round),
+                completedCount: matches.filter(function (match) { return match.isReal && match.isCompleted; }).length,
+                matchCount: matchCount,
+                matches: matches
+            });
+        }
+
+        const allMatches = rounds.flatMap(function (round) { return round.matches; });
+        const boardWidth = leftOffset * 2 + roundCount * cardWidth + Math.max(0, roundCount - 1) * columnGap + 28;
+        const boardHeight = Math.max(
+            520,
+            ...allMatches.map(function (match) { return match.y + cardHeight + 64; })
+        );
+        const lines = [];
+
+        for (let roundIndex = 1; roundIndex < rounds.length; roundIndex += 1) {
+            const previous = rounds[roundIndex - 1];
+            const current = rounds[roundIndex];
+
+            current.matches.forEach(function (target, targetIndex) {
+                const firstChild = previous.matches[targetIndex * 2];
+                const secondChild = previous.matches[targetIndex * 2 + 1];
+                const targetX = target.x;
+                const targetY = target.y + target.height / 2;
+                const midX = targetX - columnGap / 2;
+
+                [firstChild, secondChild].forEach(function (source) {
+                    if (!source) {
+                        return;
+                    }
+
+                    const sourceX = source.x + source.width;
+                    const sourceY = source.y + source.height / 2;
+                    lines.push(`M ${sourceX} ${sourceY} H ${midX} V ${targetY} H ${targetX}`);
+                });
+            });
+        }
+
+        return {
+            tournament: tournament,
+            width: boardWidth,
+            height: boardHeight,
+            headerTop: headerTop,
+            cardWidth: cardWidth,
+            lines: lines,
+            rounds: rounds,
+            teamSlots: teamSlots
+        };
+    }
+
+    function renderTournamentBracketMatch(match) {
+        const cardClass = [
+            "tournament-bracket-match",
+            match.isReal ? "is-real" : "is-virtual",
+            match.isCompleted ? "is-completed" : "",
+            match.hasVideo ? "has-video" : ""
+        ].filter(Boolean).join(" ");
+
+        return [
+            `<article class="${escapeHtml(cardClass)}" style="left:${escapeHtml(match.x)}px;top:${escapeHtml(match.y)}px;width:${escapeHtml(match.width)}px;height:${escapeHtml(match.height)}px">`,
+            '<div class="tournament-bracket-match__head">',
+            `<strong>${escapeHtml(match.title)}</strong>`,
+            match.isReal ? '<span>Th\u1eadt</span>' : '<span>\u1ea2o</span>',
+            "</div>",
+            '<div class="tournament-bracket-match__row">',
+            `<span class="${match.isWinnerA ? "is-winner" : ""}">${escapeHtml(match.teamA)}</span>`,
+            `<b class="${match.isWinnerA ? "is-winner" : ""}">${escapeHtml(match.scoreA)}</b>`,
+            "</div>",
+            '<div class="tournament-bracket-match__row">',
+            `<span class="${match.isWinnerB ? "is-winner" : ""}">${escapeHtml(match.teamB)}</span>`,
+            `<b class="${match.isWinnerB ? "is-winner" : ""}">${escapeHtml(match.scoreB)}</b>`,
+            "</div>",
+            "</article>"
+        ].join("");
+    }
+
+    function renderTournamentBracketPage(data) {
+        const layout = buildTournamentBracketLayout(data);
+        const tournament = layout.tournament || {};
+
+        if (!layout.rounds.length || !layout.rounds.some(function (round) { return round.matches.length > 0; })) {
+            return tournamentSectionEmpty("Gi\u1ea3i \u0111\u1ea5u n\u00e0y ch\u01b0a c\u00f3 d\u1eef li\u1ec7u \u0111\u1ec3 d\u1ef1ng s\u01a1 \u0111\u1ed3.");
+        }
+
+        return [
+            '<div class="tournament-bracket-page">',
+            '<div class="tournament-bracket-intro">',
+            '<div>',
+            '<p>S\u01a1 \u0111\u1ed3 thi \u0111\u1ea5u</p>',
+            `<strong>${escapeHtml(trimToEmpty(tournament?.title) || "Hanaka Sport")}</strong>`,
+            "</div>",
+            '<span>K\u00e9o ngang/d\u1ecdc \u0111\u1ec3 xem to\u00e0n b\u1ed9 nh\u00e1nh \u0111\u1ea5u</span>',
+            "</div>",
+            '<div class="tournament-bracket-legend">',
+            '<span><i class="is-real"></i>Tr\u1eadn th\u1eadt</span>',
+            '<span><i class="is-virtual"></i>Tr\u1eadn/v\u00f2ng \u1ea3o</span>',
+            '<span><i class="is-line"></i>Nh\u00e1nh th\u1eafng</span>',
+            "</div>",
+            '<div class="tournament-bracket-scroll" data-bracket-scroll tabindex="0">',
+            `<div class="tournament-bracket-board" style="width:${escapeHtml(layout.width)}px;height:${escapeHtml(layout.height)}px">`,
+            `<svg class="tournament-bracket-lines" viewBox="0 0 ${escapeHtml(layout.width)} ${escapeHtml(layout.height)}" aria-hidden="true">`,
+            layout.lines.map(function (path) {
+                return `<path d="${escapeHtml(path)}"></path>`;
+            }).join(""),
+            "</svg>",
+            layout.rounds.map(function (round) {
+                return [
+                    `<div class="tournament-bracket-round-title" style="left:${escapeHtml(round.x)}px;top:${escapeHtml(layout.headerTop)}px;width:${escapeHtml(round.width)}px">`,
+                    `<strong>${escapeHtml(round.label)}</strong>`,
+                    `<span>(${escapeHtml(round.completedCount)}/${escapeHtml(round.matchCount)})</span>`,
+                    "</div>"
+                ].join("");
+            }).join(""),
+            layout.rounds.flatMap(function (round) {
+                return round.matches.map(renderTournamentBracketMatch);
+            }).join(""),
+            "</div>",
+            "</div>",
+            "</div>"
+        ].join("");
+    }
+
+    async function loadTournamentBracketPage(id) {
+        return fetchJson(`/api/tournaments/${id}/rounds-with-matches`);
+    }
+
     function renderTournamentSchedulePage(data) {
         const tournament = data?.tournament || {};
         const rounds = Array.isArray(data?.rounds) ? data.rounds : [];
         const roundItems = buildTournamentRoundItems(rounds);
+        const tournamentId = tournament?.tournamentId || "";
+        const bracketHref = tournamentId ? `/PickleballWeb/Tournament/${tournamentId}/Bracket` : "#";
 
         return [
             '<div class="tournament-subpage tournament-subpage--schedule">',
             '<div class="tournament-native-meta-row tournament-native-meta-row--page">',
-            '<div class="tournament-native-meta-item">',
+            `<a class="tournament-native-meta-item tournament-native-meta-item--link" href="${escapeHtml(buildSafeHref(bracketHref, "#"))}">`,
             '<ion-icon name="git-branch-outline"></ion-icon>',
-            `<span>${escapeHtml(trimToEmpty(tournament?.playoffType) || "Ch\u01b0a c\u1eadp nh\u1eadt")}</span>`,
-            "</div>",
+            '<span>Chia b\u1ea3ng \u0111\u1ea5u</span>',
+            "</a>",
             '<div class="tournament-native-meta-item is-right">',
             '<ion-icon name="people-outline"></ion-icon>',
             `<span><strong>${escapeHtml(String(toNumber(tournament?.expectedTeams)))}</strong> \u0111\u1ed9i - <strong>${escapeHtml(String(toNumber(tournament?.matchesCount)))}</strong> tr\u1eadn \u0111\u1ea5u</span>`,
@@ -2499,6 +2801,10 @@
     detailConfigs["tournament-schedule-page"] = {
         load: loadTournamentSchedulePage,
         render: renderTournamentSchedulePage
+    };
+    detailConfigs["tournament-bracket-page"] = {
+        load: loadTournamentBracketPage,
+        render: renderTournamentBracketPage
     };
     detailConfigs["tournament-standings-page"] = {
         load: loadTournamentStandingsPage,
@@ -2732,6 +3038,66 @@
         });
     }
 
+    function initTournamentBracketScroller(root) {
+        const scroller = qs("[data-bracket-scroll]", root);
+
+        if (!scroller) {
+            return;
+        }
+
+        let dragging = false;
+        let startX = 0;
+        let startY = 0;
+        let startScrollLeft = 0;
+        let startScrollTop = 0;
+
+        scroller.addEventListener("pointerdown", function (event) {
+            if (event.button !== undefined && event.button !== 0) {
+                return;
+            }
+
+            dragging = true;
+            startX = event.clientX;
+            startY = event.clientY;
+            startScrollLeft = scroller.scrollLeft;
+            startScrollTop = scroller.scrollTop;
+            scroller.classList.add("is-dragging");
+            try {
+                scroller.setPointerCapture?.(event.pointerId);
+            } catch (_error) {
+                // Some embedded browsers do not allow pointer capture on scroll containers.
+            }
+        });
+
+        scroller.addEventListener("pointermove", function (event) {
+            if (!dragging) {
+                return;
+            }
+
+            event.preventDefault();
+            scroller.scrollLeft = startScrollLeft - (event.clientX - startX);
+            scroller.scrollTop = startScrollTop - (event.clientY - startY);
+        });
+
+        function stopDragging(event) {
+            if (!dragging) {
+                return;
+            }
+
+            dragging = false;
+            scroller.classList.remove("is-dragging");
+            try {
+                scroller.releasePointerCapture?.(event.pointerId);
+            } catch (_error) {
+                // Matching the setPointerCapture fallback above.
+            }
+        }
+
+        scroller.addEventListener("pointerup", stopDragging);
+        scroller.addEventListener("pointercancel", stopDragging);
+        scroller.addEventListener("pointerleave", stopDragging);
+    }
+
     function initTournamentRegistrationSearch(root) {
         const input = qs("[data-registration-search-input]", root);
         const rows = qsa("[data-registration-search]", root);
@@ -2794,6 +3160,10 @@
             initTournamentTabGroup(root, "standings");
             initTournamentGroupToggles(root);
         }
+
+        if (kind === "tournament-bracket-page") {
+            initTournamentBracketScroller(root);
+        }
     }
 
     async function initDetailPage(root) {
@@ -2826,6 +3196,7 @@
             kind === "tournament-registrations" ||
             kind === "tournament-rule-page" ||
             kind === "tournament-schedule-page" ||
+            kind === "tournament-bracket-page" ||
             kind === "tournament-standings-page"
         ) {
             applyTournamentDetailShell(
@@ -2836,9 +3207,11 @@
                         ? "Th\u1ec3 l\u1ec7 gi\u1ea3i"
                         : kind === "tournament-schedule-page"
                             ? "L\u1ecbch thi \u0111\u1ea5u"
-                            : kind === "tournament-standings-page"
-                                ? "B\u1ea3ng x\u1ebfp h\u1ea1ng"
-                                : "Chi ti\u1ebft gi\u1ea3i \u0111\u1ea5u",
+                            : kind === "tournament-bracket-page"
+                                ? "S\u01a1 \u0111\u1ed3 thi \u0111\u1ea5u"
+                                : kind === "tournament-standings-page"
+                                    ? "B\u1ea3ng x\u1ebfp h\u1ea1ng"
+                                    : "Chi ti\u1ebft gi\u1ea3i \u0111\u1ea5u",
                 kind === "tournament-detail" || kind === "tournament-schedule-page"
             );
         }
@@ -2860,6 +3233,7 @@
                 kind === "tournament-registrations" ||
                 kind === "tournament-rule-page" ||
                 kind === "tournament-schedule-page" ||
+                kind === "tournament-bracket-page" ||
                 kind === "tournament-standings-page"
             ) {
                 initTournamentDetailInteractions(root, data, kind);

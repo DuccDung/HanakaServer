@@ -324,6 +324,20 @@ namespace HanakaServer.Controllers.Web
                 activeTab: "tournaments"));
         }
 
+        [HttpGet("/PickleballWeb/Tournament/{id:long}/Bracket")]
+        public IActionResult TournamentBracket(long id)
+        {
+            return View("Detail", BuildDetailPage(
+                title: "So Do Thi Dau",
+                eyebrow: "Tournament bracket",
+                description: "So do truc quan cac nhanh thi dau, tu dong tao cac vong ao neu lich dau moi co vong dau tien.",
+                pageKind: "tournament-bracket-page",
+                entityId: id,
+                backHref: $"/PickleballWeb/Tournament/{id}/Schedule",
+                backLabel: "Lich thi dau",
+                activeTab: "tournaments"));
+        }
+
         [HttpGet("/PickleballWeb/Tournament/{id:long}/Standings")]
         public IActionResult TournamentStandings(long id)
         {
