@@ -2070,6 +2070,8 @@
         var team1Player2 = trimToEmpty(item && item.team1Player2Name);
         var team2Player1 = trimToEmpty(item && item.team2Player1Name) || trimToEmpty(item && item.team2Name) || "Doi 2";
         var team2Player2 = trimToEmpty(item && item.team2Player2Name);
+        var team1Class = "native-video-card__team " + (team1Player2 ? "has-two-players" : "has-one-player");
+        var team2Class = "native-video-card__team " + (team2Player2 ? "has-two-players" : "has-one-player");
 
         function renderPlayer(name, avatar) {
             var avatarUrl = normalizeMediaUrl(avatar);
@@ -2079,7 +2081,7 @@
                 avatarUrl
                     ? '<span class="native-video-card__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(name || "Player") + '" loading="lazy"></span>'
                     : '<span class="native-video-card__avatar native-video-card__avatar--fallback"><ion-icon name="person-outline"></ion-icon></span>',
-                '<span class="native-video-card__player-name">' + escapeHtml(name || "Player") + "</span>",
+                '<span class="native-video-card__player-name" title="' + escapeHtml(name || "Player") + '">' + escapeHtml(name || "Player") + "</span>",
                 "</div>"
             ].join("");
         }
@@ -2100,12 +2102,12 @@
                 ? '<p class="native-video-card__submeta">' + escapeHtml([trimToEmpty(item && item.groupName) ? formatVideoGroupLabel(item.groupName) : "", trimToEmpty(item && item.courtText)].filter(Boolean).join(" • ")) + "</p>"
                 : "",
             '<div class="native-video-card__teams">',
-            '<div class="native-video-card__team">',
+            '<div class="' + team1Class + '">',
             renderPlayer(team1Player1, item && item.team1Player1Avatar),
             team1Player2 ? renderPlayer(team1Player2, item && item.team1Player2Avatar) : "",
             '<strong class="native-video-card__score">' + escapeHtml(item && item.scoreTeam1 != null ? item.scoreTeam1 : 0) + "</strong>",
             "</div>",
-            '<div class="native-video-card__team">',
+            '<div class="' + team2Class + '">',
             renderPlayer(team2Player1, item && item.team2Player1Avatar),
             team2Player2 ? renderPlayer(team2Player2, item && item.team2Player2Avatar) : "",
             '<strong class="native-video-card__score">' + escapeHtml(item && item.scoreTeam2 != null ? item.scoreTeam2 : 0) + "</strong>",

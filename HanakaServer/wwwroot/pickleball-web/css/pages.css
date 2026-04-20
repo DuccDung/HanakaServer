@@ -2053,19 +2053,24 @@
 }
 
 .native-video-card__team {
-    display: flex;
-    align-items: stretch;
-    gap: 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 34px;
+    align-items: center;
+    gap: 8px;
     padding: 10px 12px;
     border-radius: 14px;
     background: #F8FAFC;
 }
 
+.native-video-card__team.has-two-players {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 34px;
+}
+
 .native-video-card__player {
     display: flex;
-    flex: 1 1 auto;
     align-items: center;
     gap: 8px;
+    width: 100%;
     min-width: 0;
 }
 
@@ -2094,8 +2099,10 @@
 }
 
 .native-video-card__player-name {
-    flex: 1 1 auto;
+    display: block;
+    flex: 1 1 0;
     min-width: 0;
+    max-width: 100%;
     overflow: hidden;
     color: #0F172A;
     font-size: 0.8125rem;
@@ -2108,7 +2115,9 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 38px;
+    justify-self: end;
+    width: 34px;
+    min-width: 34px;
     color: #0F172A;
     font-size: 1rem;
     font-weight: 800;

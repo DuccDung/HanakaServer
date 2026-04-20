@@ -139,27 +139,67 @@
         return /^https?:\/\//i.test(href) || /^mailto:/i.test(href) || /^tel:/i.test(href);
     }
 
-    function normalizeMediaUrl(value) {
-        const url = trimToEmpty(value);
+    function pushUniqueUrl(urls, url) {
+        if (url && !urls.includes(url)) {
+            urls.push(url);
+        }
+    }
+
+    function getMediaUrlCandidates(value) {
+        let url = trimToEmpty(value).replace(/\\/g, "/");
+        const urls = [];
 
         if (!url) {
-            return "";
+            return urls;
+        }
+
+        url = url
+            .replace(/^~\//, "/")
+            .replace(/^\/?wwwroot\//i, "/")
+            .replace(/^(https?:\/\/[^/]+?)(uploads\/)/i, "$1/$2")
+            .replace(/^(https?:\/\/[^/]+)\/{2,}(uploads\/)/i, "$1/$2");
+
+        if (/^\/?uploads\//i.test(url)) {
+            pushUniqueUrl(urls, `${window.location.origin}/${url.replace(/^\/+/, "")}`);
+            return urls;
         }
 
         if (url.startsWith("/")) {
-            return `${window.location.origin}${url}`;
+            pushUniqueUrl(urls, `${window.location.origin}${url}`);
+            return urls;
         }
 
         try {
             const parsed = new URL(url, window.location.origin);
-            if (parsed.pathname.startsWith("/uploads/") && parsed.origin !== window.location.origin) {
-                return `${window.location.origin}${parsed.pathname}${parsed.search}`;
+            const mediaPath = parsed.pathname.replace(/^\/+uploads\//i, "/uploads/");
+            const suffix = `${mediaPath}${parsed.search}${parsed.hash}`;
+
+            if (/^\/uploads\//i.test(mediaPath)) {
+                if (parsed.origin !== window.location.origin) {
+                    pushUniqueUrl(urls, `${window.location.origin}${suffix}`);
+                }
+
+                pushUniqueUrl(urls, `${parsed.origin}${suffix}`);
+                return urls;
             }
 
-            return parsed.toString();
+            pushUniqueUrl(urls, parsed.toString());
+            return urls;
         } catch (_error) {
-            return url;
+            pushUniqueUrl(urls, url);
+            return urls;
         }
+    }
+
+    function normalizeMediaUrl(value) {
+        return getMediaUrlCandidates(value)[0] || "";
+    }
+
+    function mediaFallbackAttrs(value) {
+        const urls = getMediaUrlCandidates(value);
+        const fallback = urls.find((url) => url !== urls[0]);
+
+        return fallback ? ` data-fallback-src="${escapeHtml(fallback)}"` : "";
     }
 
     function normalizeDisplayMediaUrl(value) {
@@ -176,11 +216,27 @@
         }
     }
 
+    document.addEventListener("error", function (event) {
+        const target = event.target;
+
+        if (!target || target.tagName !== "IMG") {
+            return;
+        }
+
+        const fallbackSrc = target.getAttribute("data-fallback-src");
+        if (!fallbackSrc || target.getAttribute("src") === fallbackSrc) {
+            return;
+        }
+
+        target.removeAttribute("data-fallback-src");
+        target.setAttribute("src", fallbackSrc);
+    }, true);
+
     function mediaMarkup(url, alt, fallbackText) {
         const src = normalizeMediaUrl(url);
 
         if (src) {
-            return `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}" loading="lazy">`;
+            return `<img src="${escapeHtml(src)}"${mediaFallbackAttrs(url)} alt="${escapeHtml(alt)}" loading="lazy">`;
         }
 
         return [
@@ -197,7 +253,7 @@
         const cssClass = className || "identity__avatar";
 
         if (src) {
-            return `<span class="${escapeHtml(cssClass)}"><img src="${escapeHtml(src)}" alt="${escapeHtml(name)}" loading="lazy"></span>`;
+            return `<span class="${escapeHtml(cssClass)}"><img src="${escapeHtml(src)}"${mediaFallbackAttrs(avatarUrl)} alt="${escapeHtml(name)}" loading="lazy"></span>`;
         }
 
         return `<span class="${escapeHtml(cssClass)}">${escapeHtml(initials(name))}</span>`;
@@ -2063,7 +2119,7 @@
         return [
             '<div class="tournament-native-detail">',
             bannerUrl
-                ? `<img class="tournament-native-detail__banner" src="${escapeHtml(bannerUrl)}" alt="${escapeHtml(trimToEmpty(detail?.title) || "Gi\u1ea3i \u0111\u1ea5u")}" loading="lazy">`
+                ? `<img class="tournament-native-detail__banner" src="${escapeHtml(bannerUrl)}"${mediaFallbackAttrs(detail?.bannerUrl)} alt="${escapeHtml(trimToEmpty(detail?.title) || "Gi\u1ea3i \u0111\u1ea5u")}" loading="lazy">`
                 : '<div class="tournament-native-detail__banner tournament-native-detail__banner--fallback"><ion-icon name="trophy-outline"></ion-icon></div>',
             '<div class="tournament-native-detail__body">',
             `<h2 class="tournament-native-detail__title">${escapeHtml(trimToEmpty(detail?.title) || "Chi ti\u1ebft gi\u1ea3i \u0111\u1ea5u")}</h2>`,
