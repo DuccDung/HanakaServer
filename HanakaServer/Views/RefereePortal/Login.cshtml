@@ -1,4 +1,4 @@
-﻿@{
+@{
     Layout = null;
     ViewData["Title"] = "Đăng nhập trọng tài";
 }
@@ -12,83 +12,670 @@
 
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
     <style>
+        :root {
+            --bg-deep: #091426;
+            --bg-mid: #0f2742;
+            --card: rgba(255, 255, 255, 0.95);
+            --card-border: rgba(255, 255, 255, 0.58);
+            --text-strong: #0f172a;
+            --text-soft: #5b6475;
+            --text-invert: rgba(255, 255, 255, 0.88);
+            --brand: #f97316;
+            --brand-dark: #ea580c;
+            --line: #dbe4f0;
+            --field: #f8fafc;
+            --shadow: 0 30px 80px rgba(4, 10, 24, 0.35);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+        }
+
         body {
             min-height: 100vh;
-            background: linear-gradient(135deg, #0f172a, #1d4ed8);
+            background:
+                radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 28%),
+                radial-gradient(circle at bottom right, rgba(249, 115, 22, 0.22), transparent 30%),
+                linear-gradient(135deg, var(--bg-deep), var(--bg-mid) 55%, #14335a);
             display: flex;
             align-items: center;
             justify-content: center;
-            font-family: Arial, sans-serif;
+            font-family: "Be Vietnam Pro", Arial, sans-serif;
+            color: var(--text-strong);
+            position: relative;
+            overflow-x: hidden;
+            padding: 32px 18px;
+        }
+
+        body::before,
+        body::after {
+            content: "";
+            position: fixed;
+            border-radius: 999px;
+            pointer-events: none;
+            filter: blur(14px);
+            opacity: 0.45;
+        }
+
+        body::before {
+            width: 360px;
+            height: 360px;
+            top: -120px;
+            left: -90px;
+            background: rgba(34, 197, 94, 0.12);
+        }
+
+        body::after {
+            width: 340px;
+            height: 340px;
+            right: -100px;
+            bottom: -120px;
+            background: rgba(249, 115, 22, 0.15);
+        }
+
+        .auth-shell {
+            width: 100%;
+            max-width: 1120px;
+            display: grid;
+            grid-template-columns: minmax(0, 1.02fr) minmax(320px, 430px);
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 32px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            backdrop-filter: blur(10px);
+        }
+
+        .auth-hero {
+            position: relative;
+            padding: 48px;
+            min-height: 620px;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0)),
+                linear-gradient(135deg, rgba(15, 23, 42, 0.18), rgba(12, 74, 110, 0.08));
+            color: var(--text-invert);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .auth-hero::before {
+            content: "";
+            position: absolute;
+            inset: 28px;
+            border-radius: 26px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0)),
+                radial-gradient(circle at top right, rgba(56, 189, 248, 0.12), transparent 35%);
+            pointer-events: none;
+        }
+
+        .hero-inner,
+        .hero-foot {
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            margin-bottom: 28px;
+        }
+
+        .hero-badge i {
+            color: #fbbf24;
+        }
+
+        .hero-title {
+            font-size: clamp(34px, 4.8vw, 58px);
+            font-weight: 800;
+            line-height: 1.04;
+            letter-spacing: -0.03em;
+            margin: 0 0 18px;
+            max-width: 540px;
+        }
+
+        .hero-copy {
+            max-width: 510px;
+            font-size: 16px;
+            line-height: 1.75;
+            color: rgba(255, 255, 255, 0.72);
+            margin: 0 0 28px;
+        }
+
+        .hero-points {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 16px;
+            margin-top: 32px;
+        }
+
+        .hero-point {
+            padding: 18px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-height: 128px;
+        }
+
+        .hero-point__icon {
+            width: 42px;
+            height: 42px;
+            border-radius: 14px;
+            background: rgba(249, 115, 22, 0.16);
+            color: #fdba74;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            margin-bottom: 16px;
+        }
+
+        .hero-point h3 {
+            font-size: 15px;
+            font-weight: 700;
+            margin: 0 0 8px;
+            color: #fff;
+        }
+
+        .hero-point p {
+            font-size: 13px;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.68);
+            margin: 0;
+        }
+
+        .hero-foot {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-top: 34px;
+        }
+
+        .hero-foot__seal {
+            width: 56px;
+            height: 56px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.09);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            color: #fde68a;
+        }
+
+        .hero-foot__text {
+            flex: 1;
+        }
+
+        .hero-foot__label {
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.16em;
+            color: rgba(255, 255, 255, 0.5);
+            margin-bottom: 6px;
+        }
+
+        .hero-foot__title {
+            font-size: 15px;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.84);
+            line-height: 1.5;
+        }
+
+        .login-panel {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+            border-left: 1px solid rgba(255, 255, 255, 0.24);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
         }
 
         .login-card {
             width: 100%;
-            max-width: 420px;
-            background: #fff;
-            border-radius: 18px;
-            box-shadow: 0 12px 40px rgba(0,0,0,.18);
-            padding: 28px;
+            max-width: 390px;
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 28px;
+            box-shadow: 0 22px 52px rgba(15, 23, 42, 0.12);
+            padding: 30px;
+            backdrop-filter: blur(10px);
         }
 
-        .login-title {
-            font-size: 28px;
-            font-weight: 800;
-            margin-bottom: 6px;
-            color: #111827;
-        }
-
-        .login-subtitle {
-            color: #6b7280;
-            margin-bottom: 20px;
+        .brand-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 26px;
         }
 
         .brand-icon {
-            width: 56px;
-            height: 56px;
-            border-radius: 14px;
+            width: 62px;
+            height: 62px;
+            border-radius: 20px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            background: #eff6ff;
-            color: #2563eb;
+            background:
+                linear-gradient(160deg, rgba(249, 115, 22, 0.16), rgba(59, 130, 246, 0.12)),
+                #fff;
+            color: var(--brand-dark);
             font-size: 24px;
+            box-shadow: inset 0 0 0 1px rgba(249, 115, 22, 0.08);
+        }
+
+        .brand-caption {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: #94a3b8;
+            margin-bottom: 6px;
+            font-weight: 700;
+        }
+
+        .login-title {
+            font-size: 29px;
+            font-weight: 800;
+            line-height: 1.15;
+            margin: 0;
+            color: var(--text-strong);
+        }
+
+        .login-subtitle {
+            color: var(--text-soft);
+            margin: 0 0 24px;
+            line-height: 1.65;
+            font-size: 14px;
+        }
+
+        .login-hint {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 20px;
+            padding: 14px 16px;
+            border-radius: 18px;
+            background: #fff7ed;
+            color: #9a3412;
+            border: 1px solid rgba(249, 115, 22, 0.12);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .login-hint i {
+            margin-top: 2px;
+            color: var(--brand);
+        }
+
+        .alert {
+            border-radius: 16px;
+            border: none;
+            padding: 14px 16px;
+            font-size: 14px;
+            margin-bottom: 18px;
+        }
+
+        .form-group {
             margin-bottom: 16px;
+        }
+
+        .field-label {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            color: #334155;
+        }
+
+        .field-wrap {
+            position: relative;
+        }
+
+        .field-icon {
+            position: absolute;
+            top: 50%;
+            left: 16px;
+            transform: translateY(-50%);
+            color: #94a3b8;
+            font-size: 15px;
+            pointer-events: none;
+        }
+
+        .form-control {
+            height: 54px;
+            border-radius: 16px;
+            border: 1px solid var(--line);
+            background: var(--field);
+            padding: 0 16px 0 46px;
+            font-size: 15px;
+            color: var(--text-strong);
+            transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+            box-shadow: none;
+        }
+
+        .form-control::placeholder {
+            color: #94a3b8;
+        }
+
+        .form-control:focus {
+            border-color: rgba(249, 115, 22, 0.45);
+            background: #fff;
+            box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.12);
+        }
+
+        .password-input {
+            padding-right: 52px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            top: 50%;
+            right: 8px;
+            transform: translateY(-50%);
+            border: none;
+            background: transparent;
+            color: #64748b;
+            width: 42px;
+            height: 42px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color .18s ease, color .18s ease;
+        }
+
+        .password-toggle:hover,
+        .password-toggle:focus {
+            outline: none;
+            background: rgba(15, 23, 42, 0.06);
+            color: var(--text-strong);
+        }
+
+        .form-check {
+            margin: 8px 0 22px;
+            padding-left: 32px;
+        }
+
+        .form-check-input {
+            width: 18px;
+            height: 18px;
+            margin-left: -30px;
+            margin-top: 2px;
+            border-radius: 6px;
+            border-color: #cbd5e1;
+        }
+
+        .form-check-input:checked {
+            background-color: var(--brand);
+            border-color: var(--brand);
+        }
+
+        .form-check-label {
+            font-size: 14px;
+            color: var(--text-soft);
+            line-height: 1.5;
+        }
+
+        .btn-login {
+            width: 100%;
+            height: 56px;
+            border: none;
+            border-radius: 18px;
+            background: linear-gradient(135deg, var(--brand), #fb923c);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            box-shadow: 0 16px 30px rgba(249, 115, 22, 0.28);
+            transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+        }
+
+        .btn-login:hover,
+        .btn-login:focus {
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 18px 34px rgba(249, 115, 22, 0.34);
+        }
+
+        .btn-login:disabled {
+            opacity: 0.78;
+            transform: none;
+            box-shadow: 0 12px 24px rgba(249, 115, 22, 0.18);
+        }
+
+        .login-foot {
+            margin-top: 18px;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .login-foot strong {
+            color: #475569;
+            font-weight: 700;
+        }
+
+        @@media (max-width: 991.98px) {
+            .auth-shell {
+                max-width: 620px;
+                grid-template-columns: 1fr;
+            }
+
+            .auth-hero {
+                min-height: unset;
+                padding: 30px 24px 26px;
+            }
+
+            .auth-hero::before {
+                inset: 18px;
+            }
+
+            .hero-title {
+                max-width: none;
+            }
+
+            .hero-points {
+                grid-template-columns: 1fr;
+            }
+
+            .login-panel {
+                padding: 18px;
+                border-left: none;
+                border-top: 1px solid rgba(255, 255, 255, 0.12);
+            }
+        }
+
+        @@media (max-width: 575.98px) {
+            body {
+                padding: 14px;
+            }
+
+            .auth-shell {
+                border-radius: 24px;
+            }
+
+            .auth-hero {
+                padding: 22px 18px 20px;
+            }
+
+            .hero-title {
+                font-size: 30px;
+            }
+
+            .hero-copy {
+                font-size: 14px;
+            }
+
+            .hero-foot {
+                align-items: flex-start;
+            }
+
+            .login-panel {
+                padding: 12px;
+            }
+
+            .login-card {
+                border-radius: 22px;
+                padding: 22px 18px;
+            }
+
+            .brand-row {
+                gap: 12px;
+                margin-bottom: 20px;
+            }
+
+            .brand-icon {
+                width: 54px;
+                height: 54px;
+                border-radius: 18px;
+            }
+
+            .login-title {
+                font-size: 24px;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="login-card">
-        <div class="brand-icon">
-            <i class="fas fa-gavel"></i>
-        </div>
+    <div class="auth-shell">
+        <section class="auth-hero">
+            <div class="hero-inner">
+                <div class="hero-badge">
+                    <i class="fas fa-shield-alt"></i>
+                    Cổng điều hành trọng tài Hanaka Sport
+                </div>
 
-        <div class="login-title">Đăng nhập trọng tài</div>
-        <div class="login-subtitle">Đăng nhập để xem và chấm điểm các trận được phân công.</div>
+                <h1 class="hero-title">Chấm điểm nhanh, rõ, chuẩn cho từng trận đấu được phân công.</h1>
+                <p class="hero-copy">
+                    Đăng nhập để theo dõi lịch thi đấu của riêng bạn, cập nhật tỷ số ngay tại sân và lưu lại toàn bộ lịch sử thao tác chấm điểm trong cùng một luồng làm việc.
+                </p>
 
-        <div id="errBox" class="alert alert-danger d-none"></div>
+                <div class="hero-points">
+                    <article class="hero-point">
+                        <div class="hero-point__icon">
+                            <i class="fas fa-table-tennis"></i>
+                        </div>
+                        <h3>Trận được phân công</h3>
+                        <p>Danh sách trận đấu hiển thị đúng theo tài khoản trọng tài đang đăng nhập.</p>
+                    </article>
 
-        <form id="loginForm">
-            <div class="form-group">
-                <label>Email</label>
-                <input class="form-control" id="email" type="email" placeholder="you@example.com" />
+                    <article class="hero-point">
+                        <div class="hero-point__icon">
+                            <i class="fas fa-stopwatch"></i>
+                        </div>
+                        <h3>Chấm đúng thời điểm</h3>
+                        <p>Hệ thống chỉ mở quyền chấm điểm khi trận đã đến giờ thi đấu.</p>
+                    </article>
+
+                    <article class="hero-point">
+                        <div class="hero-point__icon">
+                            <i class="fas fa-history"></i>
+                        </div>
+                        <h3>Lưu lịch sử thao tác</h3>
+                        <p>Mỗi lần cập nhật tỷ số đều được ghi nhận để dễ kiểm tra lại khi cần.</p>
+                    </article>
+                </div>
             </div>
 
-            <div class="form-group">
-                <label>Mật khẩu</label>
-                <input class="form-control" id="password" type="password" placeholder="Nhập mật khẩu" />
+            <div class="hero-foot">
+                <div class="hero-foot__seal">
+                    <i class="fas fa-gavel"></i>
+                </div>
+                <div class="hero-foot__text">
+                    <span class="hero-foot__label">Referee Portal</span>
+                    <div class="hero-foot__title">Giao diện tối ưu cho desktop lẫn điện thoại, tập trung vào thao tác nhanh tại thời điểm thi đấu.</div>
+                </div>
             </div>
+        </section>
 
-            <div class="form-group form-check">
-                <input type="checkbox" class="form-check-input" id="rememberMe" />
-                <label class="form-check-label" for="rememberMe">Ghi nhớ đăng nhập</label>
+        <section class="login-panel">
+            <div class="login-card">
+                <div class="brand-row">
+                    <div class="brand-icon">
+                        <i class="fas fa-gavel"></i>
+                    </div>
+
+                    <div>
+                        <div class="brand-caption">Referee Login</div>
+                        <h2 class="login-title">Đăng nhập trọng tài</h2>
+                    </div>
+                </div>
+
+                <p class="login-subtitle">
+                    Sử dụng email và mật khẩu tài khoản của bạn để truy cập khu vực theo dõi và chấm điểm trận đấu.
+                </p>
+
+                <div class="login-hint">
+                    <i class="fas fa-info-circle"></i>
+                    <div>Tài khoản cần có quyền trọng tài hoặc quản trị viên để mở được khu vực chấm điểm sau khi đăng nhập.</div>
+                </div>
+
+                <div id="errBox" class="alert alert-danger d-none"></div>
+
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label class="field-label" for="email">Email đăng nhập</label>
+                        <div class="field-wrap">
+                            <span class="field-icon">
+                                <i class="far fa-envelope"></i>
+                            </span>
+                            <input class="form-control" id="email" type="email" placeholder="you@example.com" autocomplete="username" />
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="field-label" for="password">Mật khẩu</label>
+                        <div class="field-wrap">
+                            <span class="field-icon">
+                                <i class="fas fa-lock"></i>
+                            </span>
+                            <input class="form-control password-input" id="password" type="password" placeholder="Nhập mật khẩu" autocomplete="current-password" />
+                            <button class="password-toggle" type="button" id="togglePassword" aria-label="Hiện mật khẩu">
+                                <i class="far fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group form-check">
+                        <input type="checkbox" class="form-check-input" id="rememberMe" />
+                        <label class="form-check-label" for="rememberMe">Ghi nhớ đăng nhập trên thiết bị này</label>
+                    </div>
+
+                    <button class="btn-login" type="submit" id="btnLogin">
+                        <i class="fas fa-sign-in-alt"></i> Đăng nhập vào portal
+                    </button>
+                </form>
+
+                <div class="login-foot">
+                    Truy cập dành cho <strong>trọng tài được phân công</strong> và <strong>quản trị viên</strong>.
+                </div>
             </div>
-
-            <button class="btn btn-primary btn-block" type="submit" id="btnLogin">
-                <i class="fas fa-sign-in-alt"></i> Đăng nhập
-            </button>
-        </form>
+        </section>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
@@ -107,6 +694,17 @@
                 box.classList.add("d-none");
                 box.textContent = "";
             }
+
+            $id("togglePassword").addEventListener("click", () => {
+                const passwordInput = $id("password");
+                const toggleBtn = $id("togglePassword");
+                const icon = toggleBtn.querySelector("i");
+                const isHidden = passwordInput.type === "password";
+
+                passwordInput.type = isHidden ? "text" : "password";
+                toggleBtn.setAttribute("aria-label", isHidden ? "Ẩn mật khẩu" : "Hiện mật khẩu");
+                icon.className = isHidden ? "far fa-eye-slash" : "far fa-eye";
+            });
 
             $id("loginForm").addEventListener("submit", async (e) => {
                 e.preventDefault();
@@ -137,7 +735,7 @@
                     showErr(err?.response?.data?.message || err?.message || "Đăng nhập thất bại.");
                 } finally {
                     btn.disabled = false;
-                    btn.innerHTML = `<i class="fas fa-sign-in-alt"></i> Đăng nhập`;
+                    btn.innerHTML = `<i class="fas fa-sign-in-alt"></i> Đăng nhập vào portal`;
                 }
             });
         })();
