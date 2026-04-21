@@ -82,6 +82,14 @@
                         <label>Thứ tự sắp xếp</label>
                         <input id="sortOrder" type="number" class="form-control" value="0" />
                     </div>
+
+                    <div class="form-group" id="bulkCreateWrap">
+                        <label>Số lượng tạo</label>
+                        <input id="createCount" type="number" class="form-control" value="1" min="1" max="32" />
+                        <small class="text-muted">
+                            Khi tạo nhiều, nên nhập dạng <b>R1</b> và <b>Vòng 1</b> để hệ thống tự tăng thành R2, R3...
+                        </small>
+                    </div>
                 </div>
 
                 <div class="modal-footer">
@@ -135,6 +143,52 @@
             const box = $id("formErr");
             box.classList.add("d-none");
             box.textContent = "";
+          }
+
+          function parseTrailingNumber(value){
+            const normalized = String(value || "").trim();
+            const match = normalized.match(/^(.*?)(\d+)$/);
+            if(!match) return null;
+            return {
+              prefix: match[1],
+              start: Number(match[2]),
+              width: match[2].length
+            };
+          }
+
+          function buildRoundKey(baseKey, index){
+            const normalized = String(baseKey || "").trim();
+            const numeric = parseTrailingNumber(normalized);
+            if(numeric){
+              return `${numeric.prefix}${String(numeric.start + index).padStart(numeric.width, "0")}`;
+            }
+            if(!normalized) return `R${index + 1}`;
+            return index === 0 ? normalized : `${normalized}${index + 1}`;
+          }
+
+          function buildRoundLabel(baseLabel, generatedKey, index){
+            const normalized = String(baseLabel || "").trim();
+            const numeric = parseTrailingNumber(normalized);
+            if(numeric){
+              return `${numeric.prefix}${String(numeric.start + index).padStart(numeric.width, "0")}`;
+            }
+
+            if(!normalized){
+              const keyNumeric = parseTrailingNumber(generatedKey);
+              return keyNumeric ? `Vòng ${keyNumeric.start}` : generatedKey;
+            }
+
+            return index === 0 ? normalized : `${normalized} ${index + 1}`;
+          }
+
+          function setCreateModeUI(isCreate){
+            const wrap = $id("bulkCreateWrap");
+            const countInput = $id("createCount");
+            if(wrap) wrap.classList.toggle("d-none", !isCreate);
+            if(countInput){
+              countInput.disabled = !isCreate;
+              if(!isCreate) countInput.value = "1";
+            }
           }
 
           function rowHtml(x){
@@ -195,8 +249,10 @@
 
             $id("roundKey").disabled = false;
             $id("roundKey").value = "R1";
-            $id("roundLabel").value = "";
+            $id("roundLabel").value = "Vòng 1";
             $id("sortOrder").value = 0;
+            $id("createCount").value = 1;
+            setCreateModeUI(true);
 
             $("#modalRound").modal("show");
           }
@@ -211,17 +267,19 @@
             $id("roundKey").disabled = true; // tránh đổi key để không vỡ link group/match
             $id("roundLabel").value = label || "";
             $id("sortOrder").value = sortOrder ?? 0;
+            setCreateModeUI(false);
 
             $("#modalRound").modal("show");
           };
 
           window.delRound = async (id) => {
-            if(!confirm("Bạn có chắc muốn xóa vòng đấu này không? (sẽ xóa luôn bảng đấu/trận đấu nếu có)")) return;
+            if(!confirm("Bạn có chắc muốn xóa vòng đấu này không?")) return;
             try{
               await axios.delete(`${API}/${id}`);
               await load();
             }catch(err){
-              alert(err?.response?.data?.message || err?.message || "Xóa thất bại.");
+              const msg = err?.response?.data?.message || err?.message || "Xóa thất bại.";
+              alert(msg);
             }
           };
 
@@ -237,6 +295,8 @@
             const key = $id("roundKey").value.trim();
             const label = $id("roundLabel").value.trim();
             const sort = Number($id("sortOrder").value || 0);
+            const createCountRaw = Number($id("createCount").value || 1);
+            const createCount = Number.isFinite(createCountRaw) ? Math.max(1, Math.min(32, Math.floor(createCountRaw))) : 1;
 
             const btn = $id("btnSubmit");
             btn.disabled = true;
@@ -244,7 +304,28 @@
 
             try{
               if(mode === "create"){
-                await axios.post(API, { roundKey: key, roundLabel: label, sortOrder: sort });
+                let created = 0;
+                for(let i = 0; i < createCount; i++){
+                  const generatedKey = buildRoundKey(key, i);
+                  const generatedLabel = buildRoundLabel(label, generatedKey, i);
+                  try{
+                    await axios.post(API, {
+                      roundKey: generatedKey,
+                      roundLabel: generatedLabel,
+                      sortOrder: sort + i
+                    });
+                    created++;
+                  }catch(err){
+                    await load();
+                    const msg = err?.response?.data?.message || err?.message || "Lưu thất bại.";
+                    if(created > 0){
+                      showFormErr(`Đã tạo ${created}/${createCount} vòng đấu. Lỗi ở mục tiếp theo: ${msg}`);
+                    }else{
+                      showFormErr(msg);
+                    }
+                    return;
+                  }
+                }
               }else{
                 await axios.put(`${API}/${id}`, { roundLabel: label, sortOrder: sort });
               }

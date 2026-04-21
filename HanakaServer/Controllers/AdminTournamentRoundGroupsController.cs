@@ -124,7 +124,18 @@ namespace HanakaServer.Controllers
 
             if (g == null) return NotFound(new { message = "Group not found." });
 
-            // FK cascade group -> matches bạn đã set, nên delete group là OK
+            var hasMatches = await _db.TournamentGroupMatches
+                .AsNoTracking()
+                .AnyAsync(x => x.TournamentRoundGroupId == groupId);
+
+            if (hasMatches)
+            {
+                return BadRequest(new
+                {
+                    message = "Không xóa được bảng đấu vì vẫn còn trận đấu bên trong."
+                });
+            }
+
             _db.TournamentRoundGroups.Remove(g);
             await _db.SaveChangesAsync();
 

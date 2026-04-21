@@ -25,6 +25,21 @@
         font-size: 15px;
     }
 
+    .team-code {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        opacity: .8;
+    }
+
+    .team-block {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-width: 0;
+        max-width: 38%;
+    }
+
         .team-name.winner {
             color: #ffc107;
         }
@@ -58,9 +73,172 @@
         background: #fafafa;
     }
 
+    .match-team-selector {
+        border: 1px solid #e3e6f0;
+        border-radius: 12px;
+        padding: 12px;
+        background: #fafbff;
+        height: 100%;
+    }
+
+    .team-select-summary {
+        min-height: 122px;
+        border: 1px dashed #ced4da;
+        border-radius: 10px;
+        padding: 12px;
+        background: #fff;
+    }
+
+        .team-select-summary.empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6c757d;
+        }
+
+    .team-select-code {
+        font-size: 12px;
+        font-weight: 700;
+        color: #4e73df;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        margin-bottom: 6px;
+    }
+
+    .team-select-name {
+        font-size: 15px;
+        font-weight: 700;
+        color: #2e3a59;
+        margin-bottom: 6px;
+    }
+
+    .team-select-meta {
+        font-size: 12px;
+        color: #6c757d;
+        margin-bottom: 4px;
+    }
+
+    .team-search-note {
+        font-size: 11px;
+    }
+
+    .team-picker-overlay {
+        position: fixed;
+        inset: 0;
+        display: none;
+        z-index: 1080;
+    }
+
+        .team-picker-overlay.active {
+            display: block;
+        }
+
+    .team-picker-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, .25);
+    }
+
+    .team-picker-drawer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: min(560px, 100%);
+        height: 100%;
+        background: #fff;
+        box-shadow: -10px 0 30px rgba(0, 0, 0, .15);
+        transform: translateX(100%);
+        transition: transform .2s ease;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .team-picker-overlay.active .team-picker-drawer {
+        transform: translateX(0);
+    }
+
+    .team-picker-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 18px;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .team-picker-body {
+        padding: 16px 18px;
+        overflow-y: auto;
+    }
+
+    .team-picker-list {
+        display: grid;
+        gap: 12px;
+    }
+
+    .team-picker-card {
+        border: 1px solid #e3e6f0;
+        border-radius: 12px;
+        padding: 12px;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, .03);
+    }
+
+        .team-picker-card.is-selected {
+            border-color: #4e73df;
+            box-shadow: 0 0 0 2px rgba(78, 115, 223, .12);
+        }
+
+        .team-picker-card.is-disabled {
+            opacity: .7;
+        }
+
+    .team-picker-card-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+    }
+
+    .team-picker-card-code {
+        font-size: 12px;
+        font-weight: 700;
+        color: #4e73df;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+        margin-bottom: 4px;
+    }
+
+    .team-picker-card-name {
+        font-size: 15px;
+        font-weight: 700;
+        color: #2e3a59;
+    }
+
+    .team-picker-player,
+    .team-picker-card-meta {
+        font-size: 12px;
+        color: #6c757d;
+        margin-bottom: 4px;
+    }
+
+    .team-picker-empty {
+        border: 1px dashed #ced4da;
+        border-radius: 12px;
+        padding: 18px;
+        text-align: center;
+        color: #6c757d;
+        background: #fafafa;
+    }
+
     @@media (max-width: 992px) {
         .grid {
             grid-template-columns: 1fr;
+        }
+
+        .team-picker-drawer {
+            width: 100%;
         }
     }
 </style>
@@ -123,11 +301,53 @@
                     <div class="form-row">
                         <div class="form-group col-md-6">
                             <label>Đội 1 (Đăng ký)</label>
-                            <select class="form-control" id="team1"></select>
+                            <div class="match-team-selector">
+                                <div class="input-group mb-2">
+                                    <input class="form-control"
+                                           id="team1CodeSearch"
+                                           placeholder="Nhập mã đăng ký, ví dụ: 3-0001"
+                                           autocomplete="off" />
+                                    <div class="input-group-append">
+                                        <button class="btn btn-outline-info" type="button" id="btnFindTeam1">
+                                            <i class="fas fa-search"></i> Tìm
+                                        </button>
+                                        <button class="btn btn-outline-primary" type="button" id="btnBrowseTeam1">
+                                            <i class="fas fa-list"></i> Danh sách
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <small class="text-muted team-search-note">Có thể nhập mã đăng ký hoặc tên đội để tìm nhanh.</small>
+                                    <button class="btn btn-link btn-sm p-0" type="button" id="btnClearTeam1">Bỏ chọn</button>
+                                </div>
+                                <div class="team-select-summary empty" id="team1Summary">Chưa chọn đội 1.</div>
+                                <select class="form-control d-none" id="team1"></select>
+                            </div>
                         </div>
                         <div class="form-group col-md-6">
                             <label>Đội 2 (Đăng ký)</label>
-                            <select class="form-control" id="team2"></select>
+                            <div class="match-team-selector">
+                                <div class="input-group mb-2">
+                                    <input class="form-control"
+                                           id="team2CodeSearch"
+                                           placeholder="Nhập mã đăng ký, ví dụ: 3-0002"
+                                           autocomplete="off" />
+                                    <div class="input-group-append">
+                                        <button class="btn btn-outline-info" type="button" id="btnFindTeam2">
+                                            <i class="fas fa-search"></i> Tìm
+                                        </button>
+                                        <button class="btn btn-outline-primary" type="button" id="btnBrowseTeam2">
+                                            <i class="fas fa-list"></i> Danh sách
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <small class="text-muted team-search-note">Có thể nhập mã đăng ký hoặc tên đội để tìm nhanh.</small>
+                                    <button class="btn btn-link btn-sm p-0" type="button" id="btnClearTeam2">Bỏ chọn</button>
+                                </div>
+                                <div class="team-select-summary empty" id="team2Summary">Chưa chọn đội 2.</div>
+                                <select class="form-control d-none" id="team2"></select>
+                            </div>
                         </div>
                     </div>
 
@@ -185,6 +405,41 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<div class="team-picker-overlay" id="teamPickerOverlay" aria-hidden="true">
+    <div class="team-picker-backdrop" id="teamPickerBackdrop"></div>
+    <div class="team-picker-drawer">
+        <div class="team-picker-header">
+            <div>
+                <h5 class="mb-1" id="teamPickerTitle">Chọn đội đăng ký</h5>
+                <div class="small text-muted" id="teamPickerSubtitle">Danh sách đội đăng ký thành công của giải.</div>
+            </div>
+            <button class="btn btn-sm btn-outline-secondary" type="button" id="btnCloseTeamPicker">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <div class="team-picker-body">
+            <div class="input-group mb-2">
+                <input class="form-control"
+                       id="teamPickerSearch"
+                       placeholder="Tìm theo mã đăng ký, tên đội hoặc tên người chơi..."
+                       autocomplete="off" />
+                <div class="input-group-append">
+                    <button class="btn btn-outline-info" type="button" id="btnApplyTeamPickerSearch">
+                        <i class="fas fa-search"></i> Lọc
+                    </button>
+                </div>
+            </div>
+
+            <div class="small text-muted mb-3" id="teamPickerHint">
+                Có thể tìm theo mã đăng ký, tên đội hoặc tên người chơi.
+            </div>
+
+            <div class="team-picker-list" id="teamPickerList"></div>
         </div>
     </div>
 </div>
@@ -263,6 +518,8 @@
             };
 
             let SHOW_ONLY_COMPLETED = false;
+            let TEAM_PICKER_TARGET_SLOT = 1;
+            let TEAM_PICKER_KEYWORD = "";
 
             const esc = (s) => String(s || "")
                 .replaceAll("&", "&amp;")
@@ -270,6 +527,12 @@
                 .replaceAll(">", "&gt;")
                 .replaceAll('"', "&quot;")
                 .replaceAll("'", "&#039;");
+
+            const normalizeSearch = (value) => String(value || "")
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "")
+                .trim();
 
             const fmt = (dt) => {
                 if (!dt) return "—";
@@ -299,6 +562,11 @@
                 const mi = String(d.getMinutes()).padStart(2, "0");
 
                 return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+            };
+
+            const formatDecimal = (value) => {
+                const num = Number(value ?? 0);
+                return Number.isFinite(num) ? num.toFixed(2) : "0.00";
             };
 
             function showErr(msg) {
@@ -368,28 +636,264 @@
                     : `${reg.player1Name}`;
             }
 
+            function buildPlayerMeta(label, name, pickedLevel, verified, singleLevel, doubleLevel) {
+                if (!name) return "";
+
+                return `
+                    <div class="team-select-meta">
+                        ${esc(label)}: <b>${esc(name)}</b>
+                        • Level dùng giải: ${formatDecimal(pickedLevel)}
+                        • Single: ${formatDecimal(singleLevel)}
+                        • Double: ${formatDecimal(doubleLevel)}
+                        • ${verified ? "Đã xác minh" : "Chưa xác minh"}
+                    </div>
+                `;
+            }
+
+            function getRegistrationById(registrationId) {
+                return (CACHE.regs || []).find(x => x.registrationId === registrationId) || null;
+            }
+
+            function getRegCode(registrationId) {
+                const reg = getRegistrationById(registrationId);
+                return reg?.regCode || `#${registrationId}`;
+            }
+
+            function buildTeamSummaryHtml(reg) {
+                if (!reg) return "";
+
+                return `
+                    <div class="team-select-code">${esc(reg.regCode || "")}</div>
+                    <div class="team-select-name">${esc(buildTeamText(reg))}</div>
+                    ${buildPlayerMeta("VĐV 1", reg.player1Name, reg.player1Level, reg.player1Verified, reg.player1LevelSingle, reg.player1LevelDouble)}
+                    ${buildPlayerMeta("VĐV 2", reg.player2Name, reg.player2Level, reg.player2Verified, reg.player2LevelSingle, reg.player2LevelDouble)}
+                    <div class="team-select-meta">Điểm: <b>${formatDecimal(reg.points)}</b> • Thanh toán: ${reg.paid ? "Đã thanh toán" : "Chưa thanh toán"}</div>
+                    <div class="team-select-meta">BT Code: ${esc(reg.btCode || "—")} • Đăng ký: ${fmt(reg.regTime || reg.createdAt)}</div>
+                `;
+            }
+
+            function setTeamSummary(slot, reg) {
+                const box = $id(`team${slot}Summary`);
+                if (!box) return;
+
+                if (!reg) {
+                    box.classList.add("empty");
+                    box.textContent = `Chưa chọn đội ${slot}.`;
+                    return;
+                }
+
+                box.classList.remove("empty");
+                box.innerHTML = buildTeamSummaryHtml(reg);
+            }
+
+            function clearTeamSelection(slot) {
+                const select = $id(`team${slot}`);
+                const search = $id(`team${slot}CodeSearch`);
+
+                if (select) select.value = "";
+                if (search) search.value = "";
+
+                setTeamSummary(slot, null);
+            }
+
+            function setTeamSelection(slot, registrationId) {
+                hideFormErr("formErr");
+
+                const normalizedId = Number(registrationId || 0);
+                if (!normalizedId) {
+                    clearTeamSelection(slot);
+                    return true;
+                }
+
+                const otherSlot = slot === 1 ? 2 : 1;
+                const otherId = Number($id(`team${otherSlot}`).value || 0);
+                if (otherId && otherId === normalizedId) {
+                    showFormErr(`Đội này đang được chọn ở Đội ${otherSlot}. Vui lòng chọn đội khác.`, "formErr");
+                    return false;
+                }
+
+                const reg = getRegistrationById(normalizedId);
+                if (!reg) {
+                    showFormErr("Không tìm thấy đội đăng ký tương ứng.", "formErr");
+                    return false;
+                }
+
+                $id(`team${slot}`).value = String(normalizedId);
+                $id(`team${slot}CodeSearch`).value = reg.regCode || "";
+                setTeamSummary(slot, reg);
+                return true;
+            }
+
+            function buildRegistrationSearchText(reg) {
+                return normalizeSearch([
+                    reg?.regCode,
+                    buildTeamText(reg),
+                    reg?.player1Name,
+                    reg?.player2Name,
+                    reg?.btCode
+                ].filter(Boolean).join(" "));
+            }
+
+            function findMatchingRegs(keyword) {
+                const normalized = normalizeSearch(keyword);
+                const regs = CACHE.regs || [];
+                if (!normalized) return regs;
+
+                return regs.filter(reg => buildRegistrationSearchText(reg).includes(normalized));
+            }
+
+            function buildPickerCardHtml(reg, slot, otherSlotValue, currentValue) {
+                const selected = currentValue === reg.registrationId;
+                const disabled = otherSlotValue === reg.registrationId;
+                const cardClasses = [
+                    "team-picker-card",
+                    selected ? "is-selected" : "",
+                    disabled ? "is-disabled" : ""
+                ].filter(Boolean).join(" ");
+
+                const actionHtml = disabled
+                    ? `<button class="btn btn-sm btn-outline-secondary" type="button" disabled>Đang ở Đội ${slot === 1 ? 2 : 1}</button>`
+                    : `<button class="btn btn-sm ${selected ? "btn-primary" : "btn-outline-primary"}" type="button" onclick="pickTeam(${reg.registrationId})">
+                            ${selected ? "Đã chọn" : "Chọn đội này"}
+                       </button>`;
+
+                return `
+                    <div class="${cardClasses}">
+                        <div class="team-picker-card-header">
+                            <div>
+                                <div class="team-picker-card-code">${esc(reg.regCode || "")}</div>
+                                <div class="team-picker-card-name">${esc(buildTeamText(reg))}</div>
+                            </div>
+                            ${actionHtml}
+                        </div>
+
+                        <div class="team-picker-player">VĐV 1: <b>${esc(reg.player1Name || "—")}</b> • Level giải: ${formatDecimal(reg.player1Level)} • Single: ${formatDecimal(reg.player1LevelSingle)} • Double: ${formatDecimal(reg.player1LevelDouble)}</div>
+                        ${reg.player2Name
+                            ? `<div class="team-picker-player">VĐV 2: <b>${esc(reg.player2Name)}</b> • Level giải: ${formatDecimal(reg.player2Level)} • Single: ${formatDecimal(reg.player2LevelSingle)} • Double: ${formatDecimal(reg.player2LevelDouble)}</div>`
+                            : `<div class="team-picker-player">VĐV 2: <b>Chưa có</b></div>`}
+                        <div class="team-picker-card-meta">Điểm: <b>${formatDecimal(reg.points)}</b> • Thanh toán: ${reg.paid ? "Đã thanh toán" : "Chưa thanh toán"} • BT Code: ${esc(reg.btCode || "—")}</div>
+                        <div class="team-picker-card-meta">Đăng ký: ${fmt(reg.regTime || reg.createdAt)} • Trạng thái: ${reg.success ? "Hợp lệ" : "Chưa hợp lệ"}</div>
+                    </div>
+                `;
+            }
+
+            function renderTeamPickerList() {
+                const box = $id("teamPickerList");
+                const slot = TEAM_PICKER_TARGET_SLOT;
+                const currentValue = Number($id(`team${slot}`).value || 0);
+                const otherSlotValue = Number($id(`team${slot === 1 ? 2 : 1}`).value || 0);
+                const items = findMatchingRegs(TEAM_PICKER_KEYWORD);
+
+                if (!items.length) {
+                    box.innerHTML = `<div class="team-picker-empty">Không tìm thấy đội nào khớp với từ khóa hiện tại.</div>`;
+                    return;
+                }
+
+                box.innerHTML = items.map(reg => buildPickerCardHtml(reg, slot, otherSlotValue, currentValue)).join("");
+            }
+
+            function openTeamPicker(slot, keyword = "") {
+                TEAM_PICKER_TARGET_SLOT = slot;
+                TEAM_PICKER_KEYWORD = (keyword || $id(`team${slot}CodeSearch`).value || "").trim();
+
+                $id("teamPickerTitle").textContent = `Chọn đội cho Đội ${slot}`;
+                $id("teamPickerSubtitle").textContent = `Danh sách đội đăng ký thành công của giải.`;
+                $id("teamPickerSearch").value = TEAM_PICKER_KEYWORD;
+                $id("teamPickerHint").textContent = TEAM_PICKER_KEYWORD
+                    ? `Đang lọc theo từ khóa: "${TEAM_PICKER_KEYWORD}".`
+                    : "Có thể tìm theo mã đăng ký, tên đội hoặc tên người chơi.";
+
+                renderTeamPickerList();
+
+                const overlay = $id("teamPickerOverlay");
+                overlay.classList.add("active");
+                overlay.setAttribute("aria-hidden", "false");
+
+                setTimeout(() => $id("teamPickerSearch").focus(), 10);
+            }
+
+            function closeTeamPicker() {
+                const overlay = $id("teamPickerOverlay");
+                overlay.classList.remove("active");
+                overlay.setAttribute("aria-hidden", "true");
+            }
+
+            function findTeamByCode(slot) {
+                hideFormErr("formErr");
+
+                const keyword = ($id(`team${slot}CodeSearch`).value || "").trim();
+                if (!keyword) {
+                    showFormErr(`Vui lòng nhập mã đăng ký hoặc tên đội cho Đội ${slot}.`, "formErr");
+                    return;
+                }
+
+                const normalized = normalizeSearch(keyword);
+                const regs = CACHE.regs || [];
+                const exactCodeMatches = regs.filter(reg => normalizeSearch(reg.regCode) === normalized);
+                const startsWithCodeMatches = regs.filter(reg => normalizeSearch(reg.regCode).startsWith(normalized));
+                const generalMatches = findMatchingRegs(keyword);
+                const matches = exactCodeMatches.length
+                    ? exactCodeMatches
+                    : startsWithCodeMatches.length
+                        ? startsWithCodeMatches
+                        : generalMatches;
+
+                if (!matches.length) {
+                    showFormErr("Không tìm thấy đội phù hợp với từ khóa đã nhập.", "formErr");
+                    openTeamPicker(slot, keyword);
+                    return;
+                }
+
+                if (matches.length === 1) {
+                    setTeamSelection(slot, matches[0].registrationId);
+                    return;
+                }
+
+                showFormErr(`Có ${matches.length} đội phù hợp. Hãy chọn trong danh sách bên phải.`, "formErr");
+                openTeamPicker(slot, keyword);
+            }
+
             function fillTeamsSelects(selected1, selected2) {
                 const s1 = $id("team1");
                 const s2 = $id("team2");
 
-                const opts = (CACHE.regs || []).map(r => {
+                const opts = [`<option value="">-- Chọn đội --</option>`].concat((CACHE.regs || []).map(r => {
                     const name = buildTeamText(r);
                     return `<option value="${r.registrationId}">${esc(r.regCode)} — ${esc(name)}</option>`;
-                });
+                }));
 
                 s1.innerHTML = opts.join("");
                 s2.innerHTML = opts.join("");
 
-                if (selected1) s1.value = String(selected1);
-                if (selected2) s2.value = String(selected2);
+                if (selected1) {
+                    setTeamSelection(1, selected1);
+                } else {
+                    clearTeamSelection(1);
+                }
+
+                if (selected2) {
+                    setTeamSelection(2, selected2);
+                } else {
+                    clearTeamSelection(2);
+                }
             }
 
             function cardHtml(m) {
                 const completed = !!m.isCompleted;
+                const scoreTeam1 = Number(m.scoreTeam1 || 0);
+                const scoreTeam2 = Number(m.scoreTeam2 || 0);
+                const hasStartedByScore = scoreTeam1 !== 0 || scoreTeam2 !== 0;
                 const winnerId = m.winnerRegistrationId;
                 const t1Winner = completed && winnerId && winnerId === m.team1RegistrationId;
                 const t2Winner = completed && winnerId && winnerId === m.team2RegistrationId;
                 const cardCls = `match-card ${completed ? "completed" : ""}`;
+                const team1RegCode = getRegCode(m.team1RegistrationId);
+                const team2RegCode = getRegCode(m.team2RegistrationId);
+                const statusBadgeHtml = completed
+                    ? `<span class="badge badge-light">ĐÃ KẾT THÚC</span>`
+                    : hasStartedByScore
+                        ? `<span class="badge badge-info">ĐANG DIỄN RA</span>`
+                        : `<span class="badge badge-secondary">CHƯA DIỄN RA</span>`;
 
                 const videoLine = m.videoUrl
                     ? `<div class="meta mt-1 ${completed ? "video-link-light" : ""}">
@@ -445,15 +949,19 @@
                         <hr style="opacity:.35" />
 
                         <div class="d-flex justify-content-between align-items-center">
-                            <div class="team-name ${t1Winner ? "winner" : ""}">${esc(m.team1Text)}</div>
+                            <div class="team-block">
+                                <div class="team-code">Mã ĐK: ${esc(team1RegCode)}</div>
+                                <div class="team-name ${t1Winner ? "winner" : ""}">${esc(m.team1Text)}</div>
+                            </div>
                             <div class="score">${Number(m.scoreTeam1 || 0)} - ${Number(m.scoreTeam2 || 0)}</div>
-                            <div class="team-name text-right ${t2Winner ? "winner" : ""}">${esc(m.team2Text)}</div>
+                            <div class="team-block text-right align-items-end">
+                                <div class="team-code">Mã ĐK: ${esc(team2RegCode)}</div>
+                                <div class="team-name ${t2Winner ? "winner" : ""}">${esc(m.team2Text)}</div>
+                            </div>
                         </div>
 
                         <div class="mt-2 meta">
-                            ${completed
-                                ? `<span class="badge badge-light">ĐÃ KẾT THÚC</span>`
-                                : `<span class="badge badge-secondary">CHƯA DIỄN RA</span>`}
+                            ${statusBadgeHtml}
                             ${completed && winnerId
                                 ? `<span class="ml-2 badge badge-warning">NGƯỜI THẮNG: Đội ${m.winnerTeam}</span>`
                                 : ``}
@@ -512,6 +1020,7 @@
                 setRefereeInfo(null);
 
                 fillTeamsSelects(null, null);
+                closeTeamPicker();
             }
 
             function openCreate() {
@@ -545,7 +1054,8 @@
                         phone: m.refereePhone || "",
                         email: m.refereeEmail || "",
                         city: m.refereeCity || "",
-                        verified: m.refereeVerified || false,
+                        refereeVerified: m.refereeVerified || false,
+                        refereeType: m.refereeType || "REFEREE",
                         isActive: m.refereeIsActive ?? true
                     });
                 } else {
@@ -711,6 +1221,58 @@
                 $id("refereeUserIdInput").value = "";
                 setRefereeInfo(null);
             });
+
+            $id("btnFindTeam1").addEventListener("click", () => findTeamByCode(1));
+            $id("btnFindTeam2").addEventListener("click", () => findTeamByCode(2));
+
+            $id("btnBrowseTeam1").addEventListener("click", () => openTeamPicker(1));
+            $id("btnBrowseTeam2").addEventListener("click", () => openTeamPicker(2));
+
+            $id("btnClearTeam1").addEventListener("click", () => clearTeamSelection(1));
+            $id("btnClearTeam2").addEventListener("click", () => clearTeamSelection(2));
+
+            $id("team1CodeSearch").addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    findTeamByCode(1);
+                }
+            });
+
+            $id("team2CodeSearch").addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    findTeamByCode(2);
+                }
+            });
+
+            $id("btnApplyTeamPickerSearch").addEventListener("click", () => {
+                TEAM_PICKER_KEYWORD = ($id("teamPickerSearch").value || "").trim();
+                $id("teamPickerHint").textContent = TEAM_PICKER_KEYWORD
+                    ? `Đang lọc theo từ khóa: "${TEAM_PICKER_KEYWORD}".`
+                    : "Có thể tìm theo mã đăng ký, tên đội hoặc tên người chơi.";
+                renderTeamPickerList();
+            });
+
+            $id("teamPickerSearch").addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    TEAM_PICKER_KEYWORD = ($id("teamPickerSearch").value || "").trim();
+                    $id("teamPickerHint").textContent = TEAM_PICKER_KEYWORD
+                        ? `Đang lọc theo từ khóa: "${TEAM_PICKER_KEYWORD}".`
+                        : "Có thể tìm theo mã đăng ký, tên đội hoặc tên người chơi.";
+                    renderTeamPickerList();
+                }
+            });
+
+            $id("btnCloseTeamPicker").addEventListener("click", closeTeamPicker);
+            $id("teamPickerBackdrop").addEventListener("click", closeTeamPicker);
+
+            window.pickTeam = (registrationId) => {
+                const ok = setTeamSelection(TEAM_PICKER_TARGET_SLOT, registrationId);
+                if (ok) closeTeamPicker();
+            };
+
+            $("#modalMatch").on("hidden.bs.modal", closeTeamPicker);
 
             document.addEventListener("DOMContentLoaded", load);
         })();

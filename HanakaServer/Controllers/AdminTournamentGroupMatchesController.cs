@@ -34,7 +34,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (g == null)
-                return NotFound(new { message = "Group not found." });
+                return NotFound(new { message = "Không tìm thấy bảng đấu." });
 
             var rm = await _db.TournamentRoundMaps.AsNoTracking()
                 .Where(x => x.TournamentRoundMapId == g.TournamentRoundMapId)
@@ -48,7 +48,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (rm == null)
-                return NotFound(new { message = "RoundMap not found." });
+                return NotFound(new { message = "Không tìm thấy vòng đấu." });
 
             var t = await _db.Tournaments.AsNoTracking()
                 .Where(x => x.TournamentId == rm.TournamentId)
@@ -62,7 +62,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (t == null)
-                return NotFound(new { message = "Tournament not found." });
+                return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             var itemsRaw = await (
                 from m in _db.TournamentGroupMatches.AsNoTracking()
@@ -184,17 +184,17 @@ namespace HanakaServer.Controllers
 
             var g = await _db.TournamentRoundGroups.FirstOrDefaultAsync(x => x.TournamentRoundGroupId == groupId);
             if (g == null)
-                return NotFound(new { message = "Group not found." });
+                return NotFound(new { message = "Không tìm thấy bảng đấu." });
 
             var rm = await _db.TournamentRoundMaps.FirstOrDefaultAsync(x => x.TournamentRoundMapId == g.TournamentRoundMapId);
             if (rm == null)
-                return NotFound(new { message = "RoundMap not found." });
+                return NotFound(new { message = "Không tìm thấy vòng đấu." });
 
             if (dto.Team1RegistrationId <= 0 || dto.Team2RegistrationId <= 0)
-                return BadRequest(new { message = "Team1RegistrationId and Team2RegistrationId are required." });
+                return BadRequest(new { message = "Bắt buộc chọn đủ Đội 1 và Đội 2." });
 
             if (dto.Team1RegistrationId == dto.Team2RegistrationId)
-                return BadRequest(new { message = "Team1 and Team2 cannot be the same." });
+                return BadRequest(new { message = "Đội 1 và Đội 2 không được trùng nhau." });
 
             var regs = await _db.TournamentRegistrations.AsNoTracking()
                 .Where(x => x.TournamentId == rm.TournamentId
@@ -203,10 +203,10 @@ namespace HanakaServer.Controllers
                 .ToListAsync();
 
             if (regs.Count != 2)
-                return BadRequest(new { message = "Registrations not found in this tournament." });
+                return BadRequest(new { message = "Không tìm thấy đăng ký của hai đội trong giải đấu này." });
 
             if (regs.Any(x => !x.Success))
-                return BadRequest(new { message = "Only SUCCESS registrations can be used for matches." });
+                return BadRequest(new { message = "Chỉ được dùng các đăng ký đã duyệt thành công để tạo trận đấu." });
 
             var refereeValidationError = await ValidateAndEnsureRefereeAsync(dto.RefereeUserId);
             if (refereeValidationError != null)
@@ -247,7 +247,7 @@ namespace HanakaServer.Controllers
                 await tx.RollbackAsync();
                 return BadRequest(new
                 {
-                    message = "Create match failed (maybe duplicate pair in this group).",
+                    message = "Tạo trận đấu thất bại. Có thể cặp đội này đã tồn tại trong bảng đấu.",
                     detail = ex.Message
                 });
             }
@@ -262,7 +262,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(x => x.MatchId == matchId && x.TournamentRoundGroupId == groupId);
 
             if (m == null)
-                return NotFound(new { message = "Match not found." });
+                return NotFound(new { message = "Không tìm thấy trận đấu." });
 
             var refereeValidationError = await ValidateAndEnsureRefereeAsync(dto.RefereeUserId);
             if (refereeValidationError != null)
@@ -288,7 +288,7 @@ namespace HanakaServer.Controllers
                 {
                     return BadRequest(new
                     {
-                        message = "Update completed match failed.",
+                        message = "Cập nhật trận đấu đã kết thúc thất bại.",
                         detail = ex.Message
                     });
                 }
@@ -302,7 +302,7 @@ namespace HanakaServer.Controllers
                 var newT2 = dto.Team2RegistrationId ?? m.Team2RegistrationId;
 
                 if (newT1 == newT2)
-                    return BadRequest(new { message = "Team1 and Team2 cannot be the same." });
+                    return BadRequest(new { message = "Đội 1 và Đội 2 không được trùng nhau." });
 
                 m.Team1RegistrationId = newT1;
                 m.Team2RegistrationId = newT2;
@@ -324,7 +324,7 @@ namespace HanakaServer.Controllers
             {
                 return BadRequest(new
                 {
-                    message = "Update match failed (maybe duplicate pair).",
+                    message = "Cập nhật trận đấu thất bại. Có thể cặp đội này đã tồn tại trong bảng đấu.",
                     detail = ex.Message
                 });
             }
@@ -339,7 +339,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(x => x.MatchId == matchId && x.TournamentRoundGroupId == groupId);
 
             if (m == null)
-                return NotFound(new { message = "Match not found." });
+                return NotFound(new { message = "Không tìm thấy trận đấu." });
 
             _db.TournamentGroupMatches.Remove(m);
             await _db.SaveChangesAsync();
@@ -357,13 +357,13 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(x => x.MatchId == matchId && x.TournamentRoundGroupId == groupId);
 
             if (m == null)
-                return NotFound(new { message = "Match not found." });
+                return NotFound(new { message = "Không tìm thấy trận đấu." });
 
             if (dto.ScoreTeam1 < 0 || dto.ScoreTeam2 < 0)
-                return BadRequest(new { message = "Score must be >= 0." });
+                return BadRequest(new { message = "Tỷ số phải lớn hơn hoặc bằng 0." });
 
             if (dto.ScoreTeam1 == dto.ScoreTeam2)
-                return BadRequest(new { message = "No draw supported. ScoreTeam1 must differ ScoreTeam2." });
+                return BadRequest(new { message = "Không hỗ trợ kết quả hòa. Tỷ số hai đội phải khác nhau." });
 
             m.ScoreTeam1 = dto.ScoreTeam1;
             m.ScoreTeam2 = dto.ScoreTeam2;
@@ -436,7 +436,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (refereeRoleId == 0)
-                return "Role REFEREE not found in system.";
+                return "Không tìm thấy vai trò trọng tài trong hệ thống.";
 
             var hasRefereeRole = await _db.UserRoles
                 .AnyAsync(x => x.UserId == resolvedRefereeUserId && x.RoleId == refereeRoleId);

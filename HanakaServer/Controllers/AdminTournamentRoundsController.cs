@@ -120,7 +120,18 @@ namespace HanakaServer.Controllers
 
             if (row == null) return NotFound(new { message = "Round not found." });
 
-            // vì FK cascade từ TournamentRoundMaps -> TournamentRoundGroups, match... bạn đã set CASCADE
+            var hasGroups = await _db.TournamentRoundGroups
+                .AsNoTracking()
+                .AnyAsync(x => x.TournamentRoundMapId == id);
+
+            if (hasGroups)
+            {
+                return BadRequest(new
+                {
+                    message = "Không xóa được vòng đấu vì vẫn còn bảng đấu bên trong."
+                });
+            }
+
             _db.TournamentRoundMaps.Remove(row);
             await _db.SaveChangesAsync();
 
