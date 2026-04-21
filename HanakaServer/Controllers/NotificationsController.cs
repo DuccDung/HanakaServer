@@ -1,5 +1,6 @@
 ﻿using HanakaServer.Data;
 using Microsoft.AspNetCore.Authorization;
+using HanakaServer.Helpers;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
@@ -348,6 +349,8 @@ namespace HanakaServer.Controllers
                     m.MatchId,
                     m.TournamentId,
                     TournamentTitle = t.Title,
+                    TournamentGameType = t.GameType,
+                    TournamentGenderCategory = t.GenderCategory,
                     m.StartAt,
                     m.AddressText,
                     m.CourtText,
@@ -377,6 +380,7 @@ namespace HanakaServer.Controllers
 
             var items = rows.Select(x =>
             {
+                var tournamentType = TournamentTypeHelper.Resolve(x.TournamentGameType, x.TournamentGenderCategory);
                 var isMyTeam1 =
                     x.Team1.Player1UserId == userId ||
                     x.Team1.Player2UserId == userId;
@@ -396,7 +400,11 @@ namespace HanakaServer.Controllers
                     tournament = new
                     {
                         tournamentId = x.TournamentId,
-                        title = x.TournamentTitle
+                        title = x.TournamentTitle,
+                        gameType = x.TournamentGameType,
+                        genderCategory = tournamentType.GenderCategory,
+                        tournamentTypeCode = tournamentType.TournamentTypeCode,
+                        tournamentTypeLabel = tournamentType.TournamentTypeLabel
                     },
 
                     match = new
@@ -488,6 +496,7 @@ namespace HanakaServer.Controllers
                         x.TournamentId,
                         TournamentTitle = x.Tournament.Title,
                         TournamentGameType = x.Tournament.GameType,
+                        TournamentGenderCategory = x.Tournament.GenderCategory,
                         x.RequestedAt,
                         x.ExpiresAt,
                         x.Status,
@@ -498,25 +507,33 @@ namespace HanakaServer.Controllers
                     })
                     .ToListAsync(ct);
 
-                var pendingItems = pendingRows.Select(x => new
+                var pendingItems = pendingRows.Select(x =>
                 {
-                    type = "PAIR_REQUEST",
-                    x.PairRequestId,
-                    x.TournamentId,
-                    tournamentTitle = x.TournamentTitle,
-                    tournamentGameType = x.TournamentGameType,
-                    x.RequestedAt,
-                    x.ExpiresAt,
-                    x.Status,
-                    title = "Lời mời ghép đôi",
-                    message = $"{x.RequestedByName} mời bạn ghép cặp tại giải {x.TournamentTitle}.",
-                    requestedBy = new
+                    var tournamentType = TournamentTypeHelper.Resolve(x.TournamentGameType, x.TournamentGenderCategory);
+
+                    return new
                     {
-                        userId = x.RequestedByUserId,
-                        fullName = x.RequestedByName,
-                        avatarUrl = ToAbsoluteUrl(x.RequestedByAvatar),
-                        verified = x.RequestedByVerified
-                    }
+                        type = "PAIR_REQUEST",
+                        x.PairRequestId,
+                        x.TournamentId,
+                        tournamentTitle = x.TournamentTitle,
+                        tournamentGameType = x.TournamentGameType,
+                        tournamentGenderCategory = tournamentType.GenderCategory,
+                        tournamentTypeCode = tournamentType.TournamentTypeCode,
+                        tournamentTypeLabel = tournamentType.TournamentTypeLabel,
+                        x.RequestedAt,
+                        x.ExpiresAt,
+                        x.Status,
+                        title = "Lời mời ghép đôi",
+                        message = $"{x.RequestedByName} mời bạn ghép cặp tại giải {x.TournamentTitle}.",
+                        requestedBy = new
+                        {
+                            userId = x.RequestedByUserId,
+                            fullName = x.RequestedByName,
+                            avatarUrl = ToAbsoluteUrl(x.RequestedByAvatar),
+                            verified = x.RequestedByVerified
+                        }
+                    };
                 }).ToList();
 
                 return Ok(new

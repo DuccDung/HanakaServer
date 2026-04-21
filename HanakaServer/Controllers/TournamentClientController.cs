@@ -1,5 +1,6 @@
 ﻿using HanakaServer.Data;
 using HanakaServer.Dtos;
+using HanakaServer.Helpers;
 using HanakaServer.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -42,6 +43,7 @@ namespace HanakaServer.Controllers
                     FormatText = x.FormatText,
                     PlayoffType = x.PlayoffType,
                     GameType = x.GameType,
+                    GenderCategory = x.GenderCategory,
                     SingleLimit = x.SingleLimit,
                     DoubleLimit = x.DoubleLimit,
                     LocationText = x.LocationText,
@@ -59,6 +61,8 @@ namespace HanakaServer.Controllers
 
             if (tournament == null)
                 return NotFound(new { message = "Tournament not found." });
+
+            ApplyTournamentType(tournament);
 
             var roundMaps = await _db.TournamentRoundMaps
                 .AsNoTracking()
@@ -287,6 +291,7 @@ namespace HanakaServer.Controllers
                     FormatText = x.FormatText,
                     PlayoffType = x.PlayoffType,
                     GameType = x.GameType,
+                    GenderCategory = x.GenderCategory,
                     SingleLimit = x.SingleLimit,
                     DoubleLimit = x.DoubleLimit,
                     LocationText = x.LocationText,
@@ -304,6 +309,8 @@ namespace HanakaServer.Controllers
 
             if (tournament == null)
                 return NotFound(new { message = "Tournament not found." });
+
+            ApplyTournamentType(tournament);
 
             var group = await _db.TournamentRoundGroups
                 .AsNoTracking()
@@ -432,6 +439,14 @@ namespace HanakaServer.Controllers
             };
 
             return Ok(response);
+        }
+
+        private static void ApplyTournamentType(TournamentClientDto tournament)
+        {
+            var tournamentType = TournamentTypeHelper.Resolve(tournament.GameType, tournament.GenderCategory);
+            tournament.GenderCategory = tournamentType.GenderCategory;
+            tournament.TournamentTypeCode = tournamentType.TournamentTypeCode;
+            tournament.TournamentTypeLabel = tournamentType.TournamentTypeLabel;
         }
 
         private static TournamentTeamDto BuildTeamDto(string? gameType, TournamentRegistrationLiteDto reg)
@@ -754,6 +769,9 @@ namespace HanakaServer.Controllers
         public string? FormatText { get; set; }
         public string? PlayoffType { get; set; }
         public string? GameType { get; set; }
+        public string GenderCategory { get; set; } = "OPEN";
+        public string TournamentTypeCode { get; set; } = "DOUBLE_OPEN";
+        public string TournamentTypeLabel { get; set; } = "";
         public decimal SingleLimit { get; set; }
         public decimal DoubleLimit { get; set; }
         public string? LocationText { get; set; }

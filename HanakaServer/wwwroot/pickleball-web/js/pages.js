@@ -1714,7 +1714,11 @@
             `<div class="detail-chip-row">${[
                 locationText(detail) ? metaChip(locationText(detail), "location-outline") : "",
                 trimToEmpty(detail.organizer) ? metaChip(detail.organizer, "business-outline") : "",
-                trimToEmpty(detail.gameType) ? metaChip(detail.gameType, "tennisball-outline") : "",
+                (trimToEmpty(detail.tournamentTypeLabel) || trimToEmpty(detail.gameType))
+                    ? metaChip(
+                        tournamentGameTypeLabel(detail.gameType, detail.genderCategory, detail.tournamentTypeLabel),
+                        "tennisball-outline")
+                    : "",
                 trimToEmpty(detail.formatText) ? metaChip(detail.formatText, "layers-outline") : ""
             ].filter(Boolean).join("")}</div>`,
             "</article>",
@@ -1856,8 +1860,34 @@
         return html;
     }
 
-    function tournamentGameTypeLabel(value) {
+    function tournamentGameTypeLabel(value, genderCategory, explicitLabel) {
+        const label = trimToEmpty(explicitLabel);
+        if (label) {
+            return label;
+        }
+
         const type = trimToEmpty(value).toUpperCase();
+        const category = trimToEmpty(genderCategory).toUpperCase();
+
+        if (type === "SINGLE" && category === "MEN") {
+            return "\u0110\u01a1n nam";
+        }
+
+        if (type === "SINGLE" && category === "WOMEN") {
+            return "\u0110\u01a1n n\u1eef";
+        }
+
+        if (type === "DOUBLE" && category === "MEN") {
+            return "\u0110\u00f4i nam";
+        }
+
+        if (type === "DOUBLE" && category === "WOMEN") {
+            return "\u0110\u00f4i n\u1eef";
+        }
+
+        if ((type === "DOUBLE" && category === "MIXED") || type === "MIXED") {
+            return "\u0110\u00f4i nam n\u1eef";
+        }
 
         if (type === "DOUBLE") {
             return "\u0110\u00f4i";
@@ -1865,10 +1895,6 @@
 
         if (type === "SINGLE") {
             return "\u0110\u01a1n";
-        }
-
-        if (type === "MIXED") {
-            return "\u0110\u00f4i h\u1ed7n h\u1ee3p";
         }
 
         return trimToEmpty(value) || "-";
@@ -2247,7 +2273,10 @@
             renderTournamentInfoLine("Ng\u00e0y", formatSlashDateTime(detail?.startTime), true),
             renderTournamentInfoLine("H\u1ea1n \u0111\u0103ng k\u00fd", formatSlashDateTime(detail?.registerDeadline), true),
             renderTournamentInfoLine("Th\u1ec3 th\u1ee9c", trimToEmpty(detail?.playoffType) || "-", true),
-            renderTournamentInfoLine("Gi\u1ea3i", tournamentGameTypeLabel(detail?.gameType), true),
+            renderTournamentInfoLine(
+                "Gi\u1ea3i",
+                tournamentGameTypeLabel(detail?.gameType, detail?.genderCategory, detail?.tournamentTypeLabel),
+                true),
             '<div class="tournament-native-two-col">',
             renderTournamentInfoLine("Gi\u1edbi h\u1ea1n tr\u00ecnh \u0111\u01a1n t\u1ed1i \u0111a", formatFlexibleNumber(detail?.singleLimit), true),
             renderTournamentInfoLine("C\u1eb7p t\u1ed1i \u0111a", formatFlexibleNumber(detail?.doubleLimit), true),
@@ -2694,7 +2723,11 @@
         return [
             `<div class="tournament-register-page" data-tournament-register-page data-tournament-id="${escapeHtml(tournamentId || "")}" data-game-type="${escapeHtml(gameType || "")}">`,
             '<section class="tournament-register-hero">',
-            `<span>${escapeHtml(tournamentGameTypeLabel(gameType))}</span>`,
+            `<span>${escapeHtml(tournamentGameTypeLabel(
+                gameType,
+                tournament?.genderCategory || detail?.genderCategory,
+                tournament?.tournamentTypeLabel || detail?.tournamentTypeLabel
+            ))}</span>`,
             `<h2>${escapeHtml(trimToEmpty(tournament?.title) || "Dang ky giai dau")}</h2>`,
             `<p>Han dang ky: ${escapeHtml(formatSlashDateTime(tournament?.registerDeadline))} \u00b7 Con cho: ${escapeHtml(String(toNumber(tournament?.capacityLeft)))}</p>`,
             "</section>",

@@ -1,5 +1,6 @@
 ﻿using HanakaServer.Data;
 using Microsoft.AspNetCore.Mvc;
+using HanakaServer.Helpers;
 using Microsoft.EntityFrameworkCore;
 
 namespace HanakaServer.Controllers
@@ -131,6 +132,7 @@ namespace HanakaServer.Controllers
                     x.TournamentId,
                     x.Title,
                     x.GameType,
+                    x.GenderCategory,
                     x.BannerUrl,
                     x.Status,
                     x.ExpectedTeams,
@@ -221,6 +223,7 @@ namespace HanakaServer.Controllers
             var items = rawMatches.Select(m =>
             {
                 tournamentMap.TryGetValue(m.TournamentId, out var tournament);
+                var tournamentType = TournamentTypeHelper.Resolve(tournament?.GameType, tournament?.GenderCategory);
                 registrationStatsMap.TryGetValue(m.TournamentId, out var registrationStat);
                 matchStatsMap.TryGetValue(m.TournamentId, out var totalMatchesCount);
                 groupMap.TryGetValue(m.TournamentRoundGroupId, out var group);
@@ -259,6 +262,10 @@ namespace HanakaServer.Controllers
                     TournamentTitle = tournament?.Title,
                     TournamentBannerUrl = ToAbsoluteUrl(tournament?.BannerUrl),
                     TournamentStatus = tournament?.Status,
+                    TournamentGameType = tournament?.GameType,
+                    TournamentGenderCategory = tournamentType.GenderCategory,
+                    TournamentTypeCode = tournamentType.TournamentTypeCode,
+                    TournamentTypeLabel = tournamentType.TournamentTypeLabel,
                     ExpectedTeams = tournament?.ExpectedTeams ?? 0,
                     RegisteredCount = registeredCount,
                     PairedCount = pairedCount,
@@ -453,6 +460,7 @@ namespace HanakaServer.Controllers
                     x.TournamentId,
                     x.Title,
                     x.GameType,
+                    x.GenderCategory,
                     x.BannerUrl,
                     x.Status,
                     x.ExpectedTeams,
@@ -545,6 +553,7 @@ namespace HanakaServer.Controllers
             var items = rawMatches.Select(m =>
             {
                 tournamentMap.TryGetValue(m.TournamentId, out var tournament);
+                var tournamentType = TournamentTypeHelper.Resolve(tournament?.GameType, tournament?.GenderCategory);
                 registrationStatsMap.TryGetValue(m.TournamentId, out var registrationStat);
                 matchStatsMap.TryGetValue(m.TournamentId, out var totalMatchesCount);
                 groupMap.TryGetValue(m.TournamentRoundGroupId, out var group);
@@ -589,6 +598,10 @@ namespace HanakaServer.Controllers
                     TournamentTitle = tournament?.Title,
                     TournamentBannerUrl = ToAbsoluteUrl(tournament?.BannerUrl),
                     TournamentStatus = tournament?.Status,
+                    TournamentGameType = tournament?.GameType,
+                    TournamentGenderCategory = tournamentType.GenderCategory,
+                    TournamentTypeCode = tournamentType.TournamentTypeCode,
+                    TournamentTypeLabel = tournamentType.TournamentTypeLabel,
                     ExpectedTeams = tournament?.ExpectedTeams ?? 0,
                     RegisteredCount = registeredCount,
                     PairedCount = pairedCount,
@@ -665,6 +678,10 @@ namespace HanakaServer.Controllers
         public string? TournamentTitle { get; set; }
         public string? TournamentBannerUrl { get; set; }
         public string? TournamentStatus { get; set; }
+        public string? TournamentGameType { get; set; }
+        public string TournamentGenderCategory { get; set; } = "OPEN";
+        public string TournamentTypeCode { get; set; } = "DOUBLE_OPEN";
+        public string TournamentTypeLabel { get; set; } = "";
         public int ExpectedTeams { get; set; }
         public int RegisteredCount { get; set; }
         public int PairedCount { get; set; }

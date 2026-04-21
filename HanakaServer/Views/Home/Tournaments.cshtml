@@ -59,7 +59,7 @@
                             <th>Trạng thái</th>
                             <th>Ngày bắt đầu</th>
                             <th>Hạn đăng ký</th>
-                            <th>Loại hình thi đấu</th>
+                            <th>Nội dung thi đấu</th>
                             <th>Số đội</th>
                             <th>Giới hạn đơn</th>
                             <th>Giới hạn đôi</th>
@@ -111,12 +111,20 @@
 
                     <div class="form-row">
                         <div class="form-group col-md-4">
-                            <label>Loại hình thi đấu *</label>
-                            <select id="gameType" class="form-control" required>
-                                <option value="SINGLE">Đơn</option>
-                                <option value="DOUBLE" selected>Đôi</option>
-                                <option value="MIXED">Hỗn hợp</option>
+                            <label>Nội dung thi đấu *</label>
+                            <select id="tournamentType" class="form-control" required>
+                                <option value="" selected>Chọn nội dung thi đấu</option>
+                                <option value="SINGLE_MEN">Đơn nam</option>
+                                <option value="SINGLE_WOMEN">Đơn nữ</option>
+                                <option value="DOUBLE_MEN">Đôi nam</option>
+                                <option value="DOUBLE_WOMEN">Đôi nữ</option>
+                                <option value="DOUBLE_MIXED">Đôi nam nữ</option>
+                                <option value="SINGLE_OPEN">Đơn mở / dữ liệu cũ</option>
+                                <option value="DOUBLE_OPEN">Đôi mở / dữ liệu cũ</option>
                             </select>
+                            <small class="text-muted d-block mt-2">
+                                Đơn nam = SINGLE + MEN • Đơn nữ = SINGLE + WOMEN • Đôi nam = DOUBLE + MEN • Đôi nữ = DOUBLE + WOMEN • Đôi nam nữ = DOUBLE + MIXED
+                            </small>
                         </div>
                         <div class="form-group col-md-4">
                             <label>Số đội dự kiến</label>
@@ -245,12 +253,80 @@
             return "Bản nháp";
         }
 
-        function getGameTypeLabel(gameType) {
-            const g = (gameType || "").toUpperCase();
-            if (g === "SINGLE") return "Đơn";
-            if (g === "DOUBLE") return "Đôi";
-            if (g === "MIXED") return "Hỗn hợp";
-            return gameType || "—";
+        function composeTournamentTypeValue(gameType, genderCategory) {
+            let g = (gameType || "").toUpperCase();
+            let c = (genderCategory || "").toUpperCase();
+
+            if (g === "MIXED") {
+                g = "DOUBLE";
+                c = "MIXED";
+            }
+
+            if (!c) {
+                c = "OPEN";
+            }
+
+            const value = `${g}_${c}`;
+            const allowed = new Set([
+                "SINGLE_OPEN",
+                "SINGLE_MEN",
+                "SINGLE_WOMEN",
+                "DOUBLE_OPEN",
+                "DOUBLE_MEN",
+                "DOUBLE_WOMEN",
+                "DOUBLE_MIXED"
+            ]);
+
+            return allowed.has(value) ? value : "";
+        }
+
+        function parseTournamentTypeValue(value) {
+            switch ((value || "").toUpperCase()) {
+                case "SINGLE_MEN":
+                    return { gameType: "SINGLE", genderCategory: "MEN" };
+                case "SINGLE_WOMEN":
+                    return { gameType: "SINGLE", genderCategory: "WOMEN" };
+                case "DOUBLE_MEN":
+                    return { gameType: "DOUBLE", genderCategory: "MEN" };
+                case "DOUBLE_WOMEN":
+                    return { gameType: "DOUBLE", genderCategory: "WOMEN" };
+                case "DOUBLE_MIXED":
+                    return { gameType: "DOUBLE", genderCategory: "MIXED" };
+                case "SINGLE_OPEN":
+                    return { gameType: "SINGLE", genderCategory: "OPEN" };
+                case "DOUBLE_OPEN":
+                    return { gameType: "DOUBLE", genderCategory: "OPEN" };
+                default:
+                    return { gameType: "", genderCategory: "" };
+            }
+        }
+
+        function getTournamentTypeLabel(gameType, genderCategory) {
+            const value = composeTournamentTypeValue(gameType, genderCategory);
+            switch (value) {
+                case "SINGLE_MEN": return "Đơn nam";
+                case "SINGLE_WOMEN": return "Đơn nữ";
+                case "DOUBLE_MEN": return "Đôi nam";
+                case "DOUBLE_WOMEN": return "Đôi nữ";
+                case "DOUBLE_MIXED": return "Đôi nam nữ";
+                case "SINGLE_OPEN": return "Đơn mở";
+                case "DOUBLE_OPEN": return "Đôi mở";
+                default: return "—";
+            }
+        }
+
+        function getTournamentTypeCode(gameType, genderCategory) {
+            const value = composeTournamentTypeValue(gameType, genderCategory);
+            switch (value) {
+                case "SINGLE_MEN": return "SINGLE + MEN";
+                case "SINGLE_WOMEN": return "SINGLE + WOMEN";
+                case "DOUBLE_MEN": return "DOUBLE + MEN";
+                case "DOUBLE_WOMEN": return "DOUBLE + WOMEN";
+                case "DOUBLE_MIXED": return "DOUBLE + MIXED";
+                case "SINGLE_OPEN": return "SINGLE + OPEN";
+                case "DOUBLE_OPEN": return "DOUBLE + OPEN";
+                default: return "Chưa xác định";
+            }
         }
 
         function badgeHtml(status) {
@@ -307,6 +383,8 @@
 
             const singleLimit = (t.singleLimit ?? 0);
             const doubleLimit = (t.doubleLimit ?? 0);
+            const tournamentTypeLabel = getTournamentTypeLabel(t.gameType, t.genderCategory);
+            const tournamentTypeCode = getTournamentTypeCode(t.gameType, t.genderCategory);
 
             return `
                 <tr data-id="${t.tournamentId}">
@@ -321,7 +399,10 @@
                     <td>${badgeHtml(t.status)}</td>
                     <td>${fmtDate(t.startTime)}</td>
                     <td>${fmtDate(t.registerDeadline)}</td>
-                    <td>${escapeHtml(getGameTypeLabel(t.gameType))}</td>
+                    <td>
+                        <div class="font-weight-bold text-gray-900">${escapeHtml(tournamentTypeLabel)}</div>
+                        <div class="small text-muted">${escapeHtml(tournamentTypeCode)}</div>
+                    </td>
                     <td>${t.expectedTeams ?? 0}</td>
                     <td>${Number(singleLimit).toFixed(2)}</td>
                     <td>${Number(doubleLimit).toFixed(2)}</td>
@@ -382,6 +463,7 @@
             resetFileUI();
             clearError();
 
+            document.getElementById("tournamentType").value = "";
             document.getElementById("organizer").value = "";
             document.getElementById("creatorName").value = "";
             document.getElementById("formatText").value = "";
@@ -428,7 +510,7 @@
         function fillForm(t) {
             document.getElementById("title").value = t.title || "";
             document.getElementById("status").value = (t.status || "DRAFT").toUpperCase();
-            document.getElementById("gameType").value = (t.gameType || "DOUBLE").toUpperCase();
+            document.getElementById("tournamentType").value = composeTournamentTypeValue(t.gameType, t.genderCategory);
             document.getElementById("expectedTeams").value = t.expectedTeams ?? 0;
 
             document.getElementById("areaText").value = t.areaText || "";
@@ -495,10 +577,17 @@
 
         function buildFormData() {
             const fd = new FormData();
+            const selectedTournamentType = document.getElementById("tournamentType").value;
+            const parsedTournamentType = parseTournamentTypeValue(selectedTournamentType);
+
+            if (!parsedTournamentType.gameType || !parsedTournamentType.genderCategory) {
+                throw new Error("Vui lòng chọn đúng nội dung thi đấu.");
+            }
 
             fd.append("title", document.getElementById("title").value.trim());
             fd.append("status", document.getElementById("status").value);
-            fd.append("gameType", document.getElementById("gameType").value);
+            fd.append("gameType", parsedTournamentType.gameType);
+            fd.append("genderCategory", parsedTournamentType.genderCategory);
             fd.append("expectedTeams", document.getElementById("expectedTeams").value || "0");
 
             const st = document.getElementById("startTime").value;

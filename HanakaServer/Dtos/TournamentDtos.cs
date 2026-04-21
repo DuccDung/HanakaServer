@@ -5,7 +5,8 @@ namespace HanakaServer.Dtos
     public class CreateTournamentRequest
     {
         public string Title { get; set; } = null!;
-        public string GameType { get; set; } = null!; // SINGLE/DOUBLE/MIXED
+        public string GameType { get; set; } = null!; // SINGLE/DOUBLE (legacy MIXED vẫn được hỗ trợ ở controller)
+        public string? GenderCategory { get; set; } // OPEN/MEN/WOMEN/MIXED
         public string? Status { get; set; } // DRAFT/OPEN/CLOSED (default DRAFT)
 
         public int? ExpectedTeams { get; set; }
@@ -41,6 +42,9 @@ namespace HanakaServer.Dtos
         public DateTime? StartTime { get; set; }
         public DateTime? RegisterDeadline { get; set; }
         public string GameType { get; set; } = null!;
+        public string GenderCategory { get; set; } = "OPEN";
+        public string TournamentTypeCode { get; set; } = "DOUBLE_OPEN";
+        public string TournamentTypeLabel { get; set; } = "";
         public int ExpectedTeams { get; set; }
         public string? LocationText { get; set; }
         public string? AreaText { get; set; }
@@ -66,6 +70,7 @@ namespace HanakaServer.Dtos
     {
         public string? Title { get; set; }
         public string? GameType { get; set; }
+        public string? GenderCategory { get; set; }
         public string? Status { get; set; }
 
         public int? ExpectedTeams { get; set; }

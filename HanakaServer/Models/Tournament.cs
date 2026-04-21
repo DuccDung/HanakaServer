@@ -29,6 +29,8 @@ public partial class Tournament
 
     public string? GameType { get; set; }
 
+    public string GenderCategory { get; set; } = null!;
+
     public decimal SingleLimit { get; set; }
 
     public decimal DoubleLimit { get; set; }

@@ -1,5 +1,6 @@
 ﻿using HanakaServer.Data;
 using HanakaServer.Dtos;
+using HanakaServer.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -57,8 +58,41 @@ namespace HanakaServer.Controllers
             return string.IsNullOrWhiteSpace(s) ? fallback : s.Trim().ToUpperInvariant();
         }
 
+        private static (bool Ok, string? GameType, string? GenderCategory, string? Message) ResolveTournamentType(
+            string? gameType,
+            string? genderCategory)
+        {
+            var normalizedGameType = Upper(gameType, string.Empty);
+
+            // Backward compatibility cho client cũ còn gửi MIXED ở GameType.
+            if (normalizedGameType == "MIXED")
+            {
+                return (true, "DOUBLE", "MIXED", null);
+            }
+
+            if (normalizedGameType is not ("SINGLE" or "DOUBLE"))
+            {
+                return (false, null, null, "GameType không hợp lệ. Dùng SINGLE hoặc DOUBLE.");
+            }
+
+            var normalizedGenderCategory = Upper(genderCategory, "OPEN");
+            if (normalizedGenderCategory is not ("OPEN" or "MEN" or "WOMEN" or "MIXED"))
+            {
+                return (false, null, null, "GenderCategory không hợp lệ. Dùng OPEN/MEN/WOMEN/MIXED.");
+            }
+
+            if (normalizedGameType == "SINGLE" && normalizedGenderCategory == "MIXED")
+            {
+                return (false, null, null, "Giải đơn không thể có GenderCategory = MIXED.");
+            }
+
+            return (true, normalizedGameType, normalizedGenderCategory, null);
+        }
+
         private TournamentListItemDto MapToDto(HanakaServer.Models.Tournament t)
         {
+            var tournamentType = TournamentTypeHelper.Resolve(t.GameType, t.GenderCategory);
+
             return new TournamentListItemDto
             {
                 TournamentId = t.TournamentId,
@@ -67,6 +101,9 @@ namespace HanakaServer.Controllers
                 StartTime = t.StartTime,
                 RegisterDeadline = t.RegisterDeadline,
                 GameType = t.GameType ?? "DOUBLE",
+                GenderCategory = tournamentType.GenderCategory,
+                TournamentTypeCode = tournamentType.TournamentTypeCode,
+                TournamentTypeLabel = tournamentType.TournamentTypeLabel,
                 ExpectedTeams = t.ExpectedTeams,
                 LocationText = t.LocationText,
                 AreaText = t.AreaText,
@@ -118,6 +155,7 @@ namespace HanakaServer.Controllers
                     StartTime = t.StartTime,
                     RegisterDeadline = t.RegisterDeadline,
                     GameType = t.GameType,
+                    GenderCategory = t.GenderCategory,
                     ExpectedTeams = t.ExpectedTeams,
                     LocationText = t.LocationText,
                     AreaText = t.AreaText,
@@ -157,7 +195,11 @@ namespace HanakaServer.Controllers
                 return BadRequest(new { message = "Title is required." });
 
             if (string.IsNullOrWhiteSpace(req.GameType))
-                return BadRequest(new { message = "GameType is required (SINGLE/DOUBLE/MIXED)." });
+                return BadRequest(new { message = "GameType is required." });
+
+            var tournamentType = ResolveTournamentType(req.GameType, req.GenderCategory);
+            if (!tournamentType.Ok)
+                return BadRequest(new { message = tournamentType.Message });
 
             var status = Upper(req.Status, "DRAFT");
 
@@ -192,7 +234,8 @@ namespace HanakaServer.Controllers
                 BannerUrl = bannerRelativeUrl,
                 StartTime = req.StartTime,
                 RegisterDeadline = req.RegisterDeadline,
-                GameType = req.GameType.Trim().ToUpperInvariant(),
+                GameType = tournamentType.GameType!,
+                GenderCategory = tournamentType.GenderCategory!,
                 ExpectedTeams = req.ExpectedTeams ?? 0,
                 LocationText = TrimToNull(req.LocationText),
                 AreaText = TrimToNull(req.AreaText),
@@ -234,8 +277,18 @@ namespace HanakaServer.Controllers
             if (!string.IsNullOrWhiteSpace(req.Status))
                 t.Status = req.Status.Trim().ToUpperInvariant();
 
-            if (!string.IsNullOrWhiteSpace(req.GameType))
-                t.GameType = req.GameType.Trim().ToUpperInvariant();
+            if (req.GameType != null || req.GenderCategory != null)
+            {
+                var tournamentType = ResolveTournamentType(
+                    req.GameType ?? t.GameType,
+                    req.GenderCategory ?? t.GenderCategory);
+
+                if (!tournamentType.Ok)
+                    return BadRequest(new { message = tournamentType.Message });
+
+                t.GameType = tournamentType.GameType!;
+                t.GenderCategory = tournamentType.GenderCategory!;
+            }
 
             if (req.ExpectedTeams.HasValue)
                 t.ExpectedTeams = req.ExpectedTeams.Value;

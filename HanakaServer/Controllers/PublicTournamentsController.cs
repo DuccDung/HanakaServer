@@ -1,5 +1,6 @@
 ﻿using HanakaServer.Data;
 using HanakaServer.Dtos;
+using HanakaServer.Helpers;
 using HanakaServer.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -53,6 +54,7 @@ namespace HanakaServer.Controllers
                     FormatText = x.FormatText,
                     PlayoffType = x.PlayoffType,
                     GameType = x.GameType,
+                    GenderCategory = x.GenderCategory,
 
                     SingleLimit = x.SingleLimit,
                     DoubleLimit = x.DoubleLimit,
@@ -93,11 +95,16 @@ namespace HanakaServer.Controllers
 
             var waitingCount = await regQ.CountAsync(r => r.WaitingPair);
             var successCount = await regQ.CountAsync(r => r.Success);
+            var tournamentType = TournamentTypeHelper.Resolve(t.GameType, t.GenderCategory);
             var (registeredCount, pairedCount) = ComputePublicRegistrationCounts(
                 t.GameType,
+                t.GenderCategory,
                 successCount,
                 waitingCount);
 
+            t.GenderCategory = tournamentType.GenderCategory;
+            t.TournamentTypeCode = tournamentType.TournamentTypeCode;
+            t.TournamentTypeLabel = tournamentType.TournamentTypeLabel;
             t.RegisteredCount = registeredCount;
             t.PairedCount = pairedCount;
 
@@ -113,7 +120,7 @@ namespace HanakaServer.Controllers
             var tournament = await _db.Tournaments
                 .AsNoTracking()
                 .Where(t => t.TournamentId == tournamentId && t.Status != "DRAFT")
-                .Select(t => new { t.TournamentId, t.ExpectedTeams, t.GameType, t.Title, t.Status })
+                .Select(t => new { t.TournamentId, t.ExpectedTeams, t.GameType, t.GenderCategory, t.Title, t.Status })
                 .FirstOrDefaultAsync();
 
             if (tournament == null)
@@ -173,8 +180,8 @@ namespace HanakaServer.Controllers
                 }
             ).ToListAsync();
 
-            string gt = (tournament.GameType ?? "DOUBLE").Trim().ToUpperInvariant();
-            bool isDouble = (gt == "DOUBLE" || gt == "MIXED");
+            var tournamentType = TournamentTypeHelper.Resolve(tournament.GameType, tournament.GenderCategory);
+            bool isDouble = tournamentType.IsDoubleLike;
 
             PublicRegistrationItemDto MapItem(dynamic x)
             {
@@ -244,6 +251,9 @@ namespace HanakaServer.Controllers
                     tournament.Title,
                     tournament.Status,
                     tournament.GameType,
+                    GenderCategory = tournamentType.GenderCategory,
+                    TournamentTypeCode = tournamentType.TournamentTypeCode,
+                    TournamentTypeLabel = tournamentType.TournamentTypeLabel,
                     tournament.ExpectedTeams
                 },
                 Counts = new PublicRegistrationCountsDto
@@ -274,6 +284,9 @@ namespace HanakaServer.Controllers
             public DateTime? StartTime { get; set; }
             public DateTime? RegisterDeadline { get; set; }
             public string GameType { get; set; } = "DOUBLE";
+            public string GenderCategory { get; set; } = "OPEN";
+            public string TournamentTypeCode { get; set; } = "DOUBLE_OPEN";
+            public string TournamentTypeLabel { get; set; } = "";
             public int ExpectedTeams { get; set; }
             public int RegisteredCount { get; set; }
             public int PairedCount { get; set; }
@@ -291,6 +304,8 @@ namespace HanakaServer.Controllers
 
         private TournamentMobileListItemDto MapToDto(Tournament t)
         {
+            var tournamentType = TournamentTypeHelper.Resolve(t.GameType, t.GenderCategory);
+
             return new TournamentMobileListItemDto
             {
                 TournamentId = t.TournamentId,
@@ -301,6 +316,9 @@ namespace HanakaServer.Controllers
                 StartTime = t.StartTime,
                 RegisterDeadline = t.RegisterDeadline,
                 GameType = t.GameType ?? "DOUBLE",
+                GenderCategory = tournamentType.GenderCategory,
+                TournamentTypeCode = tournamentType.TournamentTypeCode,
+                TournamentTypeLabel = tournamentType.TournamentTypeLabel,
                 ExpectedTeams = t.ExpectedTeams,
                 RegisteredCount = t.RegisteredCount,
                 PairedCount = t.PairedCount,
@@ -319,11 +337,11 @@ namespace HanakaServer.Controllers
 
         private static (int registeredCount, int pairedCount) ComputePublicRegistrationCounts(
             string? gameType,
+            string? genderCategory,
             int successCount,
             int waitingCount)
         {
-            var normalizedGameType = (gameType ?? "DOUBLE").Trim().ToUpperInvariant();
-            var isDoubleLike = normalizedGameType == "DOUBLE" || normalizedGameType == "MIXED";
+            var isDoubleLike = TournamentTypeHelper.IsDoubleLike(gameType, genderCategory);
 
             if (isDoubleLike)
             {
@@ -417,6 +435,7 @@ namespace HanakaServer.Controllers
 
                 var (registeredCount, pairedCount) = ComputePublicRegistrationCounts(
                     t.GameType,
+                    t.GenderCategory,
                     regStat?.SuccessCount ?? 0,
                     regStat?.WaitingCount ?? 0);
 

@@ -60,6 +60,46 @@
         return normalized;
     }
 
+    function tournamentGameTypeLabel(gameType, genderCategory, explicitLabel) {
+        var label = normalizeDisplayText(explicitLabel);
+        if (label) {
+            return label;
+        }
+
+        var type = trimToEmpty(gameType).toUpperCase();
+        var category = trimToEmpty(genderCategory).toUpperCase();
+
+        if (type === "SINGLE" && category === "MEN") {
+            return "\u0110\u01a1n nam";
+        }
+
+        if (type === "SINGLE" && category === "WOMEN") {
+            return "\u0110\u01a1n n\u1eef";
+        }
+
+        if (type === "DOUBLE" && category === "MEN") {
+            return "\u0110\u00f4i nam";
+        }
+
+        if (type === "DOUBLE" && category === "WOMEN") {
+            return "\u0110\u00f4i n\u1eef";
+        }
+
+        if ((type === "DOUBLE" && category === "MIXED") || type === "MIXED") {
+            return "\u0110\u00f4i nam n\u1eef";
+        }
+
+        if (type === "DOUBLE") {
+            return "\u0110\u00f4i";
+        }
+
+        if (type === "SINGLE") {
+            return "\u0110\u01a1n";
+        }
+
+        return normalizeDisplayText(gameType) || "-";
+    }
+
     function escapeHtml(value) {
         return String(value ?? "")
             .replace(/&/g, "&amp;")
@@ -1263,13 +1303,7 @@
 
     function renderTournamentCard(item) {
         var bannerUrl = trimToEmpty(item.bannerUrl);
-        var gameTypeLabel = item.gameType === "DOUBLE"
-            ? "Doi"
-            : item.gameType === "SINGLE"
-                ? "Don"
-                : item.gameType === "MIXED"
-                    ? "Doi hon hop"
-                    : trimToEmpty(item.gameType) || "-";
+        var gameTypeLabel = tournamentGameTypeLabel(item.gameType, item.genderCategory, item.tournamentTypeLabel);
 
         return [
             '<article class="native-tournament-card">',

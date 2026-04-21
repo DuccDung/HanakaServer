@@ -2,6 +2,7 @@
 using System.Security.Claims;
 using System.Text.Json;
 using HanakaServer.Data;
+using HanakaServer.Helpers;
 using HanakaServer.Models;
 using HanakaServer.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -48,6 +49,7 @@ public class TournamentRegistrationUserController : ControllerBase
                 x.Status,
                 x.StatusText,
                 x.GameType,
+                x.GenderCategory,
                 x.ExpectedTeams,
                 x.SingleLimit,
                 x.DoubleLimit,
@@ -118,6 +120,7 @@ public class TournamentRegistrationUserController : ControllerBase
             .CountAsync(x => x.TournamentId == tournamentId && x.Success, ct);
 
         var gameType = NormalizeGameType(tournament.GameType);
+        var tournamentType = TournamentTypeHelper.Resolve(tournament.GameType, tournament.GenderCategory);
         var capacityLeft = Math.Max(0, tournament.ExpectedTeams - successCount);
         var canRegisterResult = ValidateTournamentRegistrationWindow(
             tournament.Status,
@@ -148,6 +151,9 @@ public class TournamentRegistrationUserController : ControllerBase
                 tournament.Status,
                 tournament.StatusText,
                 GameType = gameType,
+                GenderCategory = tournamentType.GenderCategory,
+                TournamentTypeCode = tournamentType.TournamentTypeCode,
+                TournamentTypeLabel = tournamentType.TournamentTypeLabel,
                 tournament.ExpectedTeams,
                 tournament.SingleLimit,
                 tournament.DoubleLimit,

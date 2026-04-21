@@ -99,6 +99,9 @@
         public string? LocationText { get; set; }
         public string? AreaText { get; set; }
         public string? GameType { get; set; }
+        public string GenderCategory { get; set; } = "OPEN";
+        public string TournamentTypeCode { get; set; } = "DOUBLE_OPEN";
+        public string TournamentTypeLabel { get; set; } = "";
         public string? Status { get; set; }
     }
     public class RefereeUserAchievementItemDto

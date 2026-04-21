@@ -882,6 +882,17 @@ public partial class PickleballDbContext : DbContext
         {
             entity.HasKey(e => e.TournamentId).HasName("PK__Tourname__AC631313C2D70AC1");
 
+            entity.ToTable(t =>
+            {
+                t.HasCheckConstraint(
+                    "CK_Tournaments_GenderCategory",
+                    "[GenderCategory] IN ('OPEN', 'MEN', 'WOMEN', 'MIXED')");
+
+                t.HasCheckConstraint(
+                    "CK_Tournaments_GameType_GenderCategory",
+                    "((UPPER([GameType]) = 'SINGLE' AND [GenderCategory] IN ('OPEN', 'MEN', 'WOMEN')) OR (UPPER([GameType]) = 'DOUBLE' AND [GenderCategory] IN ('OPEN', 'MEN', 'WOMEN', 'MIXED')))");
+            });
+
             entity.HasIndex(e => e.ExternalId, "IX_Tournaments_ExternalId")
                 .IsUnique()
                 .HasFilter("([ExternalId] IS NOT NULL)");
@@ -898,6 +909,10 @@ public partial class PickleballDbContext : DbContext
             entity.Property(e => e.ExternalId).HasMaxLength(50);
             entity.Property(e => e.FormatText).HasMaxLength(50);
             entity.Property(e => e.GameType).HasMaxLength(50);
+            entity.Property(e => e.GenderCategory)
+                .HasMaxLength(10)
+                .IsUnicode(false)
+                .HasDefaultValue("OPEN");
             entity.Property(e => e.LocationText).HasMaxLength(400);
             entity.Property(e => e.Organizer).HasMaxLength(200);
             entity.Property(e => e.PlayoffType).HasMaxLength(50);

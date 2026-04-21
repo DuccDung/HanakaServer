@@ -1,4 +1,5 @@
 ﻿using HanakaServer.Data;
+using HanakaServer.Helpers;
 using HanakaServer.Models;
 using HanakaServer.ViewModels.Admin;
 using Microsoft.AspNetCore.Authorization;
@@ -211,6 +212,7 @@ namespace HanakaServer.Controllers.Admin
 
         private object MapAchievementItem(UserAchievement x)
         {
+            var tournamentType = TournamentTypeHelper.Resolve(x.Tournament?.GameType, x.Tournament?.GenderCategory);
             var achievementType = (x.AchievementType ?? "").Trim().ToUpperInvariant();
 
             var rank = achievementType switch
@@ -250,6 +252,9 @@ namespace HanakaServer.Controllers.Admin
                     x.Tournament.LocationText,
                     x.Tournament.AreaText,
                     x.Tournament.GameType,
+                    GenderCategory = tournamentType.GenderCategory,
+                    TournamentTypeCode = tournamentType.TournamentTypeCode,
+                    TournamentTypeLabel = tournamentType.TournamentTypeLabel,
                     x.Tournament.Status
                 },
 

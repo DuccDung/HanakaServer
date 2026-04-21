@@ -19,6 +19,9 @@
         public string? FormatText { get; set; }
         public string? PlayoffType { get; set; }
         public string? GameType { get; set; }
+        public string GenderCategory { get; set; } = "OPEN";
+        public string TournamentTypeCode { get; set; } = "DOUBLE_OPEN";
+        public string TournamentTypeLabel { get; set; } = "";
 
         public decimal SingleLimit { get; set; }
         public decimal DoubleLimit { get; set; }

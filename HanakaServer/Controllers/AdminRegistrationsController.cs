@@ -1,5 +1,6 @@
 ﻿using HanakaServer.Data;
 using HanakaServer.Dtos;
+using HanakaServer.Helpers;
 using HanakaServer.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -33,7 +34,7 @@ namespace HanakaServer.Controllers
             var tournament = await _db.Tournaments
                 .AsNoTracking()
                 .Where(t => t.TournamentId == tournamentId)
-                .Select(t => new { t.ExpectedTeams, t.GameType, t.Title, t.Status })
+                .Select(t => new { t.ExpectedTeams, t.GameType, t.GenderCategory, t.Title, t.Status })
                 .FirstOrDefaultAsync();
 
             if (tournament == null)
@@ -96,9 +97,20 @@ namespace HanakaServer.Controllers
                 }
             ).ToListAsync();
 
+            var tournamentType = TournamentTypeHelper.Resolve(tournament.GameType, tournament.GenderCategory);
+
             return Ok(new
             {
-                tournament,
+                tournament = new
+                {
+                    tournament.ExpectedTeams,
+                    tournament.GameType,
+                    GenderCategory = tournamentType.GenderCategory,
+                    TournamentTypeCode = tournamentType.TournamentTypeCode,
+                    TournamentTypeLabel = tournamentType.TournamentTypeLabel,
+                    tournament.Title,
+                    tournament.Status
+                },
                 counts = new { success = successCount, waiting = waitingCount, capacityLeft },
                 items
             });
