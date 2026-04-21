@@ -392,6 +392,129 @@
         return true;
     }
 
+    const tournamentPublicRealtime = {
+        ws: null,
+        listeners: [],
+        reconnectTimer: null,
+        pingTimer: null,
+        manualClose: false,
+        tournaments: Object.create(null)
+    };
+
+    function addTournamentPublicRealtimeListener(listener) {
+        if (typeof listener !== "function") {
+            return function () { };
+        }
+
+        tournamentPublicRealtime.listeners.push(listener);
+        return function () {
+            tournamentPublicRealtime.listeners = tournamentPublicRealtime.listeners.filter(function (item) {
+                return item !== listener;
+            });
+        };
+    }
+
+    function emitTournamentPublicRealtime(event) {
+        tournamentPublicRealtime.listeners.slice().forEach(function (listener) {
+            try {
+                listener(event);
+            } catch (_error) {
+            }
+        });
+    }
+
+    function sendTournamentPublicRealtime(payload) {
+        if (!tournamentPublicRealtime.ws || tournamentPublicRealtime.ws.readyState !== WebSocket.OPEN) {
+            connectTournamentPublicRealtime();
+            return false;
+        }
+
+        try {
+            tournamentPublicRealtime.ws.send(JSON.stringify(payload));
+            return true;
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    function flushTournamentPublicRealtimeSubscriptions() {
+        Object.keys(tournamentPublicRealtime.tournaments).forEach(function (key) {
+            if (!tournamentPublicRealtime.tournaments[key]) {
+                return;
+            }
+
+            sendTournamentPublicRealtime({
+                type: "tournament.subscribe",
+                tournamentId: Number(key)
+            });
+        });
+    }
+
+    function connectTournamentPublicRealtime() {
+        if (!("WebSocket" in window)) {
+            return false;
+        }
+
+        if (tournamentPublicRealtime.ws && (
+            tournamentPublicRealtime.ws.readyState === WebSocket.OPEN ||
+            tournamentPublicRealtime.ws.readyState === WebSocket.CONNECTING
+        )) {
+            return true;
+        }
+
+        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        tournamentPublicRealtime.manualClose = false;
+
+        try {
+            tournamentPublicRealtime.ws = new WebSocket(`${protocol}//${window.location.host}/ws-public`);
+        } catch (_error) {
+            return false;
+        }
+
+        tournamentPublicRealtime.ws.addEventListener("open", function () {
+            emitTournamentPublicRealtime({ type: "__public_socket_open__" });
+            flushTournamentPublicRealtimeSubscriptions();
+            window.clearInterval(tournamentPublicRealtime.pingTimer);
+            tournamentPublicRealtime.pingTimer = window.setInterval(function () {
+                sendTournamentPublicRealtime({ type: "ping" });
+            }, 25000);
+        });
+
+        tournamentPublicRealtime.ws.addEventListener("message", function (event) {
+            try {
+                emitTournamentPublicRealtime(JSON.parse(event.data));
+            } catch (_error) {
+            }
+        });
+
+        tournamentPublicRealtime.ws.addEventListener("close", function () {
+            emitTournamentPublicRealtime({ type: "__public_socket_close__" });
+            window.clearInterval(tournamentPublicRealtime.pingTimer);
+            tournamentPublicRealtime.ws = null;
+
+            if (!tournamentPublicRealtime.manualClose) {
+                window.clearTimeout(tournamentPublicRealtime.reconnectTimer);
+                tournamentPublicRealtime.reconnectTimer = window.setTimeout(connectTournamentPublicRealtime, 2500);
+            }
+        });
+
+        return true;
+    }
+
+    function subscribeTournamentPublicRealtime(tournamentId) {
+        const id = Number(tournamentId);
+        if (!Number.isFinite(id) || id <= 0) {
+            return false;
+        }
+
+        tournamentPublicRealtime.tournaments[String(id)] = true;
+        connectTournamentPublicRealtime();
+        return sendTournamentPublicRealtime({
+            type: "tournament.subscribe",
+            tournamentId: id
+        });
+    }
+
     function totalText(total, noun) {
         const number = toNumber(total);
         return `${number} ${noun}`;
@@ -2088,18 +2211,18 @@
         const courtText = trimToEmpty(match?.addressText) || trimToEmpty(match?.courtText) || "Ch\u01b0a c\u1eadp nh\u1eadt";
 
         return [
-            `<div class="tournament-match-card ${hasWinner ? "is-finished" : ""}">`,
-            `<div class="tournament-match-card__index ${hasWinner ? "is-finished" : ""}">${index + 1}</div>`,
+            `<div class="tournament-match-card ${hasWinner ? "is-finished" : ""}" data-schedule-match-id="${escapeHtml(String(match?.matchId || ""))}">`,
+            `<div class="tournament-match-card__index ${hasWinner ? "is-finished" : ""}" data-schedule-match-index>${index + 1}</div>`,
             '<div class="tournament-match-card__body">',
             `<p class="tournament-match-card__meta">#${escapeHtml(String(match?.matchId || index + 1))} (${escapeHtml(formatClock(match?.startAt))}; S\u00e2n: ${escapeHtml(courtText)})</p>`,
             '<div class="tournament-match-card__teams">',
             '<div class="tournament-match-card__teamnames">',
-            `<strong class="${isWinnerA ? "is-winner" : ""}">${escapeHtml(teamA)}</strong>`,
-            `<strong class="${isWinnerB ? "is-winner" : ""}">${escapeHtml(teamB)}</strong>`,
+            `<strong class="${isWinnerA ? "is-winner" : ""}" data-schedule-team-side="1">${escapeHtml(teamA)}</strong>`,
+            `<strong class="${isWinnerB ? "is-winner" : ""}" data-schedule-team-side="2">${escapeHtml(teamB)}</strong>`,
             "</div>",
             '<div class="tournament-match-card__scores">',
-            `<span class="${isWinnerA ? "is-winner" : ""}">${escapeHtml(String(toNumber(match?.scoreTeam1)))}</span>`,
-            `<span class="${isWinnerB ? "is-winner" : ""}">${escapeHtml(String(toNumber(match?.scoreTeam2)))}</span>`,
+            `<span class="${isWinnerA ? "is-winner" : ""}" data-schedule-score-side="1">${escapeHtml(String(toNumber(match?.scoreTeam1)))}</span>`,
+            `<span class="${isWinnerB ? "is-winner" : ""}" data-schedule-score-side="2">${escapeHtml(String(toNumber(match?.scoreTeam2)))}</span>`,
             "</div>",
             "</div>",
             '<div class="tournament-match-card__actions">',
@@ -2111,6 +2234,56 @@
             "</div>",
             "</div>"
         ].join("");
+    }
+
+    function patchTournamentScheduleMatchScore(root, payload) {
+        const matchId = Number(payload?.matchId || payload?.MatchId);
+        if (!Number.isFinite(matchId) || matchId <= 0) {
+            return false;
+        }
+
+        const card = root.querySelector(`[data-schedule-match-id="${String(matchId)}"]`);
+        if (!card) {
+            return false;
+        }
+
+        const score1 = toNumber(payload?.scoreTeam1 ?? payload?.ScoreTeam1);
+        const score2 = toNumber(payload?.scoreTeam2 ?? payload?.ScoreTeam2);
+        const winnerTeam = trimToEmpty(payload?.winnerTeam || payload?.WinnerTeam || payload?.winnerSide || payload?.WinnerSide);
+        const isWinnerA = winnerTeam === "1" || winnerTeam.toUpperCase() === "TEAM1";
+        const isWinnerB = winnerTeam === "2" || winnerTeam.toUpperCase() === "TEAM2";
+        const isFinished = isWinnerA || isWinnerB || !!(payload?.winnerRegistrationId ?? payload?.WinnerRegistrationId);
+
+        const scoreEl1 = card.querySelector('[data-schedule-score-side="1"]');
+        const scoreEl2 = card.querySelector('[data-schedule-score-side="2"]');
+        const teamEl1 = card.querySelector('[data-schedule-team-side="1"]');
+        const teamEl2 = card.querySelector('[data-schedule-team-side="2"]');
+        const indexEl = card.querySelector('[data-schedule-match-index]');
+
+        if (scoreEl1) {
+            scoreEl1.textContent = String(score1);
+            scoreEl1.classList.toggle("is-winner", isWinnerA);
+        }
+
+        if (scoreEl2) {
+            scoreEl2.textContent = String(score2);
+            scoreEl2.classList.toggle("is-winner", isWinnerB);
+        }
+
+        if (teamEl1) {
+            teamEl1.classList.toggle("is-winner", isWinnerA);
+        }
+
+        if (teamEl2) {
+            teamEl2.classList.toggle("is-winner", isWinnerB);
+        }
+
+        if (indexEl) {
+            indexEl.classList.toggle("is-finished", isFinished);
+        }
+
+        card.classList.toggle("is-finished", isFinished);
+        return true;
     }
 
     function renderTournamentScheduleGroup(roundKey, group, groupIndex) {
@@ -4159,6 +4332,8 @@
         const kind = trimToEmpty(root.getAttribute("data-detail-kind"));
         const id = Number(root.getAttribute("data-detail-id"));
         const body = qs("[data-detail-body]", root);
+        let removePublicRealtimeListener = null;
+        let publicRefreshTimer = null;
 
         if (!kind || !Number.isFinite(id) || !body) {
             return;
@@ -4206,6 +4381,35 @@
                                     : "Chi ti\u1ebft gi\u1ea3i \u0111\u1ea5u",
                 kind === "tournament-detail" || kind === "tournament-schedule-page"
             );
+        }
+
+        if (kind === "tournament-schedule-page") {
+            subscribeTournamentPublicRealtime(id);
+            removePublicRealtimeListener = addTournamentPublicRealtimeListener(function (event) {
+                if (trimToEmpty(event && event.type) !== "tournament.match.score.updated") {
+                    return;
+                }
+
+                const payload = event && event.payload ? event.payload : {};
+                if (Number(payload.tournamentId || payload.TournamentId) !== id) {
+                    return;
+                }
+
+                window.clearTimeout(publicRefreshTimer);
+                publicRefreshTimer = window.setTimeout(function () {
+                    if (!patchTournamentScheduleMatchScore(root, payload)) {
+                        window.location.reload();
+                    }
+                }, 180);
+            });
+
+            window.addEventListener("pagehide", function () {
+                window.clearTimeout(publicRefreshTimer);
+                if (removePublicRealtimeListener) {
+                    removePublicRealtimeListener();
+                    removePublicRealtimeListener = null;
+                }
+            }, { once: true });
         }
 
         try {

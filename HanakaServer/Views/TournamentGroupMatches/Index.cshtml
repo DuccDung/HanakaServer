@@ -156,9 +156,9 @@
                     <hr />
 
                     <div class="form-group mb-2">
-                        <label>Gán trọng tài theo UserId</label>
+                        <label>Gán trọng tài theo UserId <span class="text-danger">*</span></label>
                         <div class="input-group">
-                            <input type="number" class="form-control" id="refereeUserIdInput" placeholder="Nhập UserId trọng tài" min="1" />
+                            <input type="number" class="form-control" id="refereeUserIdInput" placeholder="Nhập UserId trọng tài hợp lệ" min="1" />
                             <div class="input-group-append">
                                 <button class="btn btn-outline-info" type="button" id="btnFindReferee">
                                     <i class="fas fa-search"></i> Tìm
@@ -175,7 +175,7 @@
                         Chưa chọn trọng tài.
                     </div>
 
-                    <small class="text-muted">Tỷ số sẽ được cập nhật ở nút “Nhập tỷ số”.</small>
+                    <small class="text-muted">Bắt buộc chọn trọng tài hợp lệ trước khi lưu trận đấu.</small>
                 </div>
 
                 <div class="modal-footer">
@@ -336,7 +336,7 @@
                 $id("refereeInfo").innerHTML = `
                     <div><b>${esc(u.fullName)}</b> (UserId: ${u.userId})</div>
                     <div>${esc(u.phone || "—")} • ${esc(u.email || "—")} • ${esc(u.city || "—")}</div>
-                    <div>Xác minh: ${u.verified ? "Có" : "Không"} • Hoạt động: ${u.isActive ? "Có" : "Không"}</div>
+                    <div>Hồ sơ trọng tài: ${u.refereeVerified ? "Hợp lệ" : "Chưa xác minh"} • Loại: ${esc(u.refereeType || "REFEREE")} • Hoạt động: ${u.isActive ? "Có" : "Không"}</div>
                 `;
             }
 
@@ -409,6 +409,7 @@
                     <div class="${cardCls}" data-id="${m.matchId}">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
+                                <div class="meta mb-1"><span class="badge badge-dark">Mã trận #${m.matchId}</span></div>
                                 <div class="meta">
                                     Bắt đầu: ${fmt(m.startAt)}${m.courtText ? " • " + esc(m.courtText) : ""}
                                 </div>
@@ -608,6 +609,10 @@
                 }
 
                 const refereeUserId = Number($id("refereeUserId").value || 0) || null;
+                if (!refereeUserId) {
+                    showFormErr("Trận đấu bắt buộc phải có trọng tài hợp lệ.", "formErr");
+                    return;
+                }
 
                 const startAtLocal = $id("startAt").value;
                 const startAtIso = startAtLocal ? new Date(startAtLocal).toISOString() : null;

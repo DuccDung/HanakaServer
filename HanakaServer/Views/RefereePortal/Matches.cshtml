@@ -152,6 +152,20 @@
             color: #4b5563;
         }
 
+        .match-id-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+            border-radius: 999px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: .02em;
+            background: #111827;
+            color: #fff;
+        }
+
         .score-preview {
             display: grid;
             grid-template-columns: 1fr auto 1fr;
@@ -594,7 +608,7 @@
                 if (m.canEditScore) {
                     return `<span class="match-chip"><i class="fas fa-clipboard-check"></i> Có thể chấm điểm</span>`;
                 }
-                return `<span class="match-chip muted"><i class="fas fa-lock"></i> Chưa đến giờ đấu</span>`;
+                return `<span class="match-chip muted"><i class="fas fa-lock"></i> Chưa thể chấm điểm</span>`;
             }
 
             function cardHtml(m) {
@@ -606,6 +620,9 @@
                     <div class="match-card ${completed ? "completed" : ""}" onclick="openMatchDetail(${m.matchId})">
                         <div class="match-head">
                             <div>
+                                <div class="match-id-badge">
+                                    <i class="fas fa-hashtag"></i> Mã trận #${m.matchId}
+                                </div>
                                 <div class="match-title">${esc(m.tournamentTitle)}</div>
                                 <div class="match-meta">Vòng: ${esc(m.roundKey)} • ${esc(m.roundLabel)} • Bảng: ${esc(m.groupName)}</div>
                                 <div class="match-meta">Bắt đầu: ${fmt(m.startAt)}${m.courtText ? " • " + esc(m.courtText) : ""}</div>
@@ -663,6 +680,9 @@
                     <div class="focus-match">
                         <div class="focus-top">
                             <div>
+                                <div class="match-id-badge">
+                                    <i class="fas fa-hashtag"></i> Mã trận #${m.matchId}
+                                </div>
                                 <div class="focus-meta"><b>Giải đấu:</b> ${esc(m.tournamentTitle)}</div>
                                 <div class="focus-meta"><b>Vòng:</b> ${esc(m.roundKey)} • ${esc(m.roundLabel)} • <b>Bảng:</b> ${esc(m.groupName)}</div>
                                 <div class="focus-meta"><b>Bắt đầu:</b> ${fmt(m.startAt)}</div>
@@ -739,7 +759,7 @@
                                 ` : `
                                     <div class="focus-lock">
                                         <i class="fas fa-lock"></i>
-                                        Chưa đến thời gian thi đấu. Trọng tài chỉ có thể xem thông tin trận đấu này.
+                                        Trọng tài chỉ có thể chấm điểm cho trận diễn ra trong hôm nay.
                                     </div>
                                 `}
                             </div>
@@ -765,7 +785,7 @@
                 const m = getMatch(matchId);
                 if (!m) return;
 
-                $id("overlayTitle").textContent = m.tournamentTitle || "Chi tiết trận đấu";
+                $id("overlayTitle").textContent = `Mã trận #${m.matchId} • ${m.tournamentTitle || "Chi tiết trận đấu"}`;
                 $id("overlaySubtitle").innerHTML = `
                     Trận đấu riêng biệt để chấm điểm, tránh nhầm lẫn với các trận khác.
                 `;

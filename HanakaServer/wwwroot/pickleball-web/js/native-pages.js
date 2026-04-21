@@ -982,6 +982,148 @@
         });
     }
 
+    var publicPageRealtime = {
+        ws: null,
+        reconnectTimer: null,
+        pingTimer: null,
+        manualClose: false,
+        listeners: [],
+        matchSubscriptions: {},
+        videosSubscribed: false,
+        reconnectDelay: 2500
+    };
+
+    function buildPublicRealtimeUrl() {
+        var protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        return protocol + "//" + window.location.host + "/ws-public";
+    }
+
+    function emitPublicRealtime(event) {
+        publicPageRealtime.listeners.slice().forEach(function (listener) {
+            try {
+                listener(event);
+            } catch (_error) {
+            }
+        });
+    }
+
+    function addPublicRealtimeListener(listener) {
+        if (typeof listener !== "function") {
+            return function () { };
+        }
+
+        publicPageRealtime.listeners.push(listener);
+        return function () {
+            publicPageRealtime.listeners = publicPageRealtime.listeners.filter(function (item) {
+                return item !== listener;
+            });
+        };
+    }
+
+    function sendPublicRealtime(payload) {
+        if (!publicPageRealtime.ws || publicPageRealtime.ws.readyState !== WebSocket.OPEN) {
+            connectPublicRealtime();
+            return false;
+        }
+
+        try {
+            publicPageRealtime.ws.send(JSON.stringify(payload));
+            return true;
+        } catch (_error) {
+            return false;
+        }
+    }
+
+    function flushPublicRealtimeSubscriptions() {
+        if (publicPageRealtime.videosSubscribed) {
+            sendPublicRealtime({ type: "videos.subscribe" });
+        }
+
+        Object.keys(publicPageRealtime.matchSubscriptions).forEach(function (key) {
+            if (!publicPageRealtime.matchSubscriptions[key]) {
+                return;
+            }
+
+            sendPublicRealtime({
+                type: "match.subscribe",
+                matchId: Number(key)
+            });
+        });
+    }
+
+    function connectPublicRealtime() {
+        if (!("WebSocket" in window)) {
+            return false;
+        }
+
+        if (publicPageRealtime.ws && (
+            publicPageRealtime.ws.readyState === WebSocket.OPEN ||
+            publicPageRealtime.ws.readyState === WebSocket.CONNECTING
+        )) {
+            return true;
+        }
+
+        publicPageRealtime.manualClose = false;
+
+        try {
+            publicPageRealtime.ws = new WebSocket(buildPublicRealtimeUrl());
+        } catch (_error) {
+            return false;
+        }
+
+        publicPageRealtime.ws.addEventListener("open", function () {
+            emitPublicRealtime({ type: "__public_socket_open__" });
+            flushPublicRealtimeSubscriptions();
+            window.clearInterval(publicPageRealtime.pingTimer);
+            publicPageRealtime.pingTimer = window.setInterval(function () {
+                sendPublicRealtime({ type: "ping" });
+            }, 25000);
+        });
+
+        publicPageRealtime.ws.addEventListener("message", function (event) {
+            try {
+                emitPublicRealtime(JSON.parse(event.data));
+            } catch (_error) {
+            }
+        });
+
+        publicPageRealtime.ws.addEventListener("close", function () {
+            emitPublicRealtime({ type: "__public_socket_close__" });
+            window.clearInterval(publicPageRealtime.pingTimer);
+            publicPageRealtime.ws = null;
+
+            if (!publicPageRealtime.manualClose) {
+                window.clearTimeout(publicPageRealtime.reconnectTimer);
+                publicPageRealtime.reconnectTimer = window.setTimeout(function () {
+                    connectPublicRealtime();
+                }, publicPageRealtime.reconnectDelay);
+            }
+        });
+
+        publicPageRealtime.ws.addEventListener("error", function () {
+            emitPublicRealtime({ type: "__public_socket_error__" });
+        });
+
+        return true;
+    }
+
+    function subscribeVideosFeedRealtime() {
+        publicPageRealtime.videosSubscribed = true;
+        connectPublicRealtime();
+        return sendPublicRealtime({ type: "videos.subscribe" });
+    }
+
+    function subscribeMatchPublicRealtime(matchId) {
+        var id = Number(matchId);
+        if (!Number.isFinite(id) || id <= 0) {
+            return false;
+        }
+
+        publicPageRealtime.matchSubscriptions[String(id)] = true;
+        connectPublicRealtime();
+        return sendPublicRealtime({ type: "match.subscribe", matchId: id });
+    }
+
     function parseDate(value) {
         if (!value) {
             return null;
@@ -3351,6 +3493,7 @@
             loading: false,
             error: ""
         };
+        var removePublicRealtimeListener = null;
 
         setHeaderTitle(root, "Videos");
         setHeaderAction(root, null);
@@ -3405,6 +3548,36 @@
                 error: state.error,
                 hasMore: state.hasMore
             });
+        }
+
+        function applyRealtimeScoreUpdate(payload) {
+            var matchId = Number(payload && (payload.matchId || payload.MatchId));
+            if (!Number.isFinite(matchId) || matchId <= 0) {
+                return false;
+            }
+
+            var changed = false;
+            state.items = state.items.map(function (item) {
+                if (!item || Number(item.matchId) !== matchId) {
+                    return item;
+                }
+
+                changed = true;
+                return Object.assign({}, item, {
+                    scoreTeam1: Number(payload && (payload.scoreTeam1 ?? payload.ScoreTeam1) || 0),
+                    scoreTeam2: Number(payload && (payload.scoreTeam2 ?? payload.ScoreTeam2) || 0),
+                    isCompleted: !!(payload && (payload.isCompleted ?? payload.IsCompleted)),
+                    winnerRegistrationId: payload ? (payload.winnerRegistrationId ?? payload.WinnerRegistrationId ?? null) : null,
+                    winnerSide: trimToEmpty(payload && (payload.winnerSide || payload.WinnerSide || payload.winnerTeam || payload.WinnerTeam)) || null,
+                    updatedAt: payload ? (payload.updatedAt || payload.UpdatedAt || item.updatedAt) : item.updatedAt
+                });
+            });
+
+            if (changed) {
+                render();
+            }
+
+            return changed;
         }
 
         async function load(reset) {
@@ -3476,6 +3649,23 @@
             }
         });
 
+        subscribeVideosFeedRealtime();
+        removePublicRealtimeListener = addPublicRealtimeListener(function (event) {
+            if (trimToEmpty(event && event.type) !== "tournament.match.score.updated") {
+                return;
+            }
+
+            var payload = event && event.payload ? event.payload : {};
+            applyRealtimeScoreUpdate(payload);
+        });
+
+        window.addEventListener("pagehide", function () {
+            if (removePublicRealtimeListener) {
+                removePublicRealtimeListener();
+                removePublicRealtimeListener = null;
+            }
+        }, { once: true });
+
         load(true);
     }
 
@@ -3531,6 +3721,8 @@
     function initVideoPlayerPage(root) {
         var refs = getCommonRefs(root);
         var matchId = Number(root.getAttribute("data-native-page-id"));
+        var refreshTimer = null;
+        var removePublicRealtimeListener = null;
 
         renderEmptyState(refs, "Khong tim thay video tran dau.");
 
@@ -3604,8 +3796,8 @@
                     videoUrl ? '<div><small>Video</small><strong><a href="' + escapeHtml(buildSafeHref(videoUrl, "#")) + '" target="_blank" rel="noreferrer">Mo lien ket goc</a></strong></div>' : "",
                     "</div>",
                     '<div class="native-video-meta__teams">',
-                    renderVideoTeamSummary(match && match.team1, match && match.scoreTeam1, trimToEmpty(match && match.winnerTeam) === "TEAM1"),
-                    renderVideoTeamSummary(match && match.team2, match && match.scoreTeam2, trimToEmpty(match && match.winnerTeam) === "TEAM2"),
+                    renderVideoTeamSummary(match && match.team1, match && match.scoreTeam1, ["1", "TEAM1"].indexOf(trimToEmpty(match && match.winnerTeam).toUpperCase()) >= 0),
+                    renderVideoTeamSummary(match && match.team2, match && match.scoreTeam2, ["2", "TEAM2"].indexOf(trimToEmpty(match && match.winnerTeam).toUpperCase()) >= 0),
                     "</div>",
                     "</div>",
                     "</section>"
@@ -3628,6 +3820,33 @@
                 });
             }
         }
+
+        if (Number.isFinite(matchId) && matchId > 0) {
+            subscribeMatchPublicRealtime(matchId);
+            removePublicRealtimeListener = addPublicRealtimeListener(function (event) {
+                if (trimToEmpty(event && event.type) !== "tournament.match.score.updated") {
+                    return;
+                }
+
+                var payload = event && event.payload ? event.payload : {};
+                if (Number(payload.matchId || payload.MatchId) !== matchId) {
+                    return;
+                }
+
+                window.clearTimeout(refreshTimer);
+                refreshTimer = window.setTimeout(function () {
+                    load();
+                }, 180);
+            });
+        }
+
+        window.addEventListener("pagehide", function () {
+            window.clearTimeout(refreshTimer);
+            if (removePublicRealtimeListener) {
+                removePublicRealtimeListener();
+                removePublicRealtimeListener = null;
+            }
+        }, { once: true });
 
         load();
     }

@@ -42,7 +42,9 @@ builder.Services.AddScoped<IAppAuthService, AppAuthService>();
 builder.Services.AddSingleton<IWebAuthCookieService, WebAuthCookieService>();
 
 builder.Services.AddSingleton<RealtimeHub>();
+builder.Services.AddSingleton<PublicRealtimeHub>();
 builder.Services.AddScoped<WebSocketHandler>();
+builder.Services.AddScoped<PublicWebSocketHandler>();
 builder.Services.AddHostedService<TournamentPairRequestExpiryService>();
 
 // Authentication
@@ -154,6 +156,21 @@ app.MapControllerRoute(
     defaults: new { controller = "RefereePortal" });
 
 // WebSocket endpoint
+app.Map("/ws-public", async httpContext =>
+{
+    if (!httpContext.WebSockets.IsWebSocketRequest)
+    {
+        httpContext.Response.StatusCode = 400;
+        await httpContext.Response.WriteAsync("WebSocket request required");
+        return;
+    }
+
+    var ws = await httpContext.WebSockets.AcceptWebSocketAsync();
+    var handler = httpContext.RequestServices.GetRequiredService<PublicWebSocketHandler>();
+
+    await handler.HandleAsync(ws, httpContext.RequestAborted);
+});
+
 app.Map("/ws", async httpContext =>
 {
     if (!httpContext.WebSockets.IsWebSocketRequest)

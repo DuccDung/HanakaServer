@@ -64,7 +64,7 @@ namespace HanakaServer.Controllers
             if (t == null)
                 return NotFound(new { message = "Tournament not found." });
 
-            var items = await (
+            var itemsRaw = await (
                 from m in _db.TournamentGroupMatches.AsNoTracking()
                 where m.TournamentRoundGroupId == groupId
                 join r1 in _db.TournamentRegistrations.AsNoTracking()
@@ -106,13 +106,66 @@ namespace HanakaServer.Controllers
                     RefereePhone = referee != null ? referee.Phone : null,
                     RefereeEmail = referee != null ? referee.Email : null,
                     RefereeCity = referee != null ? referee.City : null,
-                    RefereeVerified = referee != null && referee.Verified,
                     RefereeIsActive = referee != null && referee.IsActive,
 
                     m.CreatedAt,
                     m.UpdatedAt
                 }
             ).ToListAsync();
+
+            var refereeExternalIds = itemsRaw
+                .Where(x => x.RefereeUserId.HasValue)
+                .Select(x => x.RefereeUserId!.Value.ToString())
+                .Distinct()
+                .ToList();
+
+            var refereeProfileMap = await _db.Referees.AsNoTracking()
+                .Where(x => refereeExternalIds.Contains(x.ExternalId))
+                .Select(x => new
+                {
+                    x.ExternalId,
+                    x.RefereeId,
+                    x.Verified,
+                    x.RefereeType
+                })
+                .ToDictionaryAsync(x => x.ExternalId, x => x);
+
+            var items = itemsRaw.Select(m =>
+            {
+                var refereeKey = m.RefereeUserId?.ToString() ?? "";
+                refereeProfileMap.TryGetValue(refereeKey, out var refereeProfile);
+
+                return new
+                {
+                    m.MatchId,
+                    m.TournamentRoundGroupId,
+                    m.TournamentId,
+                    m.Team1RegistrationId,
+                    m.Team1Text,
+                    m.Team2RegistrationId,
+                    m.Team2Text,
+                    m.StartAt,
+                    m.AddressText,
+                    m.CourtText,
+                    m.VideoUrl,
+                    m.ScoreTeam1,
+                    m.ScoreTeam2,
+                    m.IsCompleted,
+                    m.WinnerRegistrationId,
+                    m.WinnerTeam,
+                    m.RefereeUserId,
+                    m.RefereeName,
+                    m.RefereePhone,
+                    m.RefereeEmail,
+                    m.RefereeCity,
+                    RefereeVerified = refereeProfile != null && refereeProfile.Verified,
+                    RefereeType = refereeProfile?.RefereeType,
+                    RefereeProfileId = refereeProfile?.RefereeId,
+                    m.RefereeIsActive,
+                    m.CreatedAt,
+                    m.UpdatedAt
+                };
+            }).ToList();
 
             return Ok(new
             {
@@ -155,14 +208,9 @@ namespace HanakaServer.Controllers
             if (regs.Any(x => !x.Success))
                 return BadRequest(new { message = "Only SUCCESS registrations can be used for matches." });
 
-            if (dto.RefereeUserId.HasValue)
-            {
-                var refereeExists = await _db.Users.AsNoTracking()
-                    .AnyAsync(x => x.UserId == dto.RefereeUserId.Value);
-
-                if (!refereeExists)
-                    return BadRequest(new { message = "Referee user not found." });
-            }
+            var refereeValidationError = await ValidateAndEnsureRefereeAsync(dto.RefereeUserId);
+            if (refereeValidationError != null)
+                return BadRequest(new { message = refereeValidationError });
 
             var m = new TournamentGroupMatch
             {
@@ -216,37 +264,9 @@ namespace HanakaServer.Controllers
             if (m == null)
                 return NotFound(new { message = "Match not found." });
 
-            if (dto.RefereeUserId.HasValue)
-            {
-                var refereeUserId = dto.RefereeUserId.Value;
-
-                var refereeExists = await _db.Users.AsNoTracking()
-                    .AnyAsync(x => x.UserId == refereeUserId);
-
-                if (!refereeExists)
-                    return BadRequest(new { message = "Referee user not found." });
-
-                var refereeRoleId = await _db.Roles.AsNoTracking()
-                    .Where(x => x.RoleCode == "REFEREE")
-                    .Select(x => x.RoleId)
-                    .FirstOrDefaultAsync();
-
-                if (refereeRoleId == 0)
-                    return BadRequest(new { message = "Role REFEREE not found in system." });
-
-                var hasRefereeRole = await _db.UserRoles
-                    .AnyAsync(x => x.UserId == refereeUserId && x.RoleId == refereeRoleId);
-
-                if (!hasRefereeRole)
-                {
-                    _db.UserRoles.Add(new UserRole
-                    {
-                        UserId = refereeUserId,
-                        RoleId = refereeRoleId,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                }
-            }
+            var refereeValidationError = await ValidateAndEnsureRefereeAsync(dto.RefereeUserId);
+            if (refereeValidationError != null)
+                return BadRequest(new { message = refereeValidationError });
 
             if (m.IsCompleted)
             {
@@ -382,6 +402,56 @@ namespace HanakaServer.Controllers
                 return p1;
 
             return $"{p1} & {p2}";
+        }
+
+        private async Task<string?> ValidateAndEnsureRefereeAsync(long? refereeUserId)
+        {
+            if (!refereeUserId.HasValue || refereeUserId.Value <= 0)
+                return "Trận đấu bắt buộc phải có trọng tài.";
+
+            var resolvedRefereeUserId = refereeUserId.Value;
+
+            var refereeUser = await _db.Users
+                .FirstOrDefaultAsync(x => x.UserId == resolvedRefereeUserId);
+
+            if (refereeUser == null)
+                return "Không tìm thấy user trọng tài.";
+
+            if (!refereeUser.IsActive)
+                return "User trọng tài đang bị vô hiệu hóa.";
+
+            var refereeProfile = await _db.Referees
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.ExternalId == resolvedRefereeUserId.ToString());
+
+            if (refereeProfile == null)
+                return "User này chưa có hồ sơ trọng tài.";
+
+            if (!refereeProfile.Verified)
+                return "Hồ sơ trọng tài này chưa được xác minh.";
+
+            var refereeRoleId = await _db.Roles.AsNoTracking()
+                .Where(x => x.RoleCode == "REFEREE")
+                .Select(x => x.RoleId)
+                .FirstOrDefaultAsync();
+
+            if (refereeRoleId == 0)
+                return "Role REFEREE not found in system.";
+
+            var hasRefereeRole = await _db.UserRoles
+                .AnyAsync(x => x.UserId == resolvedRefereeUserId && x.RoleId == refereeRoleId);
+
+            if (!hasRefereeRole)
+            {
+                _db.UserRoles.Add(new UserRole
+                {
+                    UserId = resolvedRefereeUserId,
+                    RoleId = refereeRoleId,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            return null;
         }
     }
 

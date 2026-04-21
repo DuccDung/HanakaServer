@@ -41,7 +41,42 @@ namespace HanakaServer.Controllers.Api
             if (user == null)
                 return NotFound(new { message = "Không tìm thấy user." });
 
-            return Ok(user);
+            if (!user.IsActive)
+                return BadRequest(new { message = "User này đang bị vô hiệu hóa, không thể gán làm trọng tài." });
+
+            var referee = await _db.Referees
+                .AsNoTracking()
+                .Where(x => x.ExternalId == userId.ToString())
+                .Select(x => new
+                {
+                    x.RefereeId,
+                    x.Verified,
+                    x.RefereeType
+                })
+                .FirstOrDefaultAsync();
+
+            if (referee == null)
+                return BadRequest(new { message = "User này chưa có hồ sơ trọng tài." });
+
+            if (!referee.Verified)
+                return BadRequest(new { message = "Hồ sơ trọng tài này chưa được xác minh." });
+
+            return Ok(new
+            {
+                user.UserId,
+                user.FullName,
+                user.Phone,
+                user.Email,
+                user.City,
+                user.AvatarUrl,
+                user.Verified,
+                user.IsActive,
+                user.RatingSingle,
+                user.RatingDouble,
+                referee.RefereeId,
+                RefereeVerified = referee.Verified,
+                referee.RefereeType
+            });
         }
     }
 }

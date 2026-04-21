@@ -2,6 +2,7 @@
 using HanakaServer.Data;
 using HanakaServer.Models;
 using HanakaServer.Models.Dto;
+using HanakaServer.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,10 +16,12 @@ namespace HanakaServer.Controllers
     public class RefereeMatchesApiController : ControllerBase
     {
         private readonly PickleballDbContext _db;
+        private readonly PublicRealtimeHub _publicRealtimeHub;
 
-        public RefereeMatchesApiController(PickleballDbContext db)
+        public RefereeMatchesApiController(PickleballDbContext db, PublicRealtimeHub publicRealtimeHub)
         {
             _db = db;
+            _publicRealtimeHub = publicRealtimeHub;
         }
 
         private long? GetCurrentUserId()
@@ -29,14 +32,30 @@ namespace HanakaServer.Controllers
             return long.TryParse(raw, out var id) ? id : null;
         }
 
+        private static bool CanScoreMatchToday(DateTime? startAt)
+        {
+            if (!startAt.HasValue)
+                return false;
+
+            return NormalizeMatchStart(startAt.Value).Date == DateTime.Now.Date;
+        }
+
+        private static DateTime NormalizeMatchStart(DateTime startAt)
+        {
+            return startAt.Kind switch
+            {
+                DateTimeKind.Utc => startAt.ToLocalTime(),
+                DateTimeKind.Local => startAt,
+                _ => DateTime.SpecifyKind(startAt, DateTimeKind.Local)
+            };
+        }
+
         [HttpGet]
         public async Task<IActionResult> ListMyMatches()
         {
             var currentUserId = GetCurrentUserId();
             if (!currentUserId.HasValue)
                 return Unauthorized(new { message = "Không xác định được user hiện tại." });
-
-            var now = DateTime.UtcNow;
 
             var matches = await (
      from m in _db.TournamentGroupMatches.AsNoTracking()
@@ -82,9 +101,7 @@ namespace HanakaServer.Controllers
 
          WinnerTeam = m.WinnerRegistrationId == null
              ? null
-             : (m.WinnerRegistrationId == m.Team1RegistrationId ? "1" : "2"),
-
-         CanEditScore = m.StartAt.HasValue && m.StartAt.Value <= now
+             : (m.WinnerRegistrationId == m.Team1RegistrationId ? "1" : "2")
      }
  ).ToListAsync();
 
@@ -137,7 +154,7 @@ namespace HanakaServer.Controllers
                 m.IsCompleted,
                 m.WinnerRegistrationId,
                 m.WinnerTeam,
-                m.CanEditScore,
+                CanEditScore = CanScoreMatchToday(m.StartAt),
                 ScoreHistories = historyMap.ContainsKey(m.MatchId)
                                 ? historyMap[m.MatchId].Cast<object>().ToList()
                                 : new List<object>()
@@ -164,8 +181,8 @@ namespace HanakaServer.Controllers
             if (!m.StartAt.HasValue)
                 return BadRequest(new { message = "Trận chưa có thời gian thi đấu." });
 
-            if (DateTime.UtcNow < m.StartAt.Value)
-                return BadRequest(new { message = "Chưa đến giờ thi đấu, bạn chỉ được xem trận." });
+            if (!CanScoreMatchToday(m.StartAt))
+                return BadRequest(new { message = "Trọng tài chỉ được chấm điểm cho trận diễn ra hôm nay." });
 
             if (dto.ScoreTeam1 < 0 || dto.ScoreTeam2 < 0)
                 return BadRequest(new { message = "Điểm phải >= 0." });
@@ -180,6 +197,14 @@ namespace HanakaServer.Controllers
                     ? m.Team1RegistrationId
                     : m.Team2RegistrationId;
             }
+
+            var winnerTeam = winnerRegistrationId == null
+                ? null
+                : winnerRegistrationId == m.Team1RegistrationId
+                    ? "1"
+                    : winnerRegistrationId == m.Team2RegistrationId
+                        ? "2"
+                        : null;
 
             // update current score
             m.ScoreTeam1 = dto.ScoreTeam1;
@@ -205,6 +230,30 @@ namespace HanakaServer.Controllers
 
             await _db.SaveChangesAsync();
             await tx.CommitAsync();
+
+            try
+            {
+                await _publicRealtimeHub.BroadcastMatchScoreUpdatedAsync(m.TournamentId, m.MatchId, new
+                {
+                    m.TournamentId,
+                    m.MatchId,
+                    m.TournamentRoundGroupId,
+                    m.ScoreTeam1,
+                    m.ScoreTeam2,
+                    m.IsCompleted,
+                    m.WinnerRegistrationId,
+                    WinnerTeam = winnerTeam,
+                    WinnerSide = winnerTeam,
+                    m.VideoUrl,
+                    m.CourtText,
+                    m.AddressText,
+                    m.UpdatedAt
+                });
+            }
+            catch
+            {
+                // Realtime broadcast must not break the scoring transaction that already committed.
+            }
 
             var savedHistory = await _db.TournamentMatchScoreHistories.AsNoTracking()
                 .Where(x => x.ScoreHistoryId == history.ScoreHistoryId)
@@ -233,7 +282,7 @@ namespace HanakaServer.Controllers
                 m.ScoreTeam2,
                 m.IsCompleted,
                 m.WinnerRegistrationId,
-                WinnerTeam = m.WinnerRegistrationId == m.Team1RegistrationId ? "1" : "2",
+                WinnerTeam = winnerTeam,
                 History = savedHistory
             });
         }
