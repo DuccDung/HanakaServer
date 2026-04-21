@@ -176,6 +176,165 @@ namespace HanakaServer.Controllers
             });
         }
 
+        // GET /api/admin/groups/{groupId}/matches/winner-sources
+        [HttpGet("winner-sources")]
+        public async Task<IActionResult> GetWinnerSources(long groupId)
+        {
+            var currentGroup = await _db.TournamentRoundGroups.AsNoTracking()
+                .Where(x => x.TournamentRoundGroupId == groupId)
+                .Select(x => new
+                {
+                    x.TournamentRoundGroupId,
+                    x.TournamentRoundMapId,
+                    x.GroupName,
+                    x.SortOrder
+                })
+                .FirstOrDefaultAsync();
+
+            if (currentGroup == null)
+                return NotFound(new { message = "Không tìm thấy bảng đấu." });
+
+            var currentRound = await _db.TournamentRoundMaps.AsNoTracking()
+                .Where(x => x.TournamentRoundMapId == currentGroup.TournamentRoundMapId)
+                .Select(x => new
+                {
+                    x.TournamentRoundMapId,
+                    x.TournamentId,
+                    x.RoundKey,
+                    x.RoundLabel,
+                    x.SortOrder
+                })
+                .FirstOrDefaultAsync();
+
+            if (currentRound == null)
+                return NotFound(new { message = "Không tìm thấy vòng đấu." });
+
+            var previousRounds = await _db.TournamentRoundMaps.AsNoTracking()
+                .Where(x => x.TournamentId == currentRound.TournamentId
+                    && (x.SortOrder < currentRound.SortOrder
+                        || (x.SortOrder == currentRound.SortOrder && x.TournamentRoundMapId < currentRound.TournamentRoundMapId)))
+                .OrderBy(x => x.SortOrder)
+                .ThenBy(x => x.TournamentRoundMapId)
+                .Select(x => new
+                {
+                    x.TournamentRoundMapId,
+                    x.RoundKey,
+                    x.RoundLabel,
+                    x.SortOrder
+                })
+                .ToListAsync();
+
+            if (!previousRounds.Any())
+            {
+                return Ok(new
+                {
+                    current = new
+                    {
+                        groupId = currentGroup.TournamentRoundGroupId,
+                        groupName = currentGroup.GroupName,
+                        roundMapId = currentRound.TournamentRoundMapId,
+                        roundKey = currentRound.RoundKey,
+                        roundLabel = currentRound.RoundLabel,
+                        roundSortOrder = currentRound.SortOrder
+                    },
+                    rounds = Array.Empty<object>()
+                });
+            }
+
+            var previousRoundIds = previousRounds
+                .Select(x => x.TournamentRoundMapId)
+                .ToList();
+
+            var groups = await _db.TournamentRoundGroups.AsNoTracking()
+                .Where(x => previousRoundIds.Contains(x.TournamentRoundMapId))
+                .OrderBy(x => x.SortOrder)
+                .ThenBy(x => x.TournamentRoundGroupId)
+                .Select(x => new
+                {
+                    x.TournamentRoundGroupId,
+                    x.TournamentRoundMapId,
+                    x.GroupName,
+                    x.SortOrder
+                })
+                .ToListAsync();
+
+            var previousGroupIds = groups
+                .Select(x => x.TournamentRoundGroupId)
+                .ToList();
+
+            var matches = await _db.TournamentGroupMatches.AsNoTracking()
+                .Where(x => previousGroupIds.Contains(x.TournamentRoundGroupId)
+                    && x.IsCompleted
+                    && x.WinnerRegistrationId.HasValue)
+                .OrderBy(x => x.MatchId)
+                .Select(x => new
+                {
+                    x.MatchId,
+                    x.TournamentRoundGroupId,
+                    WinnerRegistrationId = x.WinnerRegistrationId!.Value
+                })
+                .ToListAsync();
+
+            var roundResults = previousRounds.Select(round =>
+            {
+                var groupsInRound = groups
+                    .Where(g => g.TournamentRoundMapId == round.TournamentRoundMapId)
+                    .Select(g =>
+                    {
+                        var groupMatches = matches
+                            .Where(m => m.TournamentRoundGroupId == g.TournamentRoundGroupId)
+                            .ToList();
+
+                        var winnerStats = groupMatches
+                            .GroupBy(m => m.WinnerRegistrationId)
+                            .Select(w => new
+                            {
+                                registrationId = w.Key,
+                                winCount = w.Count(),
+                                latestMatchId = w.Max(x => x.MatchId)
+                            })
+                            .OrderByDescending(x => x.winCount)
+                            .ThenByDescending(x => x.latestMatchId)
+                            .ThenBy(x => x.registrationId)
+                            .ToList();
+
+                        return new
+                        {
+                            groupId = g.TournamentRoundGroupId,
+                            groupName = g.GroupName,
+                            sortOrder = g.SortOrder,
+                            completedMatchCount = groupMatches.Count,
+                            winnerCount = winnerStats.Count,
+                            winners = winnerStats
+                        };
+                    })
+                    .ToList();
+
+                return new
+                {
+                    roundMapId = round.TournamentRoundMapId,
+                    roundKey = round.RoundKey,
+                    roundLabel = round.RoundLabel,
+                    sortOrder = round.SortOrder,
+                    groups = groupsInRound
+                };
+            }).ToList();
+
+            return Ok(new
+            {
+                current = new
+                {
+                    groupId = currentGroup.TournamentRoundGroupId,
+                    groupName = currentGroup.GroupName,
+                    roundMapId = currentRound.TournamentRoundMapId,
+                    roundKey = currentRound.RoundKey,
+                    roundLabel = currentRound.RoundLabel,
+                    roundSortOrder = currentRound.SortOrder
+                },
+                rounds = roundResults
+            });
+        }
+
         // POST /api/admin/groups/{groupId}/matches
         [HttpPost]
         public async Task<IActionResult> Create(long groupId, [FromBody] CreateMatchDto dto)

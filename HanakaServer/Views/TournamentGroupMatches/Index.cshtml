@@ -201,6 +201,17 @@
         margin-bottom: 8px;
     }
 
+    .team-picker-card-alert {
+        margin-top: 8px;
+        padding: 8px 10px;
+        border-radius: 8px;
+        background: #fff5f5;
+        border: 1px solid #f5c2c7;
+        color: #b02a37;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
     .team-picker-card-code {
         font-size: 12px;
         font-weight: 700;
@@ -230,6 +241,76 @@
         text-align: center;
         color: #6c757d;
         background: #fafafa;
+    }
+
+    .winner-filter-summary,
+    .winner-source-info {
+        border: 1px solid #cfe2ff;
+        border-radius: 12px;
+        background: #f3f8ff;
+        padding: 12px 14px;
+    }
+
+    .winner-filter-chip-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .winner-filter-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #bfd6ff;
+        border-radius: 999px;
+        background: #fff;
+        padding: 6px 10px;
+        font-size: 12px;
+        color: #345;
+    }
+
+    .winner-group-list,
+    .winner-preview-list {
+        display: grid;
+        gap: 10px;
+    }
+
+    .winner-group-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+
+    .winner-preview-list {
+        max-height: 240px;
+        overflow-y: auto;
+    }
+
+    .winner-group-card,
+    .winner-preview-item {
+        border: 1px solid #dee2e6;
+        border-radius: 12px;
+        padding: 12px;
+        background: #fff;
+    }
+
+    .winner-group-card.active {
+        border-color: #4e73df;
+        box-shadow: 0 0 0 2px rgba(78, 115, 223, .1);
+        background: #f8fbff;
+    }
+
+    .winner-group-card-title,
+    .winner-preview-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: #2e3a59;
+        margin-bottom: 4px;
+    }
+
+    .winner-group-card-meta,
+    .winner-preview-meta {
+        font-size: 12px;
+        color: #6c757d;
     }
 
     @@media (max-width: 992px) {
@@ -263,6 +344,14 @@
                 <i class="fas fa-plus fa-sm text-white-50"></i> Tạo trận đấu
             </button>
 
+            <button class="btn btn-sm btn-outline-primary" type="button" id="btnOpenWinnerFilter">
+                <i class="fas fa-sitemap"></i> Lọc đội thắng
+            </button>
+
+            <button class="btn btn-sm btn-outline-secondary d-none" type="button" id="btnClearWinnerFilter">
+                <i class="fas fa-times"></i> Bỏ lọc đội thắng
+            </button>
+
             <button class="btn btn-sm btn-outline-success" type="button" id="btnFilterCompleted">
                 <i class="fas fa-filter"></i> Người thắng
             </button>
@@ -274,6 +363,7 @@
     </div>
 
     <div id="errBox" class="alert alert-danger d-none"></div>
+    <div id="winnerFilterSummary" class="winner-filter-summary d-none mb-3"></div>
 
     <div id="cards" class="grid">
         <div class="text-muted">Đang tải...</div>
@@ -297,6 +387,19 @@
 
                 <div class="modal-body">
                     <div id="formErr" class="alert alert-danger d-none"></div>
+                    <div id="winnerSourceInfo" class="winner-source-info d-none mb-3"></div>
+
+                    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px">
+                        <small class="text-muted" id="winnerSourceHint">Đang dùng toàn bộ đội đăng ký thành công của giải để tạo trận.</small>
+                        <div class="d-flex" style="gap:8px">
+                            <button class="btn btn-sm btn-outline-primary" type="button" id="btnOpenWinnerFilterFromModal">
+                                <i class="fas fa-sitemap"></i> Lọc đội thắng
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary d-none" type="button" id="btnClearWinnerFilterFromModal">
+                                <i class="fas fa-times"></i> Bỏ lọc
+                            </button>
+                        </div>
+                    </div>
 
                     <div class="form-row">
                         <div class="form-group col-md-6">
@@ -409,6 +512,69 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalWinnerFilter" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Lọc đội thắng từ vòng trước</h5>
+                <button class="close" type="button" data-dismiss="modal">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div id="winnerFilterErr" class="alert alert-danger d-none"></div>
+
+                <div class="form-row">
+                    <div class="form-group col-md-5">
+                        <label>Chọn vòng nguồn</label>
+                        <select class="form-control" id="winnerRoundSelect"></select>
+                    </div>
+                    <div class="form-group col-md-7 d-flex align-items-end" style="gap:8px; flex-wrap:wrap;">
+                        <button class="btn btn-outline-primary" type="button" id="btnSelectRoundGroups">
+                            Chọn tất cả bảng của vòng
+                        </button>
+                        <button class="btn btn-outline-secondary" type="button" id="btnClearRoundGroups">
+                            Bỏ chọn vòng này
+                        </button>
+                    </div>
+                </div>
+
+                <div class="small text-muted mb-3" id="winnerFilterRoundHint">
+                    Chọn một hoặc nhiều bảng ở các vòng trước để lấy nguồn đội thắng tạo trận mới.
+                </div>
+
+                <div class="form-group">
+                    <label>Bảng đấu trong vòng đang chọn</label>
+                    <div class="winner-group-list" id="winnerGroupList"></div>
+                </div>
+
+                <div class="form-group">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="mb-0">Nguồn bảng đã chọn</label>
+                        <small class="text-muted" id="winnerSelectedGroupCount">0 bảng</small>
+                    </div>
+                    <div class="winner-filter-chip-list" id="winnerSelectedGroups"></div>
+                </div>
+
+                <div class="form-group mb-0">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="mb-0">Preview đội thắng</label>
+                        <small class="text-muted" id="winnerPreviewCount">0 đội</small>
+                    </div>
+                    <div class="winner-preview-list" id="winnerPreviewList"></div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" type="button" id="btnClearWinnerDraft">Bỏ chọn tất cả</button>
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">Đóng</button>
+                <button class="btn btn-primary" type="button" id="btnApplyWinnerFilter">Áp dụng cho tạo trận</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="team-picker-overlay" id="teamPickerOverlay" aria-hidden="true">
     <div class="team-picker-backdrop" id="teamPickerBackdrop"></div>
     <div class="team-picker-drawer">
@@ -511,6 +677,7 @@
             const API = `/api/admin/groups/${GROUP_ID}/matches`;
             const API_REGS = `/api/admin/tournaments/${TOURNAMENT_ID}/registrations`;
             const API_FIND_REFEREE = `/api/admin/referees/find-by-user-id`;
+            const API_WINNER_SOURCES = `${API}/winner-sources`;
 
             let CACHE = {
                 items: [],
@@ -520,6 +687,18 @@
             let SHOW_ONLY_COMPLETED = false;
             let TEAM_PICKER_TARGET_SLOT = 1;
             let TEAM_PICKER_KEYWORD = "";
+            let WINNER_SOURCE_CACHE = {
+                current: null,
+                rounds: []
+            };
+            let WINNER_FILTER_STATE = {
+                draftGroupIds: [],
+                draftRoundMapId: 0,
+                activeGroupIds: [],
+                activeRegistrationIds: [],
+                activeWinnerItems: []
+            };
+            let REOPEN_MATCH_MODAL_AFTER_WINNER_FILTER = false;
 
             const esc = (s) => String(s || "")
                 .replaceAll("&", "&amp;")
@@ -659,6 +838,359 @@
                 return reg?.regCode || `#${registrationId}`;
             }
 
+            function getWinnerSourceRounds() {
+                return WINNER_SOURCE_CACHE.rounds || [];
+            }
+
+            function getWinnerSourceFlatGroups() {
+                return getWinnerSourceRounds().flatMap(round => (round.groups || []).map(group => ({
+                    ...group,
+                    roundMapId: round.roundMapId,
+                    roundKey: round.roundKey,
+                    roundLabel: round.roundLabel,
+                    roundSortOrder: round.sortOrder
+                })));
+            }
+
+            function getWinnerSourceGroupById(groupId) {
+                return getWinnerSourceFlatGroups().find(group => Number(group.groupId) === Number(groupId)) || null;
+            }
+
+            function normalizeWinnerGroupIds(groupIds) {
+                const validGroupIds = new Set(getWinnerSourceFlatGroups().map(group => Number(group.groupId)));
+                const normalized = [];
+
+                for (const rawId of groupIds || []) {
+                    const groupId = Number(rawId || 0);
+                    if (!groupId || !validGroupIds.has(groupId) || normalized.includes(groupId)) {
+                        continue;
+                    }
+
+                    normalized.push(groupId);
+                }
+
+                return normalized;
+            }
+
+            function buildWinnerSourceGroupLabel(group) {
+                if (!group) return "";
+                return `${group.roundKey} • ${group.roundLabel} • ${group.groupName}`;
+            }
+
+            function buildWinnerRegistrationAggregates(groupIds) {
+                const aggregates = new Map();
+
+                for (const groupId of normalizeWinnerGroupIds(groupIds)) {
+                    const group = getWinnerSourceGroupById(groupId);
+                    if (!group) continue;
+
+                    const sourceLabel = buildWinnerSourceGroupLabel(group);
+
+                    for (const winner of (group.winners || [])) {
+                        const registrationId = Number(winner.registrationId || 0);
+                        if (!registrationId) continue;
+
+                        const reg = getRegistrationById(registrationId);
+                        if (!aggregates.has(registrationId)) {
+                            aggregates.set(registrationId, {
+                                registrationId,
+                                regCode: reg?.regCode || `#${registrationId}`,
+                                regIndex: Number(reg?.regIndex || 0),
+                                teamName: reg ? buildTeamText(reg) : `Đội #${registrationId}`,
+                                totalWins: 0,
+                                sourceLabels: []
+                            });
+                        }
+
+                        const item = aggregates.get(registrationId);
+                        item.totalWins += Number(winner.winCount || 0);
+
+                        if (!item.sourceLabels.includes(sourceLabel)) {
+                            item.sourceLabels.push(sourceLabel);
+                        }
+                    }
+                }
+
+                return Array.from(aggregates.values())
+                    .sort((a, b) => {
+                        if (a.regIndex && b.regIndex && a.regIndex !== b.regIndex) {
+                            return a.regIndex - b.regIndex;
+                        }
+
+                        return String(a.regCode || "").localeCompare(String(b.regCode || ""), "vi");
+                    });
+            }
+
+            function rebuildActiveWinnerFilter() {
+                WINNER_FILTER_STATE.draftGroupIds = normalizeWinnerGroupIds(WINNER_FILTER_STATE.draftGroupIds);
+                WINNER_FILTER_STATE.activeGroupIds = normalizeWinnerGroupIds(WINNER_FILTER_STATE.activeGroupIds);
+                WINNER_FILTER_STATE.activeWinnerItems = buildWinnerRegistrationAggregates(WINNER_FILTER_STATE.activeGroupIds);
+                WINNER_FILTER_STATE.activeRegistrationIds = WINNER_FILTER_STATE.activeWinnerItems.map(item => item.registrationId);
+
+                const roundIds = getWinnerSourceRounds().map(round => Number(round.roundMapId));
+                if (!roundIds.length) {
+                    WINNER_FILTER_STATE.draftRoundMapId = 0;
+                    return;
+                }
+
+                if (!roundIds.includes(Number(WINNER_FILTER_STATE.draftRoundMapId || 0))) {
+                    WINNER_FILTER_STATE.draftRoundMapId = roundIds[0];
+                }
+            }
+
+            function hasActiveWinnerFilter() {
+                return (WINNER_FILTER_STATE.activeGroupIds || []).length > 0;
+            }
+
+            function getWinnerSourceDefaultHint() {
+                if (!getWinnerSourceRounds().length) {
+                    return "Vòng hiện tại chưa có vòng trước để lấy đội thắng. Đang dùng toàn bộ đội đăng ký thành công của giải.";
+                }
+
+                return "Đang dùng toàn bộ đội đăng ký thành công của giải để tạo trận.";
+            }
+
+            function getAvailableTeamPool(extraIds = []) {
+                const extras = (extraIds || []).map(Number).filter(Boolean);
+                let items = CACHE.regs || [];
+
+                if (hasActiveWinnerFilter()) {
+                    const allowedIds = new Set((WINNER_FILTER_STATE.activeRegistrationIds || []).map(Number));
+                    items = items.filter(reg => allowedIds.has(Number(reg.registrationId)));
+                }
+
+                const result = [...items];
+                const seenIds = new Set(result.map(reg => Number(reg.registrationId)));
+
+                for (const extraId of extras) {
+                    if (seenIds.has(extraId)) continue;
+
+                    const reg = getRegistrationById(extraId);
+                    if (!reg) continue;
+
+                    result.push(reg);
+                    seenIds.add(extraId);
+                }
+
+                return result.sort((a, b) => {
+                    const aIndex = Number(a?.regIndex || 0);
+                    const bIndex = Number(b?.regIndex || 0);
+
+                    if (aIndex && bIndex && aIndex !== bIndex) {
+                        return aIndex - bIndex;
+                    }
+
+                    return String(a?.regCode || "").localeCompare(String(b?.regCode || ""), "vi");
+                });
+            }
+
+            function buildWinnerFilterInfoHtml(groupIds, winnerItems) {
+                const labels = normalizeWinnerGroupIds(groupIds)
+                    .map(groupId => buildWinnerSourceGroupLabel(getWinnerSourceGroupById(groupId)))
+                    .filter(Boolean);
+
+                const chips = labels.length
+                    ? `<div class="winner-filter-chip-list mt-2">${labels.map(label => `<span class="winner-filter-chip">${esc(label)}</span>`).join("")}</div>`
+                    : "";
+
+                return `
+                    <div class="font-weight-bold mb-1">Đang dùng ${winnerItems.length} đội thắng từ ${labels.length} bảng đã lọc.</div>
+                    <div class="small text-muted">Danh sách chọn đội trong modal tạo trận sẽ chỉ còn các đội thắng thuộc nguồn này.</div>
+                    ${chips}
+                `;
+            }
+
+            function renderWinnerFilterSummary() {
+                const summaryBox = $id("winnerFilterSummary");
+                const sourceInfo = $id("winnerSourceInfo");
+                const sourceHint = $id("winnerSourceHint");
+                const clearButtons = [$id("btnClearWinnerFilter"), $id("btnClearWinnerFilterFromModal")];
+
+                if (!hasActiveWinnerFilter()) {
+                    summaryBox.classList.add("d-none");
+                    summaryBox.innerHTML = "";
+                    sourceInfo.classList.add("d-none");
+                    sourceInfo.innerHTML = "";
+                    sourceHint.textContent = getWinnerSourceDefaultHint();
+                    clearButtons.forEach(btn => btn.classList.add("d-none"));
+                    return;
+                }
+
+                const html = buildWinnerFilterInfoHtml(
+                    WINNER_FILTER_STATE.activeGroupIds,
+                    WINNER_FILTER_STATE.activeWinnerItems
+                );
+
+                summaryBox.classList.remove("d-none");
+                summaryBox.innerHTML = html;
+                sourceInfo.classList.remove("d-none");
+                sourceInfo.innerHTML = html;
+                sourceHint.textContent = `Đang giới hạn nguồn đội theo ${WINNER_FILTER_STATE.activeWinnerItems.length} đội thắng đã lọc.`;
+                clearButtons.forEach(btn => btn.classList.remove("d-none"));
+            }
+
+            function renderWinnerRoundOptions() {
+                const select = $id("winnerRoundSelect");
+                const rounds = getWinnerSourceRounds();
+
+                if (!rounds.length) {
+                    select.innerHTML = `<option value="">Chưa có vòng trước</option>`;
+                    select.disabled = true;
+                    return;
+                }
+
+                select.disabled = false;
+                select.innerHTML = rounds.map(round => `
+                    <option value="${round.roundMapId}">
+                        ${esc(round.roundKey)} - ${esc(round.roundLabel)} (${round.groups?.length || 0} bảng)
+                    </option>
+                `).join("");
+
+                select.value = String(WINNER_FILTER_STATE.draftRoundMapId || rounds[0].roundMapId);
+            }
+
+            function renderWinnerGroupList() {
+                const box = $id("winnerGroupList");
+                const roundId = Number($id("winnerRoundSelect").value || 0);
+                const round = getWinnerSourceRounds().find(item => Number(item.roundMapId) === roundId);
+
+                if (!round) {
+                    box.innerHTML = `<div class="team-picker-empty">Chưa có bảng đấu nào ở vòng trước để lấy đội thắng.</div>`;
+                    return;
+                }
+
+                const selectedIds = normalizeWinnerGroupIds(WINNER_FILTER_STATE.draftGroupIds);
+
+                box.innerHTML = (round.groups || []).map(group => {
+                    const checked = selectedIds.includes(Number(group.groupId));
+                    const metaText = group.winnerCount
+                        ? `${group.winnerCount} đội thắng • ${group.completedMatchCount} trận đã hoàn tất`
+                        : `Chưa có đội thắng • ${group.completedMatchCount} trận đã hoàn tất`;
+
+                    return `
+                        <div class="winner-group-card ${checked ? "active" : ""}">
+                            <div class="custom-control custom-checkbox">
+                                <input class="custom-control-input winner-group-checkbox"
+                                       type="checkbox"
+                                       id="winnerGroup_${group.groupId}"
+                                       value="${group.groupId}"
+                                       ${checked ? "checked" : ""} />
+                                <label class="custom-control-label d-block" for="winnerGroup_${group.groupId}">
+                                    <div class="winner-group-card-title">${esc(group.groupName)}</div>
+                                    <div class="winner-group-card-meta">${metaText}</div>
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                }).join("");
+            }
+
+            function renderWinnerSelectedGroups() {
+                const box = $id("winnerSelectedGroups");
+                const selectedIds = normalizeWinnerGroupIds(WINNER_FILTER_STATE.draftGroupIds);
+                $id("winnerSelectedGroupCount").textContent = `${selectedIds.length} bảng`;
+
+                if (!selectedIds.length) {
+                    box.innerHTML = `<span class="text-muted small">Chưa chọn bảng nguồn nào.</span>`;
+                    return;
+                }
+
+                box.innerHTML = selectedIds
+                    .map(groupId => getWinnerSourceGroupById(groupId))
+                    .filter(Boolean)
+                    .map(group => `<span class="winner-filter-chip">${esc(buildWinnerSourceGroupLabel(group))}</span>`)
+                    .join("");
+            }
+
+            function renderWinnerPreviewList() {
+                const box = $id("winnerPreviewList");
+                const items = buildWinnerRegistrationAggregates(WINNER_FILTER_STATE.draftGroupIds);
+                $id("winnerPreviewCount").textContent = `${items.length} đội`;
+
+                if (!items.length) {
+                    box.innerHTML = `<div class="team-picker-empty">Chưa có đội thắng nào từ các bảng đang chọn.</div>`;
+                    return;
+                }
+
+                box.innerHTML = items.map(item => `
+                    <div class="winner-preview-item">
+                        <div class="winner-preview-title">${esc(item.regCode)} - ${esc(item.teamName)}</div>
+                        <div class="winner-preview-meta">Thắng ${item.totalWins} trận • Nguồn: ${esc(item.sourceLabels.join(" | "))}</div>
+                    </div>
+                `).join("");
+            }
+
+            function renderWinnerFilterModal() {
+                renderWinnerRoundOptions();
+                renderWinnerGroupList();
+                renderWinnerSelectedGroups();
+                renderWinnerPreviewList();
+
+                const rounds = getWinnerSourceRounds();
+                $id("winnerFilterRoundHint").textContent = rounds.length
+                    ? "Chọn một hoặc nhiều bảng ở các vòng trước để lấy nguồn đội thắng tạo trận mới."
+                    : "Không có vòng trước nào để lọc đội thắng cho bảng hiện tại.";
+            }
+
+            function syncTeamPoolAfterFilterChange() {
+                if ($id("mode").value === "create") {
+                    fillTeamsSelects(null, null);
+                    return;
+                }
+
+                const selected1 = Number($id("team1").value || 0);
+                const selected2 = Number($id("team2").value || 0);
+                fillTeamsSelects(selected1, selected2);
+            }
+
+            function openWinnerFilterModal(fromMatchModal = false) {
+                hideFormErr("winnerFilterErr");
+
+                rebuildActiveWinnerFilter();
+                WINNER_FILTER_STATE.draftGroupIds = [...WINNER_FILTER_STATE.activeGroupIds];
+
+                if (!WINNER_FILTER_STATE.draftRoundMapId && getWinnerSourceRounds().length) {
+                    WINNER_FILTER_STATE.draftRoundMapId = Number(getWinnerSourceRounds()[0].roundMapId);
+                }
+
+                renderWinnerFilterModal();
+
+                if (fromMatchModal && $("#modalMatch").hasClass("show")) {
+                    REOPEN_MATCH_MODAL_AFTER_WINNER_FILTER = true;
+                    $("#modalMatch").modal("hide");
+                    setTimeout(() => $("#modalWinnerFilter").modal("show"), 180);
+                    return;
+                }
+
+                $("#modalWinnerFilter").modal("show");
+            }
+
+            function clearWinnerFilter(clearDraftOnly = false) {
+                WINNER_FILTER_STATE.draftGroupIds = [];
+
+                if (clearDraftOnly) {
+                    renderWinnerFilterModal();
+                    return;
+                }
+
+                WINNER_FILTER_STATE.activeGroupIds = [];
+                WINNER_FILTER_STATE.activeRegistrationIds = [];
+                WINNER_FILTER_STATE.activeWinnerItems = [];
+
+                renderWinnerFilterSummary();
+                syncTeamPoolAfterFilterChange();
+            }
+
+            function applyWinnerFilterDraft() {
+                WINNER_FILTER_STATE.activeGroupIds = normalizeWinnerGroupIds(WINNER_FILTER_STATE.draftGroupIds);
+                WINNER_FILTER_STATE.activeWinnerItems = buildWinnerRegistrationAggregates(WINNER_FILTER_STATE.activeGroupIds);
+                WINNER_FILTER_STATE.activeRegistrationIds = WINNER_FILTER_STATE.activeWinnerItems.map(item => item.registrationId);
+
+                renderWinnerFilterSummary();
+                syncTeamPoolAfterFilterChange();
+                $("#modalWinnerFilter").modal("hide");
+            }
+
             function buildTeamSummaryHtml(reg) {
                 if (!reg) return "";
 
@@ -696,6 +1228,59 @@
                 setTeamSummary(slot, null);
             }
 
+            function getEditingMatchId() {
+                return Number($id("editingId").value || 0);
+            }
+
+            function findDuplicateMatchForPair(registrationId1, registrationId2, ignoreMatchId = 0) {
+                const teamA = Number(registrationId1 || 0);
+                const teamB = Number(registrationId2 || 0);
+
+                if (!teamA || !teamB) return null;
+
+                const minTeam = Math.min(teamA, teamB);
+                const maxTeam = Math.max(teamA, teamB);
+
+                return (CACHE.items || []).find(match => {
+                    if (ignoreMatchId && Number(match.matchId) === Number(ignoreMatchId)) {
+                        return false;
+                    }
+
+                    const matchMin = Math.min(Number(match.team1RegistrationId || 0), Number(match.team2RegistrationId || 0));
+                    const matchMax = Math.max(Number(match.team1RegistrationId || 0), Number(match.team2RegistrationId || 0));
+                    return matchMin === minTeam && matchMax === maxTeam;
+                }) || null;
+            }
+
+            function getTeamSelectionIssue(slot, registrationId) {
+                const candidateId = Number(registrationId || 0);
+                if (!candidateId) return null;
+
+                const otherSlot = slot === 1 ? 2 : 1;
+                const otherId = Number($id(`team${otherSlot}`).value || 0);
+
+                if (otherId && otherId === candidateId) {
+                    return {
+                        type: "same-team",
+                        message: `Đội này đang được chọn ở Đội ${otherSlot}.`
+                    };
+                }
+
+                if (!otherId) return null;
+
+                const duplicateMatch = findDuplicateMatchForPair(candidateId, otherId, getEditingMatchId());
+                if (!duplicateMatch) return null;
+
+                const candidateReg = getRegistrationById(candidateId);
+                const otherReg = getRegistrationById(otherId);
+
+                return {
+                    type: "duplicate-pair",
+                    matchId: duplicateMatch.matchId,
+                    message: `Không chọn được vì cặp ${candidateReg?.regCode || ("#" + candidateId)} - ${otherReg?.regCode || ("#" + otherId)} đã tồn tại ở trận #${duplicateMatch.matchId}.`
+                };
+            }
+
             function setTeamSelection(slot, registrationId) {
                 hideFormErr("formErr");
 
@@ -709,6 +1294,12 @@
                 const otherId = Number($id(`team${otherSlot}`).value || 0);
                 if (otherId && otherId === normalizedId) {
                     showFormErr(`Đội này đang được chọn ở Đội ${otherSlot}. Vui lòng chọn đội khác.`, "formErr");
+                    return false;
+                }
+
+                const selectionIssue = getTeamSelectionIssue(slot, normalizedId);
+                if (selectionIssue) {
+                    showFormErr(selectionIssue.message, "formErr");
                     return false;
                 }
 
@@ -734,9 +1325,9 @@
                 ].filter(Boolean).join(" "));
             }
 
-            function findMatchingRegs(keyword) {
+            function findMatchingRegs(keyword, extraIds = []) {
                 const normalized = normalizeSearch(keyword);
-                const regs = CACHE.regs || [];
+                const regs = getAvailableTeamPool(extraIds);
                 if (!normalized) return regs;
 
                 return regs.filter(reg => buildRegistrationSearchText(reg).includes(normalized));
@@ -744,7 +1335,8 @@
 
             function buildPickerCardHtml(reg, slot, otherSlotValue, currentValue) {
                 const selected = currentValue === reg.registrationId;
-                const disabled = otherSlotValue === reg.registrationId;
+                const selectionIssue = getTeamSelectionIssue(slot, reg.registrationId);
+                const disabled = !!selectionIssue;
                 const cardClasses = [
                     "team-picker-card",
                     selected ? "is-selected" : "",
@@ -752,7 +1344,7 @@
                 ].filter(Boolean).join(" ");
 
                 const actionHtml = disabled
-                    ? `<button class="btn btn-sm btn-outline-secondary" type="button" disabled>Đang ở Đội ${slot === 1 ? 2 : 1}</button>`
+                    ? `<button class="btn btn-sm btn-outline-secondary" type="button" disabled>${selectionIssue.type === "same-team" ? `Đang ở Đội ${slot === 1 ? 2 : 1}` : "Không chọn được"}</button>`
                     : `<button class="btn btn-sm ${selected ? "btn-primary" : "btn-outline-primary"}" type="button" onclick="pickTeam(${reg.registrationId})">
                             ${selected ? "Đã chọn" : "Chọn đội này"}
                        </button>`;
@@ -773,6 +1365,9 @@
                             : `<div class="team-picker-player">VĐV 2: <b>Chưa có</b></div>`}
                         <div class="team-picker-card-meta">Điểm: <b>${formatDecimal(reg.points)}</b> • Thanh toán: ${reg.paid ? "Đã thanh toán" : "Chưa thanh toán"} • BT Code: ${esc(reg.btCode || "—")}</div>
                         <div class="team-picker-card-meta">Đăng ký: ${fmt(reg.regTime || reg.createdAt)} • Trạng thái: ${reg.success ? "Hợp lệ" : "Chưa hợp lệ"}</div>
+                        ${selectionIssue
+                            ? `<div class="team-picker-card-alert">${esc(selectionIssue.message)}</div>`
+                            : ``}
                     </div>
                 `;
             }
@@ -782,7 +1377,7 @@
                 const slot = TEAM_PICKER_TARGET_SLOT;
                 const currentValue = Number($id(`team${slot}`).value || 0);
                 const otherSlotValue = Number($id(`team${slot === 1 ? 2 : 1}`).value || 0);
-                const items = findMatchingRegs(TEAM_PICKER_KEYWORD);
+                const items = findMatchingRegs(TEAM_PICKER_KEYWORD, [currentValue, otherSlotValue]);
 
                 if (!items.length) {
                     box.innerHTML = `<div class="team-picker-empty">Không tìm thấy đội nào khớp với từ khóa hiện tại.</div>`;
@@ -797,11 +1392,15 @@
                 TEAM_PICKER_KEYWORD = (keyword || $id(`team${slot}CodeSearch`).value || "").trim();
 
                 $id("teamPickerTitle").textContent = `Chọn đội cho Đội ${slot}`;
-                $id("teamPickerSubtitle").textContent = `Danh sách đội đăng ký thành công của giải.`;
+                $id("teamPickerSubtitle").textContent = hasActiveWinnerFilter()
+                    ? `Đang dùng ${WINNER_FILTER_STATE.activeRegistrationIds.length} đội thắng đã lọc từ ${WINNER_FILTER_STATE.activeGroupIds.length} bảng.`
+                    : `Danh sách đội đăng ký thành công của giải.`;
                 $id("teamPickerSearch").value = TEAM_PICKER_KEYWORD;
                 $id("teamPickerHint").textContent = TEAM_PICKER_KEYWORD
                     ? `Đang lọc theo từ khóa: "${TEAM_PICKER_KEYWORD}".`
-                    : "Có thể tìm theo mã đăng ký, tên đội hoặc tên người chơi.";
+                    : hasActiveWinnerFilter()
+                        ? "Có thể tìm theo mã đăng ký hoặc tên đội trong nguồn đội thắng đã lọc."
+                        : "Có thể tìm theo mã đăng ký, tên đội hoặc tên người chơi.";
 
                 renderTeamPickerList();
 
@@ -828,10 +1427,12 @@
                 }
 
                 const normalized = normalizeSearch(keyword);
-                const regs = CACHE.regs || [];
+                const currentValue = Number($id(`team${slot}`).value || 0);
+                const otherSlotValue = Number($id(`team${slot === 1 ? 2 : 1}`).value || 0);
+                const regs = getAvailableTeamPool([currentValue, otherSlotValue]);
                 const exactCodeMatches = regs.filter(reg => normalizeSearch(reg.regCode) === normalized);
                 const startsWithCodeMatches = regs.filter(reg => normalizeSearch(reg.regCode).startsWith(normalized));
-                const generalMatches = findMatchingRegs(keyword);
+                const generalMatches = findMatchingRegs(keyword, [currentValue, otherSlotValue]);
                 const matches = exactCodeMatches.length
                     ? exactCodeMatches
                     : startsWithCodeMatches.length
@@ -845,7 +1446,10 @@
                 }
 
                 if (matches.length === 1) {
-                    setTeamSelection(slot, matches[0].registrationId);
+                    const ok = setTeamSelection(slot, matches[0].registrationId);
+                    if (!ok) {
+                        openTeamPicker(slot, keyword);
+                    }
                     return;
                 }
 
@@ -856,8 +1460,9 @@
             function fillTeamsSelects(selected1, selected2) {
                 const s1 = $id("team1");
                 const s2 = $id("team2");
+                const availablePool = getAvailableTeamPool([selected1, selected2]);
 
-                const opts = [`<option value="">-- Chọn đội --</option>`].concat((CACHE.regs || []).map(r => {
+                const opts = [`<option value="">-- Chọn đội --</option>`].concat(availablePool.map(r => {
                     const name = buildTeamText(r);
                     return `<option value="${r.registrationId}">${esc(r.regCode)} — ${esc(name)}</option>`;
                 }));
@@ -990,13 +1595,20 @@
                 hideErr();
 
                 try {
-                    const res = await axios.get(API);
-                    CACHE.items = res.data?.items || [];
+                    const [res, regsRes, winnerSourceRes] = await Promise.all([
+                        axios.get(API),
+                        axios.get(API_REGS, {
+                            params: { tab: "SUCCESS" }
+                        }),
+                        axios.get(API_WINNER_SOURCES)
+                    ]);
 
-                    const regsRes = await axios.get(API_REGS, {
-                        params: { tab: "SUCCESS" }
-                    });
+                    CACHE.items = res.data?.items || [];
                     CACHE.regs = regsRes.data?.items || [];
+                    WINNER_SOURCE_CACHE.current = winnerSourceRes.data?.current || null;
+                    WINNER_SOURCE_CACHE.rounds = winnerSourceRes.data?.rounds || [];
+                    rebuildActiveWinnerFilter();
+                    renderWinnerFilterSummary();
 
                     render();
                 } catch (err) {
@@ -1112,6 +1724,12 @@
                     return;
                 }
 
+                const duplicateMatch = findDuplicateMatchForPair(team1, team2, getEditingMatchId());
+                if (duplicateMatch) {
+                    showFormErr(`Không thể lưu vì cặp đội này đã tồn tại ở trận #${duplicateMatch.matchId} trong bảng đấu.`, "formErr");
+                    return;
+                }
+
                 const videoUrl = ($id("videoUrl").value || "").trim();
                 if (videoUrl && !/^https?:\/\//i.test(videoUrl)) {
                     showFormErr("Liên kết video phải bắt đầu bằng http:// hoặc https://", "formErr");
@@ -1206,6 +1824,10 @@
             });
 
             $id("btnOpenCreate").addEventListener("click", openCreate);
+            $id("btnOpenWinnerFilter").addEventListener("click", () => openWinnerFilterModal(false));
+            $id("btnOpenWinnerFilterFromModal").addEventListener("click", () => openWinnerFilterModal(true));
+            $id("btnClearWinnerFilter").addEventListener("click", () => clearWinnerFilter(false));
+            $id("btnClearWinnerFilterFromModal").addEventListener("click", () => clearWinnerFilter(false));
 
             $id("btnFilterCompleted").addEventListener("click", () => {
                 SHOW_ONLY_COMPLETED = !SHOW_ONLY_COMPLETED;
@@ -1267,12 +1889,69 @@
             $id("btnCloseTeamPicker").addEventListener("click", closeTeamPicker);
             $id("teamPickerBackdrop").addEventListener("click", closeTeamPicker);
 
+            $id("winnerRoundSelect").addEventListener("change", () => {
+                WINNER_FILTER_STATE.draftRoundMapId = Number($id("winnerRoundSelect").value || 0);
+                renderWinnerGroupList();
+            });
+
+            $id("winnerGroupList").addEventListener("change", (e) => {
+                const target = e.target;
+                if (!(target instanceof HTMLInputElement) || !target.classList.contains("winner-group-checkbox")) {
+                    return;
+                }
+
+                const groupId = Number(target.value || 0);
+                const draftIds = new Set(normalizeWinnerGroupIds(WINNER_FILTER_STATE.draftGroupIds));
+
+                if (target.checked) {
+                    draftIds.add(groupId);
+                } else {
+                    draftIds.delete(groupId);
+                }
+
+                WINNER_FILTER_STATE.draftGroupIds = Array.from(draftIds);
+                renderWinnerFilterModal();
+            });
+
+            $id("btnSelectRoundGroups").addEventListener("click", () => {
+                const roundId = Number($id("winnerRoundSelect").value || 0);
+                const round = getWinnerSourceRounds().find(item => Number(item.roundMapId) === roundId);
+                if (!round) return;
+
+                const draftIds = new Set(normalizeWinnerGroupIds(WINNER_FILTER_STATE.draftGroupIds));
+                (round.groups || []).forEach(group => draftIds.add(Number(group.groupId)));
+                WINNER_FILTER_STATE.draftGroupIds = Array.from(draftIds);
+                renderWinnerFilterModal();
+            });
+
+            $id("btnClearRoundGroups").addEventListener("click", () => {
+                const roundId = Number($id("winnerRoundSelect").value || 0);
+                const round = getWinnerSourceRounds().find(item => Number(item.roundMapId) === roundId);
+                if (!round) return;
+
+                const removeIds = new Set((round.groups || []).map(group => Number(group.groupId)));
+                WINNER_FILTER_STATE.draftGroupIds = normalizeWinnerGroupIds(WINNER_FILTER_STATE.draftGroupIds)
+                    .filter(groupId => !removeIds.has(Number(groupId)));
+                renderWinnerFilterModal();
+            });
+
+            $id("btnClearWinnerDraft").addEventListener("click", () => clearWinnerFilter(true));
+            $id("btnApplyWinnerFilter").addEventListener("click", applyWinnerFilterDraft);
+
             window.pickTeam = (registrationId) => {
                 const ok = setTeamSelection(TEAM_PICKER_TARGET_SLOT, registrationId);
                 if (ok) closeTeamPicker();
             };
 
             $("#modalMatch").on("hidden.bs.modal", closeTeamPicker);
+            $("#modalWinnerFilter").on("hidden.bs.modal", () => {
+                if (!REOPEN_MATCH_MODAL_AFTER_WINNER_FILTER) {
+                    return;
+                }
+
+                REOPEN_MATCH_MODAL_AFTER_WINNER_FILTER = false;
+                setTimeout(() => $("#modalMatch").modal("show"), 180);
+            });
 
             document.addEventListener("DOMContentLoaded", load);
         })();
