@@ -102,7 +102,11 @@
                     <span data-account-date-text>Chọn ngày sinh</span>
                     <ion-icon name="calendar-outline"></ion-icon>
                 </button>
-                <input type="date" data-account-date-input hidden />
+                <input class="account-native-date-input"
+                       type="date"
+                       data-account-date-input
+                       tabindex="-1"
+                       aria-hidden="true" />
 
                 <label class="account-label account-label--spacing">Giới tính</label>
                 <button class="account-select" type="button" data-account-gender-trigger>

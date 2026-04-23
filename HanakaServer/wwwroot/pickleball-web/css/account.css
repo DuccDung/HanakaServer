@@ -294,6 +294,18 @@
     cursor: pointer;
 }
 
+.account-native-date-input {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+}
+
 .account-select.is-disabled,
 .account-btn.is-disabled,
 .change-password-submit.is-disabled,

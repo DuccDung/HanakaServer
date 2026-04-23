@@ -1,0 +1,94 @@
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Sơ đồ giải đấu";
+    var tournamentId = (long)(ViewBag.TournamentId ?? 0L);
+}
+
+@section Styles {
+    <link href="~/css/admin-tournament-bracket.css" asp-append-version="true" rel="stylesheet" />
+}
+
+<div class="admin-tournament-bracket-page" id="adminTournamentBracketPage"
+     data-tournament-id="@tournamentId">
+    <section class="admin-tournament-bracket-hero">
+        <div class="admin-tournament-bracket-hero__main">
+            <div class="admin-tournament-bracket-hero__eyebrow">Admin bracket viewer</div>
+            <h1>Sơ đồ giải đấu</h1>
+            <p>
+                @ViewBag.TournamentTitle
+                <span>•</span>
+                @ViewBag.TournamentStatus
+                <span>•</span>
+                Loại game: @ViewBag.TournamentGameType
+                <span>•</span>
+                #@tournamentId
+            </p>
+        </div>
+
+        <div class="admin-tournament-bracket-hero__actions">
+            <a class="btn btn-light btn-sm shadow-sm" href="/Home/Tournaments">
+                <i class="fas fa-arrow-left mr-1"></i> Danh sách giải
+            </a>
+            <a class="btn btn-outline-light btn-sm" href="/TournamentRounds/Index?tournamentId=@tournamentId">
+                <i class="fas fa-layer-group mr-1"></i> Quản lý vòng
+            </a>
+            <button class="btn btn-outline-warning btn-sm" type="button" data-open-public-bracket>
+                <i class="fas fa-mobile-alt mr-1"></i> Xem bản mobile
+            </button>
+            <button class="btn btn-warning btn-sm" type="button" data-reload-bracket>
+                <i class="fas fa-sync-alt mr-1"></i> Làm mới
+            </button>
+        </div>
+    </section>
+
+    <section class="admin-tournament-bracket-summary" data-bracket-summary>
+        <article class="admin-tournament-bracket-stat">
+            <span>Vòng đấu</span>
+            <strong data-stat-rounds>0</strong>
+            <small>Số round đang có trong sơ đồ</small>
+        </article>
+        <article class="admin-tournament-bracket-stat">
+            <span>Bảng đấu</span>
+            <strong data-stat-groups>0</strong>
+            <small>Bao gồm cả bảng ảo nếu đang thiếu vòng sau</small>
+        </article>
+        <article class="admin-tournament-bracket-stat">
+            <span>Trận đấu</span>
+            <strong data-stat-matches>0</strong>
+            <small>Tổng số trận thật đang có dữ liệu</small>
+        </article>
+        <article class="admin-tournament-bracket-stat">
+            <span>Hoàn tất</span>
+            <strong data-stat-completed>0</strong>
+            <small>Số trận đã hoàn tất và có kết quả</small>
+        </article>
+    </section>
+
+    <section class="admin-tournament-bracket-panel">
+        <div class="admin-tournament-bracket-panel__top">
+            <div>
+                <h2>Board sơ đồ</h2>
+                <p>Dành cho màn hình PC nhưng vẫn tự co khi xem trên tablet hoặc điện thoại.</p>
+            </div>
+            <div class="admin-tournament-bracket-legend">
+                <span><i class="is-real"></i> Nhánh thật</span>
+                <span><i class="is-virtual"></i> Nhánh ảo</span>
+                <span><i class="is-line"></i> Liên kết lên vòng sau</span>
+            </div>
+        </div>
+
+        <div class="alert alert-danger d-none" role="alert" data-bracket-error></div>
+
+        <div class="admin-tournament-bracket-scroll" data-bracket-scroll>
+            <div class="admin-tournament-bracket-board" data-bracket-board>
+                <div class="admin-tournament-bracket-loading" data-bracket-loading>
+                    <i class="fas fa-spinner fa-spin mr-2"></i> Đang tải sơ đồ...
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script src="~/js/admin-tournament-bracket.js" asp-append-version="true"></script>
+}

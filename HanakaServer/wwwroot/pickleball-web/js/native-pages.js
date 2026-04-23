@@ -1242,13 +1242,25 @@
             action.hidden = true;
             action.innerHTML = "";
             action.onclick = null;
+            action.disabled = false;
+            action.removeAttribute("aria-label");
+            action.className = "native-page-header__action";
             spacer.hidden = false;
             return;
         }
 
         action.hidden = false;
+        action.className = "native-page-header__action" + (options.className ? (" " + options.className) : "");
         action.innerHTML = options.html || "";
         action.onclick = options.onClick || null;
+        action.disabled = !!options.disabled;
+
+        if (options.ariaLabel) {
+            action.setAttribute("aria-label", options.ariaLabel);
+        } else {
+            action.removeAttribute("aria-label");
+        }
+
         spacer.hidden = true;
     }
 
@@ -2955,7 +2967,15 @@
 
             setHeaderAction(root, !state.authRequired && state.unreadNonPairTotal > 0
                 ? {
-                    html: "<span>" + (state.markingAll ? "Đang xử lý..." : "Đọc hết") + "</span>",
+                    className: "native-page-header__action--notification-readall",
+                    html: [
+                        '<ion-icon name="checkmark-done-outline" aria-hidden="true"></ion-icon>',
+                        "<span>" + (state.markingAll ? "Đang xử lý" : "Đọc hết") + "</span>"
+                    ].join(""),
+                    ariaLabel: state.markingAll
+                        ? "Đang đánh dấu các thông báo là đã đọc"
+                        : "Đánh dấu tất cả thông báo là đã đọc",
+                    disabled: state.markingAll,
                     onClick: function () {
                         markAllNotificationsRead();
                     }

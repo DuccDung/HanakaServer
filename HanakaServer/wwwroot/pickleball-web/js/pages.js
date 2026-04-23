@@ -2978,35 +2978,84 @@
         return fetchJson(`/api/tournaments/${id}/rounds-with-matches`);
     }
 
-    function nextPowerOfTwo(value) {
-        let current = 1;
-        const target = Math.max(2, Math.ceil(Number(value) || 2));
+    function parseBracketTrailingNumber(value) {
+        const normalized = trimToEmpty(value);
+        const match = normalized.match(/^(.*?)(\d+)$/);
 
-        while (current < target) {
-            current *= 2;
+        if (!match) {
+            return null;
         }
 
-        return current;
+        return {
+            prefix: match[1],
+            start: toNumber(match[2]),
+            width: match[2].length
+        };
     }
 
-    function flattenTournamentBracketRound(round) {
-        const groups = Array.isArray(round?.groups) ? round.groups : [];
-        const items = [];
+    function buildBracketRoundKey(round, roundIndex) {
+        return trimToEmpty(round?.roundKey) || `R${roundIndex + 1}`;
+    }
 
-        groups.forEach(function (group, groupIndex) {
-            const matches = Array.isArray(group?.matches) ? group.matches : [];
+    function buildBracketRoundLabel(round, roundIndex) {
+        return trimToEmpty(round?.roundLabel) || `V\u00f2ng ${roundIndex + 1}`;
+    }
 
-            matches.forEach(function (match, matchIndex) {
-                items.push({
-                    match: match,
-                    group: group,
-                    groupIndex: groupIndex,
-                    matchIndex: matchIndex
-                });
-            });
-        });
+    function buildSyntheticBracketRoundKey(previousRoundKey, roundIndex) {
+        const parsed = parseBracketTrailingNumber(previousRoundKey);
 
-        return items;
+        if (parsed) {
+            return `${parsed.prefix}${String(parsed.start + 1).padStart(parsed.width, "0")}`;
+        }
+
+        return `R${roundIndex + 1}`;
+    }
+
+    function buildSyntheticBracketRoundLabel(previousRoundLabel, roundIndex) {
+        const parsed = parseBracketTrailingNumber(previousRoundLabel);
+
+        if (parsed) {
+            return `${parsed.prefix}${String(parsed.start + 1).padStart(parsed.width, "0")}`;
+        }
+
+        return `V\u00f2ng ${roundIndex + 1}`;
+    }
+
+    function normalizeBracketGroupKeyPart(groupName, groupIndex) {
+        const raw = trimToEmpty(groupName);
+
+        if (!raw) {
+            return `B${groupIndex + 1}`;
+        }
+
+        const normalized = raw
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .trim();
+        const compact = normalized.replace(/\s+/g, " ");
+
+        if (/^Bang\s+\d+$/i.test(compact)) {
+            return `B${compact.replace(/^Bang\s+/i, "")}`;
+        }
+
+        if (/^\d+$/.test(compact)) {
+            return `B${compact}`;
+        }
+
+        if (/^[A-Za-z]+$/.test(compact)) {
+            return compact.toUpperCase();
+        }
+
+        const safe = compact
+            .toUpperCase()
+            .replace(/[^A-Z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "");
+
+        return safe || `B${groupIndex + 1}`;
+    }
+
+    function buildBracketGroupDisplayKey(roundKey, groupName, groupIndex) {
+        return `${roundKey}-${normalizeBracketGroupKeyPart(groupName, groupIndex)}`;
     }
 
     function formatBracketScore(value) {
@@ -3017,10 +3066,14 @@
         return String(toNumber(value));
     }
 
-    function buildBracketActualTitle(match, fallbackIndex) {
-        const id = trimToEmpty(match?.matchId) || fallbackIndex;
+    function buildBracketTeamName(team, fallback) {
+        return trimToEmpty(team?.displayName) || fallback;
+    }
+
+    function buildBracketMatchMeta(match) {
         const clock = formatClock(match?.startAt);
-        const courtText = trimToEmpty(match?.addressText) || trimToEmpty(match?.courtText);
+        const courtText = trimToEmpty(match?.courtText);
+        const addressText = trimToEmpty(match?.addressText);
         const details = [];
 
         if (clock && clock !== "--:--") {
@@ -3028,199 +3081,398 @@
         }
 
         if (courtText) {
-            details.push(`S\u00e2n: ${courtText}`);
+            details.push(courtText);
+        } else if (addressText) {
+            details.push(addressText);
         }
 
-        return `#${id}${details.length > 0 ? ` (${details.join("; ")})` : ""}`;
+        return details.join(" | ");
     }
 
-    function buildBracketRoundLabel(roundIndex, matchCount, teamSlots, actualRound) {
-        if (matchCount <= 1) {
-            return "Chung k\u1ebft";
-        }
-
-        if (matchCount === 2) {
-            return "B\u00e1n k\u1ebft";
-        }
-
-        if (matchCount === 4) {
-            return "T\u1ee9 k\u1ebft";
-        }
-
-        const generatedSize = Math.max(2, Math.round(teamSlots / Math.pow(2, roundIndex)));
-        return trimToEmpty(actualRound?.roundLabel) || `V\u00f2ng 1/${generatedSize}`;
-    }
-
-    function buildBracketTeamName(team, fallback) {
-        return trimToEmpty(team?.displayName) || fallback;
-    }
-
-    function createTournamentBracketMatch(roundIndex, matchIndex, actualEntry) {
-        const match = actualEntry?.match || null;
-        const isReal = !!match;
-        const sequence = matchIndex + 1;
-        const roundNo = roundIndex + 1;
-        const code = roundIndex === 0
-            ? `V${roundNo}-B${sequence}`
-            : `V${roundNo}-B${sequence}`;
-        const previousRoundNo = roundIndex;
-        const previousSeed = matchIndex * 2 + 1;
+    function buildBracketMatchCardData(match, matchIndex, roundKey, groupKey) {
         const winnerId = match?.winnerRegistrationId;
         const isWinnerA = !!winnerId && winnerId === match?.team1RegistrationId;
         const isWinnerB = !!winnerId && winnerId === match?.team2RegistrationId;
 
-        if (isReal) {
-            return {
-                isReal: true,
-                isCompleted: !!match.isCompleted,
-                hasVideo: !!trimToEmpty(match.videoUrl),
-                title: buildBracketActualTitle(match, sequence),
-                teamA: buildBracketTeamName(match.team1, `V${roundNo}-B${sequence}-#1`),
-                teamB: buildBracketTeamName(match.team2, `V${roundNo}-B${sequence}-#2`),
-                scoreA: formatBracketScore(match.scoreTeam1),
-                scoreB: formatBracketScore(match.scoreTeam2),
-                isWinnerA: isWinnerA,
-                isWinnerB: isWinnerB,
-                matchId: match.matchId
-            };
+        return {
+            isReal: !!match,
+            isCompleted: !!match?.isCompleted,
+            hasVideo: !!trimToEmpty(match?.videoUrl),
+            matchId: match?.matchId || null,
+            title: `#${trimToEmpty(match?.matchId) || `${groupKey}-${matchIndex + 1}`}`,
+            metaText: buildBracketMatchMeta(match),
+            teamA: buildBracketTeamName(match?.team1, `${groupKey}-#1`),
+            teamB: buildBracketTeamName(match?.team2, `${groupKey}-#2`),
+            scoreA: formatBracketScore(match?.scoreTeam1),
+            scoreB: formatBracketScore(match?.scoreTeam2),
+            isWinnerA: isWinnerA,
+            isWinnerB: isWinnerB,
+            teamRegistrationIds: [
+                toNumber(match?.team1RegistrationId),
+                toNumber(match?.team2RegistrationId)
+            ].filter(function (value) { return value > 0; }),
+            winnerRegistrationId: toNumber(match?.winnerRegistrationId) || 0,
+            roundKey: roundKey
+        };
+    }
+
+    function buildActualBracketGroup(round, group, roundIndex, groupIndex) {
+        const roundKey = buildBracketRoundKey(round, roundIndex);
+        const groupName = trimToEmpty(group?.groupName) || `B\u1ea3ng ${groupIndex + 1}`;
+        const groupKey = buildBracketGroupDisplayKey(roundKey, groupName, groupIndex);
+        const matches = Array.isArray(group?.matches) ? group.matches : [];
+        const matchCards = matches.map(function (match, matchIndex) {
+            return buildBracketMatchCardData(match, matchIndex, roundKey, groupKey);
+        });
+
+        return {
+            isReal: true,
+            tournamentRoundGroupId: group?.tournamentRoundGroupId || null,
+            groupName: groupName,
+            sortOrder: toNumber(group?.sortOrder),
+            groupKey: groupKey,
+            keyPart: normalizeBracketGroupKeyPart(groupName, groupIndex),
+            matchCount: matchCards.length,
+            completedCount: matchCards.filter(function (item) { return item.isCompleted; }).length,
+            matches: matchCards,
+            sourceIndexes: [],
+            sourceKeys: []
+        };
+    }
+
+    function buildActualBracketRound(round, roundIndex) {
+        const groups = Array.isArray(round?.groups) ? round.groups : [];
+        const roundKey = buildBracketRoundKey(round, roundIndex);
+        const roundLabel = buildBracketRoundLabel(round, roundIndex);
+        const groupCards = groups.map(function (group, groupIndex) {
+            return buildActualBracketGroup(round, group, roundIndex, groupIndex);
+        });
+
+        return {
+            isSynthetic: false,
+            hasActualRound: true,
+            tournamentRoundMapId: round?.tournamentRoundMapId || null,
+            roundKey: roundKey,
+            roundLabel: roundLabel,
+            sortOrder: toNumber(round?.sortOrder),
+            groups: groupCards
+        };
+    }
+
+    function buildBracketWinnerSourceMap(previousRound) {
+        const sourceMap = new Map();
+
+        (previousRound?.groups || []).forEach(function (group, groupIndex) {
+            (group?.matches || []).forEach(function (match) {
+                const winnerId = toNumber(match?.winnerRegistrationId);
+
+                if (winnerId > 0 && !sourceMap.has(String(winnerId))) {
+                    sourceMap.set(String(winnerId), groupIndex);
+                }
+            });
+        });
+
+        return sourceMap;
+    }
+
+    function buildBracketDistributedSourceIndexes(previousCount, currentCount, currentIndex) {
+        if (previousCount <= 0) {
+            return [];
         }
+
+        const safeCurrentCount = Math.max(1, currentCount);
+        const start = Math.floor(currentIndex * previousCount / safeCurrentCount);
+        const end = Math.floor((currentIndex + 1) * previousCount / safeCurrentCount) - 1;
+        const indexes = [];
+
+        if (end < start) {
+            indexes.push(Math.min(previousCount - 1, start));
+        } else {
+            for (let index = start; index <= end; index += 1) {
+                indexes.push(index);
+            }
+        }
+
+        return Array.from(new Set(indexes.filter(function (value) {
+            return value >= 0 && value < previousCount;
+        })));
+    }
+
+    function resolveBracketGroupSourceIndexes(previousRound, currentGroup, currentIndex, currentCount) {
+        const previousGroups = Array.isArray(previousRound?.groups) ? previousRound.groups : [];
+
+        if (previousGroups.length === 0) {
+            return [];
+        }
+
+        if (!previousRound._winnerSourceMap) {
+            previousRound._winnerSourceMap = buildBracketWinnerSourceMap(previousRound);
+        }
+
+        const inferred = new Set();
+        const winnerSourceMap = previousRound._winnerSourceMap;
+
+        (currentGroup?.matches || []).forEach(function (match) {
+            (match?.teamRegistrationIds || []).forEach(function (registrationId) {
+                const key = String(toNumber(registrationId));
+
+                if (winnerSourceMap.has(key)) {
+                    inferred.add(winnerSourceMap.get(key));
+                }
+            });
+        });
+
+        if (inferred.size > 0) {
+            return Array.from(inferred).sort(function (left, right) { return left - right; });
+        }
+
+        return buildBracketDistributedSourceIndexes(previousGroups.length, currentCount, currentIndex);
+    }
+
+    function buildBracketGroupSourceKeys(previousRound, sourceIndexes) {
+        const previousGroups = Array.isArray(previousRound?.groups) ? previousRound.groups : [];
+
+        return sourceIndexes.map(function (index) {
+            const source = previousGroups[index];
+            return source ? `W-${source.groupKey}` : "";
+        }).filter(Boolean);
+    }
+
+    function createVirtualBracketGroup(roundStage, groupIndex, previousRound) {
+        const groupName = `B\u1ea3ng ${groupIndex + 1}`;
+        const groupKey = buildBracketGroupDisplayKey(roundStage.roundKey, groupName, groupIndex);
+        const sourceIndexes = previousRound
+            ? buildBracketDistributedSourceIndexes(previousRound.groups.length, Math.max(1, previousRound.groups.length), groupIndex)
+            : [];
 
         return {
             isReal: false,
-            isCompleted: false,
-            hasVideo: false,
-            title: roundIndex === 0 ? `${code} (--:--)` : code,
-            teamA: roundIndex === 0 ? `V1-B${sequence}-#1` : `W-V${previousRoundNo}-B${previousSeed}`,
-            teamB: roundIndex === 0 ? `V1-B${sequence}-#2` : `W-V${previousRoundNo}-B${previousSeed + 1}`,
-            scoreA: "0",
-            scoreB: "0",
-            isWinnerA: false,
-            isWinnerB: false,
-            matchId: null
+            tournamentRoundGroupId: null,
+            groupName: groupName,
+            sortOrder: groupIndex,
+            groupKey: groupKey,
+            keyPart: normalizeBracketGroupKeyPart(groupName, groupIndex),
+            matchCount: 0,
+            completedCount: 0,
+            matches: [],
+            sourceIndexes: sourceIndexes,
+            sourceKeys: previousRound ? buildBracketGroupSourceKeys(previousRound, sourceIndexes) : []
         };
+    }
+
+    function finalizeBracketRoundMetrics(roundStage) {
+        const groups = Array.isArray(roundStage?.groups) ? roundStage.groups : [];
+
+        roundStage.groupCount = groups.length;
+        roundStage.matchCount = groups.reduce(function (total, group) {
+            return total + toNumber(group?.matchCount);
+        }, 0);
+        roundStage.completedCount = groups.reduce(function (total, group) {
+            return total + toNumber(group?.completedCount);
+        }, 0);
+
+        return roundStage;
+    }
+
+    function buildBracketStageRounds(data) {
+        const apiRounds = Array.isArray(data?.rounds) ? data.rounds : [];
+        const rounds = apiRounds.map(function (round, roundIndex) {
+            return buildActualBracketRound(round, roundIndex);
+        });
+
+        if (rounds.length === 0) {
+            return [];
+        }
+
+        for (let roundIndex = 0; roundIndex < rounds.length; roundIndex += 1) {
+            const currentRound = rounds[roundIndex];
+            const previousRound = roundIndex > 0 ? rounds[roundIndex - 1] : null;
+
+            if (currentRound.groups.length === 0 && previousRound && previousRound.groups.length > 0) {
+                currentRound.groups = previousRound.groups.map(function (_group, groupIndex) {
+                    return createVirtualBracketGroup(currentRound, groupIndex, previousRound);
+                });
+            }
+
+            if (previousRound && previousRound.groups.length > 0 && currentRound.groups.length > 0) {
+                currentRound.groups.forEach(function (group, groupIndex) {
+                    const sourceIndexes = group.isReal
+                        ? resolveBracketGroupSourceIndexes(previousRound, group, groupIndex, currentRound.groups.length)
+                        : (group.sourceIndexes || []);
+
+                    group.sourceIndexes = sourceIndexes;
+                    group.sourceKeys = buildBracketGroupSourceKeys(previousRound, sourceIndexes);
+                });
+            }
+
+            finalizeBracketRoundMetrics(currentRound);
+        }
+
+        const lastRound = rounds[rounds.length - 1];
+
+        if (
+            lastRound &&
+            lastRound.groups.length > 1 &&
+            lastRound.groups.some(function (group) { return group?.isReal; })
+        ) {
+            const syntheticRoundIndex = rounds.length;
+            const syntheticRound = {
+                isSynthetic: true,
+                hasActualRound: false,
+                tournamentRoundMapId: null,
+                roundKey: buildSyntheticBracketRoundKey(lastRound.roundKey, syntheticRoundIndex),
+                roundLabel: buildSyntheticBracketRoundLabel(lastRound.roundLabel, syntheticRoundIndex),
+                sortOrder: toNumber(lastRound.sortOrder) + 1,
+                groups: lastRound.groups.map(function (_group, groupIndex) {
+                    return {
+                        ...createVirtualBracketGroup({
+                            roundKey: buildSyntheticBracketRoundKey(lastRound.roundKey, syntheticRoundIndex),
+                            roundLabel: buildSyntheticBracketRoundLabel(lastRound.roundLabel, syntheticRoundIndex)
+                        }, groupIndex, lastRound)
+                    };
+                })
+            };
+
+            finalizeBracketRoundMetrics(syntheticRound);
+            rounds.push(syntheticRound);
+        }
+
+        return rounds;
+    }
+
+    function calculateBracketGroupHeight(group) {
+        const matchCount = Math.max(0, toNumber(group?.matchCount));
+        const hasSources = Array.isArray(group?.sourceKeys) && group.sourceKeys.length > 0;
+        const matchSectionHeight = matchCount > 0
+            ? matchCount * 92 + Math.max(0, matchCount - 1) * 10
+            : 64;
+
+        return 108 + (hasSources ? 42 : 0) + matchSectionHeight;
     }
 
     function buildTournamentBracketLayout(data) {
         const tournament = data?.tournament || {};
-        const apiRounds = Array.isArray(data?.rounds) ? data.rounds : [];
-        const actualRounds = apiRounds.map(function (round) {
-            return {
-                round: round,
-                matches: flattenTournamentBracketRound(round)
-            };
-        });
-        const firstRoundMatches = actualRounds[0]?.matches || [];
-        const expectedTeams = Math.max(
-            toNumber(tournament?.expectedTeams),
-            firstRoundMatches.length * 2,
-            2
-        );
-        const teamSlots = nextPowerOfTwo(expectedTeams);
-        const baseMatchCount = Math.max(1, teamSlots / 2);
-        const naturalRoundCount = Math.max(1, Math.ceil(Math.log2(teamSlots)));
-        const roundCount = Math.max(naturalRoundCount, actualRounds.length || 0);
-        const cardWidth = 196;
-        const cardHeight = 64;
-        const columnGap = 58;
-        const baseStep = 82;
-        const leftOffset = 18;
-        const topOffset = 74;
-        const headerTop = 20;
-        const rounds = [];
+        const rounds = buildBracketStageRounds(data);
+        const leftOffset = 24;
+        const topOffset = 112;
+        const headerTop = 18;
+        const columnWidth = 292;
+        const columnGap = 84;
+        const groupGap = 22;
+        let boardHeight = 540;
 
-        for (let roundIndex = 0; roundIndex < roundCount; roundIndex += 1) {
-            const actualRound = actualRounds[roundIndex];
-            const expectedMatchCount = Math.max(1, Math.ceil(baseMatchCount / Math.pow(2, roundIndex)));
-            const matchCount = Math.max(expectedMatchCount, actualRound?.matches?.length || 0);
-            const x = leftOffset + roundIndex * (cardWidth + columnGap);
-            const matches = [];
+        rounds.forEach(function (round, roundIndex) {
+            const x = leftOffset + roundIndex * (columnWidth + columnGap);
+            let y = topOffset;
 
-            for (let matchIndex = 0; matchIndex < matchCount; matchIndex += 1) {
-                const slotDepth = Math.pow(2, roundIndex);
-                const y = topOffset + (matchIndex * slotDepth + (slotDepth - 1) / 2) * baseStep;
-                matches.push({
-                    ...createTournamentBracketMatch(roundIndex, matchIndex, actualRound?.matches?.[matchIndex]),
-                    x: x,
-                    y: y,
-                    width: cardWidth,
-                    height: cardHeight
-                });
-            }
+            round.x = x;
+            round.width = columnWidth;
 
-            rounds.push({
-                x: x,
-                width: cardWidth,
-                label: buildBracketRoundLabel(roundIndex, matchCount, teamSlots, actualRound?.round),
-                completedCount: matches.filter(function (match) { return match.isReal && match.isCompleted; }).length,
-                matchCount: matchCount,
-                matches: matches
+            round.groups.forEach(function (group) {
+                group.x = x;
+                group.y = y;
+                group.width = columnWidth;
+                group.height = calculateBracketGroupHeight(group);
+                y += group.height + groupGap;
             });
-        }
 
-        const allMatches = rounds.flatMap(function (round) { return round.matches; });
-        const boardWidth = leftOffset * 2 + roundCount * cardWidth + Math.max(0, roundCount - 1) * columnGap + 28;
-        const boardHeight = Math.max(
-            520,
-            ...allMatches.map(function (match) { return match.y + cardHeight + 64; })
-        );
+            boardHeight = Math.max(boardHeight, y + 120);
+        });
+
         const lines = [];
 
         for (let roundIndex = 1; roundIndex < rounds.length; roundIndex += 1) {
-            const previous = rounds[roundIndex - 1];
-            const current = rounds[roundIndex];
+            const previousRound = rounds[roundIndex - 1];
+            const currentRound = rounds[roundIndex];
 
-            current.matches.forEach(function (target, targetIndex) {
-                const firstChild = previous.matches[targetIndex * 2];
-                const secondChild = previous.matches[targetIndex * 2 + 1];
-                const targetX = target.x;
-                const targetY = target.y + target.height / 2;
+            currentRound.groups.forEach(function (targetGroup) {
+                const targetX = targetGroup.x;
+                const targetY = targetGroup.y + targetGroup.height / 2;
                 const midX = targetX - columnGap / 2;
 
-                [firstChild, secondChild].forEach(function (source) {
-                    if (!source) {
+                (targetGroup.sourceIndexes || []).forEach(function (sourceIndex) {
+                    const sourceGroup = previousRound.groups[sourceIndex];
+
+                    if (!sourceGroup) {
                         return;
                     }
 
-                    const sourceX = source.x + source.width;
-                    const sourceY = source.y + source.height / 2;
+                    const sourceX = sourceGroup.x + sourceGroup.width;
+                    const sourceY = sourceGroup.y + sourceGroup.height / 2;
                     lines.push(`M ${sourceX} ${sourceY} H ${midX} V ${targetY} H ${targetX}`);
                 });
             });
         }
+
+        const boardWidth = leftOffset * 2 + rounds.length * columnWidth + Math.max(0, rounds.length - 1) * columnGap + 28;
 
         return {
             tournament: tournament,
             width: boardWidth,
             height: boardHeight,
             headerTop: headerTop,
-            cardWidth: cardWidth,
-            lines: lines,
             rounds: rounds,
-            teamSlots: teamSlots
+            lines: lines
         };
     }
 
-    function renderTournamentBracketMatch(match) {
+    function renderTournamentBracketGroupMatch(match) {
         const cardClass = [
-            "tournament-bracket-match",
-            match.isReal ? "is-real" : "is-virtual",
+            "tournament-bracket-group-match",
             match.isCompleted ? "is-completed" : "",
             match.hasVideo ? "has-video" : ""
         ].filter(Boolean).join(" ");
 
         return [
-            `<article class="${escapeHtml(cardClass)}" style="left:${escapeHtml(match.x)}px;top:${escapeHtml(match.y)}px;width:${escapeHtml(match.width)}px;height:${escapeHtml(match.height)}px">`,
-            '<div class="tournament-bracket-match__head">',
+            `<div class="${escapeHtml(cardClass)}">`,
+            '<div class="tournament-bracket-group-match__top">',
             `<strong>${escapeHtml(match.title)}</strong>`,
-            match.isReal ? '<span>Th\u1eadt</span>' : '<span>\u1ea2o</span>',
+            `<span>${escapeHtml(match.metaText || "Ch\u01b0a c\u00f3 gi\u1edd/s\u00e2n")}</span>`,
             "</div>",
-            '<div class="tournament-bracket-match__row">',
+            '<div class="tournament-bracket-group-match__team">',
             `<span class="${match.isWinnerA ? "is-winner" : ""}">${escapeHtml(match.teamA)}</span>`,
             `<b class="${match.isWinnerA ? "is-winner" : ""}">${escapeHtml(match.scoreA)}</b>`,
             "</div>",
-            '<div class="tournament-bracket-match__row">',
+            '<div class="tournament-bracket-group-match__team">',
             `<span class="${match.isWinnerB ? "is-winner" : ""}">${escapeHtml(match.teamB)}</span>`,
             `<b class="${match.isWinnerB ? "is-winner" : ""}">${escapeHtml(match.scoreB)}</b>`,
+            "</div>",
+            "</div>"
+        ].join("");
+    }
+
+    function renderTournamentBracketGroup(group) {
+        const cardClass = [
+            "tournament-bracket-group",
+            group.isReal ? "is-real" : "is-virtual"
+        ].join(" ");
+
+        return [
+            `<article class="${escapeHtml(cardClass)}" style="left:${escapeHtml(group.x)}px;top:${escapeHtml(group.y)}px;width:${escapeHtml(group.width)}px;height:${escapeHtml(group.height)}px">`,
+            '<div class="tournament-bracket-group__head">',
+            '<div class="tournament-bracket-group__title">',
+            `<span class="tournament-bracket-group__key">${escapeHtml(group.groupKey)}</span>`,
+            `<strong>${escapeHtml(group.groupName)}</strong>`,
+            "</div>",
+            `<span class="tournament-bracket-group__state-dot ${group.isReal ? "is-real" : "is-virtual"}" title="${group.isReal ? "Nh\u00e1nh th\u1eadt" : "Nh\u00e1nh \u1ea3o"}" aria-hidden="true"></span>`,
+            "</div>",
+            '<div class="tournament-bracket-group__meta">',
+            `<span>${escapeHtml(String(group.matchCount))} tr\u1eadn</span>`,
+            `<span>${escapeHtml(String(group.completedCount))} ho\u00e0n t\u1ea5t</span>`,
+            "</div>",
+            group.sourceKeys.length > 0
+                ? [
+                    '<div class="tournament-bracket-group__sources">',
+                    group.sourceKeys.map(function (item) {
+                        return `<span>${escapeHtml(item)}</span>`;
+                    }).join(""),
+                    "</div>"
+                ].join("")
+                : "",
+            '<div class="tournament-bracket-group__body">',
+            group.matches.length > 0
+                ? group.matches.map(renderTournamentBracketGroupMatch).join("")
+                : `<div class="tournament-bracket-group__empty">${group.isReal ? "B\u1ea3ng n\u00e0y ch\u01b0a c\u00f3 tr\u1eadn \u0111\u1ea5u." : "Admin ch\u01b0a t\u1ea1o b\u1ea3ng/tr\u1eadn cho nh\u00e1nh n\u00e0y."}</div>`,
             "</div>",
             "</article>"
         ].join("");
@@ -3230,7 +3482,7 @@
         const layout = buildTournamentBracketLayout(data);
         const tournament = layout.tournament || {};
 
-        if (!layout.rounds.length || !layout.rounds.some(function (round) { return round.matches.length > 0; })) {
+        if (!layout.rounds.length || !layout.rounds.some(function (round) { return round.groups.length > 0; })) {
             return tournamentSectionEmpty("Gi\u1ea3i \u0111\u1ea5u n\u00e0y ch\u01b0a c\u00f3 d\u1eef li\u1ec7u \u0111\u1ec3 d\u1ef1ng s\u01a1 \u0111\u1ed3.");
         }
 
@@ -3241,12 +3493,12 @@
             '<p>S\u01a1 \u0111\u1ed3 thi \u0111\u1ea5u</p>',
             `<strong>${escapeHtml(trimToEmpty(tournament?.title) || "Hanaka Sport")}</strong>`,
             "</div>",
-            '<span>T\u1ef7 s\u1ed1 s\u1ebd t\u1ef1 \u0111\u1ed9ng c\u1eadp nh\u1eadt khi tr\u1ecdng t\u00e0i nh\u1eadp k\u1ebft qu\u1ea3.</span>',
+            '<span>S\u01a1 \u0111\u1ed3 gi\u1eef nguy\u00ean c\u1ea5u tr\u00fac v\u00f2ng | b\u1ea3ng | tr\u1eadn. Ch\u1ec9 t\u1ea1o nh\u00e1nh \u1ea3o khi admin ch\u01b0a khai b\u00e1o round/group k\u1ebf ti\u1ebfp.</span>',
             "</div>",
             '<div class="tournament-bracket-legend">',
-            '<span><i class="is-real"></i>Tr\u1eadn th\u1eadt</span>',
-            '<span><i class="is-virtual"></i>Tr\u1eadn/v\u00f2ng \u1ea3o</span>',
-            '<span><i class="is-line"></i>Nh\u00e1nh th\u1eafng</span>',
+            '<span><i class="is-real"></i>B\u1ea3ng/tr\u1eadn th\u1eadt</span>',
+            '<span><i class="is-virtual"></i>B\u1ea3ng \u1ea3o</span>',
+            '<span><i class="is-line"></i>Li\u00ean k\u1ebft t\u1eeb round tr\u01b0\u1edbc</span>',
             "</div>",
             '<div class="tournament-bracket-scroll" data-bracket-scroll tabindex="0">',
             `<div class="tournament-bracket-board" style="width:${escapeHtml(layout.width)}px;height:${escapeHtml(layout.height)}px">`,
@@ -3256,15 +3508,23 @@
             }).join(""),
             "</svg>",
             layout.rounds.map(function (round) {
+                const titleClass = [
+                    "tournament-bracket-round-title",
+                    round.isSynthetic ? "is-virtual" : "is-real"
+                ].join(" ");
+
                 return [
-                    `<div class="tournament-bracket-round-title" style="left:${escapeHtml(round.x)}px;top:${escapeHtml(layout.headerTop)}px;width:${escapeHtml(round.width)}px">`,
-                    `<strong>${escapeHtml(round.label)}</strong>`,
-                    `<span>(${escapeHtml(round.completedCount)}/${escapeHtml(round.matchCount)})</span>`,
+                    `<div class="${escapeHtml(titleClass)}" style="left:${escapeHtml(round.x)}px;top:${escapeHtml(layout.headerTop)}px;width:${escapeHtml(round.width)}px">`,
+                    '<div>',
+                    `<p>${escapeHtml(round.roundKey)}</p>`,
+                    `<strong>${escapeHtml(round.roundLabel)}</strong>`,
+                    "</div>",
+                    `<span>${escapeHtml(String(round.groupCount))} b\u1ea3ng | ${escapeHtml(String(round.matchCount))} tr\u1eadn</span>`,
                     "</div>"
                 ].join("");
             }).join(""),
             layout.rounds.flatMap(function (round) {
-                return round.matches.map(renderTournamentBracketMatch);
+                return round.groups.map(renderTournamentBracketGroup);
             }).join(""),
             "</div>",
             "</div>",

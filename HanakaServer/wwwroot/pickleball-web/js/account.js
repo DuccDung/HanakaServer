@@ -136,6 +136,12 @@
             return "";
         }
 
+        var raw = trimToEmpty(value);
+        if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+            var dateParts = raw.split("-");
+            return dateParts[2] + "/" + dateParts[1] + "/" + dateParts[0];
+        }
+
         var date = new Date(value);
         if (Number.isNaN(date.getTime())) {
             return "";
@@ -210,22 +216,41 @@
         };
     }
 
+    function getProfileValue(value, keys) {
+        if (!value || typeof value !== "object") {
+            return undefined;
+        }
+
+        for (var i = 0; i < keys.length; i += 1) {
+            var key = keys[i];
+            if (Object.prototype.hasOwnProperty.call(value, key) && value[key] != null) {
+                return value[key];
+            }
+        }
+
+        return undefined;
+    }
+
     function normalizeProfile(value) {
         if (!value) {
             return createEmptyProfile();
         }
 
+        var verifiedValue = getProfileValue(value, ["verified", "Verified"]);
+
         return {
-            userId: value.userId != null ? String(value.userId) : "",
-            fullName: trimToEmpty(value.fullName),
-            phone: trimToEmpty(value.phone),
-            email: trimToEmpty(value.email),
-            gender: trimToEmpty(value.gender),
-            province: trimToEmpty(value.city),
-            bio: trimToEmpty(value.bio),
-            birthOfDate: normalizeDateOnly(value.birthOfDate),
-            avatarUrl: normalizeAvatarUrl(value.avatarUrl),
-            verified: !!value.verified
+            userId: getProfileValue(value, ["userId", "UserId"]) != null
+                ? String(getProfileValue(value, ["userId", "UserId"]))
+                : "",
+            fullName: trimToEmpty(getProfileValue(value, ["fullName", "FullName", "name", "Name"])),
+            phone: trimToEmpty(getProfileValue(value, ["phone", "Phone"])),
+            email: trimToEmpty(getProfileValue(value, ["email", "Email"])),
+            gender: trimToEmpty(getProfileValue(value, ["gender", "Gender"])),
+            province: trimToEmpty(getProfileValue(value, ["province", "Province", "city", "City"])),
+            bio: trimToEmpty(getProfileValue(value, ["bio", "Bio"])),
+            birthOfDate: normalizeDateOnly(getProfileValue(value, ["birthOfDate", "BirthOfDate"])),
+            avatarUrl: normalizeAvatarUrl(getProfileValue(value, ["avatarUrl", "AvatarUrl"])),
+            verified: !!verifiedValue
         };
     }
 
@@ -549,6 +574,29 @@
             state.form[name] = value;
         }
 
+        function syncBirthOfDateFromInput() {
+            setFormField("birthOfDate", normalizeDateOnly(refs.dateInput.value));
+            render();
+        }
+
+        function openDatePicker() {
+            if (!refs.dateInput || refs.dateInput.disabled) {
+                return;
+            }
+
+            if (typeof refs.dateInput.showPicker === "function") {
+                refs.dateInput.showPicker();
+                return;
+            }
+
+            try {
+                refs.dateInput.focus({ preventScroll: true });
+            } catch (error) {
+                refs.dateInput.focus();
+            }
+            refs.dateInput.click();
+        }
+
         function verifiedStatusText() {
             if (state.booting && !state.profile.userId) {
                 return "Đang tải";
@@ -625,6 +673,7 @@
             setDisabled(refs.phone, !canInteract);
             setDisabled(refs.bio, !canInteract);
             setDisabled(refs.dateTrigger, !canInteract);
+            setDisabled(refs.dateInput, !canInteract);
             setDisabled(refs.genderTrigger, !canInteract);
             setDisabled(refs.provinceTrigger, !canInteract);
 
@@ -796,7 +845,7 @@
                     })
                 });
 
-                applyProfile(payload);
+                applyProfile(mergeProfiles(payload, state.form));
                 render();
                 await loadProfile({
                     silent: true,
@@ -909,18 +958,11 @@
                 return;
             }
 
-            if (typeof refs.dateInput.showPicker === "function") {
-                refs.dateInput.showPicker();
-                return;
-            }
-
-            refs.dateInput.click();
+            openDatePicker();
         });
 
-        refs.dateInput.addEventListener("change", function () {
-            setFormField("birthOfDate", normalizeDateOnly(refs.dateInput.value));
-            render();
-        });
+        refs.dateInput.addEventListener("input", syncBirthOfDateFromInput);
+        refs.dateInput.addEventListener("change", syncBirthOfDateFromInput);
 
         refs.genderTrigger.addEventListener("click", function () {
             if (requireLogin("Vui lòng đăng nhập để cập nhật giới tính.", accountLoginUrl())) {

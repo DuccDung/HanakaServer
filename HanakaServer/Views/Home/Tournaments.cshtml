@@ -370,7 +370,7 @@
             window.location.href = `/TournamentPrizeSetup/Index?tournamentId=${tournamentId}`;
         }
         function gotoBracket(tournamentId) {
-            window.open(`/PickleballWeb/Tournament/${tournamentId}/Bracket`, "_blank", "noopener");
+            window.location.href = `/TournamentAdminBracket/Index?tournamentId=${tournamentId}`;
         }
         function rowHtml(t) {
             const banner = t.bannerUrl
@@ -420,7 +420,7 @@
                             <button class="btn btn-sm btn-outline-success" onclick="gotoRounds(${t.tournamentId})" type="button" title="Các vòng đấu">
                                 <i class="fas fa-layer-group"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-dark" onclick="gotoBracket(${t.tournamentId})" type="button" title="Sơ đồ trận đấu realtime">
+                            <button class="btn btn-sm btn-outline-dark" onclick="gotoBracket(${t.tournamentId})" type="button" title="Sơ đồ admin">
                                 <i class="fas fa-project-diagram"></i>
                             </button>
                             <button class="btn btn-sm btn-outline-warning" onclick="gotoPrizeSetup(${t.tournamentId})" type="button" title="Thiết lập giải thưởng">
