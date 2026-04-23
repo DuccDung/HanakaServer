@@ -17,11 +17,16 @@ namespace HanakaServer.Controllers
     {
         private readonly PickleballDbContext _db;
         private readonly PublicRealtimeHub _publicRealtimeHub;
+        private readonly TournamentUserNotificationService _tournamentNotificationService;
 
-        public RefereeMatchesApiController(PickleballDbContext db, PublicRealtimeHub publicRealtimeHub)
+        public RefereeMatchesApiController(
+            PickleballDbContext db,
+            PublicRealtimeHub publicRealtimeHub,
+            TournamentUserNotificationService tournamentNotificationService)
         {
             _db = db;
             _publicRealtimeHub = publicRealtimeHub;
+            _tournamentNotificationService = tournamentNotificationService;
         }
 
         private long? GetCurrentUserId()
@@ -206,6 +211,9 @@ namespace HanakaServer.Controllers
                         ? "2"
                         : null;
 
+            var wasCompleted = m.IsCompleted;
+            var previousWinnerRegistrationId = m.WinnerRegistrationId;
+
             // update current score
             m.ScoreTeam1 = dto.ScoreTeam1;
             m.ScoreTeam2 = dto.ScoreTeam2;
@@ -253,6 +261,18 @@ namespace HanakaServer.Controllers
             catch
             {
                 // Realtime broadcast must not break the scoring transaction that already committed.
+            }
+
+            if (m.IsCompleted && (!wasCompleted || previousWinnerRegistrationId != m.WinnerRegistrationId))
+            {
+                try
+                {
+                    await _tournamentNotificationService.NotifyMatchWinnerAsync(m.MatchId);
+                }
+                catch
+                {
+                    // User notification must not break the scoring response after the match was saved.
+                }
             }
 
             var savedHistory = await _db.TournamentMatchScoreHistories.AsNoTracking()

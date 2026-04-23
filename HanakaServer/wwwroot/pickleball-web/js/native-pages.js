@@ -391,7 +391,9 @@
 
     function renderInfoNotificationPopupContent(item) {
         var notificationType = getNotificationType(item);
-        var tournamentId = Number(item && item.tournamentId);
+        var isPairResponse = notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED";
+        var tournamentId = Number(readNotificationValue(item, ["tournamentId", "TournamentId"]));
+        var matchId = Number(readNotificationValue(item, ["matchId", "MatchId"]));
         var actor = item && item.acceptedBy
             ? item.acceptedBy
             : item && item.requestedTo
@@ -400,6 +402,9 @@
                     ? item.requestedBy
                     : null;
         var actorName = normalizeDisplayText(actor && actor.fullName) || "Thành viên Hanaka";
+        if (!isPairResponse) {
+            actorName = "H\u1ec7 th\u1ed1ng gi\u1ea3i \u0111\u1ea5u";
+        }
         var avatarUrl = normalizeMediaUrl(actor && actor.avatarUrl);
         var popupTitle = normalizeDisplayText(item && item.title) || "Thông báo ghép đôi";
         var popupMessage = normalizeDisplayText(item && item.message) || "Bạn có thông báo mới về ghép đôi.";
@@ -416,6 +421,26 @@
                 : "Thông báo mới";
         var timeText = formatDateTime(item && item.createdAt) || "Vừa xong";
 
+        detailHref = notificationType === "MATCH_WIN" && matchId > 0
+            ? "/PickleballWeb/Match/" + matchId
+            : tournamentId > 0
+                ? "/PickleballWeb/Tournament/" + tournamentId + (isPairResponse ? "/Register" : "/Standings")
+                : "/PickleballWeb/Notifications";
+        detailText = notificationType === "MATCH_WIN"
+            ? "Xem tr\u1eadn"
+            : tournamentId > 0
+                ? (isPairResponse ? "Xem \u0111\u0103ng k\u00fd" : "Xem gi\u1ea3i \u0111\u1ea5u")
+                : "M\u1edf th\u00f4ng b\u00e1o";
+        eyebrowText = getTournamentNotificationEyebrow(notificationType);
+        var metaRows = isPairResponse
+            ? [
+                buildNotificationMetaRow("Ng\u01b0\u1eddi ph\u1ea3n h\u1ed3i", actorName),
+                buildNotificationMetaRow("Gi\u1ea3i \u0111\u1ea5u", tournamentTitle),
+                buildNotificationMetaRow("Th\u1eddi gian", timeText),
+                responseNote ? buildNotificationMetaRow("Ghi ch\u00fa", responseNote) : ""
+            ].join("")
+            : buildTournamentNotificationDetailRows(item, "popup") + buildNotificationMetaRow("Th\u1eddi gian", timeText);
+
         return [
             '<div class="web-pair-popup__eyebrow"><ion-icon name="notifications-outline"></ion-icon><span>' + escapeHtml(eyebrowText) + "</span></div>",
             '<div class="web-pair-popup__head">',
@@ -428,12 +453,84 @@
             "</div>",
             "</div>",
             '<div class="web-pair-popup__meta">',
+            metaRows,
             '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">Người phản hồi</span><span class="web-pair-popup__meta-value">' + escapeHtml(actorName) + "</span></div>",
             '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">Giải đấu</span><span class="web-pair-popup__meta-value">' + escapeHtml(tournamentTitle) + "</span></div>",
             '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">Thời gian</span><span class="web-pair-popup__meta-value">' + escapeHtml(timeText) + "</span></div>",
             responseNote
                 ? '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">Ghi chú</span><span class="web-pair-popup__meta-value">' + escapeHtml(responseNote) + "</span></div>"
                 : "",
+            "</div>",
+            '<div class="web-pair-popup__actions">',
+            '<a class="is-primary" href="' + escapeHtml(detailHref) + '">' + escapeHtml(detailText) + "</a>",
+            '<button type="button" data-pair-popup-close>Đóng</button>',
+            "</div>"
+        ].join("");
+    }
+
+    function renderInfoNotificationPopupContent(item) {
+        var notificationType = getNotificationType(item);
+        var isPairResponse = notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED";
+        var tournamentId = Number(readNotificationValue(item, ["tournamentId", "TournamentId"]));
+        var matchId = Number(readNotificationValue(item, ["matchId", "MatchId"]));
+        var actor = item && item.acceptedBy
+            ? item.acceptedBy
+            : item && item.requestedTo
+                ? item.requestedTo
+                : item && item.requestedBy
+                    ? item.requestedBy
+                    : null;
+        var actorName = normalizeDisplayText(actor && actor.fullName) || "Thành viên Hanaka";
+        if (!isPairResponse) {
+            actorName = "Hệ thống giải đấu";
+        }
+
+        var avatarUrl = normalizeMediaUrl(actor && actor.avatarUrl);
+        var popupTitle = normalizeDisplayText(item && item.title) || (isPairResponse
+            ? "Thông báo ghép đôi"
+            : "Thông báo giải đấu");
+        var popupMessage = normalizeDisplayText(item && item.message) || (isPairResponse
+            ? "Bạn có thông báo mới về ghép đôi."
+            : "Bạn có thông báo mới từ hệ thống giải đấu.");
+        var tournamentTitle = normalizeDisplayText(item && item.tournamentTitle) || "Giải đấu";
+        var responseNote = normalizeDisplayText(item && item.responseNote);
+        var detailHref = notificationType === "MATCH_WIN" && matchId > 0
+            ? "/PickleballWeb/Match/" + matchId
+            : tournamentId > 0
+                ? "/PickleballWeb/Tournament/" + tournamentId + (isPairResponse ? "/Register" : "/Standings")
+                : "/PickleballWeb/Notifications";
+        var detailText = notificationType === "MATCH_WIN"
+            ? "Xem trận"
+            : tournamentId > 0
+                ? (isPairResponse ? "Xem đăng ký" : "Xem giải đấu")
+                : "Mở thông báo";
+        var eyebrowText = isPairResponse
+            ? (notificationType === "PAIR_ACCEPTED" ? "Ghép cặp thành công" : "Phản hồi lời mời")
+            : getTournamentNotificationEyebrow(notificationType);
+        var timeText = formatDateTime(item && item.createdAt) || "Vừa xong";
+        var metaRows = isPairResponse
+            ? [
+                buildNotificationMetaRow("Người phản hồi", actorName),
+                buildNotificationMetaRow("Giải đấu", tournamentTitle),
+                buildNotificationMetaRow("Thời gian", timeText),
+                responseNote ? buildNotificationMetaRow("Ghi chú", responseNote) : ""
+            ].join("")
+            : buildTournamentNotificationDetailRows(item, "popup") + buildNotificationMetaRow("Thời gian", timeText);
+        var fallbackIcon = isPairResponse ? "person-outline" : "trophy-outline";
+
+        return [
+            '<div class="web-pair-popup__eyebrow"><ion-icon name="notifications-outline"></ion-icon><span>' + escapeHtml(eyebrowText) + "</span></div>",
+            '<div class="web-pair-popup__head">',
+            avatarUrl
+                ? '<span class="native-notification-card__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(actorName) + '" loading="lazy"></span>'
+                : '<span class="native-notification-card__avatar"><ion-icon name="' + escapeHtml(fallbackIcon) + '"></ion-icon></span>',
+            '<div>',
+            '<h2 class="web-pair-popup__title" id="web-pair-popup-title">' + escapeHtml(popupTitle) + "</h2>",
+            '<p class="web-pair-popup__message">' + escapeHtml(popupMessage) + "</p>",
+            "</div>",
+            "</div>",
+            '<div class="web-pair-popup__meta">',
+            metaRows,
             "</div>",
             '<div class="web-pair-popup__actions">',
             '<a class="is-primary" href="' + escapeHtml(detailHref) + '">' + escapeHtml(detailText) + "</a>",
@@ -537,6 +634,250 @@
         };
     }
 
+    function getNotificationDetails(item) {
+        return item && (item.details || item.Details) && typeof (item.details || item.Details) === "object"
+            ? (item.details || item.Details)
+            : {};
+    }
+
+    function readNotificationValue(item, names) {
+        var details = getNotificationDetails(item);
+        var sourceNames = Array.isArray(names) ? names : [names];
+
+        for (var index = 0; index < sourceNames.length; index += 1) {
+            var name = sourceNames[index];
+            if (item && item[name] !== undefined && item[name] !== null && trimToEmpty(item[name]) !== "" && !(/id$/i.test(name) && Number(item[name]) === 0)) {
+                return item[name];
+            }
+
+            if (details && details[name] !== undefined && details[name] !== null && trimToEmpty(details[name]) !== "" && !(/id$/i.test(name) && Number(details[name]) === 0)) {
+                return details[name];
+            }
+        }
+
+        return "";
+    }
+
+    function formatNotificationDecimal(value) {
+        var number = Number(value);
+        if (!Number.isFinite(number)) {
+            return "";
+        }
+
+        return number.toFixed(2).replace(/\.?0+$/, "");
+    }
+
+    function formatSignedNotificationDecimal(value) {
+        var text = formatNotificationDecimal(value);
+        if (!text) {
+            return "";
+        }
+
+        return Number(value) > 0 ? ("+" + text) : text;
+    }
+
+    function buildNotificationMetaRow(label, value) {
+        var text = normalizeDisplayText(value);
+        if (!text) {
+            return "";
+        }
+
+        return '<div class="web-pair-popup__meta-row"><span class="web-pair-popup__meta-label">' + escapeHtml(label) + '</span><span class="web-pair-popup__meta-value">' + escapeHtml(text) + "</span></div>";
+    }
+
+    function buildNotificationCardLine(label, value) {
+        var text = normalizeDisplayText(value);
+        if (!text) {
+            return "";
+        }
+
+        return '<p class="native-notification-card__line"><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(text) + "</p>";
+    }
+
+    function getTournamentNotificationEyebrow(notificationType) {
+        if (notificationType === "MATCH_WIN") {
+            return "Ch\u00fac m\u1eebng th\u1eafng tr\u1eadn";
+        }
+
+        if (notificationType === "TOURNAMENT_PRIZE") {
+            return "Th\u00e0nh t\u00edch gi\u1ea3i \u0111\u1ea5u";
+        }
+
+        if (notificationType === "RATING_UPDATED") {
+            return "C\u1ed9ng \u0111i\u1ec3m tr\u00ecnh";
+        }
+
+        if (notificationType === "PAIR_ACCEPTED") {
+            return "Gh\u00e9p c\u1eb7p th\u00e0nh c\u00f4ng";
+        }
+
+        if (notificationType === "PAIR_REJECTED") {
+            return "Ph\u1ea3n h\u1ed3i l\u1eddi m\u1eddi";
+        }
+
+        return "Th\u00f4ng b\u00e1o m\u1edbi";
+    }
+
+    function buildTournamentNotificationDetailRows(item, mode) {
+        var notificationType = getNotificationType(item);
+        var rows = [];
+        var tournamentId = Number(readNotificationValue(item, ["tournamentId", "TournamentId"]));
+        var tournamentTitle = normalizeDisplayText(readNotificationValue(item, ["tournamentTitle", "TournamentTitle"])) || "Gi\u1ea3i \u0111\u1ea5u";
+        var matchId = Number(readNotificationValue(item, ["matchId", "MatchId"]));
+        var registrationId = Number(readNotificationValue(item, ["registrationId", "winnerRegistrationId", "RegistrationId", "WinnerRegistrationId"]));
+        var regCode = readNotificationValue(item, ["regCode", "winnerRegCode", "RegCode", "WinnerRegCode"]);
+        var teamText = readNotificationValue(item, ["teamText", "winnerTeamText", "TeamText", "WinnerTeamText"]);
+        var scoreText = readNotificationValue(item, ["scoreText", "ScoreText"]);
+        var roundLabel = readNotificationValue(item, ["roundLabel", "RoundLabel", "roundKey", "RoundKey"]);
+        var groupName = readNotificationValue(item, ["groupName", "GroupName"]);
+        var courtText = readNotificationValue(item, ["courtText", "CourtText"]);
+        var addressText = readNotificationValue(item, ["addressText", "AddressText"]);
+        var startAtText = readNotificationValue(item, ["startAtText", "StartAtText"]);
+        var prizeLabel = readNotificationValue(item, ["prizeLabel", "PrizeLabel"]);
+        var prizeOrder = readNotificationValue(item, ["prizeOrder", "PrizeOrder"]);
+        var ratingLabel = readNotificationValue(item, ["ratingLabel", "RatingLabel"]);
+        var ratingDelta = readNotificationValue(item, ["ratingDelta", "RatingDelta"]);
+        var ratingBefore = readNotificationValue(item, ["ratingBefore", "RatingBefore"]);
+        var ratingAfter = readNotificationValue(item, ["ratingAfter", "RatingAfter"]);
+
+        rows.push(mode === "popup"
+            ? buildNotificationMetaRow("Gi\u1ea3i \u0111\u1ea5u", tournamentId > 0 ? (tournamentTitle + " (#" + tournamentId + ")") : tournamentTitle)
+            : buildNotificationCardLine("Gi\u1ea3i \u0111\u1ea5u", tournamentId > 0 ? (tournamentTitle + " (#" + tournamentId + ")") : tournamentTitle));
+
+        if (notificationType === "MATCH_WIN") {
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Tr\u1eadn", matchId > 0 ? ("#" + matchId) : "")
+                : buildNotificationCardLine("Tr\u1eadn", matchId > 0 ? ("#" + matchId) : ""));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("\u0110\u1ed9i th\u1eafng", registrationId > 0 ? ("#" + registrationId + (regCode ? " - " + regCode : "") + (teamText ? " - " + teamText : "")) : teamText)
+                : buildNotificationCardLine("\u0110\u1ed9i th\u1eafng", registrationId > 0 ? ("#" + registrationId + (regCode ? " - " + regCode : "") + (teamText ? " - " + teamText : "")) : teamText));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("T\u1ef7 s\u1ed1", scoreText)
+                : buildNotificationCardLine("T\u1ef7 s\u1ed1", scoreText));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("V\u00f2ng/b\u1ea3ng", [roundLabel, groupName].filter(Boolean).join(" - "))
+                : buildNotificationCardLine("V\u00f2ng/b\u1ea3ng", [roundLabel, groupName].filter(Boolean).join(" - ")));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Th\u1eddi gian", startAtText)
+                : buildNotificationCardLine("Th\u1eddi gian", startAtText));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("S\u00e2n", courtText)
+                : buildNotificationCardLine("S\u00e2n", courtText));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("\u0110\u1ecba \u0111i\u1ec3m", addressText)
+                : buildNotificationCardLine("\u0110\u1ecba \u0111i\u1ec3m", addressText));
+        } else if (notificationType === "TOURNAMENT_PRIZE") {
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Th\u00e0nh t\u00edch", prizeLabel + (prizeOrder ? " #" + prizeOrder : ""))
+                : buildNotificationCardLine("Th\u00e0nh t\u00edch", prizeLabel + (prizeOrder ? " #" + prizeOrder : "")));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("\u0110\u1ed9i \u0111\u0103ng k\u00fd", registrationId > 0 ? ("#" + registrationId + (regCode ? " - " + regCode : "") + (teamText ? " - " + teamText : "")) : teamText)
+                : buildNotificationCardLine("\u0110\u1ed9i \u0111\u0103ng k\u00fd", registrationId > 0 ? ("#" + registrationId + (regCode ? " - " + regCode : "") + (teamText ? " - " + teamText : "")) : teamText));
+        } else if (notificationType === "RATING_UPDATED") {
+            var ratingText = [
+                formatSignedNotificationDecimal(ratingDelta),
+                ratingLabel,
+                ratingBefore !== "" && ratingAfter !== "" ? (formatNotificationDecimal(ratingBefore) + " -> " + formatNotificationDecimal(ratingAfter)) : ""
+            ].filter(Boolean).join(" | ");
+
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("\u0110i\u1ec3m tr\u00ecnh", ratingText)
+                : buildNotificationCardLine("\u0110i\u1ec3m tr\u00ecnh", ratingText));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("L\u00fd do", prizeLabel)
+                : buildNotificationCardLine("L\u00fd do", prizeLabel));
+        }
+
+        return rows.filter(Boolean).join("");
+    }
+
+    function buildTournamentNotificationDetailRows(item, mode) {
+        var notificationType = getNotificationType(item);
+        var rows = [];
+        var tournamentId = Number(readNotificationValue(item, ["tournamentId", "TournamentId"]));
+        var tournamentTitle = normalizeDisplayText(readNotificationValue(item, ["tournamentTitle", "TournamentTitle"])) || "Giải đấu";
+        var matchId = Number(readNotificationValue(item, ["matchId", "MatchId"]));
+        var registrationId = Number(readNotificationValue(item, ["registrationId", "winnerRegistrationId", "RegistrationId", "WinnerRegistrationId"]));
+        var regCode = readNotificationValue(item, ["regCode", "winnerRegCode", "RegCode", "WinnerRegCode"]);
+        var teamText = readNotificationValue(item, ["teamText", "winnerTeamText", "TeamText", "WinnerTeamText"]);
+        var scoreText = readNotificationValue(item, ["scoreText", "ScoreText"]);
+        var roundLabel = readNotificationValue(item, ["roundLabel", "RoundLabel", "roundKey", "RoundKey"]);
+        var groupName = readNotificationValue(item, ["groupName", "GroupName"]);
+        var courtText = readNotificationValue(item, ["courtText", "CourtText"]);
+        var addressText = readNotificationValue(item, ["addressText", "AddressText"]);
+        var startAtText = readNotificationValue(item, ["startAtText", "StartAtText"]);
+        var prizeLabel = readNotificationValue(item, ["prizeLabel", "PrizeLabel"]);
+        var prizeOrder = readNotificationValue(item, ["prizeOrder", "PrizeOrder"]);
+        var tournamentPrizeId = Number(readNotificationValue(item, ["tournamentPrizeId", "TournamentPrizeId"]));
+        var ratingHistoryId = Number(readNotificationValue(item, ["ratingHistoryId", "RatingHistoryId"]));
+        var ratingLabel = readNotificationValue(item, ["ratingLabel", "RatingLabel"]);
+        var ratingDelta = readNotificationValue(item, ["ratingDelta", "RatingDelta"]);
+        var ratingBefore = readNotificationValue(item, ["ratingBefore", "RatingBefore"]);
+        var ratingAfter = readNotificationValue(item, ["ratingAfter", "RatingAfter"]);
+        var registrationText = registrationId > 0
+            ? ("#" + registrationId + (regCode ? " - " + regCode : "") + (teamText ? " - " + teamText : ""))
+            : teamText;
+
+        rows.push(mode === "popup"
+            ? buildNotificationMetaRow("Giải đấu", tournamentId > 0 ? (tournamentTitle + " (#" + tournamentId + ")") : tournamentTitle)
+            : buildNotificationCardLine("Giải đấu", tournamentId > 0 ? (tournamentTitle + " (#" + tournamentId + ")") : tournamentTitle));
+
+        if (notificationType === "MATCH_WIN") {
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Trận", matchId > 0 ? ("#" + matchId) : "")
+                : buildNotificationCardLine("Trận", matchId > 0 ? ("#" + matchId) : ""));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Đội thắng", registrationText)
+                : buildNotificationCardLine("Đội thắng", registrationText));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Tỷ số", scoreText)
+                : buildNotificationCardLine("Tỷ số", scoreText));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Vòng/bảng", [roundLabel, groupName].filter(Boolean).join(" - "))
+                : buildNotificationCardLine("Vòng/bảng", [roundLabel, groupName].filter(Boolean).join(" - ")));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Thời gian", startAtText)
+                : buildNotificationCardLine("Thời gian", startAtText));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Sân", courtText)
+                : buildNotificationCardLine("Sân", courtText));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Địa điểm", addressText)
+                : buildNotificationCardLine("Địa điểm", addressText));
+        } else if (notificationType === "TOURNAMENT_PRIZE") {
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Mã giải thưởng", tournamentPrizeId > 0 ? ("#" + tournamentPrizeId) : "")
+                : buildNotificationCardLine("Mã giải thưởng", tournamentPrizeId > 0 ? ("#" + tournamentPrizeId) : ""));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Thành tích", prizeLabel + (prizeOrder ? " #" + prizeOrder : ""))
+                : buildNotificationCardLine("Thành tích", prizeLabel + (prizeOrder ? " #" + prizeOrder : "")));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Đội đăng ký", registrationText)
+                : buildNotificationCardLine("Đội đăng ký", registrationText));
+        } else if (notificationType === "RATING_UPDATED") {
+            var ratingText = [
+                formatSignedNotificationDecimal(ratingDelta),
+                ratingLabel,
+                ratingBefore !== "" && ratingAfter !== "" ? (formatNotificationDecimal(ratingBefore) + " -> " + formatNotificationDecimal(ratingAfter)) : ""
+            ].filter(Boolean).join(" | ");
+
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Mã cộng điểm", ratingHistoryId > 0 ? ("#" + ratingHistoryId) : "")
+                : buildNotificationCardLine("Mã cộng điểm", ratingHistoryId > 0 ? ("#" + ratingHistoryId) : ""));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Đội đăng ký", registrationText)
+                : buildNotificationCardLine("Đội đăng ký", registrationText));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Điểm trình", ratingText)
+                : buildNotificationCardLine("Điểm trình", ratingText));
+            rows.push(mode === "popup"
+                ? buildNotificationMetaRow("Lý do", prizeLabel)
+                : buildNotificationCardLine("Lý do", prizeLabel));
+        }
+
+        return rows.filter(Boolean).join("");
+    }
+
     function normalizeRealtimePairRequest(payload) {
         var source = payload && payload.details ? payload.details : payload;
         var requestId = Number((source && (source.pairRequestId || source.PairRequestId)) || (payload && (payload.pairRequestId || payload.PairRequestId)));
@@ -569,6 +910,9 @@
         var pairRequestId = Number((source && (source.pairRequestId || source.PairRequestId)) || (payload && (payload.pairRequestId || payload.PairRequestId)));
         var tournamentId = Number((source && (source.tournamentId || source.TournamentId)) || (payload && (payload.tournamentId || payload.TournamentId)));
         var registrationId = Number((source && (source.registrationId || source.RegistrationId)) || (payload && (payload.registrationId || payload.RegistrationId)));
+        var matchId = Number((source && (source.matchId || source.MatchId)) || (payload && (payload.matchId || payload.MatchId)));
+        var tournamentPrizeId = Number((source && (source.tournamentPrizeId || source.TournamentPrizeId)) || (payload && (payload.tournamentPrizeId || payload.TournamentPrizeId)));
+        var ratingHistoryId = Number((source && (source.ratingHistoryId || source.RatingHistoryId)) || (payload && (payload.ratingHistoryId || payload.RatingHistoryId)));
         var notificationType = getNotificationType(payload);
 
         if (!notificationType) {
@@ -584,13 +928,59 @@
             message: normalizeDisplayText(payload && (payload.body || payload.Body)) || "Bạn có thông báo ghép đôi mới.",
             createdAt: payload && (payload.createdAt || payload.CreatedAt),
             pairRequestId: Number.isFinite(pairRequestId) && pairRequestId > 0 ? pairRequestId : 0,
+            matchId: Number.isFinite(matchId) && matchId > 0 ? matchId : 0,
             tournamentId: Number.isFinite(tournamentId) && tournamentId > 0 ? tournamentId : 0,
             tournamentTitle: normalizeDisplayText(source && (source.tournamentTitle || source.TournamentTitle || source.title || source.Title)),
             registrationId: Number.isFinite(registrationId) && registrationId > 0 ? registrationId : 0,
+            tournamentPrizeId: Number.isFinite(tournamentPrizeId) && tournamentPrizeId > 0 ? tournamentPrizeId : 0,
+            ratingHistoryId: Number.isFinite(ratingHistoryId) && ratingHistoryId > 0 ? ratingHistoryId : 0,
             responseNote: normalizeDisplayText(source && (source.responseNote || source.ResponseNote)),
             acceptedBy: normalizeUserBrief(source && (source.acceptedBy || source.AcceptedBy)),
             requestedBy: normalizeUserBrief(source && (source.requestedBy || source.RequestedBy)),
             requestedTo: normalizeUserBrief(source && (source.requestedTo || source.RequestedTo)),
+            details: source && typeof source === "object" ? source : {},
+            isRead: false
+        };
+    }
+
+    function normalizeRealtimeUserNotification(payload) {
+        var source = payload && payload.details ? payload.details : payload;
+        var notificationId = Number(payload && (payload.notificationId || payload.NotificationId));
+        var pairRequestId = Number((source && (source.pairRequestId || source.PairRequestId)) || (payload && (payload.pairRequestId || payload.PairRequestId)));
+        var tournamentId = Number((source && (source.tournamentId || source.TournamentId)) || (payload && (payload.tournamentId || payload.TournamentId)));
+        var registrationId = Number((source && (source.registrationId || source.RegistrationId)) || (payload && (payload.registrationId || payload.RegistrationId)));
+        var matchId = Number((source && (source.matchId || source.MatchId)) || (payload && (payload.matchId || payload.MatchId)));
+        var tournamentPrizeId = Number((source && (source.tournamentPrizeId || source.TournamentPrizeId)) || (payload && (payload.tournamentPrizeId || payload.TournamentPrizeId)));
+        var ratingHistoryId = Number((source && (source.ratingHistoryId || source.RatingHistoryId)) || (payload && (payload.ratingHistoryId || payload.RatingHistoryId)));
+        var notificationType = getNotificationType(payload);
+        var isPairResponse = notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED";
+
+        if (!notificationType) {
+            return null;
+        }
+
+        return {
+            id: Number.isFinite(notificationId) && notificationId > 0 ? notificationId : 0,
+            notificationId: Number.isFinite(notificationId) && notificationId > 0 ? notificationId : 0,
+            type: notificationType,
+            notificationType: notificationType,
+            title: normalizeDisplayText(payload && (payload.title || payload.Title)) || (isPairResponse ? "Thông báo ghép đôi" : "Thông báo giải đấu"),
+            message: normalizeDisplayText(payload && (payload.body || payload.Body)) || (isPairResponse
+                ? "Bạn có thông báo mới về ghép đôi."
+                : "Bạn có thông báo mới từ hệ thống giải đấu."),
+            createdAt: payload && (payload.createdAt || payload.CreatedAt),
+            pairRequestId: Number.isFinite(pairRequestId) && pairRequestId > 0 ? pairRequestId : 0,
+            matchId: Number.isFinite(matchId) && matchId > 0 ? matchId : 0,
+            tournamentId: Number.isFinite(tournamentId) && tournamentId > 0 ? tournamentId : 0,
+            tournamentTitle: normalizeDisplayText(source && (source.tournamentTitle || source.TournamentTitle || source.title || source.Title)),
+            registrationId: Number.isFinite(registrationId) && registrationId > 0 ? registrationId : 0,
+            tournamentPrizeId: Number.isFinite(tournamentPrizeId) && tournamentPrizeId > 0 ? tournamentPrizeId : 0,
+            ratingHistoryId: Number.isFinite(ratingHistoryId) && ratingHistoryId > 0 ? ratingHistoryId : 0,
+            responseNote: normalizeDisplayText(source && (source.responseNote || source.ResponseNote)),
+            acceptedBy: normalizeUserBrief(source && (source.acceptedBy || source.AcceptedBy)),
+            requestedBy: normalizeUserBrief(source && (source.requestedBy || source.RequestedBy)),
+            requestedTo: normalizeUserBrief(source && (source.requestedTo || source.RequestedTo)),
+            details: source && typeof source === "object" ? source : {},
             isRead: false
         };
     }
@@ -796,7 +1186,7 @@
 
                         if (notificationType === "PAIR_REQUEST") {
                             popupItem = normalizeRealtimePairRequest(payload);
-                        } else if (notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED") {
+                        } else if (notificationType) {
                             popupItem = normalizeRealtimeUserNotification(payload);
                         }
 
@@ -2652,9 +3042,16 @@
     }
 
     function buildNotificationDetailHref(item) {
-        var tournamentId = Number(item && item.tournamentId);
+        var tournamentId = Number(readNotificationValue(item, ["tournamentId", "TournamentId"]));
+        var notificationType = getNotificationType(item);
+        var matchId = Number(readNotificationValue(item, ["matchId", "MatchId"]));
+
+        if (notificationType === "MATCH_WIN" && matchId > 0) {
+            return "/PickleballWeb/Match/" + matchId;
+        }
+
         return tournamentId > 0
-            ? "/PickleballWeb/Tournament/" + tournamentId + "/Register"
+            ? "/PickleballWeb/Tournament/" + tournamentId + (notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED" ? "/Register" : "/Standings")
             : "/PickleballWeb/Notifications";
     }
 
@@ -2666,15 +3063,30 @@
         var createdAtText = formatDateTime(item && item.createdAt) || "Vừa xong";
         var responseNote = normalizeDisplayText(item && item.responseNote);
         var notificationType = getNotificationType(item);
+        var isPairResponse = notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED";
+        if (!isPairResponse) {
+            actorName = "H\u1ec7 th\u1ed1ng gi\u1ea3i \u0111\u1ea5u";
+        }
         var isUnread = item && (item.isRead === false || item.IsRead === false);
         var notificationId = Number(item && (item.notificationId || item.id));
+        var notificationTournamentId = Number(readNotificationValue(item, ["tournamentId", "TournamentId"]));
         var eyebrowText = notificationType === "PAIR_ACCEPTED"
             ? "Chấp nhận lời mời"
             : notificationType === "PAIR_REJECTED"
                 ? "Từ chối lời mời"
                 : "Thông báo";
         var detailHref = buildNotificationDetailHref(item);
+        if (!isPairResponse) {
+            eyebrowText = getTournamentNotificationEyebrow(notificationType);
+        }
         var detailText = Number(item && item.tournamentId) > 0 ? "Xem đăng ký" : "Mở thông báo";
+        if (!isPairResponse && notificationType === "MATCH_WIN") {
+            detailText = "Xem tr\u1eadn";
+        } else if (!isPairResponse && notificationTournamentId > 0) {
+            detailText = "Xem gi\u1ea3i \u0111\u1ea5u";
+        }
+
+        var detailRows = isPairResponse ? "" : buildTournamentNotificationDetailRows(item, "card");
         var stateBadge = isUnread
             ? '<span class="native-notification-card__badge native-notification-card__badge--unread">Chưa đọc</span>'
             : '<span class="native-notification-card__badge native-notification-card__badge--read">Đã đọc</span>';
@@ -2699,6 +3111,73 @@
             responseNote
                 ? '<p class="native-notification-card__line"><strong>Ghi chú:</strong> ' + escapeHtml(responseNote) + "</p>"
                 : "",
+            detailRows,
+            '<div class="native-notification-card__actions">',
+            '<a class="is-primary" href="' + escapeHtml(detailHref) + '" data-notification-link="' + escapeHtml(notificationId || "") + '" data-notification-unread="' + escapeHtml(isUnread ? "true" : "false") + '">' + escapeHtml(detailText) + "</a>",
+            isUnread && notificationId > 0
+                ? '<button type="button" data-notification-read="' + escapeHtml(notificationId) + '">Đánh dấu đã đọc</button>'
+                : "",
+            "</div>",
+            '<p class="native-notification-card__time">' + escapeHtml(createdAtText) + "</p>",
+            "</article>"
+        ].join("");
+    }
+
+    function renderUserNotificationCard(item) {
+        var actor = getUserNotificationActor(item);
+        var actorName = normalizeDisplayText(actor && actor.fullName) || "Thành viên Hanaka";
+        var avatarUrl = normalizeMediaUrl(actor && actor.avatarUrl);
+        var tournamentTitle = normalizeDisplayText(item && item.tournamentTitle) || "Giải đấu";
+        var createdAtText = formatDateTime(item && item.createdAt) || "Vừa xong";
+        var responseNote = normalizeDisplayText(item && item.responseNote);
+        var notificationType = getNotificationType(item);
+        var isPairResponse = notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED";
+        if (!isPairResponse) {
+            actorName = "Hệ thống giải đấu";
+        }
+
+        var isUnread = item && (item.isRead === false || item.IsRead === false);
+        var notificationId = Number(item && (item.notificationId || item.id));
+        var notificationTournamentId = Number(readNotificationValue(item, ["tournamentId", "TournamentId"]));
+        var eyebrowText = isPairResponse
+            ? (notificationType === "PAIR_ACCEPTED" ? "Chấp nhận lời mời" : "Từ chối lời mời")
+            : getTournamentNotificationEyebrow(notificationType);
+        var detailHref = buildNotificationDetailHref(item);
+        var detailText = notificationType === "MATCH_WIN"
+            ? "Xem trận"
+            : notificationTournamentId > 0
+                ? (isPairResponse ? "Xem đăng ký" : "Xem giải đấu")
+                : "Mở thông báo";
+        var detailRows = isPairResponse
+            ? [
+                '<p class="native-notification-card__line"><strong>Người phản hồi:</strong> ' + escapeHtml(actorName) + "</p>",
+                '<p class="native-notification-card__line"><strong>Giải đấu:</strong> ' + escapeHtml(tournamentTitle) + "</p>",
+                responseNote
+                    ? '<p class="native-notification-card__line"><strong>Ghi chú:</strong> ' + escapeHtml(responseNote) + "</p>"
+                    : ""
+            ].join("")
+            : buildTournamentNotificationDetailRows(item, "card");
+        var stateBadge = isUnread
+            ? '<span class="native-notification-card__badge native-notification-card__badge--unread">Chưa đọc</span>'
+            : '<span class="native-notification-card__badge native-notification-card__badge--read">Đã đọc</span>';
+        var fallbackIcon = isPairResponse ? "person-outline" : "trophy-outline";
+
+        return [
+            '<article class="native-notification-card native-notification-card--system' + (isUnread ? " native-notification-card--unread" : " native-notification-card--read") + '">',
+            '<div class="native-notification-card__pair-head">',
+            avatarUrl
+                ? '<span class="native-notification-card__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(actorName) + '" loading="lazy"></span>'
+                : '<span class="native-notification-card__avatar"><ion-icon name="' + escapeHtml(fallbackIcon) + '"></ion-icon></span>',
+            '<div>',
+            '<div class="native-notification-card__topline">',
+            '<span class="native-notification-card__badge">' + escapeHtml(eyebrowText) + "</span>",
+            stateBadge,
+            "</div>",
+            '<h2 class="native-notification-card__title">' + escapeHtml(normalizeDisplayText(item && item.title) || "Thông báo") + "</h2>",
+            '<p class="native-notification-card__line">' + escapeHtml(normalizeDisplayText(item && item.message) || "Thông báo sẽ được cập nhật tại đây.") + "</p>",
+            "</div>",
+            "</div>",
+            detailRows,
             '<div class="native-notification-card__actions">',
             '<a class="is-primary" href="' + escapeHtml(detailHref) + '" data-notification-link="' + escapeHtml(notificationId || "") + '" data-notification-unread="' + escapeHtml(isUnread ? "true" : "false") + '">' + escapeHtml(detailText) + "</a>",
             isUnread && notificationId > 0

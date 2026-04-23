@@ -175,11 +175,15 @@ namespace HanakaServer.Controllers
                     long pairRequestId = 0;
                     long tournamentId = 0;
                     long registrationId = 0;
+                    long matchId = 0;
+                    long tournamentPrizeId = 0;
+                    long ratingHistoryId = 0;
                     string? tournamentTitle = null;
                     string? responseNote = null;
                     object? acceptedBy = null;
                     object? requestedBy = null;
                     object? requestedTo = null;
+                    JsonElement? details = null;
 
                     if (!string.IsNullOrWhiteSpace(x.PayloadJson))
                     {
@@ -187,10 +191,14 @@ namespace HanakaServer.Controllers
                         {
                             using var document = JsonDocument.Parse(x.PayloadJson);
                             var root = document.RootElement;
+                            details = root.Clone();
 
                             pairRequestId = ReadJsonLong(root, "pairRequestId") ?? (x.RefType == "PAIR_REQUEST" ? x.RefId ?? 0 : 0);
                             tournamentId = ReadJsonLong(root, "tournamentId") ?? 0;
                             registrationId = ReadJsonLong(root, "registrationId") ?? 0;
+                            matchId = ReadJsonLong(root, "matchId") ?? 0;
+                            tournamentPrizeId = ReadJsonLong(root, "tournamentPrizeId") ?? 0;
+                            ratingHistoryId = ReadJsonLong(root, "ratingHistoryId") ?? 0;
                             tournamentTitle = ReadJsonString(root, "tournamentTitle") ?? ReadJsonString(root, "title");
                             responseNote = ReadJsonString(root, "responseNote");
                             acceptedBy = ReadUserBrief(root, "acceptedBy");
@@ -216,13 +224,17 @@ namespace HanakaServer.Controllers
                         x.RefType,
                         x.RefId,
                         pairRequestId,
+                        matchId,
                         tournamentId,
                         tournamentTitle,
                         registrationId,
+                        tournamentPrizeId,
+                        ratingHistoryId,
                         responseNote,
                         acceptedBy,
                         requestedBy,
-                        requestedTo
+                        requestedTo,
+                        details
                     };
                 }).ToList();
 

@@ -1,5 +1,6 @@
 ﻿using HanakaServer.Data;
 using HanakaServer.Models;
+using HanakaServer.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,10 +14,14 @@ namespace HanakaServer.Controllers
     public class AdminTournamentGroupMatchesController : ControllerBase
     {
         private readonly PickleballDbContext _db;
+        private readonly TournamentUserNotificationService _tournamentNotificationService;
 
-        public AdminTournamentGroupMatchesController(PickleballDbContext db)
+        public AdminTournamentGroupMatchesController(
+            PickleballDbContext db,
+            TournamentUserNotificationService tournamentNotificationService)
         {
             _db = db;
+            _tournamentNotificationService = tournamentNotificationService;
         }
 
         // GET /api/admin/groups/{groupId}/matches
@@ -494,14 +499,51 @@ namespace HanakaServer.Controllers
         [HttpDelete("{matchId:long}")]
         public async Task<IActionResult> Delete(long groupId, long matchId)
         {
+            await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
+
             var m = await _db.TournamentGroupMatches
                 .FirstOrDefaultAsync(x => x.MatchId == matchId && x.TournamentRoundGroupId == groupId);
 
             if (m == null)
                 return NotFound(new { message = "Không tìm thấy trận đấu." });
 
+            var scoreHistories = await _db.TournamentMatchScoreHistories
+                .Where(x => x.MatchId == matchId)
+                .ToListAsync();
+
+            if (scoreHistories.Count > 0)
+            {
+                _db.TournamentMatchScoreHistories.RemoveRange(scoreHistories);
+            }
+
+            var relatedNotifications = await _db.UserNotifications
+                .Where(x => x.RefType == "MATCH" && x.RefId == matchId)
+                .ToListAsync();
+
+            if (relatedNotifications.Count > 0)
+            {
+                _db.UserNotifications.RemoveRange(relatedNotifications);
+            }
+
             _db.TournamentGroupMatches.Remove(m);
-            await _db.SaveChangesAsync();
+
+            try
+            {
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+            }
+            catch (DbUpdateException ex)
+            {
+                await tx.RollbackAsync();
+
+                var innerMessage = ex.InnerException?.Message ?? ex.Message;
+
+                return BadRequest(new
+                {
+                    message = "Xóa trận đấu thất bại vì vẫn còn dữ liệu đang liên kết với trận này.",
+                    detail = innerMessage
+                });
+            }
 
             return Ok(new { ok = true });
         }
@@ -524,6 +566,9 @@ namespace HanakaServer.Controllers
             if (dto.ScoreTeam1 == dto.ScoreTeam2)
                 return BadRequest(new { message = "Không hỗ trợ kết quả hòa. Tỷ số hai đội phải khác nhau." });
 
+            var wasCompleted = m.IsCompleted;
+            var previousWinnerRegistrationId = m.WinnerRegistrationId;
+
             m.ScoreTeam1 = dto.ScoreTeam1;
             m.ScoreTeam2 = dto.ScoreTeam2;
             m.IsCompleted = dto.IsCompleted;
@@ -534,6 +579,18 @@ namespace HanakaServer.Controllers
 
             await _db.SaveChangesAsync();
             await tx.CommitAsync();
+
+            if (m.IsCompleted && (!wasCompleted || previousWinnerRegistrationId != m.WinnerRegistrationId))
+            {
+                try
+                {
+                    await _tournamentNotificationService.NotifyMatchWinnerAsync(m.MatchId);
+                }
+                catch
+                {
+                    // Realtime notification must not break a score that is already saved.
+                }
+            }
 
             return Ok(new
             {

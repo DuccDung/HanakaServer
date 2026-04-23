@@ -214,16 +214,16 @@
                             <label>Nội dung thi đấu *</label>
                             <select id="tournamentType" class="form-control" required>
                                 <option value="" selected>Chọn nội dung thi đấu</option>
-                                <option value="SINGLE_MEN">Đơn Nam</option>
-                                <option value="SINGLE_WOMEN">Đơn Nữ</option>
                                 <option value="DOUBLE_MEN">Đôi Nam</option>
                                 <option value="DOUBLE_WOMEN">Đôi Nữ</option>
-                                <option value="DOUBLE_MIXED">Hỗn Hợp Nam Nữ</option>
-                                <option value="SINGLE_OPEN">Đơn Mở / Dữ Liệu Cũ</option>
-                                <option value="DOUBLE_OPEN">Đôi Mở / Dữ Liệu Cũ</option>
+                                <option value="SINGLE_MEN">Đơn Nam</option>
+                                <option value="SINGLE_WOMEN">Đơn Nữ</option>
+                                <option value="DOUBLE_MIXED">Đôi Nam Nữ</option>
+                                <option value="DOUBLE_OPEN">Hỗn Hợp</option>
+                                <option value="SINGLE_OPEN" hidden>Đơn Mở / Dữ liệu cũ</option>
                             </select>
                             <small class="text-muted d-block mt-2">
-                                Đơn Nam = SINGLE + MEN • Đơn Nữ = SINGLE + WOMEN • Đôi Nam = DOUBLE + MEN • Đôi Nữ = DOUBLE + WOMEN • Hỗn Hợp Nam Nữ = DOUBLE + MIXED
+                                Đôi Nam = DOUBLE + MEN • Đôi Nữ = DOUBLE + WOMEN • Đơn Nam = SINGLE + MEN • Đơn Nữ = SINGLE + WOMEN • Đôi Nam Nữ = DOUBLE + MIXED • Hỗn Hợp = DOUBLE + OPEN
                             </small>
                         </div>
                         <div class="form-group col-md-4">
@@ -416,9 +416,9 @@
                 case "SINGLE_WOMEN": return "Đơn Nữ";
                 case "DOUBLE_MEN": return "Đôi Nam";
                 case "DOUBLE_WOMEN": return "Đôi Nữ";
-                case "DOUBLE_MIXED": return "Hỗn Hợp Nam Nữ";
-                case "SINGLE_OPEN": return "Đơn Mở";
-                case "DOUBLE_OPEN": return "Đôi Mở";
+                case "DOUBLE_MIXED": return "Đôi Nam Nữ";
+                case "SINGLE_OPEN": return "Đơn Mở / Dữ liệu cũ";
+                case "DOUBLE_OPEN": return "Hỗn Hợp";
                 default: return "—";
             }
         }

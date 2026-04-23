@@ -1,5 +1,6 @@
 ﻿using HanakaServer.Data;
 using HanakaServer.Models;
+using HanakaServer.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,10 +11,14 @@ namespace HanakaServer.Controllers
     public class AdminTournamentPrizesController : ControllerBase
     {
         private readonly PickleballDbContext _db;
+        private readonly TournamentUserNotificationService _tournamentNotificationService;
 
-        public AdminTournamentPrizesController(PickleballDbContext db)
+        public AdminTournamentPrizesController(
+            PickleballDbContext db,
+            TournamentUserNotificationService tournamentNotificationService)
         {
             _db = db;
+            _tournamentNotificationService = tournamentNotificationService;
         }
 
         [HttpGet("{tournamentId:long}")]
@@ -431,10 +436,39 @@ namespace HanakaServer.Controllers
             if (ratingHistories.Any())
             {
                 await _db.UserRatingHistories.AddRangeAsync(ratingHistories);
+            }
+
+            var affectedUsers = await _db.Users
+                .Where(x => allUserIds.Contains(x.UserId))
+                .ToListAsync();
+
+            foreach (var user in affectedUsers)
+            {
+                if (!currentRatings.TryGetValue(user.UserId, out var snapshot))
+                {
+                    continue;
+                }
+
+                user.RatingSingle = snapshot.RatingSingle;
+                user.RatingDouble = snapshot.RatingDouble;
+                user.UpdatedAt = DateTime.UtcNow;
+            }
+
+            if (ratingHistories.Any() || affectedUsers.Any())
+            {
                 await _db.SaveChangesAsync();
             }
 
             await tx.CommitAsync();
+
+            try
+            {
+                await _tournamentNotificationService.NotifyTournamentAwardsAndRatingsAsync(tournamentId);
+            }
+            catch
+            {
+                // Notification delivery must not break a prize confirmation that has already committed.
+            }
 
             return Ok(new
             {
