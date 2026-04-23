@@ -287,6 +287,8 @@ namespace HanakaServer.Controllers
             public string GenderCategory { get; set; } = "OPEN";
             public string TournamentTypeCode { get; set; } = "DOUBLE_OPEN";
             public string TournamentTypeLabel { get; set; } = "";
+            public decimal SingleLimit { get; set; }
+            public decimal DoubleLimit { get; set; }
             public int ExpectedTeams { get; set; }
             public int RegisteredCount { get; set; }
             public int PairedCount { get; set; }
@@ -319,6 +321,8 @@ namespace HanakaServer.Controllers
                 GenderCategory = tournamentType.GenderCategory,
                 TournamentTypeCode = tournamentType.TournamentTypeCode,
                 TournamentTypeLabel = tournamentType.TournamentTypeLabel,
+                SingleLimit = t.SingleLimit,
+                DoubleLimit = t.DoubleLimit,
                 ExpectedTeams = t.ExpectedTeams,
                 RegisteredCount = t.RegisteredCount,
                 PairedCount = t.PairedCount,

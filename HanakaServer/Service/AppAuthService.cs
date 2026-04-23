@@ -37,28 +37,34 @@ namespace HanakaServer.Services
         {
             if (string.IsNullOrWhiteSpace(dto.FullName))
             {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "FullName is required.");
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập họ và tên.");
             }
 
             if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 6)
             {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Password must be at least 6 characters.");
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Mật khẩu phải có ít nhất 6 ký tự.");
             }
 
             if (string.IsNullOrWhiteSpace(dto.Email))
             {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Email is required.");
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập email.");
+            }
+
+            if (string.IsNullOrWhiteSpace(dto.Gender))
+            {
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng chọn giới tính.");
             }
 
             var email = dto.Email.Trim().ToLowerInvariant();
-            var phone = dto.Phone?.Trim();
+            var phone = NormalizePhone(dto.Phone);
 
             var existedByEmail = await _db.Users.FirstOrDefaultAsync(x => x.Email == email, ct);
+            await EnsurePhoneIsUniqueAsync(phone, existedByEmail?.UserId, ct);
             if (existedByEmail != null)
             {
                 if (existedByEmail.IsActive)
                 {
-                    throw new AuthFlowException(StatusCodes.Status409Conflict, "Email already exists.");
+                    throw new AuthFlowException(StatusCodes.Status409Conflict, "Email đã được sử dụng.");
                 }
 
                 existedByEmail.FullName = dto.FullName.Trim();
@@ -80,15 +86,6 @@ namespace HanakaServer.Services
                     Email = email,
                     OtpExpiredAtUtc = resend.expiredAtUtc
                 };
-            }
-
-            if (!string.IsNullOrEmpty(phone))
-            {
-                var existsPhone = await _db.Users.AnyAsync(x => x.Phone == phone, ct);
-                if (existsPhone)
-                {
-                    throw new AuthFlowException(StatusCodes.Status409Conflict, "Phone already exists.");
-                }
             }
 
             var user = new User
@@ -141,6 +138,126 @@ namespace HanakaServer.Services
             };
         }
 
+        public async Task<ForgotPasswordResponseDto> ForgotPasswordAsync(ForgotPasswordRequestDto dto, CancellationToken ct = default)
+        {
+            const string GenericMessage =
+                "Nếu email tồn tại và tài khoản đã kích hoạt, mã OTP đã được gửi về hộp thư của bạn.";
+
+            var email = NormalizeEmail(dto.Email);
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập email.");
+            }
+
+            var user = await FindActiveUserByEmailAsync(email, ct);
+            if (user == null)
+            {
+                return new ForgotPasswordResponseDto
+                {
+                    Message = GenericMessage
+                };
+            }
+
+            var otpResult = await _userOtpService.CreateOtpAsync(user, ct);
+            await _otpEmailService.SendPasswordResetOtpAsync(email, ResolveDisplayName(user), otpResult.otp, ct);
+
+            return new ForgotPasswordResponseDto
+            {
+                Message = GenericMessage,
+                OtpExpiredAtUtc = otpResult.expiredAtUtc
+            };
+        }
+
+        public async Task<ForgotPasswordResponseDto> VerifyForgotPasswordOtpAsync(
+            ForgotPasswordVerifyOtpRequestDto dto,
+            CancellationToken ct = default)
+        {
+            var email = NormalizeEmail(dto.Email);
+            var otp = dto.Otp?.Trim();
+
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(otp))
+            {
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập email và mã OTP.");
+            }
+
+            var user = await FindActiveUserByEmailAsync(email, ct);
+            var otpEntity = user == null
+                ? null
+                : await FindAvailableOtpAsync(user.UserId, email, otp, ct);
+
+            if (otpEntity == null)
+            {
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "OTP không đúng hoặc đã hết hạn.");
+            }
+
+            return new ForgotPasswordResponseDto
+            {
+                Message = "OTP hợp lệ. Vui lòng nhập mật khẩu mới."
+            };
+        }
+
+        public async Task<AuthResponseDto> ResetPasswordWithOtpAsync(
+            ForgotPasswordResetRequestDto dto,
+            CancellationToken ct = default,
+            TimeSpan? accessTokenLifetime = null)
+        {
+            var email = NormalizeEmail(dto.Email);
+            var otp = dto.Otp?.Trim();
+            var newPassword = dto.NewPassword?.Trim() ?? string.Empty;
+            var confirmPassword = dto.ConfirmPassword?.Trim() ?? string.Empty;
+
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(otp))
+            {
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập email và mã OTP.");
+            }
+
+            if (newPassword.Length < 6)
+            {
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Mật khẩu mới phải có ít nhất 6 ký tự.");
+            }
+
+            if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
+            {
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Mật khẩu nhập lại không khớp.");
+            }
+
+            var user = await FindActiveUserByEmailAsync(email, ct);
+            var otpEntity = user == null
+                ? null
+                : await FindAvailableOtpAsync(user.UserId, email, otp, ct);
+
+            if (user == null || otpEntity == null)
+            {
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "OTP không đúng hoặc đã hết hạn.");
+            }
+
+            var now = DateTime.UtcNow;
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+            user.UpdatedAt = now;
+
+            otpEntity.IsUsed = true;
+            otpEntity.UsedAt = now;
+
+            var otherActiveOtps = await _db.UserOtps
+                .Where(x => x.UserId == user.UserId
+                            && x.Email == email
+                            && !x.IsUsed
+                            && x.UserOtpId != otpEntity.UserOtpId
+                            && x.ExpiredAt > now)
+                .ToListAsync(ct);
+
+            foreach (var item in otherActiveOtps)
+            {
+                item.IsUsed = true;
+                item.UsedAt = now;
+            }
+
+            await _db.SaveChangesAsync(ct);
+            await EnsureInitialRatingHistoryAsync(user, ct);
+
+            return await CreateAuthResponseAsync(user, ct, accessTokenLifetime);
+        }
+
         public async Task<AuthResponseDto> ConfirmOtpAsync(
             ConfirmOtpRequestDto dto,
             CancellationToken ct = default,
@@ -148,34 +265,29 @@ namespace HanakaServer.Services
         {
             if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Otp))
             {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Email and OTP are required.");
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập email và mã OTP.");
             }
 
-            var email = dto.Email.Trim().ToLowerInvariant();
+            var email = NormalizeEmail(dto.Email);
             var otp = dto.Otp.Trim();
 
             var user = await _db.Users.FirstOrDefaultAsync(x => x.Email == email, ct);
             if (user == null)
             {
-                throw new AuthFlowException(StatusCodes.Status404NotFound, "User not found.");
+                throw new AuthFlowException(StatusCodes.Status404NotFound, "Không tìm thấy tài khoản.");
             }
 
-            var otpEntity = await _db.UserOtps
-                .Where(x => x.UserId == user.UserId
-                            && x.Email == email
-                            && !x.IsUsed
-                            && x.OtpCode == otp)
-                .OrderByDescending(x => x.CreatedAt)
-                .FirstOrDefaultAsync(ct);
+            if (user.IsActive)
+            {
+                throw new AuthFlowException(
+                    StatusCodes.Status400BadRequest,
+                    "Tài khoản đã được kích hoạt. Vui lòng đăng nhập hoặc dùng quên mật khẩu nếu cần đặt lại mật khẩu.");
+            }
 
+            var otpEntity = await FindAvailableOtpAsync(user.UserId, email, otp, ct);
             if (otpEntity == null)
             {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "OTP không đúng hoặc đã được sử dụng.");
-            }
-
-            if (otpEntity.ExpiredAt < DateTime.UtcNow)
-            {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "OTP đã hết hạn.");
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "OTP không đúng hoặc đã hết hạn.");
             }
 
             otpEntity.IsUsed = true;
@@ -193,15 +305,15 @@ namespace HanakaServer.Services
         {
             if (string.IsNullOrWhiteSpace(dto.Email))
             {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Email is required.");
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập email.");
             }
 
-            var email = dto.Email.Trim().ToLowerInvariant();
+            var email = NormalizeEmail(dto.Email);
             var user = await _db.Users.FirstOrDefaultAsync(x => x.Email == email, ct);
 
             if (user == null)
             {
-                throw new AuthFlowException(StatusCodes.Status404NotFound, "User not found.");
+                throw new AuthFlowException(StatusCodes.Status404NotFound, "Không tìm thấy tài khoản.");
             }
 
             if (user.IsActive)
@@ -212,7 +324,7 @@ namespace HanakaServer.Services
             await EnsureInitialRatingHistoryAsync(user, ct);
 
             var otpResult = await _userOtpService.CreateOtpAsync(user, ct);
-            await _otpEmailService.SendOtpAsync(email, user.FullName, otpResult.otp, ct);
+            await _otpEmailService.SendOtpAsync(email, ResolveDisplayName(user), otpResult.otp, ct);
 
             return new RegisterResponseDto
             {
@@ -230,7 +342,7 @@ namespace HanakaServer.Services
             var identifier = dto.Identifier?.Trim();
             if (string.IsNullOrWhiteSpace(identifier) || string.IsNullOrWhiteSpace(dto.Password))
             {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Identifier and Password are required.");
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập email hoặc số điện thoại và mật khẩu.");
             }
 
             var user = await _db.Users.FirstOrDefaultAsync(x =>
@@ -239,7 +351,7 @@ namespace HanakaServer.Services
 
             if (user == null)
             {
-                throw new AuthFlowException(StatusCodes.Status401Unauthorized, "Invalid credentials.");
+                throw new AuthFlowException(StatusCodes.Status401Unauthorized, "Thông tin đăng nhập không chính xác.");
             }
 
             if (!user.IsActive)
@@ -250,7 +362,7 @@ namespace HanakaServer.Services
             var ok = BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash);
             if (!ok)
             {
-                throw new AuthFlowException(StatusCodes.Status401Unauthorized, "Invalid credentials.");
+                throw new AuthFlowException(StatusCodes.Status401Unauthorized, "Thông tin đăng nhập không chính xác.");
             }
 
             await EnsureInitialRatingHistoryAsync(user, ct);
@@ -268,7 +380,7 @@ namespace HanakaServer.Services
                 return null;
             }
 
-            var latestRating = await GetLatestRatingAsync(user.UserId, ct);
+            var latestRating = await GetLatestRatingOrFallbackAsync(user, ct);
 
             return new AuthUserDto
             {
@@ -283,6 +395,90 @@ namespace HanakaServer.Services
                     ? null
                     : GetBaseUrl() + user.AvatarUrl
             };
+        }
+
+        private async Task<User?> FindActiveUserByEmailAsync(string email, CancellationToken ct)
+        {
+            return await _db.Users.FirstOrDefaultAsync(
+                x => x.Email != null && x.Email == email && x.IsActive,
+                ct);
+        }
+
+        private async Task<UserOtp?> FindAvailableOtpAsync(long userId, string email, string otp, CancellationToken ct)
+        {
+            var now = DateTime.UtcNow;
+
+            return await _db.UserOtps
+                .Where(x => x.UserId == userId
+                            && x.Email == email
+                            && !x.IsUsed
+                            && x.OtpCode == otp
+                            && x.ExpiredAt > now)
+                .OrderByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync(ct);
+        }
+
+        private async Task EnsurePhoneIsUniqueAsync(string? phone, long? excludedUserId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(phone))
+            {
+                return;
+            }
+
+            var comparablePhone = BuildComparablePhone(phone);
+            var existsPhone = await _db.Users.AnyAsync(
+                x => x.Phone != null
+                     && (!excludedUserId.HasValue || x.UserId != excludedUserId.Value)
+                     && x.Phone.Trim()
+                         .Replace(" ", string.Empty)
+                         .Replace("-", string.Empty)
+                         .Replace(".", string.Empty)
+                         .Replace("(", string.Empty)
+                         .Replace(")", string.Empty) == comparablePhone,
+                ct);
+
+            if (existsPhone)
+            {
+                throw new AuthFlowException(StatusCodes.Status409Conflict, "Số điện thoại đã được sử dụng.");
+            }
+        }
+
+        private static string? NormalizePhone(string? phone)
+        {
+            var raw = phone?.Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return null;
+            }
+
+            var hasLeadingPlus = raw.StartsWith("+");
+            var digits = string.Concat(raw.Where(char.IsDigit));
+            if (string.IsNullOrWhiteSpace(digits))
+            {
+                return null;
+            }
+
+            return hasLeadingPlus ? $"+{digits}" : digits;
+        }
+
+        private static string BuildComparablePhone(string phone)
+        {
+            return phone.Trim()
+                .Replace(" ", string.Empty)
+                .Replace("-", string.Empty)
+                .Replace(".", string.Empty)
+                .Replace("(", string.Empty)
+                .Replace(")", string.Empty);
+        }
+
+        private static string NormalizeEmail(string? email)
+        {
+            return email?.Trim().ToLowerInvariant() ?? string.Empty;
+        }
+
+        private static string ResolveDisplayName(User user)
+        {
+            return string.IsNullOrWhiteSpace(user.FullName) ? "bạn" : user.FullName;
         }
 
         private string GetBaseUrl()
@@ -372,6 +568,20 @@ namespace HanakaServer.Services
                 : (latest.RatingSingle, latest.RatingDouble);
         }
 
+        private async Task<(decimal? RatingSingle, decimal? RatingDouble)> GetLatestRatingOrFallbackAsync(
+            User user,
+            CancellationToken ct)
+        {
+            try
+            {
+                return await GetLatestRatingAsync(user.UserId, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return (user.RatingSingle, user.RatingDouble);
+            }
+        }
+
         private async Task<AuthResponseDto> CreateAuthResponseAsync(
             User user,
             CancellationToken ct,
@@ -403,7 +613,7 @@ namespace HanakaServer.Services
                 signingCredentials: creds);
 
             var tokenString = new JwtSecurityTokenHandler().WriteToken(token);
-            var latestRating = await GetLatestRatingAsync(user.UserId, ct);
+            var latestRating = await GetLatestRatingOrFallbackAsync(user, ct);
 
             return new AuthResponseDto
             {

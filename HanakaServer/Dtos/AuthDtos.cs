@@ -1,4 +1,4 @@
-﻿namespace HanakaServer.Dtos;
+namespace HanakaServer.Dtos;
 
 public class RegisterRequestDto
 {
@@ -15,21 +15,50 @@ public class LoginRequestDto
     public string Identifier { get; set; } = null!;
     public string Password { get; set; } = null!;
 }
+
+public class ForgotPasswordRequestDto
+{
+    public string Email { get; set; } = null!;
+}
+
+public class ForgotPasswordVerifyOtpRequestDto
+{
+    public string Email { get; set; } = null!;
+    public string Otp { get; set; } = null!;
+}
+
+public class ForgotPasswordResetRequestDto
+{
+    public string Email { get; set; } = null!;
+    public string Otp { get; set; } = null!;
+    public string NewPassword { get; set; } = null!;
+    public string ConfirmPassword { get; set; } = null!;
+}
+
 public class ConfirmOtpRequestDto
 {
     public string Email { get; set; } = null!;
     public string Otp { get; set; } = null!;
 }
+
 public class ResendOtpRequestDto
 {
     public string Email { get; set; } = null!;
 }
+
 public class RegisterResponseDto
 {
     public string Message { get; set; } = null!;
     public string Email { get; set; } = null!;
     public DateTime OtpExpiredAtUtc { get; set; }
 }
+
+public class ForgotPasswordResponseDto
+{
+    public string Message { get; set; } = null!;
+    public DateTime? OtpExpiredAtUtc { get; set; }
+}
+
 public class AuthUserDto
 {
     public long UserId { get; set; }

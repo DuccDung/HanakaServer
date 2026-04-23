@@ -3241,7 +3241,7 @@
             '<p>S\u01a1 \u0111\u1ed3 thi \u0111\u1ea5u</p>',
             `<strong>${escapeHtml(trimToEmpty(tournament?.title) || "Hanaka Sport")}</strong>`,
             "</div>",
-            '<span>K\u00e9o ngang/d\u1ecdc \u0111\u1ec3 xem to\u00e0n b\u1ed9 nh\u00e1nh \u0111\u1ea5u</span>',
+            '<span>T\u1ef7 s\u1ed1 s\u1ebd t\u1ef1 \u0111\u1ed9ng c\u1eadp nh\u1eadt khi tr\u1ecdng t\u00e0i nh\u1eadp k\u1ebft qu\u1ea3.</span>',
             "</div>",
             '<div class="tournament-bracket-legend">',
             '<span><i class="is-real"></i>Tr\u1eadn th\u1eadt</span>',
@@ -3280,6 +3280,23 @@
 
     async function loadTournamentBracketPage(id) {
         return fetchJson(`/api/tournaments/${id}/rounds-with-matches`);
+    }
+
+    async function refreshTournamentDetailBody(root, body, config, id, kind) {
+        const nextData = await config.load(id);
+        body.innerHTML = config.render(nextData);
+
+        if (
+            kind === "tournament-detail" ||
+            kind === "tournament-registrations" ||
+            kind === "tournament-register-page" ||
+            kind === "tournament-rule-page" ||
+            kind === "tournament-schedule-page" ||
+            kind === "tournament-bracket-page" ||
+            kind === "tournament-standings-page"
+        ) {
+            initTournamentDetailInteractions(root, nextData, kind);
+        }
     }
 
     function renderTournamentSchedulePage(data) {
@@ -4383,7 +4400,7 @@
             );
         }
 
-        if (kind === "tournament-schedule-page") {
+        if (kind === "tournament-schedule-page" || kind === "tournament-bracket-page") {
             subscribeTournamentPublicRealtime(id);
             removePublicRealtimeListener = addTournamentPublicRealtimeListener(function (event) {
                 if (trimToEmpty(event && event.type) !== "tournament.match.score.updated") {
@@ -4397,9 +4414,18 @@
 
                 window.clearTimeout(publicRefreshTimer);
                 publicRefreshTimer = window.setTimeout(function () {
-                    if (!patchTournamentScheduleMatchScore(root, payload)) {
-                        window.location.reload();
+                    if (kind === "tournament-schedule-page") {
+                        if (!patchTournamentScheduleMatchScore(root, payload)) {
+                            refreshTournamentDetailBody(root, body, config, id, kind).catch(function () {
+                                window.location.reload();
+                            });
+                        }
+                        return;
                     }
+
+                    refreshTournamentDetailBody(root, body, config, id, kind).catch(function () {
+                        window.location.reload();
+                    });
                 }, 180);
             });
 

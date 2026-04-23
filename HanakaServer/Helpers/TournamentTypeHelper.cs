@@ -5,7 +5,7 @@ namespace HanakaServer.Helpers
         public string GameType { get; init; } = "DOUBLE";
         public string GenderCategory { get; init; } = "OPEN";
         public string TournamentTypeCode { get; init; } = "DOUBLE_OPEN";
-        public string TournamentTypeLabel { get; init; } = "Đôi mở";
+        public string TournamentTypeLabel { get; init; } = "Đôi Mở";
         public bool IsDoubleLike { get; init; }
     }
 
@@ -62,13 +62,13 @@ namespace HanakaServer.Helpers
         {
             return (gameType, genderCategory) switch
             {
-                ("SINGLE", "MEN") => "Đơn nam",
-                ("SINGLE", "WOMEN") => "Đơn nữ",
-                ("DOUBLE", "MEN") => "Đôi nam",
-                ("DOUBLE", "WOMEN") => "Đôi nữ",
-                ("DOUBLE", "MIXED") => "Đôi nam nữ",
-                ("SINGLE", _) => "Đơn mở",
-                _ => "Đôi mở"
+                ("SINGLE", "MEN") => "Đơn Nam",
+                ("SINGLE", "WOMEN") => "Đơn Nữ",
+                ("DOUBLE", "MEN") => "Đôi Nam",
+                ("DOUBLE", "WOMEN") => "Đôi Nữ",
+                ("DOUBLE", "MIXED") => "Hỗn Hợp Nam Nữ",
+                ("SINGLE", _) => "Đơn Mở",
+                _ => "Đôi Mở"
             };
         }
 

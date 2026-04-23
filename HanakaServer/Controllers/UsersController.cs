@@ -94,37 +94,7 @@ namespace HanakaServer.Controllers
             // Nếu user cũ chưa có history thì tự khởi tạo
             await EnsureInitialRatingHistoryAsync(user);
 
-            var latestRating = await _db.UserRatingHistories
-                .AsNoTracking()
-                .Where(x => x.UserId == user.UserId)
-                .OrderByDescending(x => x.RatedAt)
-                .ThenByDescending(x => x.RatingHistoryId)
-                .Select(x => new
-                {
-                    x.RatingSingle,
-                    x.RatingDouble,
-                    x.RatedAt
-                })
-                .FirstOrDefaultAsync();
-
-            return Ok(new
-            {
-                user.UserId,
-                user.FullName,
-                user.Email,
-                user.Phone,
-                user.Gender,
-                City = user.City,
-                user.Verified,
-                RatingSingle = latestRating?.RatingSingle,
-                RatingDouble = latestRating?.RatingDouble,
-                RatingUpdatedAt = latestRating?.RatedAt,
-                AvatarUrl = ToAbsoluteUrl(user.AvatarUrl),
-                user.Bio,
-                user.BirthOfDate,
-                user.CreatedAt,
-                user.UpdatedAt
-            });
+            return Ok(await BuildProfileResponseAsync(user));
         }
 
         // PUT: api/users/me
@@ -170,23 +140,7 @@ namespace HanakaServer.Controllers
             await SyncRefereeShadowFromUserAsync(user);
             await _db.SaveChangesAsync();
 
-            return Ok(new
-            {
-                user.UserId,
-                user.FullName,
-                user.Email,
-                user.Phone,
-                user.Gender,
-                City = user.City,
-                user.Verified,
-                user.RatingSingle,
-                user.RatingDouble,
-                AvatarUrl = ToAbsoluteUrl(user.AvatarUrl),
-                user.Bio,
-                user.BirthOfDate,
-                user.CreatedAt,
-                user.UpdatedAt
-            });
+            return Ok(await BuildProfileResponseAsync(user));
         }
         // POST: api/users/me/avatar
         [HttpPost("me/avatar")]
@@ -236,9 +190,12 @@ namespace HanakaServer.Controllers
             await SyncRefereeShadowFromUserAsync(user);
             await _db.SaveChangesAsync();
 
+            var profile = await BuildProfileResponseAsync(user);
+
             return Ok(new
             {
-                avatarUrl = ToAbsoluteUrl(relativeUrl)
+                avatarUrl = ToAbsoluteUrl(relativeUrl),
+                profile
             });
         }
         [HttpPost("me/change-password")]
@@ -275,7 +232,11 @@ namespace HanakaServer.Controllers
 
             await _db.SaveChangesAsync();
 
-            return Ok(new { message = "Đổi mật khẩu thành công." });
+            return Ok(new
+            {
+                message = "Đổi mật khẩu thành công.",
+                profile = await BuildProfileResponseAsync(user)
+            });
         }
 
         // GET: api/users/members?query=abc&page=1&pageSize=20
@@ -980,6 +941,41 @@ namespace HanakaServer.Controllers
         private static string BuildDeletedEmailAddress(long userId, DateTime deletedAtUtc)
         {
             return $"deleted+{userId}+{deletedAtUtc:yyyyMMddHHmmssfff}@hanaka.invalid";
+        }
+
+        private async Task<object> BuildProfileResponseAsync(User user)
+        {
+            var latestRating = await _db.UserRatingHistories
+                .AsNoTracking()
+                .Where(x => x.UserId == user.UserId)
+                .OrderByDescending(x => x.RatedAt)
+                .ThenByDescending(x => x.RatingHistoryId)
+                .Select(x => new
+                {
+                    x.RatingSingle,
+                    x.RatingDouble,
+                    x.RatedAt
+                })
+                .FirstOrDefaultAsync();
+
+            return new
+            {
+                user.UserId,
+                user.FullName,
+                user.Email,
+                user.Phone,
+                user.Gender,
+                City = user.City,
+                user.Verified,
+                RatingSingle = latestRating?.RatingSingle,
+                RatingDouble = latestRating?.RatingDouble,
+                RatingUpdatedAt = latestRating?.RatedAt,
+                AvatarUrl = ToAbsoluteUrl(user.AvatarUrl),
+                user.Bio,
+                user.BirthOfDate,
+                user.CreatedAt,
+                user.UpdatedAt
+            };
         }
     }
 }

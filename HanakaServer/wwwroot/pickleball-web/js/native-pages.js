@@ -100,6 +100,19 @@
         return normalizeDisplayText(gameType) || "-";
     }
 
+    function formatFlexibleNumber(value) {
+        var number = Number(value);
+        if (!Number.isFinite(number)) {
+            return "0";
+        }
+
+        if (Math.abs(number - Math.trunc(number)) < 0.000001) {
+            return String(Math.trunc(number));
+        }
+
+        return number.toFixed(1).replace(/\.0$/, "");
+    }
+
     function escapeHtml(value) {
         return String(value ?? "")
             .replace(/&/g, "&amp;")
@@ -1446,6 +1459,8 @@
     function renderTournamentCard(item) {
         var bannerUrl = trimToEmpty(item.bannerUrl);
         var gameTypeLabel = tournamentGameTypeLabel(item.gameType, item.genderCategory, item.tournamentTypeLabel);
+        var singleLimit = formatFlexibleNumber(item.singleLimit);
+        var doubleLimit = formatFlexibleNumber(item.doubleLimit);
 
         return [
             '<article class="native-tournament-card">',
@@ -1457,7 +1472,7 @@
             '<p>Ngay: <strong>' + escapeHtml(formatDateTime(item.startTime) || "-") + "</strong></p>",
             '<p>Han dang ky: <strong>' + escapeHtml(formatDateTime(item.registerDeadline) || "-") + "</strong></p>",
             '<div class="native-tournament-card__split"><p>The thuc: <strong>' + escapeHtml(trimToEmpty(item.formatText) || "-") + "</strong></p><p>Giai: <strong>" + escapeHtml(gameTypeLabel) + "</strong></p></div>",
-            '<div class="native-tournament-card__split"><p>Gioi han trinh don toi da: <strong>' + escapeHtml(item.singleLimit ?? 0) + "</strong></p><p>Cap toi da: <strong>" + escapeHtml(item.doubleLimit ?? 0) + "</strong></p></div>",
+            '<div class="native-tournament-card__split"><p>Gioi han trinh don toi da: <strong>' + escapeHtml(singleLimit) + "</strong></p><p>Cap toi da: <strong>" + escapeHtml(doubleLimit) + "</strong></p></div>",
             '<p>Khu vuc: <strong>' + escapeHtml(trimToEmpty(item.areaText) || "-") + "</strong></p>",
             '<div class="native-tournament-card__split"><p>So doi du kien: <strong>' + escapeHtml(item.expectedTeams ?? 0) + "</strong></p><p>So tran thi dau: <strong>" + escapeHtml(item.matchesCount ?? 0) + "</strong></p></div>",
             '<p>Tinh trang: <strong>' + escapeHtml(trimToEmpty(item.stateText) || trimToEmpty(item.statusText) || trimToEmpty(item.status) || "-") + "</strong></p>",

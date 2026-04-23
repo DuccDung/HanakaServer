@@ -10,7 +10,7 @@ namespace HanakaServer.Controllers.Web
     public class PickleballWebAuthController : Controller
     {
         [HttpGet("/PickleballWeb/Login")]
-        public async Task<IActionResult> Login([FromQuery] string? returnUrl = null)
+        public async Task<IActionResult> Login([FromQuery] string? returnUrl = null, [FromQuery] string? email = null)
         {
             var normalizedReturnUrl = NormalizeReturnUrl(returnUrl);
             var redirect = await RedirectIfAuthenticatedAsync(normalizedReturnUrl);
@@ -22,7 +22,28 @@ namespace HanakaServer.Controllers.Web
             return View("~/Views/PickleballWeb/Login.cshtml", new PickleballWebAuthPageViewModel
             {
                 Title = "Đăng nhập",
-                ReturnUrl = normalizedReturnUrl
+                ReturnUrl = normalizedReturnUrl,
+                Email = email?.Trim() ?? string.Empty
+            });
+        }
+
+        [HttpGet("/PickleballWeb/ForgotPassword")]
+        public async Task<IActionResult> ForgotPassword([FromQuery] string? returnUrl = null, [FromQuery] string? email = null)
+        {
+            var normalizedReturnUrl = NormalizeReturnUrl(returnUrl);
+            var redirect = await RedirectIfAuthenticatedAsync(normalizedReturnUrl);
+            if (redirect != null)
+            {
+                return redirect;
+            }
+
+            return View("~/Views/PickleballWeb/ForgotPassword.cshtml", new PickleballWebAuthPageViewModel
+            {
+                Title = "Quên mật khẩu",
+                BackHref = "/PickleballWeb/Login",
+                BackLabel = "Đăng nhập",
+                ReturnUrl = normalizedReturnUrl,
+                Email = email?.Trim() ?? string.Empty
             });
         }
 
@@ -98,9 +119,9 @@ namespace HanakaServer.Controllers.Web
         {
             return View("~/Views/PickleballWeb/CommunitySafety.cshtml", new PickleballWebAuthPageViewModel
             {
-                Title = "An toÃ n cá»™ng Ä‘á»“ng",
+                Title = "An toàn cộng đồng",
                 BackHref = "/PickleballWeb/Account",
-                BackLabel = "TÃ i khoáº£n"
+                BackLabel = "Tài khoản"
             });
         }
 

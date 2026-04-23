@@ -9,6 +9,11 @@
     <link href="~/pickleball-web/css/auth.css" asp-append-version="true" rel="stylesheet" />
 }
 
+@{
+    var encodedReturnUrl = Uri.EscapeDataString(Model.ReturnUrl);
+    var forgotPasswordHref = $"/PickleballWeb/ForgotPassword?returnUrl={encodedReturnUrl}";
+}
+
 <div class="auth-screen auth-screen--login"
      data-auth-page="login"
      data-return-url="@Model.ReturnUrl">
@@ -25,6 +30,7 @@
                                type="email"
                                placeholder="vd: admin@hanaka.com"
                                autocomplete="email"
+                               value="@Model.Email"
                                data-auth-email />
                     </div>
 
@@ -50,12 +56,18 @@
                     </div>
 
                     <button class="auth-submit-btn" type="submit" data-auth-submit disabled>
-                        <span data-auth-submit-text>Đăng Nhập</span>
+                        <span data-auth-submit-text>Đăng nhập</span>
                     </button>
                 </form>
 
+                <a class="auth-secondary-link"
+                   href="@forgotPasswordHref"
+                   data-auth-forgot-link>
+                    Quên mật khẩu?
+                </a>
+
                 <a class="auth-footer-link"
-                   href="/PickleballWeb/Register?returnUrl=@Uri.EscapeDataString(Model.ReturnUrl)">
+                   href="/PickleballWeb/Register?returnUrl=@encodedReturnUrl">
                     Chưa có tài khoản? Đăng ký
                 </a>
             </section>

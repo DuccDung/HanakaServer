@@ -57,6 +57,55 @@ namespace HanakaServer.Controllers
             }
         }
 
+        [HttpPost("forgot-password")]
+        public async Task<ActionResult<ForgotPasswordResponseDto>> ForgotPassword([FromBody] ForgotPasswordRequestDto dto, CancellationToken ct)
+        {
+            try
+            {
+                return Ok(await _appAuthService.ForgotPasswordAsync(dto, ct));
+            }
+            catch (AuthFlowException ex)
+            {
+                return StatusCode(ex.StatusCode, ex.Message);
+            }
+        }
+
+        [HttpPost("forgot-password/verify-otp")]
+        public async Task<ActionResult<ForgotPasswordResponseDto>> VerifyForgotPasswordOtp(
+            [FromBody] ForgotPasswordVerifyOtpRequestDto dto,
+            CancellationToken ct)
+        {
+            try
+            {
+                return Ok(await _appAuthService.VerifyForgotPasswordOtpAsync(dto, ct));
+            }
+            catch (AuthFlowException ex)
+            {
+                return StatusCode(ex.StatusCode, ex.Message);
+            }
+        }
+
+        [HttpPost("forgot-password/reset")]
+        public async Task<ActionResult<AuthResponseDto>> ResetPasswordWithOtp(
+            [FromBody] ForgotPasswordResetRequestDto dto,
+            CancellationToken ct)
+        {
+            try
+            {
+                var auth = await _appAuthService.ResetPasswordWithOtpAsync(
+                    dto,
+                    ct,
+                    _webAuthCookieService.GetWebTokenLifetime());
+
+                _webAuthCookieService.SetSessionCookies(Response, auth);
+                return Ok(auth);
+            }
+            catch (AuthFlowException ex)
+            {
+                return StatusCode(ex.StatusCode, ex.Message);
+            }
+        }
+
         [HttpPost("confirm-otp")]
         public async Task<ActionResult<AuthResponseDto>> ConfirmOtp([FromBody] ConfirmOtpRequestDto dto, CancellationToken ct)
         {
@@ -115,7 +164,16 @@ namespace HanakaServer.Controllers
                 });
             }
 
-            var user = await _appAuthService.GetAuthUserAsync(userId, ct);
+            AuthUserDto? user;
+            try
+            {
+                user = await _appAuthService.GetAuthUserAsync(userId, ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return new EmptyResult();
+            }
+
             if (user == null)
             {
                 _webAuthCookieService.ClearSessionCookies(Response);

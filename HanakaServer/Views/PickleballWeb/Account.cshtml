@@ -2,7 +2,7 @@
 @{
     Layout = "_PickleballWebLayout";
     ViewData["Title"] = $"{Model.Title} | Hanaka Sport";
-    ViewData["Description"] = "Trang thông tin tài khoản Hanaka Sport trên mobile web, thiết kế theo đúng app React Native.";
+    ViewData["Description"] = "Trang thông tin tài khoản Hanaka Sport trên mobile web, đồng bộ theo app React Native.";
 }
 
 @section Styles {
@@ -15,8 +15,7 @@
             <div class="account-header__bar">
                 <a class="account-header__back"
                    href="@Model.BackHref"
-                   aria-label="@Model.BackLabel"
-                   onclick="if (window.history.length > 1) { window.history.back(); return false; }">
+                   aria-label="@Model.BackLabel">
                     <ion-icon name="arrow-back"></ion-icon>
                 </a>
 
@@ -182,7 +181,17 @@
                 <h2>Chọn tỉnh/thành</h2>
             </div>
 
+            <label class="account-modal__search">
+                <ion-icon name="search-outline" aria-hidden="true"></ion-icon>
+                <input type="search"
+                       placeholder="Tìm tỉnh/thành"
+                       autocomplete="off"
+                       spellcheck="false"
+                       data-account-province-search />
+            </label>
+
             <div class="account-modal__list" data-account-province-list></div>
+            <p class="account-modal__empty" data-account-province-empty hidden>Không tìm thấy tỉnh/thành phù hợp.</p>
 
             <button class="account-modal__close" type="button" data-account-close-modal>
                 Đóng
