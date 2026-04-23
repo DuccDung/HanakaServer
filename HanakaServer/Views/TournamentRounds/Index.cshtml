@@ -2,6 +2,9 @@
     Layout = "_AdminLayout";
     ViewData["Title"] = "Vòng đấu";
     var tid = (long)(ViewBag.TournamentId ?? 0L);
+    var currentUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+    var bracketUrl = Url.Action("Index", "TournamentAdminBracket", new { tournamentId = tid, returnUrl = currentUrl })
+        ?? $"/TournamentAdminBracket/Index?tournamentId={tid}";
 }
 
 <div class="container-fluid" id="pageRoot" data-tournament-id="@tid">
@@ -13,10 +16,13 @@
             </div>
         </div>
 
-        <div class="d-flex" style="gap:8px">
+        <div class="d-flex flex-wrap" style="gap:8px">
             <button class="btn btn-sm btn-primary shadow-sm" type="button" id="btnOpenCreate">
                 <i class="fas fa-plus fa-sm text-white-50"></i> Tạo vòng đấu
             </button>
+            <a class="btn btn-sm btn-outline-info" href="@bracketUrl">
+                <i class="fas fa-sitemap"></i> Xem sơ đồ
+            </a>
             <a class="btn btn-sm btn-outline-secondary" href="/Home/Tournaments">
                 <i class="fas fa-arrow-left"></i> Quay lại
             </a>
@@ -264,7 +270,7 @@
             $id("modalTitle").textContent = "Chỉnh sửa vòng đấu";
 
             $id("roundKey").value = key || "";
-            $id("roundKey").disabled = true; // tránh đổi key để không vỡ link group/match
+            $id("roundKey").disabled = false;
             $id("roundLabel").value = label || "";
             $id("sortOrder").value = sortOrder ?? 0;
             setCreateModeUI(false);
@@ -327,7 +333,11 @@
                   }
                 }
               }else{
-                await axios.put(`${API}/${id}`, { roundLabel: label, sortOrder: sort });
+                await axios.put(`${API}/${id}`, {
+                  roundKey: key,
+                  roundLabel: label,
+                  sortOrder: sort
+                });
               }
 
               $("#modalRound").modal("hide");

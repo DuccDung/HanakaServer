@@ -92,6 +92,22 @@ namespace HanakaServer.Controllers
 
             if (row == null) return NotFound(new { message = "Round not found." });
 
+            if (dto.RoundKey != null)
+            {
+                var key = dto.RoundKey.Trim();
+                if (string.IsNullOrWhiteSpace(key))
+                    return BadRequest(new { message = "RoundKey is required." });
+
+                var exists = await _db.TournamentRoundMaps
+                    .AnyAsync(x => x.TournamentId == tournamentId
+                                   && x.RoundKey == key
+                                   && x.TournamentRoundMapId != id);
+                if (exists)
+                    return BadRequest(new { message = "RoundKey already exists in this tournament." });
+
+                row.RoundKey = key;
+            }
+
             if (dto.RoundLabel != null)
                 row.RoundLabel = string.IsNullOrWhiteSpace(dto.RoundLabel) ? row.RoundKey : dto.RoundLabel.Trim();
 
@@ -148,6 +164,7 @@ namespace HanakaServer.Controllers
 
     public class UpdateRoundMapDto
     {
+        public string? RoundKey { get; set; }
         public string? RoundLabel { get; set; }
         public int? SortOrder { get; set; }
     }

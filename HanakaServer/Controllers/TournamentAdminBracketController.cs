@@ -16,7 +16,7 @@ namespace HanakaServer.Controllers
         }
 
         // /TournamentAdminBracket/Index?tournamentId=123
-        public async Task<IActionResult> Index(long tournamentId)
+        public async Task<IActionResult> Index(long tournamentId, string? returnUrl = null)
         {
             var tournament = await _db.Tournaments.AsNoTracking()
                 .Where(x => x.TournamentId == tournamentId)
@@ -44,6 +44,9 @@ namespace HanakaServer.Controllers
             ViewBag.ExpectedTeams = tournament.ExpectedTeams;
             ViewBag.StartTime = tournament.StartTime;
             ViewBag.RegisterDeadline = tournament.RegisterDeadline;
+            ViewBag.ReturnUrl = Url.IsLocalUrl(returnUrl)
+                ? returnUrl
+                : "/Home/Tournaments";
 
             return View();
         }

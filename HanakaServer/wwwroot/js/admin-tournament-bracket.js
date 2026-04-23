@@ -179,6 +179,22 @@
         return trimToEmpty(team?.displayName) || fallback;
     }
 
+    function buildTeamIdentity(team, fallbackRegistrationId) {
+        const registrationId = toNumber(team?.registrationId) || toNumber(fallbackRegistrationId);
+        const regCode = trimToEmpty(team?.regCode);
+        const parts = [];
+
+        if (registrationId > 0) {
+            parts.push("ID " + registrationId);
+        }
+
+        if (regCode) {
+            parts.push(regCode);
+        }
+
+        return parts.join(" | ");
+    }
+
     function buildMatchMeta(match) {
         const details = [];
         const timeText = formatClock(match?.startAt);
@@ -210,6 +226,8 @@
             metaText: buildMatchMeta(match),
             teamA: buildTeamName(match?.team1, groupKey + "-#1"),
             teamB: buildTeamName(match?.team2, groupKey + "-#2"),
+            teamAIdentity: buildTeamIdentity(match?.team1, match?.team1RegistrationId),
+            teamBIdentity: buildTeamIdentity(match?.team2, match?.team2RegistrationId),
             scoreA: formatScore(match?.scoreTeam1),
             scoreB: formatScore(match?.scoreTeam2),
             isWinnerA: isWinnerA,
@@ -453,15 +471,34 @@
         return window.innerWidth >= 1200 ? 180 : 140;
     }
 
+    function getRoundContentHeight(round, groupGap) {
+        const groups = Array.isArray(round?.groups) ? round.groups : [];
+
+        if (!groups.length) {
+            return 0;
+        }
+
+        return groups.reduce(function (total, group) {
+            return total + toNumber(group?.height);
+        }, 0) + Math.max(0, groups.length - 1) * groupGap;
+    }
+
     function updateRoundPositions(rounds, metrics) {
-        let boardHeight = 720;
+        const maxContentHeight = rounds.reduce(function (maxHeight, round) {
+            return Math.max(maxHeight, getRoundContentHeight(round, metrics.groupGap));
+        }, 0);
+        const contentHeight = Math.max(520, maxContentHeight);
+        const boardHeight = Math.max(720, metrics.topOffset + contentHeight + metrics.bottomPadding);
 
         rounds.forEach(function (round, roundIndex) {
             const x = metrics.leftOffset + roundIndex * (metrics.columnWidth + metrics.columnGap);
-            let y = metrics.topOffset;
+            const roundContentHeight = getRoundContentHeight(round, metrics.groupGap);
+            let y = metrics.topOffset + Math.max(0, (contentHeight - roundContentHeight) / 2);
 
             round.x = x;
             round.width = metrics.columnWidth;
+            round.contentHeight = roundContentHeight;
+            round.contentOffsetY = y;
 
             round.groups.forEach(function (group) {
                 group.x = x;
@@ -469,8 +506,6 @@
                 group.width = metrics.columnWidth;
                 y += group.height + metrics.groupGap;
             });
-
-            boardHeight = Math.max(boardHeight, y + metrics.bottomPadding);
         });
 
         return boardHeight;
@@ -569,11 +604,21 @@
             "<span>" + escapeHtml(match.metaText || "Chưa có giờ / sân") + "</span>",
             "</div>",
             '<div class="admin-bracket-match__team">',
+            '<div class="admin-bracket-match__team-main">',
+            match.teamAIdentity
+                ? '<small class="admin-bracket-match__team-meta">' + escapeHtml(match.teamAIdentity) + "</small>"
+                : "",
             '<span class="' + (match.isWinnerA ? "is-winner" : "") + '">' + escapeHtml(match.teamA) + "</span>",
+            "</div>",
             '<b class="' + (match.isWinnerA ? "is-winner" : "") + '">' + escapeHtml(match.scoreA) + "</b>",
             "</div>",
             '<div class="admin-bracket-match__team">',
+            '<div class="admin-bracket-match__team-main">',
+            match.teamBIdentity
+                ? '<small class="admin-bracket-match__team-meta">' + escapeHtml(match.teamBIdentity) + "</small>"
+                : "",
             '<span class="' + (match.isWinnerB ? "is-winner" : "") + '">' + escapeHtml(match.teamB) + "</span>",
+            "</div>",
             '<b class="' + (match.isWinnerB ? "is-winner" : "") + '">' + escapeHtml(match.scoreB) + "</b>",
             "</div>",
             "</article>"
@@ -710,7 +755,7 @@
         updateBoardLines(board, layout);
     }
 
-    function initDragScroller(scroller) {
+    function initDragScroller(scroller, board) {
         if (!scroller || scroller.dataset.dragReady === "true") {
             return;
         }
@@ -721,35 +766,33 @@
         let startY = 0;
         let startLeft = 0;
         let startTop = 0;
-        let activePointerId = null;
         let moved = false;
 
-        scroller.addEventListener("dragstart", function (event) {
-            event.preventDefault();
-        });
-
-        scroller.addEventListener("pointerdown", function (event) {
-            if (event.pointerType === "mouse" && event.button !== 0) {
+        function startDragging(event) {
+            if (event.button !== 0) {
                 return;
             }
 
             dragging = true;
             moved = false;
-            activePointerId = event.pointerId;
             startX = event.clientX;
             startY = event.clientY;
             startLeft = scroller.scrollLeft;
             startTop = scroller.scrollTop;
             scroller.classList.add("is-dragging");
+            event.preventDefault();
+        }
 
-            if (typeof scroller.setPointerCapture === "function") {
-                scroller.setPointerCapture(event.pointerId);
-            }
-
+        scroller.addEventListener("dragstart", function (event) {
             event.preventDefault();
         });
 
-        scroller.addEventListener("pointermove", function (event) {
+        scroller.addEventListener("mousedown", startDragging);
+        if (board) {
+            board.addEventListener("mousedown", startDragging);
+        }
+
+        window.addEventListener("mousemove", function (event) {
             if (!dragging) {
                 return;
             }
@@ -763,29 +806,16 @@
             event.preventDefault();
         }, { passive: false });
 
-        function stopDragging(event) {
+        function stopDragging() {
             if (!dragging) {
                 return;
             }
 
             dragging = false;
             scroller.classList.remove("is-dragging");
-
-            if (
-                event &&
-                activePointerId !== null &&
-                typeof scroller.hasPointerCapture === "function" &&
-                scroller.hasPointerCapture(activePointerId)
-            ) {
-                scroller.releasePointerCapture(activePointerId);
-            }
-
-            activePointerId = null;
         }
 
-        scroller.addEventListener("pointerup", stopDragging);
-        scroller.addEventListener("pointercancel", stopDragging);
-        scroller.addEventListener("lostpointercapture", stopDragging);
+        window.addEventListener("mouseup", stopDragging);
         scroller.addEventListener("click", function (event) {
             if (!moved) {
                 return;
@@ -795,6 +825,18 @@
             event.preventDefault();
             event.stopPropagation();
         }, true);
+        scroller.addEventListener("wheel", function (event) {
+            const canScrollHorizontally = scroller.scrollWidth > scroller.clientWidth;
+
+            if (!canScrollHorizontally) {
+                return;
+            }
+
+            if (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+                scroller.scrollLeft += event.deltaX || event.deltaY;
+                event.preventDefault();
+            }
+        }, { passive: false });
         window.addEventListener("blur", function () {
             stopDragging();
         });
@@ -913,7 +955,7 @@
         });
     }
 
-    initDragScroller(scroller);
+    initDragScroller(scroller, board);
     window.addEventListener("resize", rerender);
     loadBracket();
 })();

@@ -3,6 +3,9 @@
     ViewData["Title"] = "Trận đấu";
     var groupId = (long)(ViewBag.GroupId ?? 0L);
     var tournamentId = (long)(ViewBag.TournamentId ?? 0L);
+    var currentUrl = $"{Context.Request.Path}{Context.Request.QueryString}";
+    var bracketUrl = Url.Action("Index", "TournamentAdminBracket", new { tournamentId = tournamentId, returnUrl = currentUrl })
+        ?? $"/TournamentAdminBracket/Index?tournamentId={tournamentId}";
 }
 
 <style>
@@ -339,10 +342,14 @@
             </div>
         </div>
 
-        <div class="d-flex" style="gap:8px">
+        <div class="d-flex flex-wrap" style="gap:8px">
             <button class="btn btn-sm btn-primary shadow-sm" type="button" id="btnOpenCreate">
                 <i class="fas fa-plus fa-sm text-white-50"></i> Tạo trận đấu
             </button>
+
+            <a class="btn btn-sm btn-outline-info" href="@bracketUrl">
+                <i class="fas fa-sitemap"></i> Xem sơ đồ
+            </a>
 
             <button class="btn btn-sm btn-outline-primary" type="button" id="btnOpenWinnerFilter">
                 <i class="fas fa-sitemap"></i> Lọc đội thắng

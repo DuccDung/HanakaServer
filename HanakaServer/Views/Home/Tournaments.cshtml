@@ -235,7 +235,9 @@
 
     <script>
         const API_BASE = "/api/admin/tournaments";
+        const TOURNAMENT_LIST_STATE_KEY = "admin-home-tournaments:return-state";
         let tournamentRuleQuill = null;
+        let pendingTournamentListState = null;
 
         function escapeHtml(str) {
             return String(str || "")
@@ -366,12 +368,63 @@
             if (trimmed === "<p><br></p>") return "";
             return trimmed;
         }
-                function gotoPrizeSetup(tournamentId) {
+
+        function readTournamentListState() {
+            try {
+                const raw = sessionStorage.getItem(TOURNAMENT_LIST_STATE_KEY);
+                if (!raw) return null;
+
+                sessionStorage.removeItem(TOURNAMENT_LIST_STATE_KEY);
+                const state = JSON.parse(raw);
+                const isSamePage = state?.path === window.location.pathname;
+                const isFresh = Number.isFinite(Number(state?.savedAt))
+                    && (Date.now() - Number(state.savedAt)) < (30 * 60 * 1000);
+
+                return isSamePage && isFresh ? state : null;
+            } catch (_) {
+                sessionStorage.removeItem(TOURNAMENT_LIST_STATE_KEY);
+                return null;
+            }
+        }
+
+        function saveTournamentListState() {
+            const statusFilter = document.getElementById("statusFilter");
+            const state = {
+                path: window.location.pathname,
+                scrollY: Math.max(0, window.scrollY || window.pageYOffset || 0),
+                status: statusFilter?.value || "ALL",
+                savedAt: Date.now()
+            };
+
+            sessionStorage.setItem(TOURNAMENT_LIST_STATE_KEY, JSON.stringify(state));
+        }
+
+        function applyPendingTournamentListState() {
+            if (!pendingTournamentListState) {
+                return;
+            }
+
+            const state = pendingTournamentListState;
+            pendingTournamentListState = null;
+            const targetY = Math.max(0, Number(state?.scrollY) || 0);
+
+            window.requestAnimationFrame(() => {
+                window.setTimeout(() => {
+                    window.scrollTo(0, targetY);
+                }, 60);
+            });
+        }
+
+        function gotoPrizeSetup(tournamentId) {
             window.location.href = `/TournamentPrizeSetup/Index?tournamentId=${tournamentId}`;
         }
+
         function gotoBracket(tournamentId) {
-            window.location.href = `/TournamentAdminBracket/Index?tournamentId=${tournamentId}`;
+            saveTournamentListState();
+            const returnUrl = `${window.location.pathname}${window.location.search}`;
+            window.location.href = `/TournamentAdminBracket/Index?tournamentId=${tournamentId}&returnUrl=${encodeURIComponent(returnUrl)}`;
         }
+
         function rowHtml(t) {
             const banner = t.bannerUrl
                 ? `<img style="width:120px;height:44px;object-fit:cover;border-radius:6px" src="${t.bannerUrl}" />`
@@ -501,6 +554,8 @@
                 body.innerHTML = items.map(rowHtml).join("");
             } catch (e) {
                 body.innerHTML = `<tr><td colspan="10" class="text-center text-danger">Tải dữ liệu thất bại</td></tr>`;
+            } finally {
+                applyPendingTournamentListState();
             }
         }
 
@@ -622,6 +677,12 @@
         }
 
         document.addEventListener("DOMContentLoaded", () => {
+            pendingTournamentListState = readTournamentListState();
+
+            if (pendingTournamentListState?.status) {
+                document.getElementById("statusFilter").value = pendingTournamentListState.status;
+            }
+
             tournamentRuleQuill = new Quill("#tournamentRuleEditor", {
                 theme: "snow",
                 placeholder: "Nhập thể lệ giải...",
