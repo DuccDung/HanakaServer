@@ -2623,7 +2623,7 @@
         var courtText = trimToEmpty(item && item.match && item.match.courtText) || "Chua cap nhat";
 
         return [
-            '<article class="native-notification-card">',
+            '<article class="native-notification-card native-notification-card--match">',
             '<h2 class="native-notification-card__title">' + escapeHtml(normalizeDisplayText(item && item.title) || "Hanaka Sport - Thông báo") + "</h2>",
             '<p class="native-notification-card__line">' + escapeHtml(normalizeDisplayText(item && item.message) || "Thông báo sẽ được cập nhật tại đây.") + "</p>",
             '<p class="native-notification-card__line"><strong>Doi thu:</strong> ' + escapeHtml(buildNotificationOpponentText(item)) + "</p>",
@@ -2824,6 +2824,7 @@
             loading: false,
             error: "",
             authRequired: false,
+            viewMode: "all",
             pairItems: [],
             inboxItems: [],
             matchItems: [],
@@ -2839,10 +2840,15 @@
         };
         var removeRealtimeListener = null;
         var handleNotificationCenterChange = null;
+        var inboxInfiniteObserver = null;
 
         renderEmptyState(refs, "Hiện chưa có thông báo mới.");
 
         function getRenderedItemsLength() {
+            if (state.viewMode === "matches") {
+                return state.matchItems.length;
+            }
+
             return state.pairItems.length + state.inboxItems.length + state.matchItems.length;
         }
 
@@ -2877,6 +2883,8 @@
             }
 
             var meta = [];
+            meta.push('<button class="native-notification-toolbar__chip native-notification-toolbar__chip--filter' + (state.viewMode === "all" ? " is-active" : "") + '" type="button" data-notification-view="all">Tất cả</button>');
+            meta.push('<button class="native-notification-toolbar__chip native-notification-toolbar__chip--filter native-notification-toolbar__chip--match' + (state.viewMode === "matches" ? " is-active" : "") + '" type="button" data-notification-view="matches"><ion-icon name="calendar-outline"></ion-icon><span>Lịch đấu: ' + escapeHtml(state.matchItems.length) + "</span></button>");
             meta.push('<span class="native-notification-toolbar__chip' + (state.unreadNonPairTotal > 0 ? " is-unread" : "") + '">Chưa đọc: ' + escapeHtml(state.unreadNonPairTotal) + "</span>");
 
             if (state.inboxTotal > 0) {
@@ -2930,6 +2938,19 @@
             var inboxHtml = state.inboxItems.map(renderNotificationCard).join("");
             var matchHtml = state.matchItems.map(renderNotificationCard).join("");
 
+            if (matchHtml) {
+                sections.push(buildNotificationSection(
+                    "Lịch thi đấu sắp tới",
+                    state.matchItems.length + " trận đã được lên lịch",
+                    matchHtml,
+                    ""
+                ));
+            }
+
+            if (state.viewMode === "matches") {
+                return sections.join("");
+            }
+
             if (pairHtml) {
                 sections.push(buildNotificationSection(
                     "Lời mời chờ phản hồi",
@@ -2950,7 +2971,7 @@
                 ));
             }
 
-            if (matchHtml) {
+            if (false && matchHtml) {
                 sections.push(buildNotificationSection(
                     "Lịch thi đấu sắp tới",
                     state.matchItems.length + " trận đã được lên lịch",
@@ -2982,6 +3003,9 @@
                 }
                 : null);
             setHeaderExtra(root, buildHeaderSummary());
+            renderEmptyState(refs, state.viewMode === "matches"
+                ? "Chưa có lịch thi đấu sắp tới."
+                : "Hiện chưa có thông báo mới.");
 
             if (state.authRequired) {
                 refs.list.innerHTML = renderNotificationLoginPrompt();
@@ -2993,7 +3017,7 @@
                 loading: state.loading,
                 itemsLength: state.authRequired ? 1 : getRenderedItemsLength(),
                 error: state.error,
-                hasMore: false
+                hasMore: !state.authRequired && state.viewMode === "all" && state.inboxHasMore
             });
         }
 
@@ -3191,6 +3215,24 @@
             refs.retry.onclick = function () { load(true); };
         }
 
+        root.addEventListener("click", function (event) {
+            var viewButton = event.target.closest("[data-notification-view]");
+            if (!viewButton) {
+                return;
+            }
+
+            var nextView = trimToEmpty(viewButton.getAttribute("data-notification-view")) === "matches"
+                ? "matches"
+                : "all";
+
+            if (state.viewMode === nextView) {
+                return;
+            }
+
+            state.viewMode = nextView;
+            render();
+        });
+
         if (refs.list) {
             refs.list.addEventListener("click", async function (event) {
                 var loadMoreButton = event.target.closest("[data-notification-load-more]");
@@ -3267,6 +3309,12 @@
             });
         }
 
+        inboxInfiniteObserver = setupInfiniteObserver(refs.sentinel, function () {
+            if (!state.loading && !state.authRequired && state.viewMode === "all" && state.inboxHasMore) {
+                load(false);
+            }
+        });
+
         handleNotificationCenterChange = function () {
             load(true);
         };
@@ -3289,6 +3337,11 @@
             if (handleNotificationCenterChange) {
                 window.removeEventListener(NOTIFICATION_CENTER_EVENT, handleNotificationCenterChange);
                 handleNotificationCenterChange = null;
+            }
+
+            if (inboxInfiniteObserver) {
+                inboxInfiniteObserver.disconnect();
+                inboxInfiniteObserver = null;
             }
         }, { once: true });
 

@@ -41,7 +41,7 @@ public class TournamentRegistrationUserController : ControllerBase
 
         var tournament = await _db.Tournaments
             .AsNoTracking()
-            .Where(x => x.TournamentId == tournamentId && x.Status != "DRAFT")
+            .Where(x => x.TournamentId == tournamentId && !x.Remove && x.Status != "DRAFT")
             .Select(x => new
             {
                 x.TournamentId,
@@ -182,7 +182,7 @@ public class TournamentRegistrationUserController : ControllerBase
 
         var tournamentExists = await _db.Tournaments
             .AsNoTracking()
-            .AnyAsync(x => x.TournamentId == tournamentId && x.Status != "DRAFT", ct);
+            .AnyAsync(x => x.TournamentId == tournamentId && !x.Remove && x.Status != "DRAFT", ct);
 
         if (!tournamentExists)
             return NotFound(new { message = "Tournament not found." });
@@ -862,7 +862,7 @@ public class TournamentRegistrationUserController : ControllerBase
     private async Task<Tournament?> LoadTournamentForUpdateAsync(long tournamentId, CancellationToken ct)
     {
         return await _db.Tournaments
-            .FirstOrDefaultAsync(x => x.TournamentId == tournamentId && x.Status != "DRAFT", ct);
+            .FirstOrDefaultAsync(x => x.TournamentId == tournamentId && !x.Remove && x.Status != "DRAFT", ct);
     }
 
     private async Task<(bool Ok, string Message)> ValidateUserCanCreateRegistrationAsync(

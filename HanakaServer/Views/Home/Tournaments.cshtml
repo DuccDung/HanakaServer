@@ -22,6 +22,74 @@
         .rule-preview-lite ol {
             margin-bottom: 0.25rem;
         }
+
+    .tournament-pagination {
+        gap: 10px;
+        padding-top: 14px;
+        border-top: 1px solid #eef2f7;
+    }
+
+    .tournament-pagination__info {
+        color: #6c757d;
+        font-size: 0.875rem;
+        font-weight: 700;
+    }
+
+    .tournament-pagination__controls {
+        gap: 8px;
+    }
+
+    .tournament-page-numbers {
+        gap: 6px;
+    }
+
+    .tournament-page-btn {
+        min-width: 34px;
+        height: 31px;
+        padding: 0 9px;
+        border: 1px solid #dbe4f0;
+        border-radius: 8px;
+        background: #fff;
+        color: #4e73df;
+        font-size: 0.8125rem;
+        font-weight: 800;
+        transition: all 0.18s ease;
+    }
+
+        .tournament-page-btn:hover {
+            border-color: #4e73df;
+            background: #eef2ff;
+            color: #224abe;
+        }
+
+        .tournament-page-btn.active {
+            border-color: #4e73df;
+            background: #4e73df;
+            color: #fff;
+            box-shadow: 0 8px 18px rgba(78, 115, 223, 0.24);
+        }
+
+        .tournament-page-btn:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+        }
+
+    @@media (max-width: 767.98px) {
+        .tournament-pagination {
+            align-items: stretch !important;
+        }
+
+        .tournament-pagination__controls {
+            width: 100%;
+            justify-content: space-between;
+        }
+
+        .tournament-page-numbers {
+            order: 3;
+            width: 100%;
+            justify-content: center;
+        }
+    }
 </style>
 
 <div class="container-fluid">
@@ -50,6 +118,8 @@
         </div>
 
         <div class="card-body">
+            <div id="pageError" class="alert alert-danger d-none"></div>
+
             <div class="table-responsive">
                 <table class="table table-bordered" width="100%" cellspacing="0">
                     <thead>
@@ -63,7 +133,7 @@
                             <th>Số đội</th>
                             <th>Giới hạn đơn</th>
                             <th>Giới hạn đôi</th>
-                            <th style="width: 210px;">Thao tác</th>
+                            <th style="width: 250px;">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody id="tournamentsBody">
@@ -72,6 +142,36 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <div class="tournament-pagination d-flex justify-content-between align-items-center flex-wrap">
+                <div class="tournament-pagination__info">
+                    <span id="pagingInfo">—</span>
+                </div>
+
+                <div class="tournament-pagination__controls d-flex align-items-center flex-wrap">
+                    <select id="pageSize" class="form-control form-control-sm" style="width: 96px;">
+                        <option value="10" selected>10 dòng</option>
+                        <option value="20">20 dòng</option>
+                        <option value="50">50 dòng</option>
+                    </select>
+
+                    <button id="btnFirst" class="btn btn-sm btn-outline-secondary" type="button" title="Trang đầu">
+                        <i class="fas fa-angle-double-left"></i>
+                    </button>
+                    <button id="btnPrev" class="btn btn-sm btn-outline-secondary" type="button" title="Trang trước">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+
+                    <div id="pageNumbers" class="tournament-page-numbers d-flex align-items-center flex-wrap"></div>
+
+                    <button id="btnNext" class="btn btn-sm btn-outline-secondary" type="button" title="Trang sau">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                    <button id="btnLast" class="btn btn-sm btn-outline-secondary" type="button" title="Trang cuối">
+                        <i class="fas fa-angle-double-right"></i>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -238,6 +338,12 @@
         const TOURNAMENT_LIST_STATE_KEY = "admin-home-tournaments:return-state";
         let tournamentRuleQuill = null;
         let pendingTournamentListState = null;
+        let tournamentListState = {
+            page: 1,
+            pageSize: 10,
+            total: 0,
+            items: []
+        };
 
         function escapeHtml(str) {
             return String(str || "")
@@ -393,6 +499,8 @@
                 path: window.location.pathname,
                 scrollY: Math.max(0, window.scrollY || window.pageYOffset || 0),
                 status: statusFilter?.value || "ALL",
+                page: tournamentListState.page,
+                pageSize: tournamentListState.pageSize,
                 savedAt: Date.now()
             };
 
@@ -415,7 +523,28 @@
             });
         }
 
+        function showPageError(msg) {
+            const box = document.getElementById("pageError");
+            if (!box) {
+                return;
+            }
+
+            box.textContent = msg || "Có lỗi xảy ra.";
+            box.classList.remove("d-none");
+        }
+
+        function clearPageError() {
+            const box = document.getElementById("pageError");
+            if (!box) {
+                return;
+            }
+
+            box.classList.add("d-none");
+            box.textContent = "";
+        }
+
         function gotoPrizeSetup(tournamentId) {
+            saveTournamentListState();
             window.location.href = `/TournamentPrizeSetup/Index?tournamentId=${tournamentId}`;
         }
 
@@ -423,6 +552,22 @@
             saveTournamentListState();
             const returnUrl = `${window.location.pathname}${window.location.search}`;
             window.location.href = `/TournamentAdminBracket/Index?tournamentId=${tournamentId}&returnUrl=${encodeURIComponent(returnUrl)}`;
+        }
+
+        async function softDeleteTournament(tournamentId, title) {
+            const safeTitle = title || `#${tournamentId}`;
+            const ok = window.confirm(`Xóa mềm giải đấu "${safeTitle}"?\n\nGiải này sẽ bị ẩn khỏi web và app.`);
+            if (!ok) {
+                return;
+            }
+
+            try {
+                await axios.delete(`${API_BASE}/${tournamentId}`);
+                await loadTournaments();
+            } catch (err) {
+                const msg = err?.response?.data?.message || err?.message || "Xóa mềm giải đấu thất bại.";
+                window.alert(String(msg));
+            }
         }
 
         function rowHtml(t) {
@@ -479,6 +624,9 @@
                             <button class="btn btn-sm btn-outline-warning" onclick="gotoPrizeSetup(${t.tournamentId})" type="button" title="Thiết lập giải thưởng">
                                 <i class="fas fa-trophy"></i>
                             </button>
+                            <button class="btn btn-sm btn-outline-danger" data-title="${escapeHtml(t.title || "")}" onclick="softDeleteTournament(${t.tournamentId}, this.dataset.title)" type="button" title="Xóa mềm">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
                         </div>
                     </td>
                 </tr>
@@ -486,10 +634,12 @@
         }
 
         function gotoRounds(tournamentId) {
+            saveTournamentListState();
             window.location.href = `/TournamentRounds/Index?tournamentId=${tournamentId}`;
         }
 
         function gotoRegs(tournamentId) {
+            saveTournamentListState();
             window.location.href = `/Registrations/Index?tournamentId=${tournamentId}`;
         }
 
@@ -536,27 +686,118 @@
             }
         }
 
-        async function loadTournaments() {
+        function getTournamentListParams() {
+            const status = document.getElementById("statusFilter").value;
+            const params = {
+                page: tournamentListState.page,
+                pageSize: tournamentListState.pageSize
+            };
+
+            if (status) {
+                params.status = status;
+            }
+
+            return params;
+        }
+
+        async function loadTournaments(resetPage = false) {
+            if (resetPage) {
+                tournamentListState.page = 1;
+            }
+
+            clearPageError();
             const body = document.getElementById("tournamentsBody");
             body.innerHTML = `<tr><td colspan="10" class="text-center text-muted">Đang tải...</td></tr>`;
 
-            const status = document.getElementById("statusFilter").value;
-
             try {
-                const res = await axios.get(API_BASE, { params: { status } });
+                const res = await axios.get(API_BASE, { params: getTournamentListParams() });
                 const items = res.data?.items || [];
+                const total = Number(res.data?.total) || 0;
+                const serverPage = Number(res.data?.page) || tournamentListState.page;
+                const serverPageSize = Number(res.data?.pageSize) || tournamentListState.pageSize;
+
+                tournamentListState.page = serverPage;
+                tournamentListState.pageSize = serverPageSize;
+                tournamentListState.total = total;
+                tournamentListState.items = items;
+
+                if (!items.length && total > 0 && tournamentListState.page > 1) {
+                    const lastPage = Math.max(1, Math.ceil(total / tournamentListState.pageSize));
+                    tournamentListState.page = Math.min(tournamentListState.page - 1, lastPage);
+                    return await loadTournaments(false);
+                }
 
                 if (!items.length) {
                     body.innerHTML = `<tr><td colspan="10" class="text-center text-muted">Không có giải đấu</td></tr>`;
-                    return;
+                } else {
+                    body.innerHTML = items.map(rowHtml).join("");
                 }
 
-                body.innerHTML = items.map(rowHtml).join("");
+                renderTournamentPaging();
             } catch (e) {
                 body.innerHTML = `<tr><td colspan="10" class="text-center text-danger">Tải dữ liệu thất bại</td></tr>`;
+                showPageError(e?.response?.data?.message || e?.message || "Tải dữ liệu thất bại.");
+                renderTournamentPaging();
             } finally {
                 applyPendingTournamentListState();
             }
+        }
+
+        function getVisibleTournamentPages(currentPage, totalPages) {
+            const maxButtons = 5;
+            const pages = [];
+            let start = Math.max(1, currentPage - 2);
+            let end = Math.min(totalPages, start + maxButtons - 1);
+
+            if ((end - start + 1) < maxButtons) {
+                start = Math.max(1, end - maxButtons + 1);
+            }
+
+            for (let page = start; page <= end; page += 1) {
+                pages.push(page);
+            }
+
+            return pages;
+        }
+
+        function renderTournamentPaging() {
+            const total = tournamentListState.total || 0;
+            const page = tournamentListState.page || 1;
+            const pageSize = tournamentListState.pageSize || 10;
+            const totalPages = Math.max(1, Math.ceil(total / pageSize));
+            const start = total === 0 ? 0 : ((page - 1) * pageSize + 1);
+            const end = Math.min(page * pageSize, total);
+            const info = document.getElementById("pagingInfo");
+            const pageNumbers = document.getElementById("pageNumbers");
+
+            if (info) {
+                info.textContent = `Hiển thị ${start}-${end} trên tổng ${total} giải đấu`;
+            }
+
+            if (pageNumbers) {
+                pageNumbers.innerHTML = getVisibleTournamentPages(page, totalPages).map(function (pageNumber) {
+                    const activeClass = pageNumber === page ? " active" : "";
+                    return `<button class="tournament-page-btn${activeClass}" type="button" data-page="${pageNumber}">${pageNumber}</button>`;
+                }).join("");
+            }
+
+            document.getElementById("btnFirst").disabled = page <= 1;
+            document.getElementById("btnPrev").disabled = page <= 1;
+            document.getElementById("btnNext").disabled = page >= totalPages || total === 0;
+            document.getElementById("btnLast").disabled = page >= totalPages || total === 0;
+        }
+
+        function goToTournamentPage(page) {
+            const total = tournamentListState.total || 0;
+            const totalPages = Math.max(1, Math.ceil(total / (tournamentListState.pageSize || 10)));
+            const nextPage = Math.max(1, Math.min(totalPages, Number(page) || 1));
+
+            if (nextPage === tournamentListState.page) {
+                return;
+            }
+
+            tournamentListState.page = nextPage;
+            loadTournaments(false);
         }
 
         function openCreate() {
@@ -683,6 +924,16 @@
                 document.getElementById("statusFilter").value = pendingTournamentListState.status;
             }
 
+            if (pendingTournamentListState?.pageSize) {
+                tournamentListState.pageSize = parseInt(pendingTournamentListState.pageSize, 10) || 10;
+            }
+
+            if (pendingTournamentListState?.page) {
+                tournamentListState.page = Math.max(1, parseInt(pendingTournamentListState.page, 10) || 1);
+            }
+
+            document.getElementById("pageSize").value = String(tournamentListState.pageSize);
+
             tournamentRuleQuill = new Quill("#tournamentRuleEditor", {
                 theme: "snow",
                 placeholder: "Nhập thể lệ giải...",
@@ -700,8 +951,32 @@
 
             loadTournaments();
 
-            document.getElementById("btnFilter").addEventListener("click", () => loadTournaments());
+            document.getElementById("btnFilter").addEventListener("click", () => loadTournaments(true));
             document.getElementById("btnOpenCreate").addEventListener("click", () => openCreate());
+
+            document.getElementById("statusFilter").addEventListener("change", () => loadTournaments(true));
+
+            document.getElementById("pageSize").addEventListener("change", () => {
+                tournamentListState.pageSize = parseInt(document.getElementById("pageSize").value, 10) || 10;
+                loadTournaments(true);
+            });
+
+            document.getElementById("btnFirst").addEventListener("click", () => goToTournamentPage(1));
+            document.getElementById("btnPrev").addEventListener("click", () => goToTournamentPage(tournamentListState.page - 1));
+            document.getElementById("btnNext").addEventListener("click", () => goToTournamentPage(tournamentListState.page + 1));
+            document.getElementById("btnLast").addEventListener("click", () => {
+                const totalPages = Math.max(1, Math.ceil((tournamentListState.total || 0) / (tournamentListState.pageSize || 10)));
+                goToTournamentPage(totalPages);
+            });
+
+            document.getElementById("pageNumbers").addEventListener("click", (event) => {
+                const button = event.target.closest("[data-page]");
+                if (!button) {
+                    return;
+                }
+
+                goToTournamentPage(button.dataset.page);
+            });
 
             const fileInput = document.getElementById("bannerFile");
             const fileLabel = document.getElementById("bannerLabel");
@@ -736,15 +1011,15 @@
                     const fd = buildFormData();
 
                     if (mode === "edit") {
-                        const res = await axios.put(`${API_BASE}/${editingId}`, fd, {
+                        await axios.put(`${API_BASE}/${editingId}`, fd, {
                             headers: { "Content-Type": "multipart/form-data" }
                         });
-                        updateRowInTable(res.data);
+                        await loadTournaments(false);
                     } else {
-                        const res = await axios.post(API_BASE, fd, {
+                        await axios.post(API_BASE, fd, {
                             headers: { "Content-Type": "multipart/form-data" }
                         });
-                        prependRow(res.data);
+                        await loadTournaments(true);
                     }
 
                     $("#modalTournament").modal("hide");

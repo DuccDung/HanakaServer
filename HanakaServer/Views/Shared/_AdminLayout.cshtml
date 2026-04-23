@@ -5,6 +5,10 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
     <title>@ViewData["Title"] - Hanaka Admin</title>
+    <meta name="theme-color" content="#0A66C2" />
+    <link rel="icon" type="image/png" href="~/img/logo_admin_hanaka.png" asp-append-version="true" />
+    <link rel="shortcut icon" type="image/png" href="~/img/logo_admin_hanaka.png" asp-append-version="true" />
+    <link rel="apple-touch-icon" href="~/img/logo_admin_hanaka.png" asp-append-version="true" />
 
     <link href="~/vendor/fontawesome-free/css/all.min.css" asp-append-version="true" rel="stylesheet" type="text/css" />
     <link href="https://fonts.googleapis.com/css?family=Nunito:200,300,400,600,700,800,900" rel="stylesheet" />
@@ -26,6 +30,32 @@
             object-fit: cover;
             border-radius: 8px;
             border: 1px solid #eee;
+        }
+
+        .admin-sidebar-logo-wrap {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 42px;
+            height: 42px;
+            overflow: hidden;
+        }
+
+        .admin-sidebar-logo {
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            object-fit: contain;
+        }
+
+        .sidebar.toggled .sidebar-brand .admin-sidebar-logo-wrap {
+            width: 38px;
+            height: 38px;
+        }
+
+        .sidebar.toggled .sidebar-brand .admin-sidebar-logo {
+            width: 30px;
+            height: 30px;
         }
     </style>
 

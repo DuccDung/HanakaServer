@@ -34,7 +34,7 @@ namespace HanakaServer.Controllers
         public async Task<IActionResult> GetDetail(long id)
         {
             var t = await _db.Tournaments.AsNoTracking()
-                .Where(x => x.TournamentId == id && x.Status != "DRAFT")
+                .Where(x => x.TournamentId == id && !x.Remove && x.Status != "DRAFT")
                 .Select(x => new PublicTournamentDetailDto
                 {
                     TournamentId = x.TournamentId,
@@ -119,7 +119,7 @@ namespace HanakaServer.Controllers
 
             var tournament = await _db.Tournaments
                 .AsNoTracking()
-                .Where(t => t.TournamentId == tournamentId && t.Status != "DRAFT")
+                .Where(t => t.TournamentId == tournamentId && !t.Remove && t.Status != "DRAFT")
                 .Select(t => new { t.TournamentId, t.ExpectedTeams, t.GameType, t.GenderCategory, t.Title, t.Status })
                 .FirstOrDefaultAsync();
 
@@ -374,8 +374,8 @@ namespace HanakaServer.Controllers
 
             var q = _db.Tournaments.AsNoTracking().AsQueryable();
 
-            // Ẩn toàn bộ giải draft ở public API
-            q = q.Where(t => t.Status != "DRAFT");
+            // Ẩn toàn bộ giải draft và giải đã xóa mềm ở public API
+            q = q.Where(t => !t.Remove && t.Status != "DRAFT");
 
             if (!string.IsNullOrWhiteSpace(status) && status != "ALL")
             {

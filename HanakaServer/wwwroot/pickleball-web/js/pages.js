@@ -3070,6 +3070,22 @@
         return trimToEmpty(team?.displayName) || fallback;
     }
 
+    function buildBracketTeamIdentity(team, fallbackRegistrationId) {
+        const registrationId = toNumber(team?.registrationId) || toNumber(fallbackRegistrationId);
+        const regCode = trimToEmpty(team?.regCode);
+        const parts = [];
+
+        if (registrationId > 0) {
+            parts.push(`ID ${registrationId}`);
+        }
+
+        if (regCode) {
+            parts.push(regCode);
+        }
+
+        return parts.join(" | ");
+    }
+
     function buildBracketMatchMeta(match) {
         const clock = formatClock(match?.startAt);
         const courtText = trimToEmpty(match?.courtText);
@@ -3103,6 +3119,8 @@
             metaText: buildBracketMatchMeta(match),
             teamA: buildBracketTeamName(match?.team1, `${groupKey}-#1`),
             teamB: buildBracketTeamName(match?.team2, `${groupKey}-#2`),
+            teamAIdentity: buildBracketTeamIdentity(match?.team1, match?.team1RegistrationId),
+            teamBIdentity: buildBracketTeamIdentity(match?.team2, match?.team2RegistrationId),
             scoreA: formatBracketScore(match?.scoreTeam1),
             scoreB: formatBracketScore(match?.scoreTeam2),
             isWinnerA: isWinnerA,
@@ -3344,10 +3362,10 @@
         const matchCount = Math.max(0, toNumber(group?.matchCount));
         const hasSources = Array.isArray(group?.sourceKeys) && group.sourceKeys.length > 0;
         const matchSectionHeight = matchCount > 0
-            ? matchCount * 92 + Math.max(0, matchCount - 1) * 10
+            ? matchCount * 118 + Math.max(0, matchCount - 1) * 14
             : 64;
 
-        return 108 + (hasSources ? 42 : 0) + matchSectionHeight;
+        return 112 + (hasSources ? 42 : 0) + matchSectionHeight;
     }
 
     function buildTournamentBracketLayout(data) {
@@ -3359,11 +3377,32 @@
         const columnWidth = 292;
         const columnGap = 84;
         const groupGap = 22;
-        let boardHeight = 540;
+        const bottomPadding = window.innerWidth >= 768 ? 160 : 128;
+
+        rounds.forEach(function (round) {
+            round.groups.forEach(function (group) {
+                group.height = calculateBracketGroupHeight(group);
+            });
+        });
+
+        const roundHeights = rounds.map(function (round) {
+            const groups = Array.isArray(round.groups) ? round.groups : [];
+
+            if (!groups.length) {
+                return 0;
+            }
+
+            return groups.reduce(function (total, group) {
+                return total + (toNumber(group.height) || 0);
+            }, 0) + Math.max(0, groups.length - 1) * groupGap;
+        });
+        const bracketContentHeight = Math.max.apply(null, [360].concat(roundHeights));
+        const boardHeight = Math.max(560, topOffset + bracketContentHeight + bottomPadding);
 
         rounds.forEach(function (round, roundIndex) {
             const x = leftOffset + roundIndex * (columnWidth + columnGap);
-            let y = topOffset;
+            const roundHeight = roundHeights[roundIndex] || 0;
+            let y = topOffset + Math.max(0, (bracketContentHeight - roundHeight) / 2);
 
             round.x = x;
             round.width = columnWidth;
@@ -3372,11 +3411,8 @@
                 group.x = x;
                 group.y = y;
                 group.width = columnWidth;
-                group.height = calculateBracketGroupHeight(group);
                 y += group.height + groupGap;
             });
-
-            boardHeight = Math.max(boardHeight, y + 120);
         });
 
         const lines = [];
@@ -3430,11 +3466,17 @@
             `<span>${escapeHtml(match.metaText || "Ch\u01b0a c\u00f3 gi\u1edd/s\u00e2n")}</span>`,
             "</div>",
             '<div class="tournament-bracket-group-match__team">',
+            '<div class="tournament-bracket-group-match__team-main">',
+            match.teamAIdentity ? `<small class="tournament-bracket-group-match__team-meta">${escapeHtml(match.teamAIdentity)}</small>` : "",
             `<span class="${match.isWinnerA ? "is-winner" : ""}">${escapeHtml(match.teamA)}</span>`,
+            "</div>",
             `<b class="${match.isWinnerA ? "is-winner" : ""}">${escapeHtml(match.scoreA)}</b>`,
             "</div>",
             '<div class="tournament-bracket-group-match__team">',
+            '<div class="tournament-bracket-group-match__team-main">',
+            match.teamBIdentity ? `<small class="tournament-bracket-group-match__team-meta">${escapeHtml(match.teamBIdentity)}</small>` : "",
             `<span class="${match.isWinnerB ? "is-winner" : ""}">${escapeHtml(match.teamB)}</span>`,
+            "</div>",
             `<b class="${match.isWinnerB ? "is-winner" : ""}">${escapeHtml(match.scoreB)}</b>`,
             "</div>",
             "</div>"

@@ -11,6 +11,20 @@ namespace HanakaServer.ViewModels.Admin
 
         public int TotalTournaments { get; set; }
         public int ActiveTournaments { get; set; }
+        public int CompletedTournaments { get; set; }
+        public int RemovedTournaments { get; set; }
+
+        public int TotalRegistrations { get; set; }
+        public int SuccessfulRegistrations { get; set; }
+        public int PaidRegistrations { get; set; }
+        public int WaitingPairRegistrations { get; set; }
+
+        public int TotalMatches { get; set; }
+        public int CompletedMatches { get; set; }
+        public int UpcomingMatches { get; set; }
+
+        public int TotalRoundMaps { get; set; }
+        public int TotalRoundGroups { get; set; }
 
         public int TotalBanners { get; set; }
         public int ActiveBanners { get; set; }
@@ -25,6 +39,7 @@ namespace HanakaServer.ViewModels.Admin
         public int VerifiedReferees { get; set; }
 
         public int TotalCourts { get; set; }
+        public int TotalLinks { get; set; }
 
         public List<RoleStatItem> RoleStats { get; set; } = new();
         public List<RecentTournamentItem> RecentTournaments { get; set; } = new();
@@ -44,6 +59,9 @@ namespace HanakaServer.ViewModels.Admin
         public string Status { get; set; } = "";
         public int RegisteredCount { get; set; }
         public int MatchesCount { get; set; }
+        public int CompletedMatchesCount { get; set; }
+        public int RoundCount { get; set; }
+        public int GroupCount { get; set; }
         public System.DateTime CreatedAt { get; set; }
     }
 }

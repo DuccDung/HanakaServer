@@ -27,7 +27,7 @@ namespace HanakaServer.Controllers
         {
             var tournament = await _db.Tournaments
                 .AsNoTracking()
-                .Where(x => x.TournamentId == tournamentId)
+                .Where(x => x.TournamentId == tournamentId && !x.Remove)
                 .Select(x => new TournamentClientDto
                 {
                     TournamentId = x.TournamentId,
@@ -275,7 +275,7 @@ namespace HanakaServer.Controllers
 
             var tournament = await _db.Tournaments
                 .AsNoTracking()
-                .Where(x => x.TournamentId == match.TournamentId)
+                .Where(x => x.TournamentId == match.TournamentId && !x.Remove)
                 .Select(x => new TournamentClientDto
                 {
                     TournamentId = x.TournamentId,
@@ -535,7 +535,7 @@ namespace HanakaServer.Controllers
 
             var tournament = await _db.Tournaments
                 .AsNoTracking()
-                .Where(x => x.TournamentId == tournamentId)
+                .Where(x => x.TournamentId == tournamentId && !x.Remove)
                 .Select(x => new
                 {
                     x.TournamentId,
@@ -715,7 +715,7 @@ namespace HanakaServer.Controllers
         {
             var item = await _db.Tournaments
                 .AsNoTracking()
-                .Where(x => x.TournamentId == tournamentId)
+                .Where(x => x.TournamentId == tournamentId && !x.Remove)
                 .Select(x => new TournamentRuleResponseDto
                 {
                     TournamentId = x.TournamentId,

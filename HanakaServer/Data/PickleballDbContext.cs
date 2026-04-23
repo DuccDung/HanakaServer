@@ -916,6 +916,9 @@ public partial class PickleballDbContext : DbContext
             entity.Property(e => e.LocationText).HasMaxLength(400);
             entity.Property(e => e.Organizer).HasMaxLength(200);
             entity.Property(e => e.PlayoffType).HasMaxLength(50);
+            entity.Property(e => e.Remove)
+                .HasColumnName("Remove")
+                .HasDefaultValue(false);
             entity.Property(e => e.RegisterDeadline).HasPrecision(0);
             entity.Property(e => e.RegisterDeadlineRaw).HasMaxLength(30);
             entity.Property(e => e.SingleLimit).HasColumnType("decimal(4, 2)");

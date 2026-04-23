@@ -58,6 +58,15 @@ namespace HanakaServer.Controllers
             return string.IsNullOrWhiteSpace(s) ? fallback : s.Trim().ToUpperInvariant();
         }
 
+        private IQueryable<HanakaServer.Models.Tournament> ActiveTournamentsQuery(bool asNoTracking = false)
+        {
+            var query = asNoTracking
+                ? _db.Tournaments.AsNoTracking()
+                : _db.Tournaments.AsQueryable();
+
+            return query.Where(x => !x.Remove);
+        }
+
         private static (bool Ok, string? GameType, string? GenderCategory, string? Message) ResolveTournamentType(
             string? gameType,
             string? genderCategory)
@@ -136,7 +145,7 @@ namespace HanakaServer.Controllers
 
             status = status?.Trim();
 
-            var q = _db.Tournaments.AsNoTracking();
+            var q = ActiveTournamentsQuery(asNoTracking: true);
 
             if (!string.IsNullOrWhiteSpace(status) && status != "ALL")
                 q = q.Where(t => t.Status == status);
@@ -180,7 +189,8 @@ namespace HanakaServer.Controllers
         [HttpGet("{id:long}")]
         public async Task<IActionResult> GetDetail([FromRoute] long id)
         {
-            var t = await _db.Tournaments.AsNoTracking().FirstOrDefaultAsync(x => x.TournamentId == id);
+            var t = await ActiveTournamentsQuery(asNoTracking: true)
+                .FirstOrDefaultAsync(x => x.TournamentId == id);
             if (t == null) return NotFound(new { message = "Tournament not found." });
 
             return Ok(MapToDto(t));
@@ -231,6 +241,7 @@ namespace HanakaServer.Controllers
             {
                 Status = status,
                 Title = req.Title.Trim(),
+                Remove = false,
                 BannerUrl = bannerRelativeUrl,
                 StartTime = req.StartTime,
                 RegisterDeadline = req.RegisterDeadline,
@@ -268,7 +279,8 @@ namespace HanakaServer.Controllers
         [RequestSizeLimit(10_000_000)]
         public async Task<IActionResult> Update([FromRoute] long id, [FromForm] UpdateTournamentRequest req)
         {
-            var t = await _db.Tournaments.FirstOrDefaultAsync(x => x.TournamentId == id);
+            var t = await ActiveTournamentsQuery()
+                .FirstOrDefaultAsync(x => x.TournamentId == id);
             if (t == null) return NotFound(new { message = "Tournament not found." });
 
             if (!string.IsNullOrWhiteSpace(req.Title))
@@ -346,6 +358,27 @@ namespace HanakaServer.Controllers
 
             // trả full dto để UI update row
             return Ok(MapToDto(t));
+        }
+
+        // DELETE: /api/admin/tournaments/{id}
+        [HttpDelete("{id:long}")]
+        public async Task<IActionResult> SoftDelete([FromRoute] long id)
+        {
+            var t = await ActiveTournamentsQuery()
+                .FirstOrDefaultAsync(x => x.TournamentId == id);
+
+            if (t == null)
+                return NotFound(new { message = "Tournament not found." });
+
+            t.Remove = true;
+            await _db.SaveChangesAsync();
+
+            return Ok(new
+            {
+                ok = true,
+                tournamentId = id,
+                message = "Đã xóa mềm giải đấu."
+            });
         }
     }
 }

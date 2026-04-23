@@ -55,6 +55,8 @@ public partial class Tournament
 
     public int PairedCount { get; set; }
 
+    public bool Remove { get; set; }
+
     public string? Content { get; set; }
 
     public DateTime CreatedAt { get; set; }

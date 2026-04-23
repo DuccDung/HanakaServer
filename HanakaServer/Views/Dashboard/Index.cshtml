@@ -1,8 +1,45 @@
-﻿@model HanakaServer.ViewModels.Admin.DashboardViewModel
+@using System.Globalization
+@model HanakaServer.ViewModels.Admin.DashboardViewModel
 
 @{
     Layout = "_AdminLayout";
     ViewData["Title"] = "Bảng điều khiển";
+
+    var viCulture = CultureInfo.GetCultureInfo("vi-VN");
+    var usersUrl = Url.Action("Users", "Home") ?? "/Home/Users";
+    var tournamentsUrl = Url.Action("Tournaments", "Home") ?? "/Home/Tournaments";
+    var coachesUrl = Url.Action("Coaches", "Home") ?? "/Home/Coaches";
+    var refereesUrl = Url.Action("Referees", "Home") ?? "/Home/Referees";
+    var bannersUrl = Url.Action("Index", "Banners") ?? "/Banners";
+    var courtsUrl = Url.Action("Index", "Courts") ?? "/Admin/Courts";
+    var linksUrl = Url.Action("Index", "Links") ?? "/Links";
+    var dashboardUrl = Url.Action("Index", "Dashboard") ?? "/Dashboard/Index";
+    var encodedDashboardUrl = Uri.EscapeDataString(dashboardUrl);
+    var activeUsers = Math.Max(0, Model.TotalUsers - Model.InactiveUsers);
+    var pendingMatches = Math.Max(0, Model.TotalMatches - Model.CompletedMatches);
+
+    string FormatNumber(int value) => value.ToString("N0", viCulture);
+
+    string PercentText(int value, int total)
+    {
+        if (total <= 0)
+        {
+            return "0%";
+        }
+
+        return (value * 100m / total).ToString("0.#", CultureInfo.InvariantCulture) + "%";
+    }
+
+    string PercentWidth(int value, int total)
+    {
+        if (total <= 0)
+        {
+            return "0%";
+        }
+
+        var percent = Math.Max(0, Math.Min(100, value * 100m / total));
+        return percent.ToString("0.##", CultureInfo.InvariantCulture) + "%";
+    }
 
     string GetTournamentStatusText(string status)
     {
@@ -13,335 +50,937 @@
             "CLOSED" => "Đã đóng",
             "COMPLETED" => "Đã hoàn thành",
             "CANCELLED" => "Đã hủy",
-            _ => status
+            _ => string.IsNullOrWhiteSpace(status) ? "Chưa rõ" : status
+        };
+    }
+
+    string GetTournamentStatusClass(string status)
+    {
+        return status switch
+        {
+            "OPEN" => "status-open",
+            "ACTIVE" => "status-active",
+            "COMPLETED" => "status-completed",
+            "CANCELLED" => "status-cancelled",
+            "CLOSED" => "status-closed",
+            _ => "status-muted"
         };
     }
 }
 
 @section Styles {
     <style>
-        .dashboard-card {
-            border: 0;
-            border-radius: 14px;
-            box-shadow: 0 0.15rem 1rem rgba(58, 59, 69, 0.12);
-            transition: all 0.2s ease;
+        .dashboard-shell {
+            color: #0f172a;
         }
 
-            .dashboard-card:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 0.35rem 1.2rem rgba(58, 59, 69, 0.18);
-            }
-
-        .stat-icon {
-            font-size: 2rem;
-            opacity: 0.3;
+        .dashboard-hero {
+            position: relative;
+            overflow: hidden;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 24px;
+            align-items: center;
+            min-height: 190px;
+            margin-bottom: 24px;
+            padding: 28px;
+            border-radius: 28px;
+            background:
+                radial-gradient(circle at 12% 10%, rgba(250, 204, 21, 0.34), transparent 24%),
+                radial-gradient(circle at 84% 0%, rgba(59, 130, 246, 0.34), transparent 28%),
+                linear-gradient(135deg, #071323 0%, #0f2f4f 52%, #142f1d 100%);
+            box-shadow: 0 26px 60px rgba(15, 23, 42, 0.22);
         }
 
-        .stat-title {
+        .dashboard-hero::after {
+            content: "";
+            position: absolute;
+            inset: auto -80px -130px auto;
+            width: 360px;
+            height: 360px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 50%;
+            box-shadow: inset 0 0 70px rgba(255, 255, 255, 0.08);
+            pointer-events: none;
+        }
+
+        .dashboard-hero__eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 14px;
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            color: #fde68a;
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .dashboard-hero h1 {
+            max-width: 760px;
+            margin: 0;
+            color: #ffffff;
+            font-size: clamp(1.75rem, 3vw, 2.8rem);
+            font-weight: 900;
+            letter-spacing: -0.04em;
+        }
+
+        .dashboard-hero p {
+            max-width: 720px;
+            margin: 14px 0 0;
+            color: #cbd5e1;
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        .dashboard-hero__actions {
+            position: relative;
+            z-index: 1;
+            display: grid;
+            gap: 10px;
+            min-width: 210px;
+        }
+
+        .dashboard-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            min-height: 48px;
+            padding: 0 16px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.12);
+            color: #ffffff;
+            font-weight: 800;
+            text-decoration: none;
+            transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+        }
+
+        .dashboard-action:hover {
+            transform: translateX(4px);
+            border-color: rgba(250, 204, 21, 0.62);
+            background: rgba(250, 204, 21, 0.18);
+            color: #ffffff;
+            text-decoration: none;
+        }
+
+        .dashboard-section-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 4px 0 14px;
+        }
+
+        .dashboard-section-title h2 {
+            margin: 0;
+            color: #0f172a;
+            font-size: 1.1rem;
+            font-weight: 900;
+        }
+
+        .dashboard-section-title span {
+            color: #64748b;
+            font-size: 0.86rem;
+            font-weight: 700;
+        }
+
+        .dashboard-metric-card {
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 184px;
+            padding: 22px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 24px;
+            background: #ffffff;
+            color: #0f172a;
+            box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+            text-decoration: none;
+            transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+        }
+
+        .dashboard-metric-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(37, 99, 235, 0.34);
+            box-shadow: 0 24px 46px rgba(15, 23, 42, 0.14);
+            color: #0f172a;
+            text-decoration: none;
+        }
+
+        .dashboard-metric-card::after {
+            content: "";
+            position: absolute;
+            inset: auto -44px -58px auto;
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: var(--metric-glow, rgba(37, 99, 235, 0.12));
+            pointer-events: none;
+        }
+
+        .dashboard-metric-card.theme-blue {
+            --metric-accent: #2563eb;
+            --metric-glow: rgba(37, 99, 235, 0.14);
+        }
+
+        .dashboard-metric-card.theme-gold {
+            --metric-accent: #d97706;
+            --metric-glow: rgba(250, 204, 21, 0.26);
+        }
+
+        .dashboard-metric-card.theme-green {
+            --metric-accent: #16a34a;
+            --metric-glow: rgba(34, 197, 94, 0.16);
+        }
+
+        .dashboard-metric-card.theme-red {
+            --metric-accent: #dc2626;
+            --metric-glow: rgba(239, 68, 68, 0.14);
+        }
+
+        .dashboard-metric-card.theme-cyan {
+            --metric-accent: #0891b2;
+            --metric-glow: rgba(6, 182, 212, 0.14);
+        }
+
+        .dashboard-metric-card.theme-slate {
+            --metric-accent: #475569;
+            --metric-glow: rgba(71, 85, 105, 0.12);
+        }
+
+        .metric-head {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 18px;
+        }
+
+        .metric-kicker {
+            display: block;
+            color: #64748b;
+            font-size: 0.78rem;
+            font-weight: 900;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .metric-value {
+            display: block;
+            margin-top: 8px;
+            color: #0f172a;
+            font-size: 2.35rem;
+            font-weight: 900;
+            letter-spacing: -0.06em;
+            line-height: 1;
+        }
+
+        .metric-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            width: 52px;
+            height: 52px;
+            border-radius: 18px;
+            background: var(--metric-glow, rgba(37, 99, 235, 0.12));
+            color: var(--metric-accent);
+            font-size: 1.35rem;
+        }
+
+        .metric-foot {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: auto;
+        }
+
+        .metric-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 30px;
+            padding: 0 10px;
+            border-radius: 999px;
+            background: #f1f5f9;
+            color: #334155;
+            font-size: 0.78rem;
+            font-weight: 800;
+        }
+
+        .metric-chip strong {
+            color: var(--metric-accent);
+        }
+
+        .dashboard-panel {
+            overflow: hidden;
+            height: 100%;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 24px;
+            background: #ffffff;
+            box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+        }
+
+        .dashboard-panel__head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            padding: 20px 22px;
+            border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+            background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+        }
+
+        .dashboard-panel__head h3 {
+            margin: 0;
+            color: #0f172a;
+            font-size: 1rem;
+            font-weight: 900;
+        }
+
+        .dashboard-panel__head span {
+            color: #64748b;
             font-size: 0.8rem;
             font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: .04em;
         }
 
-        .stat-value {
-            font-size: 1.8rem;
+        .dashboard-panel__body {
+            padding: 20px 22px 22px;
+        }
+
+        .health-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .health-item {
+            display: grid;
+            gap: 8px;
+        }
+
+        .health-item__top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            color: #334155;
             font-weight: 800;
-            color: #2e2e2e;
         }
 
-        .section-title {
-            font-size: 1rem;
+        .health-item__top small {
+            color: #64748b;
+            font-weight: 900;
+        }
+
+        .health-track {
+            overflow: hidden;
+            height: 10px;
+            border-radius: 999px;
+            background: #e2e8f0;
+        }
+
+        .health-track span {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, #2563eb 0%, #22c55e 100%);
+        }
+
+        .role-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .role-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            background: #f8fafc;
+        }
+
+        .role-item strong {
+            display: block;
+            color: #0f172a;
+            font-weight: 900;
+        }
+
+        .role-item small {
+            color: #64748b;
             font-weight: 700;
-            color: #4e73df;
-            margin-bottom: 1rem;
         }
 
-        .table td, .table th {
+        .role-count {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 48px;
+            min-height: 38px;
+            padding: 0 12px;
+            border-radius: 14px;
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-weight: 900;
+        }
+
+        .dashboard-table {
+            margin: 0;
+        }
+
+        .dashboard-table thead th {
+            border-top: 0;
+            border-bottom: 1px solid #e2e8f0;
+            color: #64748b;
+            font-size: 0.74rem;
+            font-weight: 900;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .dashboard-table tbody td {
+            border-top: 1px solid #eef2f7;
+            color: #334155;
+            font-weight: 700;
             vertical-align: middle;
         }
 
-        .badge-soft {
-            padding: .45rem .65rem;
-            border-radius: 20px;
-            font-size: 12px;
+        .tournament-title-link {
+            display: inline-flex;
+            flex-direction: column;
+            color: #0f172a;
+            font-weight: 900;
+            text-decoration: none;
+        }
+
+        .tournament-title-link:hover {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        .tournament-title-link small {
+            margin-top: 3px;
+            color: #64748b;
+            font-size: 0.74rem;
             font-weight: 700;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            min-height: 28px;
+            padding: 0 10px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 900;
+            white-space: nowrap;
+        }
+
+        .status-open,
+        .status-active {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
+        .status-completed {
+            background: #dbeafe;
+            color: #1d4ed8;
+        }
+
+        .status-cancelled {
+            background: #fee2e2;
+            color: #b91c1c;
+        }
+
+        .status-closed {
+            background: #fef3c7;
+            color: #b45309;
+        }
+
+        .status-muted {
+            background: #e2e8f0;
+            color: #475569;
+        }
+
+        .table-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .table-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 32px;
+            padding: 0 10px;
+            border: 1px solid #dbeafe;
+            border-radius: 10px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 0.76rem;
+            font-weight: 900;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .table-action:hover {
+            border-color: #bfdbfe;
+            background: #dbeafe;
+            color: #1d4ed8;
+            text-decoration: none;
+        }
+
+        .empty-state {
+            display: grid;
+            place-items: center;
+            min-height: 160px;
+            border: 1px dashed #cbd5e1;
+            border-radius: 18px;
+            color: #64748b;
+            font-weight: 800;
+            text-align: center;
+        }
+
+        @@media (max-width: 991.98px) {
+            .dashboard-hero {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-hero__actions {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                min-width: 0;
+            }
+        }
+
+        @@media (max-width: 575.98px) {
+            .dashboard-hero {
+                padding: 22px;
+                border-radius: 22px;
+            }
+
+            .dashboard-hero__actions {
+                grid-template-columns: 1fr;
+            }
+
+            .dashboard-metric-card {
+                min-height: 164px;
+                padding: 18px;
+                border-radius: 20px;
+            }
+
+            .metric-value {
+                font-size: 2rem;
+            }
         }
     </style>
 }
 
-<div class="d-sm-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 mb-0 text-gray-800">Bảng điều khiển</h1>
-</div>
+<div class="dashboard-shell">
+    <section class="dashboard-hero">
+        <div>
+            <div class="dashboard-hero__eyebrow">
+                <i class="fas fa-chart-line"></i>
+                Tổng quan Hanaka Admin
+            </div>
+            <h1>Theo dõi giải đấu, người dùng và vận hành chỉ trong một màn hình.</h1>
+            <p>
+                Các số liệu giải đấu đã loại bỏ dữ liệu xóa mềm, giúp dashboard khớp với dữ liệu đang hiển thị ở web và app.
+            </p>
+        </div>
+        <div class="dashboard-hero__actions">
+            <a class="dashboard-action" href="@tournamentsUrl">
+                <span><i class="fas fa-flag-checkered mr-2"></i>Quản lý giải</span>
+                <i class="fas fa-arrow-right"></i>
+            </a>
+            <a class="dashboard-action" href="@usersUrl">
+                <span><i class="fas fa-users mr-2"></i>Người dùng</span>
+                <i class="fas fa-arrow-right"></i>
+            </a>
+            <a class="dashboard-action" href="@bannersUrl">
+                <span><i class="fas fa-images mr-2"></i>Biểu ngữ</span>
+                <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+    </section>
 
-<div class="row">
+    <div class="dashboard-section-title">
+        <h2>Chỉ số chính</h2>
+        <span>Các card có thể bấm để đi tới trang quản lý liên quan</span>
+    </div>
 
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card dashboard-card border-left-primary h-100 py-2">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
+    <div class="row">
+        <div class="col-xl-3 col-md-6 mb-4">
+            <a class="dashboard-metric-card theme-blue" href="@usersUrl">
+                <div class="metric-head">
                     <div>
-                        <div class="stat-title text-primary">Tổng số người dùng</div>
-                        <div class="stat-value">@Model.TotalUsers</div>
+                        <span class="metric-kicker">Người dùng</span>
+                        <span class="metric-value">@FormatNumber(Model.TotalUsers)</span>
                     </div>
-                    <div class="text-primary stat-icon">
-                        <i class="fas fa-users"></i>
+                    <span class="metric-icon"><i class="fas fa-users"></i></span>
+                </div>
+                <div class="metric-foot">
+                    <span class="metric-chip"><strong>@FormatNumber(activeUsers)</strong> đang hoạt động</span>
+                    <span class="metric-chip"><strong>@FormatNumber(Model.UnverifiedUsers)</strong> chưa xác minh</span>
+                </div>
+            </a>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <a class="dashboard-metric-card theme-gold" href="@tournamentsUrl">
+                <div class="metric-head">
+                    <div>
+                        <span class="metric-kicker">Giải đấu</span>
+                        <span class="metric-value">@FormatNumber(Model.TotalTournaments)</span>
                     </div>
+                    <span class="metric-icon"><i class="fas fa-trophy"></i></span>
+                </div>
+                <div class="metric-foot">
+                    <span class="metric-chip"><strong>@FormatNumber(Model.ActiveTournaments)</strong> đang mở/diễn ra</span>
+                    <span class="metric-chip"><strong>@FormatNumber(Model.RemovedTournaments)</strong> đã ẩn</span>
+                </div>
+            </a>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <a class="dashboard-metric-card theme-green" href="@tournamentsUrl">
+                <div class="metric-head">
+                    <div>
+                        <span class="metric-kicker">Đăng ký thi đấu</span>
+                        <span class="metric-value">@FormatNumber(Model.TotalRegistrations)</span>
+                    </div>
+                    <span class="metric-icon"><i class="fas fa-clipboard-list"></i></span>
+                </div>
+                <div class="metric-foot">
+                    <span class="metric-chip"><strong>@FormatNumber(Model.SuccessfulRegistrations)</strong> hợp lệ</span>
+                    <span class="metric-chip"><strong>@FormatNumber(Model.PaidRegistrations)</strong> đã thanh toán</span>
+                </div>
+            </a>
+        </div>
+
+        <div class="col-xl-3 col-md-6 mb-4">
+            <a class="dashboard-metric-card theme-red" href="@tournamentsUrl">
+                <div class="metric-head">
+                    <div>
+                        <span class="metric-kicker">Trận đấu</span>
+                        <span class="metric-value">@FormatNumber(Model.TotalMatches)</span>
+                    </div>
+                    <span class="metric-icon"><i class="fas fa-table-tennis"></i></span>
+                </div>
+                <div class="metric-foot">
+                    <span class="metric-chip"><strong>@FormatNumber(Model.CompletedMatches)</strong> hoàn tất</span>
+                    <span class="metric-chip"><strong>@FormatNumber(Model.UpcomingMatches)</strong> sắp diễn ra</span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xl-2 col-md-4 col-sm-6 mb-4">
+            <a class="dashboard-metric-card theme-green" href="@coachesUrl">
+                <div class="metric-head">
+                    <div>
+                        <span class="metric-kicker">HLV</span>
+                        <span class="metric-value">@FormatNumber(Model.TotalCoaches)</span>
+                    </div>
+                    <span class="metric-icon"><i class="fas fa-chalkboard-teacher"></i></span>
+                </div>
+                <div class="metric-foot">
+                    <span class="metric-chip"><strong>@FormatNumber(Model.VerifiedCoaches)</strong> xác minh</span>
+                </div>
+            </a>
+        </div>
+
+        <div class="col-xl-2 col-md-4 col-sm-6 mb-4">
+            <a class="dashboard-metric-card theme-gold" href="@refereesUrl">
+                <div class="metric-head">
+                    <div>
+                        <span class="metric-kicker">Trọng tài</span>
+                        <span class="metric-value">@FormatNumber(Model.TotalReferees)</span>
+                    </div>
+                    <span class="metric-icon"><i class="fas fa-gavel"></i></span>
+                </div>
+                <div class="metric-foot">
+                    <span class="metric-chip"><strong>@FormatNumber(Model.VerifiedReferees)</strong> xác minh</span>
+                </div>
+            </a>
+        </div>
+
+        <div class="col-xl-2 col-md-4 col-sm-6 mb-4">
+            <a class="dashboard-metric-card theme-cyan" href="@courtsUrl">
+                <div class="metric-head">
+                    <div>
+                        <span class="metric-kicker">Sân bãi</span>
+                        <span class="metric-value">@FormatNumber(Model.TotalCourts)</span>
+                    </div>
+                    <span class="metric-icon"><i class="fas fa-map-marker-alt"></i></span>
+                </div>
+                <div class="metric-foot">
+                    <span class="metric-chip">Quản lý địa điểm</span>
+                </div>
+            </a>
+        </div>
+
+        <div class="col-xl-2 col-md-4 col-sm-6 mb-4">
+            <a class="dashboard-metric-card theme-blue" href="@bannersUrl">
+                <div class="metric-head">
+                    <div>
+                        <span class="metric-kicker">Biểu ngữ</span>
+                        <span class="metric-value">@FormatNumber(Model.TotalBanners)</span>
+                    </div>
+                    <span class="metric-icon"><i class="fas fa-images"></i></span>
+                </div>
+                <div class="metric-foot">
+                    <span class="metric-chip"><strong>@FormatNumber(Model.ActiveBanners)</strong> đang bật</span>
+                </div>
+            </a>
+        </div>
+
+        <div class="col-xl-2 col-md-4 col-sm-6 mb-4">
+            <a class="dashboard-metric-card theme-slate" href="@linksUrl">
+                <div class="metric-head">
+                    <div>
+                        <span class="metric-kicker">Liên kết</span>
+                        <span class="metric-value">@FormatNumber(Model.TotalLinks)</span>
+                    </div>
+                    <span class="metric-icon"><i class="fas fa-link"></i></span>
+                </div>
+                <div class="metric-foot">
+                    <span class="metric-chip">Cấu hình app/web</span>
+                </div>
+            </a>
+        </div>
+
+        <div class="col-xl-2 col-md-4 col-sm-6 mb-4">
+            <a class="dashboard-metric-card theme-slate" href="@tournamentsUrl">
+                <div class="metric-head">
+                    <div>
+                        <span class="metric-kicker">Vòng / bảng</span>
+                        <span class="metric-value">@FormatNumber(Model.TotalRoundMaps)</span>
+                    </div>
+                    <span class="metric-icon"><i class="fas fa-sitemap"></i></span>
+                </div>
+                <div class="metric-foot">
+                    <span class="metric-chip"><strong>@FormatNumber(Model.TotalRoundGroups)</strong> bảng đấu</span>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-xl-7 mb-4">
+            <div class="dashboard-panel">
+                <div class="dashboard-panel__head">
+                    <h3>Sức khỏe dữ liệu</h3>
+                    <span>Tính theo dữ liệu chưa xóa mềm</span>
+                </div>
+                <div class="dashboard-panel__body">
+                    <div class="health-list">
+                        <div class="health-item">
+                            <div class="health-item__top">
+                                <span>Người dùng đang hoạt động</span>
+                                <small>@PercentText(activeUsers, Model.TotalUsers)</small>
+                            </div>
+                            <div class="health-track"><span style="width:@PercentWidth(activeUsers, Model.TotalUsers)"></span></div>
+                        </div>
+                        <div class="health-item">
+                            <div class="health-item__top">
+                                <span>Người dùng đã xác minh</span>
+                                <small>@PercentText(Model.VerifiedUsers, Model.TotalUsers)</small>
+                            </div>
+                            <div class="health-track"><span style="width:@PercentWidth(Model.VerifiedUsers, Model.TotalUsers)"></span></div>
+                        </div>
+                        <div class="health-item">
+                            <div class="health-item__top">
+                                <span>Đăng ký hợp lệ</span>
+                                <small>@PercentText(Model.SuccessfulRegistrations, Model.TotalRegistrations)</small>
+                            </div>
+                            <div class="health-track"><span style="width:@PercentWidth(Model.SuccessfulRegistrations, Model.TotalRegistrations)"></span></div>
+                        </div>
+                        <div class="health-item">
+                            <div class="health-item__top">
+                                <span>Trận đấu đã hoàn tất</span>
+                                <small>@PercentText(Model.CompletedMatches, Model.TotalMatches)</small>
+                            </div>
+                            <div class="health-track"><span style="width:@PercentWidth(Model.CompletedMatches, Model.TotalMatches)"></span></div>
+                        </div>
+                        <div class="health-item">
+                            <div class="health-item__top">
+                                <span>Biểu ngữ đang bật</span>
+                                <small>@PercentText(Model.ActiveBanners, Model.TotalBanners)</small>
+                            </div>
+                            <div class="health-track"><span style="width:@PercentWidth(Model.ActiveBanners, Model.TotalBanners)"></span></div>
+                        </div>
+                        <div class="health-item">
+                            <div class="health-item__top">
+                                <span>Câu lạc bộ đang hoạt động</span>
+                                <small>@FormatNumber(Model.ActiveClubs) / @FormatNumber(Model.TotalClubs)</small>
+                            </div>
+                            <div class="health-track"><span style="width:@PercentWidth(Model.ActiveClubs, Model.TotalClubs)"></span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-xl-5 mb-4">
+            <div class="dashboard-panel">
+                <div class="dashboard-panel__head">
+                    <h3>Vai trò người dùng</h3>
+                    <span>@FormatNumber(Model.RoleStats?.Count ?? 0) nhóm quyền</span>
+                </div>
+                <div class="dashboard-panel__body">
+                    @if (Model.RoleStats != null && Model.RoleStats.Any())
+                    {
+                        <div class="role-list">
+                            @foreach (var item in Model.RoleStats)
+                            {
+                                <div class="role-item">
+                                    <div>
+                                        <strong>@item.RoleName</strong>
+                                        <small>Mã quyền: @item.RoleId</small>
+                                    </div>
+                                    <span class="role-count">@FormatNumber(item.UserCount)</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="empty-state">Chưa có dữ liệu quyền.</div>
+                    }
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card dashboard-card border-left-danger h-100 py-2">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-title text-danger">Người dùng chưa kích hoạt</div>
-                        <div class="stat-value">@Model.InactiveUsers</div>
-                    </div>
-                    <div class="text-danger stat-icon">
-                        <i class="fas fa-user-slash"></i>
-                    </div>
-                </div>
+    <div class="dashboard-panel mb-4">
+        <div class="dashboard-panel__head">
+            <div>
+                <h3>Giải đấu mới nhất</h3>
+                <span>Đi nhanh tới đăng ký, vòng đấu và sơ đồ của từng giải</span>
             </div>
+            <a class="table-action" href="@tournamentsUrl">
+                <i class="fas fa-list"></i>
+                Xem tất cả
+            </a>
         </div>
-    </div>
-
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card dashboard-card border-left-success h-100 py-2">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-title text-success">Người dùng đã xác minh</div>
-                        <div class="stat-value">@Model.VerifiedUsers</div>
-                    </div>
-                    <div class="text-success stat-icon">
-                        <i class="fas fa-user-check"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card dashboard-card border-left-warning h-100 py-2">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-title text-warning">Người dùng chưa xác minh</div>
-                        <div class="stat-value">@Model.UnverifiedUsers</div>
-                    </div>
-                    <div class="text-warning stat-icon">
-                        <i class="fas fa-user-clock"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-</div>
-
-<div class="row">
-
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card dashboard-card border-left-info h-100 py-2">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-title text-info">Giải đấu</div>
-                        <div class="stat-value">@Model.TotalTournaments</div>
-                        <div class="small text-muted">Đang hoạt động: @Model.ActiveTournaments</div>
-                    </div>
-                    <div class="text-info stat-icon">
-                        <i class="fas fa-trophy"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card dashboard-card border-left-secondary h-100 py-2">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-title text-secondary">Biểu ngữ</div>
-                        <div class="stat-value">@Model.TotalBanners</div>
-                        <div class="small text-muted">Đang hoạt động: @Model.ActiveBanners</div>
-                    </div>
-                    <div class="text-secondary stat-icon">
-                        <i class="fas fa-images"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card dashboard-card border-left-dark h-100 py-2">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-title text-dark">Câu lạc bộ</div>
-                        <div class="stat-value">@Model.TotalClubs</div>
-                        <div class="small text-muted">Đang hoạt động: @Model.ActiveClubs</div>
-                    </div>
-                    <div class="text-dark stat-icon">
-                        <i class="fas fa-users-cog"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card dashboard-card border-left-primary h-100 py-2">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-title text-primary">Sân đấu</div>
-                        <div class="stat-value">@Model.TotalCourts</div>
-                    </div>
-                    <div class="text-primary stat-icon">
-                        <i class="fas fa-map-marker-alt"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-</div>
-
-<div class="row">
-
-    <div class="col-xl-6 col-md-6 mb-4">
-        <div class="card dashboard-card border-left-success h-100 py-2">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-title text-success">Huấn luyện viên</div>
-                        <div class="stat-value">@Model.TotalCoaches</div>
-                        <div class="small text-muted">Đã xác minh: @Model.VerifiedCoaches</div>
-                    </div>
-                    <div class="text-success stat-icon">
-                        <i class="fas fa-chalkboard-teacher"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-xl-6 col-md-6 mb-4">
-        <div class="card dashboard-card border-left-warning h-100 py-2">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <div class="stat-title text-warning">Trọng tài</div>
-                        <div class="stat-value">@Model.TotalReferees</div>
-                        <div class="small text-muted">Đã xác minh: @Model.VerifiedReferees</div>
-                    </div>
-                    <div class="text-warning stat-icon">
-                        <i class="fas fa-gavel"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-</div>
-
-<div class="row">
-
-    <div class="col-lg-5 mb-4">
-        <div class="card shadow dashboard-card">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Thống kê quyền người dùng</h6>
-            </div>
-            <div class="card-body">
-                @if (Model.RoleStats != null && Model.RoleStats.Any())
-                {
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover mb-0">
-                            <thead class="thead-light">
+        <div class="dashboard-panel__body">
+            @if (Model.RecentTournaments != null && Model.RecentTournaments.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table dashboard-table">
+                        <thead>
+                            <tr>
+                                <th>Giải đấu</th>
+                                <th>Trạng thái</th>
+                                <th>Đăng ký</th>
+                                <th>Vòng / bảng</th>
+                                <th>Trận đấu</th>
+                                <th>Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.RecentTournaments)
+                            {
                                 <tr>
-                                    <th style="width: 80px;">Mã quyền</th>
-                                    <th>Tên quyền</th>
-                                    <th style="width: 120px;">Số người dùng</th>
+                                    <td>
+                                        <a class="tournament-title-link" href="@tournamentsUrl">
+                                            @item.Title
+                                            <small>Tạo lúc @item.CreatedAt.ToString("dd/MM/yyyy HH:mm", viCulture)</small>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <span class="status-pill @GetTournamentStatusClass(item.Status)">@GetTournamentStatusText(item.Status)</span>
+                                    </td>
+                                    <td>@FormatNumber(item.RegisteredCount)</td>
+                                    <td>@FormatNumber(item.RoundCount) vòng / @FormatNumber(item.GroupCount) bảng</td>
+                                    <td>@FormatNumber(item.CompletedMatchesCount) / @FormatNumber(item.MatchesCount) xong</td>
+                                    <td>
+                                        <div class="table-actions">
+                                            <a class="table-action" href="/Registrations/Index?tournamentId=@item.TournamentId">
+                                                <i class="fas fa-clipboard-list"></i>
+                                                Đăng ký
+                                            </a>
+                                            <a class="table-action" href="/TournamentRounds/Index?tournamentId=@item.TournamentId">
+                                                <i class="fas fa-layer-group"></i>
+                                                Vòng
+                                            </a>
+                                            <a class="table-action" href="/TournamentAdminBracket/Index?tournamentId=@item.TournamentId&returnUrl=@encodedDashboardUrl">
+                                                <i class="fas fa-project-diagram"></i>
+                                                Sơ đồ
+                                            </a>
+                                        </div>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var item in Model.RoleStats)
-                                {
-                                    <tr>
-                                        <td>@item.RoleId</td>
-                                        <td>@item.RoleName</td>
-                                        <td>
-                                            <span class="badge badge-primary badge-soft">@item.UserCount</span>
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-                else
-                {
-                    <div class="text-muted">Chưa có dữ liệu quyền.</div>
-                }
-            </div>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="empty-state">Chưa có giải đấu nào đang hiển thị.</div>
+            }
         </div>
     </div>
 
-    <div class="col-lg-7 mb-4">
-        <div class="card shadow dashboard-card">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Các giải đấu mới nhất</h6>
-            </div>
-            <div class="card-body">
-                @if (Model.RecentTournaments != null && Model.RecentTournaments.Any())
-                {
-                    <div class="table-responsive">
-                        <table class="table table-bordered table-hover mb-0">
-                            <thead class="thead-light">
-                                <tr>
-                                    <th>Tiêu đề</th>
-                                    <th>Trạng thái</th>
-                                    <th>Số đăng ký</th>
-                                    <th>Số trận đấu</th>
-                                    <th>Ngày tạo</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var item in Model.RecentTournaments)
-                                {
-                                    <tr>
-                                        <td>@item.Title</td>
-                                        <td>
-                                            @if (item.Status == "OPEN" || item.Status == "ACTIVE")
-                                            {
-                                                <span class="badge badge-success badge-soft">@GetTournamentStatusText(item.Status)</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge badge-secondary badge-soft">@GetTournamentStatusText(item.Status)</span>
-                                            }
-                                        </td>
-                                        <td>@item.RegisteredCount</td>
-                                        <td>@item.MatchesCount</td>
-                                        <td>@item.CreatedAt.ToString("dd/MM/yyyy HH:mm")</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
+    <div class="row">
+        <div class="col-md-4 mb-4">
+            <a class="dashboard-metric-card theme-cyan" href="@tournamentsUrl">
+                <div class="metric-head">
+                    <div>
+                        <span class="metric-kicker">Chờ ghép cặp</span>
+                        <span class="metric-value">@FormatNumber(Model.WaitingPairRegistrations)</span>
                     </div>
-                }
-                else
-                {
-                    <div class="text-muted">Chưa có dữ liệu giải đấu.</div>
-                }
-            </div>
+                    <span class="metric-icon"><i class="fas fa-user-friends"></i></span>
+                </div>
+                <div class="metric-foot">
+                    <span class="metric-chip">Từ danh sách đăng ký</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4 mb-4">
+            <a class="dashboard-metric-card theme-blue" href="@tournamentsUrl">
+                <div class="metric-head">
+                    <div>
+                        <span class="metric-kicker">Giải hoàn thành</span>
+                        <span class="metric-value">@FormatNumber(Model.CompletedTournaments)</span>
+                    </div>
+                    <span class="metric-icon"><i class="fas fa-check-circle"></i></span>
+                </div>
+                <div class="metric-foot">
+                    <span class="metric-chip">Không tính giải đã ẩn</span>
+                </div>
+            </a>
+        </div>
+        <div class="col-md-4 mb-4">
+            <a class="dashboard-metric-card theme-slate" href="@tournamentsUrl">
+                <div class="metric-head">
+                    <div>
+                        <span class="metric-kicker">Trận chưa xong</span>
+                        <span class="metric-value">@FormatNumber(pendingMatches)</span>
+                    </div>
+                    <span class="metric-icon"><i class="fas fa-hourglass-half"></i></span>
+                </div>
+                <div class="metric-foot">
+                    <span class="metric-chip">Cần cập nhật tỷ số</span>
+                </div>
+            </a>
         </div>
     </div>
-
 </div>

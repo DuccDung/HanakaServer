@@ -335,6 +335,7 @@ namespace HanakaServer.Controllers
                 join team1 in _db.TournamentRegistrations.AsNoTracking() on m.Team1RegistrationId equals team1.RegistrationId
                 join team2 in _db.TournamentRegistrations.AsNoTracking() on m.Team2RegistrationId equals team2.RegistrationId
                 where !m.IsCompleted
+                      && !t.Remove
                       && m.StartAt.HasValue
                       && m.StartAt.Value >= nowUtc
                       && (
