@@ -4244,7 +4244,9 @@
             '<ion-icon name="play-circle-outline"></ion-icon>',
             '<strong>' + escapeHtml(title || "Khong mo duoc video trong web") + "</strong>",
             "<p>Video nay can mo bang trinh duyet ngoai hoac dich vu video goc.</p>",
-            videoUrl ? '<a class="native-video-player__external" href="' + escapeHtml(buildSafeHref(videoUrl, "#")) + '" target="_blank" rel="noreferrer">Mo video ben ngoai</a>' : "",
+            videoUrl
+                ? '<a class="native-video-player__external" href="' + escapeHtml(buildSafeHref(videoUrl, "#")) + '" target="_blank" rel="noreferrer">Mo video ben ngoai</a>'
+                : '<button class="native-video-player__external is-disabled" type="button" disabled>Khong co video</button>',
             "</div>",
             "</div>"
         ].join("");
@@ -4331,11 +4333,18 @@
 
                 setHeaderTitle(root, trimToEmpty(tournament && tournament.title) || "Xem video");
                 setHeaderAction(root, videoUrl ? {
-                    html: '<ion-icon name="open-outline"></ion-icon>',
+                    className: "native-page-header__action--video-status",
+                    html: '<ion-icon name="open-outline"></ion-icon><span>Mo video</span>',
+                    ariaLabel: "Mo video tran dau",
                     onClick: function () {
                         window.open(buildSafeHref(videoUrl, "#"), "_blank", "noopener");
                     }
-                } : null);
+                } : {
+                    className: "native-page-header__action--video-status is-disabled",
+                    html: '<ion-icon name="videocam-off-outline"></ion-icon><span>Khong co video</span>',
+                    ariaLabel: "Tran dau hien tai chua co video",
+                    disabled: true
+                });
                 setHeaderExtra(root, "");
 
                 refs.list.className = "native-page-list native-page-list--video-player";
