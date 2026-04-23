@@ -1,7 +1,14 @@
 .admin-tournament-bracket-page {
     display: grid;
     gap: 18px;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     padding-bottom: 20px;
+}
+
+.admin-tournament-bracket-page > * {
+    min-width: 0;
 }
 
 .admin-tournament-bracket-hero {
@@ -101,11 +108,15 @@
 }
 
 .admin-tournament-bracket-panel {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     padding: 20px;
     border: 1px solid rgba(15, 23, 42, 0.08);
     border-radius: 18px;
     background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
     box-shadow: 0 14px 32px rgba(15, 23, 42, 0.06);
+    overflow: hidden;
 }
 
 .admin-tournament-bracket-panel__top {
@@ -113,6 +124,7 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 18px;
+    min-width: 0;
     margin-bottom: 16px;
 }
 
@@ -174,10 +186,14 @@
 
 .admin-tournament-bracket-scroll {
     width: 100%;
+    min-width: 0;
     max-width: 100%;
     min-height: 560px;
     height: min(78vh, 960px);
-    overflow: auto;
+    display: block;
+    overflow: scroll;
+    overflow-x: scroll;
+    overflow-y: scroll;
     border: 1px solid rgba(148, 163, 184, 0.25);
     border-radius: 18px;
     background:
@@ -187,9 +203,8 @@
     background-size: 28px 28px, 28px 28px, auto;
     scrollbar-color: #64748b #0f172a;
     cursor: grab;
-    touch-action: pan-x pan-y pinch-zoom;
-    overscroll-behavior-x: contain;
-    overscroll-behavior-y: auto;
+    overscroll-behavior: contain;
+    touch-action: none;
     -webkit-overflow-scrolling: touch;
 }
 

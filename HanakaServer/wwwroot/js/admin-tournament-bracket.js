@@ -540,6 +540,33 @@
         return lines;
     }
 
+    function applyHorizontalPanSpace(layout, scroller) {
+        if (!layout || !Array.isArray(layout.rounds) || layout.rounds.length === 0) {
+            return;
+        }
+
+        const viewportWidth = Math.max(0, toNumber(scroller?.clientWidth));
+        const desiredSidePadding = viewportWidth >= 1200 ? 220 : 160;
+        const baseWidth = Math.max(0, toNumber(layout.width));
+        const minimumWidth = viewportWidth > 0
+            ? viewportWidth + Math.max(960, desiredSidePadding * 2)
+            : baseWidth + 960;
+        const extraWidth = Math.max(960, minimumWidth - baseWidth);
+        const leftPadding = desiredSidePadding + Math.floor(extraWidth / 2);
+        const rightPadding = desiredSidePadding + Math.ceil(extraWidth / 2);
+
+        layout.rounds.forEach(function (round) {
+            round.x += leftPadding;
+            round.groups.forEach(function (group) {
+                group.x += leftPadding;
+            });
+        });
+
+        layout.width = baseWidth + leftPadding + rightPadding;
+        layout.initialScrollLeft = Math.max(0, leftPadding - 48);
+        layout.lines = buildLinePaths(layout.rounds, layout.columnGap);
+    }
+
     function buildLayout(payload) {
         const rounds = buildStageRounds(payload);
         const columnWidth = getColumnWidth();
@@ -755,7 +782,7 @@
         updateBoardLines(board, layout);
     }
 
-    function initDragScroller(scroller, board) {
+    function initDragScroller(scroller) {
         if (!scroller || scroller.dataset.dragReady === "true") {
             return;
         }
@@ -766,47 +793,26 @@
         let startY = 0;
         let startLeft = 0;
         let startTop = 0;
-        let moved = false;
 
-        function startDragging(event) {
-            if (event.button !== 0) {
-                return;
-            }
-
+        function startPan(clientX, clientY) {
             dragging = true;
-            moved = false;
-            startX = event.clientX;
-            startY = event.clientY;
+            startX = clientX;
+            startY = clientY;
             startLeft = scroller.scrollLeft;
             startTop = scroller.scrollTop;
             scroller.classList.add("is-dragging");
-            event.preventDefault();
         }
 
-        scroller.addEventListener("dragstart", function (event) {
-            event.preventDefault();
-        });
-
-        scroller.addEventListener("mousedown", startDragging);
-        if (board) {
-            board.addEventListener("mousedown", startDragging);
-        }
-
-        window.addEventListener("mousemove", function (event) {
+        function movePan(clientX, clientY) {
             if (!dragging) {
                 return;
             }
 
-            const deltaX = event.clientX - startX;
-            const deltaY = event.clientY - startY;
+            scroller.scrollLeft = startLeft - (clientX - startX);
+            scroller.scrollTop = startTop - (clientY - startY);
+        }
 
-            moved = moved || Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3;
-            scroller.scrollLeft = startLeft - deltaX;
-            scroller.scrollTop = startTop - deltaY;
-            event.preventDefault();
-        }, { passive: false });
-
-        function stopDragging() {
+        function endPan() {
             if (!dragging) {
                 return;
             }
@@ -815,16 +821,75 @@
             scroller.classList.remove("is-dragging");
         }
 
-        window.addEventListener("mouseup", stopDragging);
-        scroller.addEventListener("click", function (event) {
-            if (!moved) {
+        scroller.addEventListener("dragstart", function (event) {
+            event.preventDefault();
+        });
+
+        scroller.addEventListener("pointerdown", function (event) {
+            if (event.pointerType !== "mouse") {
                 return;
             }
 
-            moved = false;
+            if (event.button !== undefined && event.button !== 0) {
+                return;
+            }
+
+            startPan(event.clientX, event.clientY);
+            try {
+                scroller.setPointerCapture?.(event.pointerId);
+            } catch (_error) {
+                // Some embedded browsers do not allow pointer capture on scroll containers.
+            }
+        });
+
+        scroller.addEventListener("pointermove", function (event) {
+            if (!dragging) {
+                return;
+            }
+
             event.preventDefault();
-            event.stopPropagation();
-        }, true);
+            movePan(event.clientX, event.clientY);
+        });
+
+        function stopDragging(event) {
+            if (!dragging) {
+                return;
+            }
+
+            endPan();
+            try {
+                scroller.releasePointerCapture?.(event.pointerId);
+            } catch (_error) {
+                // Matching the setPointerCapture fallback above.
+            }
+        }
+
+        scroller.addEventListener("pointerup", stopDragging);
+        scroller.addEventListener("pointercancel", stopDragging);
+        scroller.addEventListener("pointerleave", stopDragging);
+
+        scroller.addEventListener("touchstart", function (event) {
+            if (!event.touches || event.touches.length !== 1) {
+                return;
+            }
+
+            const touch = event.touches[0];
+            startPan(touch.clientX, touch.clientY);
+        }, { passive: true });
+
+        scroller.addEventListener("touchmove", function (event) {
+            if (!dragging || !event.touches || event.touches.length !== 1) {
+                return;
+            }
+
+            const touch = event.touches[0];
+            event.preventDefault();
+            movePan(touch.clientX, touch.clientY);
+        }, { passive: false });
+
+        scroller.addEventListener("touchend", endPan, { passive: true });
+        scroller.addEventListener("touchcancel", endPan, { passive: true });
+
         scroller.addEventListener("wheel", function (event) {
             const canScrollHorizontally = scroller.scrollWidth > scroller.clientWidth;
 
@@ -838,7 +903,7 @@
             }
         }, { passive: false });
         window.addEventListener("blur", function () {
-            stopDragging();
+            endPan();
         });
     }
 
@@ -889,6 +954,7 @@
         }
 
         const layout = buildLayout(payload);
+        applyHorizontalPanSpace(layout, scroller);
         board.classList.remove("is-measuring");
 
         if (!layout.rounds.length) {
@@ -900,11 +966,16 @@
 
         board.style.width = layout.width + "px";
         board.style.height = layout.height + "px";
+        board.style.minWidth = layout.width + "px";
         board.classList.add("is-measuring");
         board.innerHTML = buildBoardHtml(layout);
         window.requestAnimationFrame(function () {
             syncMeasuredLayout(board, layout);
             board.classList.remove("is-measuring");
+
+            if (layout.initialScrollLeft > 0) {
+                scroller.scrollLeft = layout.initialScrollLeft;
+            }
         });
 
         if (summaryRefs.rounds) summaryRefs.rounds.textContent = String(layout.summary.rounds);
@@ -955,7 +1026,7 @@
         });
     }
 
-    initDragScroller(scroller, board);
+        initDragScroller(scroller);
     window.addEventListener("resize", rerender);
     loadBracket();
 })();
