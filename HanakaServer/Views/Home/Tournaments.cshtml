@@ -74,6 +74,57 @@
             opacity: 0.55;
         }
 
+    .vn-datetime-card {
+        border: 1px solid #dbe4f0;
+        border-radius: 12px;
+        padding: 12px;
+        background: linear-gradient(180deg, #f9fbff 0%, #ffffff 100%);
+    }
+
+    .vn-datetime-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(120px, .9fr);
+        gap: 10px;
+    }
+
+    .vn-datetime-grid label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #4e5d78;
+        margin-bottom: 0.35rem;
+    }
+
+    .vn-time-input {
+        text-align: center;
+        font-weight: 700;
+        letter-spacing: .08em;
+    }
+
+    .vn-datetime-hint {
+        display: block;
+        margin-top: 0.55rem;
+        color: #6c757d;
+        font-size: 0.78rem;
+    }
+
+    .vn-datetime-preview {
+        margin-top: 0.6rem;
+        padding: 0.45rem 0.7rem;
+        border-radius: 10px;
+        background: #eef4ff;
+        color: #224abe;
+        font-size: 0.85rem;
+        font-weight: 700;
+    }
+
+    .vn-datetime-preview.is-empty {
+        background: #f8f9fc;
+        color: #858796;
+        font-weight: 600;
+    }
+
     @@media (max-width: 767.98px) {
         .tournament-pagination {
             align-items: stretch !important;
@@ -88,6 +139,10 @@
             order: 3;
             width: 100%;
             justify-content: center;
+        }
+
+        .vn-datetime-grid {
+            grid-template-columns: 1fr;
         }
     }
 </style>
@@ -239,11 +294,49 @@
                     <div class="form-row">
                         <div class="form-group col-md-6">
                             <label>Thời gian bắt đầu</label>
-                            <input id="startTime" type="datetime-local" class="form-control" />
+                            <div class="vn-datetime-card">
+                                <div class="vn-datetime-grid">
+                                    <div>
+                                        <label for="startTimeDate">Ngày thi đấu</label>
+                                        <input id="startTimeDate" type="date" class="form-control" />
+                                    </div>
+                                    <div>
+                                        <label for="startTimeTime">Giờ 24h</label>
+                                        <input id="startTimeTime"
+                                               type="text"
+                                               class="form-control vn-time-input"
+                                               placeholder="08:30"
+                                               inputmode="numeric"
+                                               maxlength="5"
+                                               autocomplete="off" />
+                                    </div>
+                                </div>
+                                <small class="vn-datetime-hint">Nhập theo giờ Việt Nam, định dạng 24h như 08:30 hoặc 17:45.</small>
+                                <div id="startTimePreview" class="vn-datetime-preview is-empty">Chưa chọn thời gian bắt đầu.</div>
+                            </div>
                         </div>
                         <div class="form-group col-md-6">
                             <label>Hạn đăng ký</label>
-                            <input id="registerDeadline" type="datetime-local" class="form-control" />
+                            <div class="vn-datetime-card">
+                                <div class="vn-datetime-grid">
+                                    <div>
+                                        <label for="registerDeadlineDate">Ngày hết hạn</label>
+                                        <input id="registerDeadlineDate" type="date" class="form-control" />
+                                    </div>
+                                    <div>
+                                        <label for="registerDeadlineTime">Giờ 24h</label>
+                                        <input id="registerDeadlineTime"
+                                               type="text"
+                                               class="form-control vn-time-input"
+                                               placeholder="23:59"
+                                               inputmode="numeric"
+                                               maxlength="5"
+                                               autocomplete="off" />
+                                    </div>
+                                </div>
+                                <small class="vn-datetime-hint">Hiển thị theo chuẩn Việt Nam để nhìn rõ ngày giờ đóng đăng ký.</small>
+                                <div id="registerDeadlinePreview" class="vn-datetime-preview is-empty">Chưa chọn hạn đăng ký.</div>
+                            </div>
                         </div>
                     </div>
 
@@ -444,28 +537,159 @@
             return `<span class="badge badge-secondary badge-status">Bản nháp</span>`;
         }
 
-        function fmtDate(dt) {
-            if (!dt) return "—";
-            const d = new Date(dt);
-            if (isNaN(d.getTime())) return "—";
-            const yyyy = d.getFullYear();
-            const mm = String(d.getMonth() + 1).padStart(2, "0");
-            const dd = String(d.getDate()).padStart(2, "0");
-            const hh = String(d.getHours()).padStart(2, "0");
-            const mi = String(d.getMinutes()).padStart(2, "0");
-            return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+        function parseDateTimeValue(value) {
+            if (!value) return null;
+
+            if (value instanceof Date) {
+                return isNaN(value.getTime()) ? null : value;
+            }
+
+            const raw = String(value).trim();
+            if (!raw) return null;
+
+            const normalized = raw.replace(" ", "T");
+            const hasTimezone = /(?:[zZ]|[+\-]\d{2}:\d{2})$/.test(normalized);
+
+            if (hasTimezone) {
+                const zoned = new Date(normalized);
+                return isNaN(zoned.getTime()) ? null : zoned;
+            }
+
+            const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+            if (match) {
+                const [, year, month, day, hour = "00", minute = "00", second = "00"] = match;
+                const localDate = new Date(
+                    Number(year),
+                    Number(month) - 1,
+                    Number(day),
+                    Number(hour),
+                    Number(minute),
+                    Number(second)
+                );
+                return isNaN(localDate.getTime()) ? null : localDate;
+            }
+
+            const fallback = new Date(raw);
+            return isNaN(fallback.getTime()) ? null : fallback;
         }
 
-        function toDatetimeLocalValue(iso) {
-            if (!iso) return "";
-            const d = new Date(iso);
-            if (isNaN(d.getTime())) return "";
-            const yyyy = d.getFullYear();
-            const mm = String(d.getMonth() + 1).padStart(2, "0");
-            const dd = String(d.getDate()).padStart(2, "0");
-            const hh = String(d.getHours()).padStart(2, "0");
-            const mi = String(d.getMinutes()).padStart(2, "0");
-            return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+        function formatDateInputValue(date) {
+            return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+        }
+
+        function formatTimeInputValue(date) {
+            return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+        }
+
+        function formatVietnamDateTime(value) {
+            const date = parseDateTimeValue(value);
+            if (!date) return "—";
+
+            const dd = String(date.getDate()).padStart(2, "0");
+            const mm = String(date.getMonth() + 1).padStart(2, "0");
+            const yyyy = date.getFullYear();
+            const hh = String(date.getHours()).padStart(2, "0");
+            const mi = String(date.getMinutes()).padStart(2, "0");
+            return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+        }
+
+        function normalizeTimeInput(value) {
+            const digits = String(value || "").replace(/\D/g, "").slice(0, 4);
+            if (digits.length <= 2) return digits;
+            if (digits.length === 3) return `${digits.slice(0, 1)}:${digits.slice(1)}`;
+            return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+        }
+
+        function canonicalizeTime24h(value) {
+            const normalized = normalizeTimeInput(value);
+            const match = normalized.match(/^(\d{1,2}):(\d{2})$/);
+            if (!match) return normalized;
+            const [, hours, minutes] = match;
+            return `${hours.padStart(2, "0")}:${minutes}`;
+        }
+
+        function isValidTime24h(value) {
+            const canonical = canonicalizeTime24h(value);
+            if (!/^\d{2}:\d{2}$/.test(canonical)) return false;
+            const [hours, minutes] = canonical.split(":").map(Number);
+            return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+        }
+
+        function syncVietnamDateTimePreview(fieldKey) {
+            const dateInput = document.getElementById(`${fieldKey}Date`);
+            const timeInput = document.getElementById(`${fieldKey}Time`);
+            const preview = document.getElementById(`${fieldKey}Preview`);
+
+            if (!dateInput || !timeInput || !preview) return;
+
+            const dateValue = dateInput.value || "";
+            const timeValue = canonicalizeTime24h(timeInput.value);
+
+            if (!dateValue && !timeValue) {
+                preview.textContent = fieldKey === "startTime"
+                    ? "Chưa chọn thời gian bắt đầu."
+                    : "Chưa chọn hạn đăng ký.";
+                preview.classList.add("is-empty");
+                return;
+            }
+
+            if (!dateValue || !isValidTime24h(timeValue)) {
+                preview.textContent = "Vui lòng nhập đủ ngày và giờ theo dạng 24h (HH:mm).";
+                preview.classList.add("is-empty");
+                return;
+            }
+
+            preview.textContent = `Hiển thị: ${formatVietnamDateTime(`${dateValue}T${timeValue}:00`)}`;
+            preview.classList.remove("is-empty");
+        }
+
+        function fillVietnamDateTimeField(fieldKey, value) {
+            const dateInput = document.getElementById(`${fieldKey}Date`);
+            const timeInput = document.getElementById(`${fieldKey}Time`);
+            const date = parseDateTimeValue(value);
+
+            if (!date) {
+                if (dateInput) dateInput.value = "";
+                if (timeInput) timeInput.value = "";
+                syncVietnamDateTimePreview(fieldKey);
+                return;
+            }
+
+            if (dateInput) dateInput.value = formatDateInputValue(date);
+            if (timeInput) timeInput.value = formatTimeInputValue(date);
+            syncVietnamDateTimePreview(fieldKey);
+        }
+
+        function bindVietnamDateTimeField(fieldKey) {
+            const dateInput = document.getElementById(`${fieldKey}Date`);
+            const timeInput = document.getElementById(`${fieldKey}Time`);
+
+            if (!dateInput || !timeInput) return;
+
+            dateInput.addEventListener("change", () => syncVietnamDateTimePreview(fieldKey));
+            timeInput.addEventListener("input", () => {
+                timeInput.value = normalizeTimeInput(timeInput.value);
+                syncVietnamDateTimePreview(fieldKey);
+            });
+            timeInput.addEventListener("blur", () => {
+                timeInput.value = canonicalizeTime24h(timeInput.value);
+                syncVietnamDateTimePreview(fieldKey);
+            });
+        }
+
+        function buildVietnamDateTimePayload(fieldKey, fieldLabel) {
+            const dateValue = document.getElementById(`${fieldKey}Date`)?.value || "";
+            const timeValue = canonicalizeTime24h(document.getElementById(`${fieldKey}Time`)?.value || "");
+
+            if (!dateValue && !timeValue) return "";
+            if (!dateValue || !timeValue) {
+                throw new Error(`Vui lòng nhập đủ ngày và giờ cho ${fieldLabel}.`);
+            }
+            if (!isValidTime24h(timeValue)) {
+                throw new Error(`${fieldLabel} phải theo định dạng 24h HH:mm.`);
+            }
+
+            return `${dateValue}T${timeValue}:00`;
         }
 
         function normalizeHtml(html) {
@@ -598,8 +822,8 @@
                         ${rulePreview}
                     </td>
                     <td>${badgeHtml(t.status)}</td>
-                    <td>${fmtDate(t.startTime)}</td>
-                    <td>${fmtDate(t.registerDeadline)}</td>
+                    <td>${formatVietnamDateTime(t.startTime)}</td>
+                    <td>${formatVietnamDateTime(t.registerDeadline)}</td>
                     <td>
                         <div class="font-weight-bold text-gray-900">${escapeHtml(tournamentTypeLabel)}</div>
                         <div class="small text-muted">${escapeHtml(tournamentTypeCode)}</div>
@@ -671,6 +895,8 @@
 
         function resetForm() {
             document.getElementById("formTournament").reset();
+            fillVietnamDateTimeField("startTime", null);
+            fillVietnamDateTimeField("registerDeadline", null);
             resetFileUI();
             clearError();
 
@@ -820,8 +1046,8 @@
             document.getElementById("areaText").value = t.areaText || "";
             document.getElementById("locationText").value = t.locationText || "";
 
-            document.getElementById("startTime").value = toDatetimeLocalValue(t.startTime);
-            document.getElementById("registerDeadline").value = toDatetimeLocalValue(t.registerDeadline);
+            fillVietnamDateTimeField("startTime", t.startTime);
+            fillVietnamDateTimeField("registerDeadline", t.registerDeadline);
 
             if (t.singleLimit !== undefined && t.singleLimit !== null)
                 document.getElementById("singleLimit").value = t.singleLimit;
@@ -894,10 +1120,10 @@
             fd.append("genderCategory", parsedTournamentType.genderCategory);
             fd.append("expectedTeams", document.getElementById("expectedTeams").value || "0");
 
-            const st = document.getElementById("startTime").value;
-            const dl = document.getElementById("registerDeadline").value;
-            if (st) fd.append("startTime", new Date(st).toISOString());
-            if (dl) fd.append("registerDeadline", new Date(dl).toISOString());
+            const st = buildVietnamDateTimePayload("startTime", "thời gian bắt đầu");
+            const dl = buildVietnamDateTimePayload("registerDeadline", "hạn đăng ký");
+            if (st) fd.append("startTime", st);
+            if (dl) fd.append("registerDeadline", dl);
 
             fd.append("locationText", document.getElementById("locationText").value || "");
             fd.append("areaText", document.getElementById("areaText").value || "");
@@ -919,6 +1145,10 @@
 
         document.addEventListener("DOMContentLoaded", () => {
             pendingTournamentListState = readTournamentListState();
+            bindVietnamDateTimeField("startTime");
+            bindVietnamDateTimeField("registerDeadline");
+            syncVietnamDateTimePreview("startTime");
+            syncVietnamDateTimePreview("registerDeadline");
 
             if (pendingTournamentListState?.status) {
                 document.getElementById("statusFilter").value = pendingTournamentListState.status;

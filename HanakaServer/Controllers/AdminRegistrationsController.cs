@@ -52,8 +52,11 @@ namespace HanakaServer.Controllers
             if (tab == "SUCCESS") q = q.Where(x => x.Success);
             else if (tab == "WAITING") q = q.Where(x => x.WaitingPair);
 
+            var tournamentType = TournamentTypeHelper.Resolve(tournament.GameType, tournament.GenderCategory);
+            var isDoubleLike = tournamentType.IsDoubleLike;
+
             // LEFT JOIN Users để lấy ratingSingle/ratingDouble (giữ lại UI S/D)
-            var items = await (
+            var rawItems = await (
                 from r in q.OrderBy(x => x.RegIndex)
 
                 join u1x in _db.Users on r.Player1UserId equals (long?)u1x.UserId into u1g
@@ -97,7 +100,32 @@ namespace HanakaServer.Controllers
                 }
             ).ToListAsync();
 
-            var tournamentType = TournamentTypeHelper.Resolve(tournament.GameType, tournament.GenderCategory);
+            var items = rawItems.Select(item =>
+            {
+                var player1PickedLevel = ResolvePickedLevel(
+                    item.Player1UserId,
+                    item.Player1Level,
+                    item.Player1LevelSingle,
+                    item.Player1LevelDouble,
+                    isDoubleLike);
+
+                var player2PickedLevel = ResolveOptionalPickedLevel(
+                    item.Player2Name,
+                    item.Player2UserId,
+                    item.Player2Level,
+                    item.Player2LevelSingle,
+                    item.Player2LevelDouble,
+                    isDoubleLike);
+
+                item.Player1Level = player1PickedLevel;
+                item.Player2Level = player2PickedLevel ?? 0m;
+                item.Points = CalcPoints(
+                    isDoubleLike ? "DOUBLE" : "SINGLE",
+                    player1PickedLevel,
+                    player2PickedLevel);
+
+                return item;
+            }).ToList();
 
             return Ok(new
             {
@@ -426,6 +454,34 @@ namespace HanakaServer.Controllers
             return gameType == "DOUBLE" ? (p1 + (p2 ?? 0)) : p1;
         }
 
+        private static decimal ResolvePickedLevel(
+            long? userId,
+            decimal storedLevel,
+            decimal? ratingSingle,
+            decimal? ratingDouble,
+            bool isDoubleLike)
+        {
+            if (!userId.HasValue)
+                return storedLevel;
+
+            var picked = isDoubleLike ? ratingDouble : ratingSingle;
+            return picked ?? storedLevel;
+        }
+
+        private static decimal? ResolveOptionalPickedLevel(
+            string? playerName,
+            long? userId,
+            decimal storedLevel,
+            decimal? ratingSingle,
+            decimal? ratingDouble,
+            bool isDoubleLike)
+        {
+            if (!userId.HasValue && string.IsNullOrWhiteSpace(playerName))
+                return null;
+
+            return ResolvePickedLevel(userId, storedLevel, ratingSingle, ratingDouble, isDoubleLike);
+        }
+
         private static string BuildDeleteBlockedMessage(
             int matchTeamRefCount,
             int matchWinnerRefCount,
@@ -622,6 +678,30 @@ namespace HanakaServer.Controllers
                 p2D ??= r.Player2Level;
             }
 
+            var tournamentType = await _db.Tournaments.AsNoTracking()
+                .Where(x => x.TournamentId == r.TournamentId)
+                .Select(x => new { x.GameType, x.GenderCategory })
+                .FirstOrDefaultAsync();
+
+            var isDoubleLike = TournamentTypeHelper.IsDoubleLike(
+                tournamentType?.GameType,
+                tournamentType?.GenderCategory);
+
+            var player1PickedLevel = ResolvePickedLevel(
+                r.Player1UserId,
+                r.Player1Level,
+                p1S,
+                p1D,
+                isDoubleLike);
+
+            var player2PickedLevel = ResolveOptionalPickedLevel(
+                r.Player2Name,
+                r.Player2UserId,
+                r.Player2Level,
+                p2S,
+                p2D,
+                isDoubleLike);
+
             return new RegistrationAdminItemDto
             {
                 RegistrationId = r.RegistrationId,
@@ -632,7 +712,7 @@ namespace HanakaServer.Controllers
 
                 Player1Name = r.Player1Name,
                 Player1Avatar = r.Player1Avatar,
-                Player1Level = r.Player1Level,
+                Player1Level = player1PickedLevel,
                 Player1Verified = r.Player1Verified,
                 Player1UserId = r.Player1UserId,
                 Player1LevelSingle = p1S,
@@ -640,13 +720,16 @@ namespace HanakaServer.Controllers
 
                 Player2Name = r.Player2Name,
                 Player2Avatar = r.Player2Avatar,
-                Player2Level = r.Player2Level,
+                Player2Level = player2PickedLevel ?? 0m,
                 Player2Verified = r.Player2Verified,
                 Player2UserId = r.Player2UserId,
                 Player2LevelSingle = p2S,
                 Player2LevelDouble = p2D,
 
-                Points = r.Points,
+                Points = CalcPoints(
+                    isDoubleLike ? "DOUBLE" : "SINGLE",
+                    player1PickedLevel,
+                    player2PickedLevel),
                 BtCode = r.BtCode,
                 Paid = r.Paid,
                 WaitingPair = r.WaitingPair,

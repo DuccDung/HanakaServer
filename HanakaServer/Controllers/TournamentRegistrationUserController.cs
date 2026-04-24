@@ -65,13 +65,16 @@ public class TournamentRegistrationUserController : ControllerBase
         if (me == null)
             return NotFound(new { message = "User not found." });
 
-        var registrationRow = await _db.TournamentRegistrations
-            .AsNoTracking()
-            .Where(x =>
-                x.TournamentId == tournamentId &&
-                (x.Player1UserId == userId || x.Player2UserId == userId))
-            .OrderByDescending(x => x.CreatedAt)
-            .Select(x => new
+        var registrationRow = await (
+            from x in _db.TournamentRegistrations.AsNoTracking()
+            where x.TournamentId == tournamentId &&
+                  (x.Player1UserId == userId || x.Player2UserId == userId)
+            join u1x in _db.Users on x.Player1UserId equals (long?)u1x.UserId into u1g
+            from u1 in u1g.DefaultIfEmpty()
+            join u2x in _db.Users on x.Player2UserId equals (long?)u2x.UserId into u2g
+            from u2 in u2g.DefaultIfEmpty()
+            orderby x.CreatedAt descending
+            select new
             {
                 x.RegistrationId,
                 x.RegIndex,
@@ -87,30 +90,13 @@ public class TournamentRegistrationUserController : ControllerBase
                 x.Player2UserId,
                 x.Player2Name,
                 x.Player2Avatar,
-                x.Player2Level
+                x.Player2Level,
+                U1RatingSingle = (decimal?)(u1 != null ? (u1.RatingSingle ?? 0m) : null),
+                U1RatingDouble = (decimal?)(u1 != null ? (u1.RatingDouble ?? 0m) : null),
+                U2RatingSingle = (decimal?)(u2 != null ? (u2.RatingSingle ?? 0m) : null),
+                U2RatingDouble = (decimal?)(u2 != null ? (u2.RatingDouble ?? 0m) : null)
             })
             .FirstOrDefaultAsync(ct);
-
-        var registration = registrationRow == null
-            ? null
-            : new
-            {
-                registrationRow.RegistrationId,
-                registrationRow.RegIndex,
-                registrationRow.RegCode,
-                registrationRow.RegTime,
-                registrationRow.WaitingPair,
-                registrationRow.Success,
-                registrationRow.Points,
-                registrationRow.Player1UserId,
-                registrationRow.Player1Name,
-                Player1Avatar = ToAbsoluteUrl(registrationRow.Player1Avatar),
-                registrationRow.Player1Level,
-                registrationRow.Player2UserId,
-                registrationRow.Player2Name,
-                Player2Avatar = ToAbsoluteUrl(registrationRow.Player2Avatar),
-                registrationRow.Player2Level
-            };
 
         var pendingSent = await LoadPairRequestsAsync(tournamentId, userId, sent: true, ct);
         var pendingReceived = await LoadPairRequestsAsync(tournamentId, userId, sent: false, ct);
@@ -121,6 +107,44 @@ public class TournamentRegistrationUserController : ControllerBase
 
         var gameType = NormalizeGameType(tournament.GameType);
         var tournamentType = TournamentTypeHelper.Resolve(tournament.GameType, tournament.GenderCategory);
+        object? registration = null;
+        if (registrationRow != null)
+        {
+            var player1PickedLevel = ResolvePickedLevel(
+                registrationRow.Player1UserId,
+                registrationRow.Player1Level,
+                registrationRow.U1RatingSingle,
+                registrationRow.U1RatingDouble,
+                tournamentType.IsDoubleLike);
+
+            var player2PickedLevel = ResolveOptionalPickedLevel(
+                registrationRow.Player2Name,
+                registrationRow.Player2UserId,
+                registrationRow.Player2Level,
+                registrationRow.U2RatingSingle,
+                registrationRow.U2RatingDouble,
+                tournamentType.IsDoubleLike);
+
+            registration = new
+            {
+                registrationRow.RegistrationId,
+                registrationRow.RegIndex,
+                registrationRow.RegCode,
+                registrationRow.RegTime,
+                registrationRow.WaitingPair,
+                registrationRow.Success,
+                Points = CalcPoints(gameType, player1PickedLevel, player2PickedLevel),
+                registrationRow.Player1UserId,
+                registrationRow.Player1Name,
+                Player1Avatar = ToAbsoluteUrl(registrationRow.Player1Avatar),
+                Player1Level = player1PickedLevel,
+                registrationRow.Player2UserId,
+                registrationRow.Player2Name,
+                Player2Avatar = ToAbsoluteUrl(registrationRow.Player2Avatar),
+                Player2Level = player2PickedLevel ?? 0m
+            };
+        }
+
         var capacityLeft = Math.Max(0, tournament.ExpectedTeams - successCount);
         var canRegisterResult = ValidateTournamentRegistrationWindow(
             tournament.Status,
@@ -1202,6 +1226,42 @@ public class TournamentRegistrationUserController : ControllerBase
     {
         var normalized = NormalizeGameType(gameType);
         return normalized is "DOUBLE" or "MIXED";
+    }
+
+    private static decimal ResolvePickedLevel(
+        long? userId,
+        decimal storedLevel,
+        decimal? ratingSingle,
+        decimal? ratingDouble,
+        bool isDoubleLike)
+    {
+        if (!userId.HasValue)
+            return storedLevel;
+
+        return isDoubleLike
+            ? (ratingDouble ?? storedLevel)
+            : (ratingSingle ?? storedLevel);
+    }
+
+    private static decimal? ResolveOptionalPickedLevel(
+        string? playerName,
+        long? userId,
+        decimal storedLevel,
+        decimal? ratingSingle,
+        decimal? ratingDouble,
+        bool isDoubleLike)
+    {
+        if (!userId.HasValue && string.IsNullOrWhiteSpace(playerName))
+            return null;
+
+        return ResolvePickedLevel(userId, storedLevel, ratingSingle, ratingDouble, isDoubleLike);
+    }
+
+    private static decimal CalcPoints(string? gameType, decimal player1Level, decimal? player2Level)
+    {
+        return NormalizeGameType(gameType) == "SINGLE"
+            ? player1Level
+            : player1Level + (player2Level ?? 0m);
     }
 
     private static string? Clean(string? value, int maxLength)

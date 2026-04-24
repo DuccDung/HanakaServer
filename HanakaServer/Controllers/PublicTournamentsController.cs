@@ -200,6 +200,10 @@ namespace HanakaServer.Controllers
                     if (picked != null) p2Level = (decimal)picked;
                 }
 
+                var player2PickedLevel = !x.WaitingPair && !string.IsNullOrWhiteSpace(x.Player2Name)
+                    ? p2Level
+                    : (decimal?)null;
+
                 var p1 = new PublicPlayerDto
                 {
                     UserId = x.Player1UserId,
@@ -230,7 +234,7 @@ namespace HanakaServer.Controllers
                     RegIndex = x.RegIndex,
                     RegCode = x.RegCode,
                     RegTime = x.RegTime,
-                    Points = x.Points,
+                    Points = CalcPoints(isDouble ? "DOUBLE" : "SINGLE", p1Level, player2PickedLevel),
                     WaitingPair = x.WaitingPair,
                     Success = x.Success,
                     Player1 = p1,
@@ -265,6 +269,14 @@ namespace HanakaServer.Controllers
                 SuccessItems = successItems,
                 WaitingItems = waitingItems
             });
+        }
+
+        private static decimal CalcPoints(string? gameType, decimal player1Level, decimal? player2Level)
+        {
+            var normalized = (gameType ?? "DOUBLE").Trim().ToUpperInvariant();
+            return normalized == "SINGLE"
+                ? player1Level
+                : player1Level + (player2Level ?? 0m);
         }
 
         private static string? TrimToNull(string? s)

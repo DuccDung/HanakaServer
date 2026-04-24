@@ -479,12 +479,52 @@
             return `<img class="avatar-preview" src="${esc(url)}" />`;
           }
 
-          function playerCell(name, singleLevel, doubleLevel, pickedLevel, avatar, verified){
-            const badge = verified ? `<span class="badge badge-success ml-2">Verified</span>` : ``;
+          function formatLevel(value){
+            return (value === null || value === undefined || Number.isNaN(Number(value)))
+              ? "—"
+              : Number(value).toFixed(2);
+          }
 
-            const s = (singleLevel === null || singleLevel === undefined) ? "—" : Number(singleLevel||0).toFixed(2);
-            const d = (doubleLevel === null || doubleLevel === undefined) ? "—" : Number(doubleLevel||0).toFixed(2);
-            const p = (pickedLevel === null || pickedLevel === undefined) ? "—" : Number(pickedLevel||0).toFixed(2);
+          function hasPlayer(name){
+            return !!String(name || "").trim();
+          }
+
+          function getPickedLevel(singleLevel, doubleLevel, pickedLevel){
+            if(TOURNAMENT_GAME_TYPE === "DOUBLE"){
+              return doubleLevel ?? pickedLevel;
+            }
+            if(TOURNAMENT_GAME_TYPE === "SINGLE"){
+              return singleLevel ?? pickedLevel;
+            }
+            return pickedLevel ?? doubleLevel ?? singleLevel;
+          }
+
+          function getTeamPoints(reg){
+            const p1 = Number(getPickedLevel(reg.player1LevelSingle, reg.player1LevelDouble, reg.player1Level) || 0);
+            if(TOURNAMENT_GAME_TYPE !== "DOUBLE"){
+              return p1;
+            }
+
+            if(!hasPlayer(reg.player2Name)){
+              return p1;
+            }
+
+            const p2 = Number(getPickedLevel(reg.player2LevelSingle, reg.player2LevelDouble, reg.player2Level) || 0);
+            return p1 + p2;
+          }
+
+          function playerCell(name, singleLevel, doubleLevel, pickedLevel, avatar, verified){
+            if(!hasPlayer(name)){
+              return `<div class="small text-muted">—</div>`;
+            }
+
+            const badge = verified ? `<span class="badge badge-success ml-2">Verified</span>` : ``;
+            const pickLabel = TOURNAMENT_GAME_TYPE === "DOUBLE" ? "Pick Double" : "Pick Single";
+            const actualPickedLevel = getPickedLevel(singleLevel, doubleLevel, pickedLevel);
+
+            const s = formatLevel(singleLevel);
+            const d = formatLevel(doubleLevel);
+            const p = formatLevel(actualPickedLevel);
 
             return `
               <div class="d-flex" style="gap:10px;align-items:center;">
@@ -492,7 +532,7 @@
                 <div>
                   <div class="font-weight-bold text-gray-900">${esc(name||"—")}${badge}</div>
                   <div class="small text-muted">S: ${s} • D: ${d}</div>
-                  <div class="small text-muted">Pick: ${p}</div>
+                  <div class="small text-muted">${pickLabel}: ${p}</div>
                 </div>
               </div>
             `;
@@ -539,6 +579,8 @@
           }
 
           function rowHtml(reg){
+            const teamPoints = getTeamPoints(reg);
+
             return `
               <tr>
                 <td>${reg.regIndex ?? ""}</td>
@@ -561,7 +603,7 @@
                   reg.player2Avatar,
                   reg.player2Verified
                 )}</td>
-                <td class="text-right">${Number(reg.points||0).toFixed(2)}</td>
+                <td class="text-right">${teamPoints.toFixed(2)}</td>
                 <td>${esc(reg.btCode||"")}</td>
                 <td class="text-center">${paidHtml(reg)}</td>
                 <td>${actionsHtml(reg)}</td>

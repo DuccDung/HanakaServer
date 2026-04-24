@@ -254,6 +254,57 @@
         padding: 12px 14px;
     }
 
+    .vn-datetime-card {
+        border: 1px solid #dbe4f0;
+        border-radius: 12px;
+        padding: 12px;
+        background: linear-gradient(180deg, #f9fbff 0%, #ffffff 100%);
+    }
+
+    .vn-datetime-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(120px, .85fr);
+        gap: 10px;
+    }
+
+    .vn-datetime-grid label {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #4e5d78;
+        margin-bottom: 0.35rem;
+    }
+
+    .vn-time-input {
+        text-align: center;
+        font-weight: 700;
+        letter-spacing: .08em;
+    }
+
+    .vn-datetime-hint {
+        display: block;
+        margin-top: 0.55rem;
+        color: #6c757d;
+        font-size: 0.78rem;
+    }
+
+    .vn-datetime-preview {
+        margin-top: 0.6rem;
+        padding: 0.45rem 0.7rem;
+        border-radius: 10px;
+        background: #eef4ff;
+        color: #224abe;
+        font-size: 0.85rem;
+        font-weight: 700;
+    }
+
+    .vn-datetime-preview.is-empty {
+        background: #f8f9fc;
+        color: #858796;
+        font-weight: 600;
+    }
+
     .winner-filter-chip-list {
         display: flex;
         flex-wrap: wrap;
@@ -316,6 +367,28 @@
         color: #6c757d;
     }
 
+    .match-search-panel {
+        border: 1px solid #dbe4f0;
+        border-radius: 14px;
+        background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        padding: 14px 16px;
+    }
+
+    .match-search-meta {
+        min-height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px dashed #cfd8e3;
+        border-radius: 12px;
+        background: #fff;
+        color: #4e5d78;
+        font-size: 13px;
+        font-weight: 700;
+        padding: 12px;
+        text-align: center;
+    }
+
     @@media (max-width: 992px) {
         .grid {
             grid-template-columns: 1fr;
@@ -323,6 +396,10 @@
 
         .team-picker-drawer {
             width: 100%;
+        }
+
+        .vn-datetime-grid {
+            grid-template-columns: 1fr;
         }
     }
 </style>
@@ -359,6 +436,14 @@
                 <i class="fas fa-times"></i> Bỏ lọc đội thắng
             </button>
 
+            <button class="btn btn-sm btn-outline-warning" type="button" id="btnOpenLoserFilter">
+                <i class="fas fa-project-diagram"></i> Lọc đội thua
+            </button>
+
+            <button class="btn btn-sm btn-outline-secondary d-none" type="button" id="btnClearLoserFilter">
+                <i class="fas fa-times"></i> Bỏ lọc đội thua
+            </button>
+
             <button class="btn btn-sm btn-outline-success" type="button" id="btnFilterCompleted">
                 <i class="fas fa-filter"></i> Người thắng
             </button>
@@ -371,6 +456,35 @@
 
     <div id="errBox" class="alert alert-danger d-none"></div>
     <div id="winnerFilterSummary" class="winner-filter-summary d-none mb-3"></div>
+    <div id="loserFilterSummary" class="winner-filter-summary d-none mb-3"></div>
+
+    <div class="match-search-panel mb-3">
+        <div class="form-row align-items-end">
+            <div class="form-group col-lg-8 mb-lg-0">
+                <label class="small font-weight-bold text-uppercase text-muted mb-2">Tìm kiếm trận đấu</label>
+                <div class="input-group">
+                    <input class="form-control"
+                           id="matchSearchKeyword"
+                           placeholder="Tìm theo mã trận, ID đội, mã đăng ký hoặc tên người chơi..."
+                           autocomplete="off" />
+                    <div class="input-group-append">
+                        <button class="btn btn-outline-info" type="button" id="btnApplyMatchSearch">
+                            <i class="fas fa-search"></i> Tìm
+                        </button>
+                        <button class="btn btn-outline-secondary d-none" type="button" id="btnClearMatchSearch">
+                            <i class="fas fa-times"></i> Xóa
+                        </button>
+                    </div>
+                </div>
+                <small class="text-muted d-block mt-2" id="matchSearchHint">
+                    Hỗ trợ tìm theo `#ID trận`, `ID đội`, `mã đăng ký`, tên đội hoặc tên người chơi.
+                </small>
+            </div>
+            <div class="form-group col-lg-4 mb-0">
+                <div class="match-search-meta" id="matchSearchMeta">Đang hiển thị toàn bộ trận đấu của bảng.</div>
+            </div>
+        </div>
+    </div>
 
     <div id="cards" class="grid">
         <div class="text-muted">Đang tải...</div>
@@ -395,6 +509,7 @@
                 <div class="modal-body">
                     <div id="formErr" class="alert alert-danger d-none"></div>
                     <div id="winnerSourceInfo" class="winner-source-info d-none mb-3"></div>
+                    <div id="loserSourceInfo" class="winner-source-info d-none mb-3"></div>
 
                     <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px">
                         <small class="text-muted" id="winnerSourceHint">Đang dùng toàn bộ đội đăng ký thành công của giải để tạo trận.</small>
@@ -403,7 +518,13 @@
                                 <i class="fas fa-sitemap"></i> Lọc đội thắng
                             </button>
                             <button class="btn btn-sm btn-outline-secondary d-none" type="button" id="btnClearWinnerFilterFromModal">
-                                <i class="fas fa-times"></i> Bỏ lọc
+                                <i class="fas fa-times"></i> Bỏ lọc đội thắng
+                            </button>
+                            <button class="btn btn-sm btn-outline-warning" type="button" id="btnOpenLoserFilterFromModal">
+                                <i class="fas fa-project-diagram"></i> Lọc đội thua
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary d-none" type="button" id="btnClearLoserFilterFromModal">
+                                <i class="fas fa-times"></i> Bỏ lọc đội thua
                             </button>
                         </div>
                     </div>
@@ -464,7 +585,26 @@
                     <div class="form-row">
                         <div class="form-group col-md-6">
                             <label>Thời gian bắt đầu</label>
-                            <input type="datetime-local" class="form-control" id="startAt" />
+                            <div class="vn-datetime-card">
+                                <div class="vn-datetime-grid">
+                                    <div>
+                                        <label for="startAtDate">Ngày thi đấu</label>
+                                        <input type="date" class="form-control" id="startAtDate" />
+                                    </div>
+                                    <div>
+                                        <label for="startAtTime">Giờ 24h</label>
+                                        <input type="text"
+                                               class="form-control vn-time-input"
+                                               id="startAtTime"
+                                               placeholder="08:30"
+                                               inputmode="numeric"
+                                               maxlength="5"
+                                               autocomplete="off" />
+                                    </div>
+                                </div>
+                                <small class="vn-datetime-hint">Nhập theo giờ Việt Nam, định dạng 24h như 08:30 hoặc 17:45.</small>
+                                <div id="startAtPreview" class="vn-datetime-preview is-empty">Chưa chọn thời gian bắt đầu.</div>
+                            </div>
                         </div>
                         <div class="form-group col-md-6">
                             <label>Sân đấu</label>
@@ -582,6 +722,69 @@
     </div>
 </div>
 
+<div class="modal fade" id="modalLoserFilter" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Lọc đội thua từ vòng trước</h5>
+                <button class="close" type="button" data-dismiss="modal">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div id="loserFilterErr" class="alert alert-danger d-none"></div>
+
+                <div class="form-row">
+                    <div class="form-group col-md-5">
+                        <label>Chọn vòng nguồn</label>
+                        <select class="form-control" id="loserRoundSelect"></select>
+                    </div>
+                    <div class="form-group col-md-7 d-flex align-items-end" style="gap:8px; flex-wrap:wrap;">
+                        <button class="btn btn-outline-warning" type="button" id="btnSelectLoserRoundGroups">
+                            Chọn tất cả bảng của vòng
+                        </button>
+                        <button class="btn btn-outline-secondary" type="button" id="btnClearLoserRoundGroups">
+                            Bỏ chọn vòng này
+                        </button>
+                    </div>
+                </div>
+
+                <div class="small text-muted mb-3" id="loserFilterRoundHint">
+                    Chọn một hoặc nhiều bảng ở các vòng trước để lấy nguồn đội thua tạo trận mới.
+                </div>
+
+                <div class="form-group">
+                    <label>Bảng đấu trong vòng đang chọn</label>
+                    <div class="winner-group-list" id="loserGroupList"></div>
+                </div>
+
+                <div class="form-group">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="mb-0">Nguồn bảng đã chọn</label>
+                        <small class="text-muted" id="loserSelectedGroupCount">0 bảng</small>
+                    </div>
+                    <div class="winner-filter-chip-list" id="loserSelectedGroups"></div>
+                </div>
+
+                <div class="form-group mb-0">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="mb-0">Preview đội thua</label>
+                        <small class="text-muted" id="loserPreviewCount">0 đội</small>
+                    </div>
+                    <div class="winner-preview-list" id="loserPreviewList"></div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" type="button" id="btnClearLoserDraft">Bỏ chọn tất cả</button>
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">Đóng</button>
+                <button class="btn btn-warning" type="button" id="btnApplyLoserFilter">Áp dụng cho tạo trận</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="team-picker-overlay" id="teamPickerOverlay" aria-hidden="true">
     <div class="team-picker-backdrop" id="teamPickerBackdrop"></div>
     <div class="team-picker-drawer">
@@ -685,6 +888,7 @@
             const API_REGS = `/api/admin/tournaments/${TOURNAMENT_ID}/registrations`;
             const API_FIND_REFEREE = `/api/admin/referees/find-by-user-id`;
             const API_WINNER_SOURCES = `${API}/winner-sources`;
+            const API_LOSER_SOURCES = `${API}/loser-sources`;
 
             let CACHE = {
                 items: [],
@@ -692,6 +896,7 @@
             };
 
             let SHOW_ONLY_COMPLETED = false;
+            let MATCH_SEARCH_KEYWORD = "";
             let TEAM_PICKER_TARGET_SLOT = 1;
             let TEAM_PICKER_KEYWORD = "";
             let WINNER_SOURCE_CACHE = {
@@ -705,7 +910,19 @@
                 activeRegistrationIds: [],
                 activeWinnerItems: []
             };
+            let LOSER_SOURCE_CACHE = {
+                current: null,
+                rounds: []
+            };
+            let LOSER_FILTER_STATE = {
+                draftGroupIds: [],
+                draftRoundMapId: 0,
+                activeGroupIds: [],
+                activeRegistrationIds: [],
+                activeLoserItems: []
+            };
             let REOPEN_MATCH_MODAL_AFTER_WINNER_FILTER = false;
+            let REOPEN_MATCH_MODAL_AFTER_LOSER_FILTER = false;
 
             const esc = (s) => String(s || "")
                 .replaceAll("&", "&amp;")
@@ -720,34 +937,144 @@
                 .replace(/[\u0300-\u036f]/g, "")
                 .trim();
 
-            const fmt = (dt) => {
-                if (!dt) return "—";
+            const parseDateTimeValue = (value) => {
+                if (!value) return null;
 
-                const d = new Date(dt);
-                if (isNaN(d.getTime())) return "—";
+                if (value instanceof Date) {
+                    return isNaN(value.getTime()) ? null : value;
+                }
 
-                const yyyy = d.getFullYear();
-                const mm = String(d.getMonth() + 1).padStart(2, "0");
-                const dd = String(d.getDate()).padStart(2, "0");
-                const hh = String(d.getHours()).padStart(2, "0");
-                const mi = String(d.getMinutes()).padStart(2, "0");
+                const raw = String(value).trim();
+                if (!raw) return null;
 
-                return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+                const normalized = raw.replace(" ", "T");
+                const hasTimezone = /(?:[zZ]|[+\-]\d{2}:\d{2})$/.test(normalized);
+
+                if (hasTimezone) {
+                    const zoned = new Date(normalized);
+                    return isNaN(zoned.getTime()) ? null : zoned;
+                }
+
+                const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+                if (match) {
+                    const [, year, month, day, hour = "00", minute = "00", second = "00"] = match;
+                    const localDate = new Date(
+                        Number(year),
+                        Number(month) - 1,
+                        Number(day),
+                        Number(hour),
+                        Number(minute),
+                        Number(second)
+                    );
+                    return isNaN(localDate.getTime()) ? null : localDate;
+                }
+
+                const fallback = new Date(raw);
+                return isNaN(fallback.getTime()) ? null : fallback;
             };
 
-            const toLocalInput = (iso) => {
-                if (!iso) return "";
+            const formatDateInputValue = (date) =>
+                `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 
-                const d = new Date(iso);
-                if (isNaN(d.getTime())) return "";
+            const formatTimeInputValue = (date) =>
+                `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 
-                const yyyy = d.getFullYear();
-                const mm = String(d.getMonth() + 1).padStart(2, "0");
-                const dd = String(d.getDate()).padStart(2, "0");
-                const hh = String(d.getHours()).padStart(2, "0");
-                const mi = String(d.getMinutes()).padStart(2, "0");
+            const fmt = (dt) => {
+                const date = parseDateTimeValue(dt);
+                if (!date) return "—";
 
-                return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+                const dd = String(date.getDate()).padStart(2, "0");
+                const mm = String(date.getMonth() + 1).padStart(2, "0");
+                const yyyy = date.getFullYear();
+                const hh = String(date.getHours()).padStart(2, "0");
+                const mi = String(date.getMinutes()).padStart(2, "0");
+
+                return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+            };
+
+            const normalizeTimeInput = (value) => {
+                const digits = String(value || "").replace(/\D/g, "").slice(0, 4);
+                if (digits.length <= 2) return digits;
+                if (digits.length === 3) return `${digits.slice(0, 1)}:${digits.slice(1)}`;
+                return `${digits.slice(0, 2)}:${digits.slice(2)}`;
+            };
+
+            const canonicalizeTime24h = (value) => {
+                const normalized = normalizeTimeInput(value);
+                const match = normalized.match(/^(\d{1,2}):(\d{2})$/);
+                if (!match) return normalized;
+                const [, hours, minutes] = match;
+                return `${hours.padStart(2, "0")}:${minutes}`;
+            };
+
+            const isValidTime24h = (value) => {
+                const canonical = canonicalizeTime24h(value);
+                if (!/^\d{2}:\d{2}$/.test(canonical)) return false;
+                const [hours, minutes] = canonical.split(":").map(Number);
+                return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+            };
+
+            const syncStartAtPreview = () => {
+                const dateValue = $id("startAtDate")?.value || "";
+                const timeValue = canonicalizeTime24h($id("startAtTime")?.value || "");
+                const preview = $id("startAtPreview");
+                if (!preview) return;
+
+                if (!dateValue && !timeValue) {
+                    preview.textContent = "Chưa chọn thời gian bắt đầu.";
+                    preview.classList.add("is-empty");
+                    return;
+                }
+
+                if (!dateValue || !isValidTime24h(timeValue)) {
+                    preview.textContent = "Vui lòng nhập đủ ngày và giờ theo dạng 24h (HH:mm).";
+                    preview.classList.add("is-empty");
+                    return;
+                }
+
+                preview.textContent = `Hiển thị: ${fmt(`${dateValue}T${timeValue}:00`)}`;
+                preview.classList.remove("is-empty");
+            };
+
+            const fillStartAtField = (value) => {
+                const date = parseDateTimeValue(value);
+                if (!date) {
+                    $id("startAtDate").value = "";
+                    $id("startAtTime").value = "";
+                    syncStartAtPreview();
+                    return;
+                }
+
+                $id("startAtDate").value = formatDateInputValue(date);
+                $id("startAtTime").value = formatTimeInputValue(date);
+                syncStartAtPreview();
+            };
+
+            const bindStartAtField = () => {
+                $id("startAtDate")?.addEventListener("change", syncStartAtPreview);
+                $id("startAtTime")?.addEventListener("input", () => {
+                    $id("startAtTime").value = normalizeTimeInput($id("startAtTime").value);
+                    syncStartAtPreview();
+                });
+                $id("startAtTime")?.addEventListener("blur", () => {
+                    $id("startAtTime").value = canonicalizeTime24h($id("startAtTime").value);
+                    syncStartAtPreview();
+                });
+            };
+
+            const buildStartAtValue = () => {
+                const dateValue = $id("startAtDate")?.value || "";
+                const timeValue = canonicalizeTime24h($id("startAtTime")?.value || "");
+
+                if (!dateValue && !timeValue) return null;
+                if (!dateValue || !timeValue) {
+                    throw new Error("Vui lòng nhập đủ ngày và giờ bắt đầu.");
+                }
+                if (!isValidTime24h(timeValue)) {
+                    throw new Error("Giờ bắt đầu phải theo định dạng 24h HH:mm.");
+                }
+
+                return `${dateValue}T${timeValue}:00`;
             };
 
             const formatDecimal = (value) => {
@@ -949,6 +1276,69 @@
                 return (WINNER_FILTER_STATE.activeGroupIds || []).length > 0;
             }
 
+            function hasActiveLoserFilter() {
+                return (LOSER_FILTER_STATE.activeGroupIds || []).length > 0;
+            }
+
+            function buildActiveSourceHintText() {
+                if (hasActiveWinnerFilter() && hasActiveLoserFilter()) {
+                    return `Đang giới hạn nguồn đội theo giao giữa ${WINNER_FILTER_STATE.activeRegistrationIds.length} đội thắng và ${LOSER_FILTER_STATE.activeRegistrationIds.length} đội thua đã lọc.`;
+                }
+
+                if (hasActiveWinnerFilter()) {
+                    return `Đang giới hạn nguồn đội theo ${WINNER_FILTER_STATE.activeRegistrationIds.length} đội thắng đã lọc từ ${WINNER_FILTER_STATE.activeGroupIds.length} bảng.`;
+                }
+
+                if (hasActiveLoserFilter()) {
+                    return `Đang giới hạn nguồn đội theo ${LOSER_FILTER_STATE.activeRegistrationIds.length} đội thua đã lọc từ ${LOSER_FILTER_STATE.activeGroupIds.length} bảng.`;
+                }
+
+                return "Đang dùng toàn bộ đội đăng ký thành công của giải để tạo trận.";
+            }
+
+            function renderActiveSourceHint() {
+                const sourceHint = $id("winnerSourceHint");
+                if (!sourceHint) return;
+                sourceHint.textContent = buildActiveSourceHintText();
+            }
+
+            function buildTeamPickerSubtitleText() {
+                if (hasActiveWinnerFilter() && hasActiveLoserFilter()) {
+                    return `Đang dùng giao giữa ${WINNER_FILTER_STATE.activeRegistrationIds.length} đội thắng và ${LOSER_FILTER_STATE.activeRegistrationIds.length} đội thua đã lọc.`;
+                }
+
+                if (hasActiveWinnerFilter()) {
+                    return `Đang dùng ${WINNER_FILTER_STATE.activeRegistrationIds.length} đội thắng đã lọc từ ${WINNER_FILTER_STATE.activeGroupIds.length} bảng.`;
+                }
+
+                if (hasActiveLoserFilter()) {
+                    return `Đang dùng ${LOSER_FILTER_STATE.activeRegistrationIds.length} đội thua đã lọc từ ${LOSER_FILTER_STATE.activeGroupIds.length} bảng.`;
+                }
+
+                return "Danh sách đội đăng ký thành công của giải.";
+            }
+
+            function buildTeamPickerHintText(keyword) {
+                const text = (keyword || "").trim();
+                if (text) {
+                    return `Đang lọc theo từ khóa: "${text}".`;
+                }
+
+                if (hasActiveWinnerFilter() && hasActiveLoserFilter()) {
+                    return "Có thể tìm theo mã đăng ký hoặc tên đội trong tập giao giữa đội thắng và đội thua đã lọc.";
+                }
+
+                if (hasActiveWinnerFilter()) {
+                    return "Có thể tìm theo mã đăng ký hoặc tên đội trong nguồn đội thắng đã lọc.";
+                }
+
+                if (hasActiveLoserFilter()) {
+                    return "Có thể tìm theo mã đăng ký hoặc tên đội trong nguồn đội thua đã lọc.";
+                }
+
+                return "Có thể tìm theo mã đăng ký, tên đội hoặc tên người chơi.";
+            }
+
             function getWinnerSourceDefaultHint() {
                 if (!getWinnerSourceRounds().length) {
                     return "Vòng hiện tại chưa có vòng trước để lấy đội thắng. Đang dùng toàn bộ đội đăng ký thành công của giải.";
@@ -963,6 +1353,11 @@
 
                 if (hasActiveWinnerFilter()) {
                     const allowedIds = new Set((WINNER_FILTER_STATE.activeRegistrationIds || []).map(Number));
+                    items = items.filter(reg => allowedIds.has(Number(reg.registrationId)));
+                }
+
+                if (hasActiveLoserFilter()) {
+                    const allowedIds = new Set((LOSER_FILTER_STATE.activeRegistrationIds || []).map(Number));
                     items = items.filter(reg => allowedIds.has(Number(reg.registrationId)));
                 }
 
@@ -1010,7 +1405,6 @@
             function renderWinnerFilterSummary() {
                 const summaryBox = $id("winnerFilterSummary");
                 const sourceInfo = $id("winnerSourceInfo");
-                const sourceHint = $id("winnerSourceHint");
                 const clearButtons = [$id("btnClearWinnerFilter"), $id("btnClearWinnerFilterFromModal")];
 
                 if (!hasActiveWinnerFilter()) {
@@ -1018,8 +1412,8 @@
                     summaryBox.innerHTML = "";
                     sourceInfo.classList.add("d-none");
                     sourceInfo.innerHTML = "";
-                    sourceHint.textContent = getWinnerSourceDefaultHint();
                     clearButtons.forEach(btn => btn.classList.add("d-none"));
+                    renderActiveSourceHint();
                     return;
                 }
 
@@ -1032,8 +1426,8 @@
                 summaryBox.innerHTML = html;
                 sourceInfo.classList.remove("d-none");
                 sourceInfo.innerHTML = html;
-                sourceHint.textContent = `Đang giới hạn nguồn đội theo ${WINNER_FILTER_STATE.activeWinnerItems.length} đội thắng đã lọc.`;
                 clearButtons.forEach(btn => btn.classList.remove("d-none"));
+                renderActiveSourceHint();
             }
 
             function renderWinnerRoundOptions() {
@@ -1198,6 +1592,296 @@
                 $("#modalWinnerFilter").modal("hide");
             }
 
+            function getLoserSourceRounds() {
+                return LOSER_SOURCE_CACHE.rounds || [];
+            }
+
+            function getLoserSourceFlatGroups() {
+                return getLoserSourceRounds().flatMap(round => (round.groups || []).map(group => ({
+                    ...group,
+                    roundMapId: round.roundMapId,
+                    roundKey: round.roundKey,
+                    roundLabel: round.roundLabel,
+                    roundSortOrder: round.sortOrder
+                })));
+            }
+
+            function getLoserSourceGroupById(groupId) {
+                return getLoserSourceFlatGroups().find(group => Number(group.groupId) === Number(groupId)) || null;
+            }
+
+            function normalizeLoserGroupIds(groupIds) {
+                const validGroupIds = new Set(getLoserSourceFlatGroups().map(group => Number(group.groupId)));
+                const normalized = [];
+
+                for (const rawId of groupIds || []) {
+                    const groupId = Number(rawId || 0);
+                    if (!groupId || !validGroupIds.has(groupId) || normalized.includes(groupId)) {
+                        continue;
+                    }
+
+                    normalized.push(groupId);
+                }
+
+                return normalized;
+            }
+
+            function buildLoserRegistrationAggregates(groupIds) {
+                const aggregates = new Map();
+
+                for (const groupId of normalizeLoserGroupIds(groupIds)) {
+                    const group = getLoserSourceGroupById(groupId);
+                    if (!group) continue;
+
+                    const sourceLabel = buildWinnerSourceGroupLabel(group);
+
+                    for (const loser of (group.losers || [])) {
+                        const registrationId = Number(loser.registrationId || 0);
+                        if (!registrationId) continue;
+
+                        const reg = getRegistrationById(registrationId);
+                        if (!aggregates.has(registrationId)) {
+                            aggregates.set(registrationId, {
+                                registrationId,
+                                regCode: reg?.regCode || `#${registrationId}`,
+                                regIndex: Number(reg?.regIndex || 0),
+                                teamName: reg ? buildTeamText(reg) : `Đội #${registrationId}`,
+                                totalLosses: 0,
+                                sourceLabels: []
+                            });
+                        }
+
+                        const item = aggregates.get(registrationId);
+                        item.totalLosses += Number(loser.lossCount || 0);
+
+                        if (!item.sourceLabels.includes(sourceLabel)) {
+                            item.sourceLabels.push(sourceLabel);
+                        }
+                    }
+                }
+
+                return Array.from(aggregates.values())
+                    .sort((a, b) => {
+                        if (a.regIndex && b.regIndex && a.regIndex !== b.regIndex) {
+                            return a.regIndex - b.regIndex;
+                        }
+
+                        return String(a.regCode || "").localeCompare(String(b.regCode || ""), "vi");
+                    });
+            }
+
+            function rebuildActiveLoserFilter() {
+                LOSER_FILTER_STATE.draftGroupIds = normalizeLoserGroupIds(LOSER_FILTER_STATE.draftGroupIds);
+                LOSER_FILTER_STATE.activeGroupIds = normalizeLoserGroupIds(LOSER_FILTER_STATE.activeGroupIds);
+                LOSER_FILTER_STATE.activeLoserItems = buildLoserRegistrationAggregates(LOSER_FILTER_STATE.activeGroupIds);
+                LOSER_FILTER_STATE.activeRegistrationIds = LOSER_FILTER_STATE.activeLoserItems.map(item => item.registrationId);
+
+                const roundIds = getLoserSourceRounds().map(round => Number(round.roundMapId));
+                if (!roundIds.length) {
+                    LOSER_FILTER_STATE.draftRoundMapId = 0;
+                    return;
+                }
+
+                if (!roundIds.includes(Number(LOSER_FILTER_STATE.draftRoundMapId || 0))) {
+                    LOSER_FILTER_STATE.draftRoundMapId = roundIds[0];
+                }
+            }
+
+            function buildLoserFilterInfoHtml(groupIds, loserItems) {
+                const labels = normalizeLoserGroupIds(groupIds)
+                    .map(groupId => buildWinnerSourceGroupLabel(getLoserSourceGroupById(groupId)))
+                    .filter(Boolean);
+
+                const chips = labels.length
+                    ? `<div class="winner-filter-chip-list mt-2">${labels.map(label => `<span class="winner-filter-chip">${esc(label)}</span>`).join("")}</div>`
+                    : "";
+
+                return `
+                    <div class="font-weight-bold mb-1">Đang dùng ${loserItems.length} đội thua từ ${labels.length} bảng đã lọc.</div>
+                    <div class="small text-muted">Danh sách chọn đội trong modal tạo trận sẽ chỉ còn các đội thua thuộc nguồn này.</div>
+                    ${chips}
+                `;
+            }
+
+            function renderLoserFilterSummary() {
+                const summaryBox = $id("loserFilterSummary");
+                const sourceInfo = $id("loserSourceInfo");
+                const clearButtons = [$id("btnClearLoserFilter"), $id("btnClearLoserFilterFromModal")];
+
+                if (!hasActiveLoserFilter()) {
+                    summaryBox.classList.add("d-none");
+                    summaryBox.innerHTML = "";
+                    sourceInfo.classList.add("d-none");
+                    sourceInfo.innerHTML = "";
+                    clearButtons.forEach(btn => btn.classList.add("d-none"));
+                    renderActiveSourceHint();
+                    return;
+                }
+
+                const html = buildLoserFilterInfoHtml(
+                    LOSER_FILTER_STATE.activeGroupIds,
+                    LOSER_FILTER_STATE.activeLoserItems
+                );
+
+                summaryBox.classList.remove("d-none");
+                summaryBox.innerHTML = html;
+                sourceInfo.classList.remove("d-none");
+                sourceInfo.innerHTML = html;
+                clearButtons.forEach(btn => btn.classList.remove("d-none"));
+                renderActiveSourceHint();
+            }
+
+            function renderLoserRoundOptions() {
+                const select = $id("loserRoundSelect");
+                const rounds = getLoserSourceRounds();
+
+                if (!rounds.length) {
+                    select.innerHTML = `<option value="">Chưa có vòng trước</option>`;
+                    select.disabled = true;
+                    return;
+                }
+
+                select.disabled = false;
+                select.innerHTML = rounds.map(round => `
+                    <option value="${round.roundMapId}">
+                        ${esc(round.roundKey)} - ${esc(round.roundLabel)} (${round.groups?.length || 0} bảng)
+                    </option>
+                `).join("");
+
+                select.value = String(LOSER_FILTER_STATE.draftRoundMapId || rounds[0].roundMapId);
+            }
+
+            function renderLoserGroupList() {
+                const box = $id("loserGroupList");
+                const roundId = Number($id("loserRoundSelect").value || 0);
+                const round = getLoserSourceRounds().find(item => Number(item.roundMapId) === roundId);
+
+                if (!round) {
+                    box.innerHTML = `<div class="team-picker-empty">Chưa có bảng đấu nào ở vòng trước để lấy đội thua.</div>`;
+                    return;
+                }
+
+                const selectedIds = normalizeLoserGroupIds(LOSER_FILTER_STATE.draftGroupIds);
+
+                box.innerHTML = (round.groups || []).map(group => {
+                    const checked = selectedIds.includes(Number(group.groupId));
+                    const metaText = group.loserCount
+                        ? `${group.loserCount} đội thua • ${group.completedMatchCount} trận đã hoàn tất`
+                        : `Chưa có đội thua • ${group.completedMatchCount} trận đã hoàn tất`;
+
+                    return `
+                        <div class="winner-group-card ${checked ? "active" : ""}">
+                            <div class="custom-control custom-checkbox">
+                                <input class="custom-control-input loser-group-checkbox"
+                                       type="checkbox"
+                                       id="loserGroup_${group.groupId}"
+                                       value="${group.groupId}"
+                                       ${checked ? "checked" : ""} />
+                                <label class="custom-control-label d-block" for="loserGroup_${group.groupId}">
+                                    <div class="winner-group-card-title">${esc(group.groupName)}</div>
+                                    <div class="winner-group-card-meta">${metaText}</div>
+                                </label>
+                            </div>
+                        </div>
+                    `;
+                }).join("");
+            }
+
+            function renderLoserSelectedGroups() {
+                const box = $id("loserSelectedGroups");
+                const selectedIds = normalizeLoserGroupIds(LOSER_FILTER_STATE.draftGroupIds);
+                $id("loserSelectedGroupCount").textContent = `${selectedIds.length} bảng`;
+
+                if (!selectedIds.length) {
+                    box.innerHTML = `<span class="text-muted small">Chưa chọn bảng nguồn nào.</span>`;
+                    return;
+                }
+
+                box.innerHTML = selectedIds
+                    .map(groupId => getLoserSourceGroupById(groupId))
+                    .filter(Boolean)
+                    .map(group => `<span class="winner-filter-chip">${esc(buildWinnerSourceGroupLabel(group))}</span>`)
+                    .join("");
+            }
+
+            function renderLoserPreviewList() {
+                const box = $id("loserPreviewList");
+                const items = buildLoserRegistrationAggregates(LOSER_FILTER_STATE.draftGroupIds);
+                $id("loserPreviewCount").textContent = `${items.length} đội`;
+
+                if (!items.length) {
+                    box.innerHTML = `<div class="team-picker-empty">Chưa có đội thua nào từ các bảng đang chọn.</div>`;
+                    return;
+                }
+
+                box.innerHTML = items.map(item => `
+                    <div class="winner-preview-item">
+                        <div class="winner-preview-title">${esc(item.regCode)} - ${esc(item.teamName)}</div>
+                        <div class="winner-preview-meta">Thua ${item.totalLosses} trận • Nguồn: ${esc(item.sourceLabels.join(" | "))}</div>
+                    </div>
+                `).join("");
+            }
+
+            function renderLoserFilterModal() {
+                renderLoserRoundOptions();
+                renderLoserGroupList();
+                renderLoserSelectedGroups();
+                renderLoserPreviewList();
+
+                const rounds = getLoserSourceRounds();
+                $id("loserFilterRoundHint").textContent = rounds.length
+                    ? "Chọn một hoặc nhiều bảng ở các vòng trước để lấy nguồn đội thua tạo trận mới."
+                    : "Không có vòng trước nào để lọc đội thua cho bảng hiện tại.";
+            }
+
+            function openLoserFilterModal(fromMatchModal = false) {
+                hideFormErr("loserFilterErr");
+
+                rebuildActiveLoserFilter();
+                LOSER_FILTER_STATE.draftGroupIds = [...LOSER_FILTER_STATE.activeGroupIds];
+
+                if (!LOSER_FILTER_STATE.draftRoundMapId && getLoserSourceRounds().length) {
+                    LOSER_FILTER_STATE.draftRoundMapId = Number(getLoserSourceRounds()[0].roundMapId);
+                }
+
+                renderLoserFilterModal();
+
+                if (fromMatchModal && $("#modalMatch").hasClass("show")) {
+                    REOPEN_MATCH_MODAL_AFTER_LOSER_FILTER = true;
+                    $("#modalMatch").modal("hide");
+                    setTimeout(() => $("#modalLoserFilter").modal("show"), 180);
+                    return;
+                }
+
+                $("#modalLoserFilter").modal("show");
+            }
+
+            function clearLoserFilter(clearDraftOnly = false) {
+                LOSER_FILTER_STATE.draftGroupIds = [];
+
+                if (clearDraftOnly) {
+                    renderLoserFilterModal();
+                    return;
+                }
+
+                LOSER_FILTER_STATE.activeGroupIds = [];
+                LOSER_FILTER_STATE.activeRegistrationIds = [];
+                LOSER_FILTER_STATE.activeLoserItems = [];
+
+                renderLoserFilterSummary();
+                syncTeamPoolAfterFilterChange();
+            }
+
+            function applyLoserFilterDraft() {
+                LOSER_FILTER_STATE.activeGroupIds = normalizeLoserGroupIds(LOSER_FILTER_STATE.draftGroupIds);
+                LOSER_FILTER_STATE.activeLoserItems = buildLoserRegistrationAggregates(LOSER_FILTER_STATE.activeGroupIds);
+                LOSER_FILTER_STATE.activeRegistrationIds = LOSER_FILTER_STATE.activeLoserItems.map(item => item.registrationId);
+
+                renderLoserFilterSummary();
+                syncTeamPoolAfterFilterChange();
+                $("#modalLoserFilter").modal("hide");
+            }
+
             function buildTeamSummaryHtml(reg) {
                 if (!reg) return "";
 
@@ -1324,12 +2008,93 @@
 
             function buildRegistrationSearchText(reg) {
                 return normalizeSearch([
+                    reg?.registrationId,
                     reg?.regCode,
                     buildTeamText(reg),
                     reg?.player1Name,
                     reg?.player2Name,
                     reg?.btCode
                 ].filter(Boolean).join(" "));
+            }
+
+            function buildMatchSearchText(m) {
+                const team1Reg = getRegistrationById(m.team1RegistrationId);
+                const team2Reg = getRegistrationById(m.team2RegistrationId);
+
+                return normalizeSearch([
+                    m?.matchId,
+                    `#${m?.matchId || ""}`,
+                    m?.team1RegistrationId,
+                    m?.team2RegistrationId,
+                    getRegCode(m?.team1RegistrationId),
+                    getRegCode(m?.team2RegistrationId),
+                    m?.team1Text,
+                    m?.team2Text,
+                    team1Reg?.player1Name,
+                    team1Reg?.player2Name,
+                    team2Reg?.player1Name,
+                    team2Reg?.player2Name,
+                    m?.refereeUserId,
+                    m?.refereeName,
+                    m?.courtText,
+                    m?.addressText
+                ].filter(Boolean).join(" "));
+            }
+
+            function getRenderedMatches() {
+                let items = CACHE.items || [];
+
+                if (SHOW_ONLY_COMPLETED) {
+                    items = items.filter(x => x.isCompleted);
+                }
+
+                const keyword = normalizeSearch(MATCH_SEARCH_KEYWORD);
+                if (keyword) {
+                    items = items.filter(match => buildMatchSearchText(match).includes(keyword));
+                }
+
+                return items;
+            }
+
+            function renderMatchSearchState(renderedCount, totalCount) {
+                const clearButton = $id("btnClearMatchSearch");
+                const hint = $id("matchSearchHint");
+                const meta = $id("matchSearchMeta");
+                const keyword = (MATCH_SEARCH_KEYWORD || "").trim();
+
+                if (clearButton) {
+                    clearButton.classList.toggle("d-none", !keyword);
+                }
+
+                if (hint) {
+                    hint.textContent = keyword
+                        ? `Đang tìm với từ khóa: "${keyword}". Có thể nhập mã trận, ID đội, mã đăng ký hoặc tên người chơi.`
+                        : "Hỗ trợ tìm theo ID trận, ID đội, mã đăng ký, tên đội hoặc tên người chơi.";
+                }
+
+                if (!meta) return;
+
+                if (keyword) {
+                    meta.textContent = `Hiển thị ${renderedCount}/${totalCount} trận khớp từ khóa.`;
+                    return;
+                }
+
+                meta.textContent = SHOW_ONLY_COMPLETED
+                    ? `Hiển thị ${renderedCount}/${totalCount} trận đã hoàn tất.`
+                    : `Đang hiển thị toàn bộ ${totalCount} trận của bảng.`;
+            }
+
+            function applyMatchSearch() {
+                MATCH_SEARCH_KEYWORD = ($id("matchSearchKeyword")?.value || "").trim();
+                render();
+            }
+
+            function clearMatchSearch() {
+                MATCH_SEARCH_KEYWORD = "";
+                if ($id("matchSearchKeyword")) {
+                    $id("matchSearchKeyword").value = "";
+                }
+                render();
             }
 
             function findMatchingRegs(keyword, extraIds = []) {
@@ -1399,15 +2164,9 @@
                 TEAM_PICKER_KEYWORD = (keyword || $id(`team${slot}CodeSearch`).value || "").trim();
 
                 $id("teamPickerTitle").textContent = `Chọn đội cho Đội ${slot}`;
-                $id("teamPickerSubtitle").textContent = hasActiveWinnerFilter()
-                    ? `Đang dùng ${WINNER_FILTER_STATE.activeRegistrationIds.length} đội thắng đã lọc từ ${WINNER_FILTER_STATE.activeGroupIds.length} bảng.`
-                    : `Danh sách đội đăng ký thành công của giải.`;
+                $id("teamPickerSubtitle").textContent = buildTeamPickerSubtitleText();
                 $id("teamPickerSearch").value = TEAM_PICKER_KEYWORD;
-                $id("teamPickerHint").textContent = TEAM_PICKER_KEYWORD
-                    ? `Đang lọc theo từ khóa: "${TEAM_PICKER_KEYWORD}".`
-                    : hasActiveWinnerFilter()
-                        ? "Có thể tìm theo mã đăng ký hoặc tên đội trong nguồn đội thắng đã lọc."
-                        : "Có thể tìm theo mã đăng ký, tên đội hoặc tên người chơi.";
+                $id("teamPickerHint").textContent = buildTeamPickerHintText(TEAM_PICKER_KEYWORD);
 
                 renderTeamPickerList();
 
@@ -1584,14 +2343,15 @@
 
             function render() {
                 const box = $id("cards");
-                let items = CACHE.items || [];
+                const totalCount = (CACHE.items || []).length;
+                const items = getRenderedMatches();
 
-                if (SHOW_ONLY_COMPLETED) {
-                    items = items.filter(x => x.isCompleted);
-                }
+                renderMatchSearchState(items.length, totalCount);
 
                 if (!items.length) {
-                    box.innerHTML = `<div class="text-muted">Không có trận đấu nào</div>`;
+                    box.innerHTML = MATCH_SEARCH_KEYWORD
+                        ? `<div class="text-muted">Không tìm thấy trận đấu nào khớp với từ khóa hiện tại.</div>`
+                        : `<div class="text-muted">Không có trận đấu nào</div>`;
                     return;
                 }
 
@@ -1602,20 +2362,25 @@
                 hideErr();
 
                 try {
-                    const [res, regsRes, winnerSourceRes] = await Promise.all([
+                    const [res, regsRes, winnerSourceRes, loserSourceRes] = await Promise.all([
                         axios.get(API),
                         axios.get(API_REGS, {
                             params: { tab: "SUCCESS" }
                         }),
-                        axios.get(API_WINNER_SOURCES)
+                        axios.get(API_WINNER_SOURCES),
+                        axios.get(API_LOSER_SOURCES)
                     ]);
 
                     CACHE.items = res.data?.items || [];
                     CACHE.regs = regsRes.data?.items || [];
                     WINNER_SOURCE_CACHE.current = winnerSourceRes.data?.current || null;
                     WINNER_SOURCE_CACHE.rounds = winnerSourceRes.data?.rounds || [];
+                    LOSER_SOURCE_CACHE.current = loserSourceRes.data?.current || null;
+                    LOSER_SOURCE_CACHE.rounds = loserSourceRes.data?.rounds || [];
                     rebuildActiveWinnerFilter();
+                    rebuildActiveLoserFilter();
                     renderWinnerFilterSummary();
+                    renderLoserFilterSummary();
 
                     render();
                 } catch (err) {
@@ -1630,7 +2395,7 @@
                 $id("editingId").value = "";
                 $id("modalTitle").textContent = "Tạo trận đấu";
 
-                $id("startAt").value = "";
+                fillStartAtField(null);
                 $id("addressText").value = "";
                 $id("courtText").value = "";
                 $id("videoUrl").value = "";
@@ -1659,7 +2424,7 @@
 
                 fillTeamsSelects(m.team1RegistrationId, m.team2RegistrationId);
 
-                $id("startAt").value = toLocalInput(m.startAt);
+                fillStartAtField(m.startAt);
                 $id("addressText").value = m.addressText || "";
                 $id("courtText").value = m.courtText || "";
                 $id("videoUrl").value = m.videoUrl || "";
@@ -1749,8 +2514,7 @@
                     return;
                 }
 
-                const startAtLocal = $id("startAt").value;
-                const startAtIso = startAtLocal ? new Date(startAtLocal).toISOString() : null;
+                const startAtIso = buildStartAtValue();
 
                 const payloadCreate = {
                     team1RegistrationId: team1,
@@ -1835,6 +2599,12 @@
             $id("btnOpenWinnerFilterFromModal").addEventListener("click", () => openWinnerFilterModal(true));
             $id("btnClearWinnerFilter").addEventListener("click", () => clearWinnerFilter(false));
             $id("btnClearWinnerFilterFromModal").addEventListener("click", () => clearWinnerFilter(false));
+            $id("btnOpenLoserFilter").addEventListener("click", () => openLoserFilterModal(false));
+            $id("btnOpenLoserFilterFromModal").addEventListener("click", () => openLoserFilterModal(true));
+            $id("btnClearLoserFilter").addEventListener("click", () => clearLoserFilter(false));
+            $id("btnClearLoserFilterFromModal").addEventListener("click", () => clearLoserFilter(false));
+            $id("btnApplyMatchSearch").addEventListener("click", applyMatchSearch);
+            $id("btnClearMatchSearch").addEventListener("click", clearMatchSearch);
 
             $id("btnFilterCompleted").addEventListener("click", () => {
                 SHOW_ONLY_COMPLETED = !SHOW_ONLY_COMPLETED;
@@ -1874,11 +2644,21 @@
                 }
             });
 
+            $id("matchSearchKeyword").addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyMatchSearch();
+                }
+            });
+
+            $id("matchSearchKeyword").addEventListener("input", () => {
+                MATCH_SEARCH_KEYWORD = ($id("matchSearchKeyword").value || "").trim();
+                render();
+            });
+
             $id("btnApplyTeamPickerSearch").addEventListener("click", () => {
                 TEAM_PICKER_KEYWORD = ($id("teamPickerSearch").value || "").trim();
-                $id("teamPickerHint").textContent = TEAM_PICKER_KEYWORD
-                    ? `Đang lọc theo từ khóa: "${TEAM_PICKER_KEYWORD}".`
-                    : "Có thể tìm theo mã đăng ký, tên đội hoặc tên người chơi.";
+                $id("teamPickerHint").textContent = buildTeamPickerHintText(TEAM_PICKER_KEYWORD);
                 renderTeamPickerList();
             });
 
@@ -1886,9 +2666,7 @@
                 if (e.key === "Enter") {
                     e.preventDefault();
                     TEAM_PICKER_KEYWORD = ($id("teamPickerSearch").value || "").trim();
-                    $id("teamPickerHint").textContent = TEAM_PICKER_KEYWORD
-                        ? `Đang lọc theo từ khóa: "${TEAM_PICKER_KEYWORD}".`
-                        : "Có thể tìm theo mã đăng ký, tên đội hoặc tên người chơi.";
+                    $id("teamPickerHint").textContent = buildTeamPickerHintText(TEAM_PICKER_KEYWORD);
                     renderTeamPickerList();
                 }
             });
@@ -1945,6 +2723,55 @@
             $id("btnClearWinnerDraft").addEventListener("click", () => clearWinnerFilter(true));
             $id("btnApplyWinnerFilter").addEventListener("click", applyWinnerFilterDraft);
 
+            $id("loserRoundSelect").addEventListener("change", () => {
+                LOSER_FILTER_STATE.draftRoundMapId = Number($id("loserRoundSelect").value || 0);
+                renderLoserGroupList();
+            });
+
+            $id("loserGroupList").addEventListener("change", (e) => {
+                const target = e.target;
+                if (!(target instanceof HTMLInputElement) || !target.classList.contains("loser-group-checkbox")) {
+                    return;
+                }
+
+                const groupId = Number(target.value || 0);
+                const draftIds = new Set(normalizeLoserGroupIds(LOSER_FILTER_STATE.draftGroupIds));
+
+                if (target.checked) {
+                    draftIds.add(groupId);
+                } else {
+                    draftIds.delete(groupId);
+                }
+
+                LOSER_FILTER_STATE.draftGroupIds = Array.from(draftIds);
+                renderLoserFilterModal();
+            });
+
+            $id("btnSelectLoserRoundGroups").addEventListener("click", () => {
+                const roundId = Number($id("loserRoundSelect").value || 0);
+                const round = getLoserSourceRounds().find(item => Number(item.roundMapId) === roundId);
+                if (!round) return;
+
+                const draftIds = new Set(normalizeLoserGroupIds(LOSER_FILTER_STATE.draftGroupIds));
+                (round.groups || []).forEach(group => draftIds.add(Number(group.groupId)));
+                LOSER_FILTER_STATE.draftGroupIds = Array.from(draftIds);
+                renderLoserFilterModal();
+            });
+
+            $id("btnClearLoserRoundGroups").addEventListener("click", () => {
+                const roundId = Number($id("loserRoundSelect").value || 0);
+                const round = getLoserSourceRounds().find(item => Number(item.roundMapId) === roundId);
+                if (!round) return;
+
+                const removeIds = new Set((round.groups || []).map(group => Number(group.groupId)));
+                LOSER_FILTER_STATE.draftGroupIds = normalizeLoserGroupIds(LOSER_FILTER_STATE.draftGroupIds)
+                    .filter(groupId => !removeIds.has(Number(groupId)));
+                renderLoserFilterModal();
+            });
+
+            $id("btnClearLoserDraft").addEventListener("click", () => clearLoserFilter(true));
+            $id("btnApplyLoserFilter").addEventListener("click", applyLoserFilterDraft);
+
             window.pickTeam = (registrationId) => {
                 const ok = setTeamSelection(TEAM_PICKER_TARGET_SLOT, registrationId);
                 if (ok) closeTeamPicker();
@@ -1959,8 +2786,20 @@
                 REOPEN_MATCH_MODAL_AFTER_WINNER_FILTER = false;
                 setTimeout(() => $("#modalMatch").modal("show"), 180);
             });
+            $("#modalLoserFilter").on("hidden.bs.modal", () => {
+                if (!REOPEN_MATCH_MODAL_AFTER_LOSER_FILTER) {
+                    return;
+                }
 
-            document.addEventListener("DOMContentLoaded", load);
+                REOPEN_MATCH_MODAL_AFTER_LOSER_FILTER = false;
+                setTimeout(() => $("#modalMatch").modal("show"), 180);
+            });
+
+            document.addEventListener("DOMContentLoaded", () => {
+                bindStartAtField();
+                syncStartAtPreview();
+                load();
+            });
         })();
     </script>
 }

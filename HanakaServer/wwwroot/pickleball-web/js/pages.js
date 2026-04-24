@@ -2514,10 +2514,34 @@
         return `<span class="${escapeHtml(cssClass)}">${escapeHtml(registrationInitial(name))}</span>`;
     }
 
+    function resolveTournamentRegistrationScoreMode(registrations) {
+        const gameType = trimToEmpty(registrations?.tournament?.gameType).toUpperCase();
+        const tournamentTypeCode = trimToEmpty(registrations?.tournament?.tournamentTypeCode).toUpperCase();
+
+        if (gameType === "SINGLE" || tournamentTypeCode.startsWith("SINGLE")) {
+            return "single";
+        }
+
+        return "double";
+    }
+
+    function calculateTournamentRegistrationPoints(player1Level, player2Level, scoreMode) {
+        const player1 = Number(player1Level);
+        const player2 = Number(player2Level);
+        const resolvedPlayer1 = Number.isFinite(player1) ? player1 : 0;
+        const resolvedPlayer2 = Number.isFinite(player2) ? player2 : 0;
+
+        return scoreMode === "single"
+            ? resolvedPlayer1
+            : resolvedPlayer1 + resolvedPlayer2;
+    }
+
     function buildTournamentRegistrationPageItems(registrations) {
         const successItems = Array.isArray(registrations?.successItems) ? registrations.successItems : [];
         const waitingItems = Array.isArray(registrations?.waitingItems) ? registrations.waitingItems : [];
         const merged = successItems.concat(waitingItems);
+        const scoreMode = resolveTournamentRegistrationScoreMode(registrations);
+        const pickLabel = scoreMode === "single" ? "Pick Single" : "Pick Double";
 
         return merged.map(function (item) {
             const player1 = item?.player1 || {};
@@ -2538,7 +2562,12 @@
                 index: toNumber(item?.regIndex),
                 regCode: trimToEmpty(item?.regCode),
                 regTime: formatSlashDateTime(item?.regTime),
-                points: item?.points ?? 0,
+                points: calculateTournamentRegistrationPoints(
+                    player1?.level,
+                    item?.waitingPair || !item?.player2 ? null : player2Resolved?.level,
+                    scoreMode
+                ),
+                pickLabel: pickLabel,
                 success: !!item?.success,
                 waitingPair: !!item?.waitingPair,
                 player1: {
@@ -2665,6 +2694,10 @@
         const verified = !!player?.verified;
         const guest = !!player?.isGuest;
         const invite = options?.invite || null;
+        const pickLabel = trimToEmpty(options?.pickLabel) || "Pick";
+        const pickText = player?.isWaitingSlot
+            ? `${pickLabel}: -`
+            : `${pickLabel}: ${level}`;
 
         let statusMarkup = "";
         if (invite) {
@@ -2685,7 +2718,7 @@
             renderRegistrationAvatar(name, player?.avatar || "", "tournament-registration-page__avatar"),
             "</div>",
             `<strong>${escapeHtml(name)}</strong>`,
-            `<span>(${escapeHtml(level)})</span>`,
+            `<span>${escapeHtml(pickText)}</span>`,
             statusMarkup,
             "</div>"
         ].join("");
@@ -2707,8 +2740,8 @@
             `<p>M\u00e3 \u0111k: <span>${escapeHtml(trimToEmpty(item?.regCode) || "-")}</span> ${escapeHtml(trimToEmpty(item?.regTime) || "")}</p>`,
             "</div>",
             '<div class="tournament-registration-page__grid">',
-            renderTournamentRegistrationPlayer(item?.player1),
-            renderTournamentRegistrationPlayer(item?.player2, { invite: invite }),
+            renderTournamentRegistrationPlayer(item?.player1, { pickLabel: item?.pickLabel }),
+            renderTournamentRegistrationPlayer(item?.player2, { invite: invite, pickLabel: item?.pickLabel }),
             `<div class="tournament-registration-page__points">${escapeHtml(formatFlexibleNumber(item?.points))}</div>`,
             "</div>",
             "</article>"
