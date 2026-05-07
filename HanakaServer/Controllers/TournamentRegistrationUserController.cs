@@ -798,40 +798,169 @@ public class TournamentRegistrationUserController : ControllerBase
 
         var items = await query
             .OrderByDescending(x => x.RequestedAt)
-            .Select(x => new PairRequestListItemDto
+            .ToListAsync(ct);
+
+        // Collect all user IDs that need rating resolution
+        var userIdsNeedingRating = new HashSet<long>();
+        foreach (var item in items)
+        {
+            if (sent && item.RequestedToUser != null)
+                userIdsNeedingRating.Add(item.RequestedToUser.UserId);
+            else if (!sent && item.RequestedByUser != null)
+                userIdsNeedingRating.Add(item.RequestedByUser.UserId);
+        }
+
+        var ratingMap = await GetLatestRatingDoubleForUsers(userIdsNeedingRating, ct);
+
+        var result = items.Select(x => new PairRequestListItemDto
+        {
+            PairRequestId = x.PairRequestId,
+            TournamentId = x.Tournament.TournamentId,
+            TournamentTitle = x.Tournament.Title,
+            TournamentBanner = x.Tournament.BannerUrl,
+            TournamentDate = x.Tournament.StartTime,
+            TournamentLocation = x.Tournament.LocationText,
+            RequestedByUser = sent ? null : new UserBrief
             {
-                PairRequestId = x.PairRequestId,
-                TournamentId = x.Tournament.TournamentId,
-                TournamentTitle = x.Tournament.Title,
-                TournamentBanner = x.Tournament.BannerUrl,
-                TournamentDate = x.Tournament.StartTime,
-                TournamentLocation = x.Tournament.LocationText,
-                RequestedByUser = sent ? null : new UserBrief
-                {
-                    UserId = x.RequestedByUser.UserId,
-                    FullName = x.RequestedByUser.FullName,
-                    AvatarUrl = x.RequestedByUser.AvatarUrl,
-                    Verified = x.RequestedByUser.Verified,
-                    RatingDouble = x.RequestedByUser.RatingDouble ?? 0m
-                },
-                RequestedToUser = sent ? new UserBrief
-                {
-                    UserId = x.RequestedToUser.UserId,
-                    FullName = x.RequestedToUser.FullName,
-                    AvatarUrl = x.RequestedToUser.AvatarUrl,
-                    Verified = x.RequestedToUser.Verified,
-                    RatingDouble = x.RequestedToUser.RatingDouble ?? 0m
-                } : null,
-                RequestedAt = x.RequestedAt,
-                ExpiresAt = x.ExpiresAt,
-                Status = x.Status,
-                RegistrationId = x.RegistrationId,
-                RespondedAt = x.RespondedAt,
-                ResponseNote = x.ResponseNote
+                UserId = x.RequestedByUser.UserId,
+                FullName = x.RequestedByUser.FullName,
+                AvatarUrl = x.RequestedByUser.AvatarUrl,
+                Verified = x.RequestedByUser.Verified,
+                RatingDouble = ratingMap.TryGetValue(x.RequestedByUser.UserId, out var byRating) ? byRating : (x.RequestedByUser.RatingDouble ?? 0m)
+            },
+            RequestedToUser = sent ? new UserBrief
+            {
+                UserId = x.RequestedToUser.UserId,
+                FullName = x.RequestedToUser.FullName,
+                AvatarUrl = x.RequestedToUser.AvatarUrl,
+                Verified = x.RequestedToUser.Verified,
+                RatingDouble = ratingMap.TryGetValue(x.RequestedToUser.UserId, out var toRating) ? toRating : (x.RequestedToUser.RatingDouble ?? 0m)
+            } : null,
+            RequestedAt = x.RequestedAt,
+            ExpiresAt = x.ExpiresAt,
+            Status = x.Status,
+            RegistrationId = x.RegistrationId,
+            RespondedAt = x.RespondedAt,
+            ResponseNote = x.ResponseNote
+        }).ToList();
+
+        return Ok(result);
+    }
+
+    private async Task<Dictionary<long, decimal>> GetLatestRatingDoubleForUsers(IEnumerable<long> userIds, CancellationToken ct)
+    {
+        var userIdArray = userIds.Distinct().ToArray();
+        if (!userIdArray.Any())
+            return new Dictionary<long, decimal>();
+
+        var ratings = await _db.UserRatingHistories
+            .Where(r => userIdArray.Contains(r.UserId))
+            .GroupBy(r => r.UserId)
+            .Select(g => new
+            {
+                UserId = g.Key,
+                RatingDouble = g.OrderByDescending(r => r.RatedAt)
+                               .ThenByDescending(r => r.RatingHistoryId)
+                               .Select(r => r.RatingDouble)
+                               .FirstOrDefault()
             })
             .ToListAsync(ct);
 
-        return Ok(items);
+        return ratings.ToDictionary(x => x.UserId, x => x.RatingDouble ?? 0m);
+    }
+
+    [HttpGet("pair-requests/{pairRequestId:long}")]
+    public async Task<IActionResult> GetPairRequestDetail(long pairRequestId, CancellationToken ct)
+    {
+        var userId = GetUserIdFromToken();
+
+        // First try to load the pair request with all related data
+        var pairRequest = await _db.TournamentPairRequests
+            .AsNoTracking()
+            .Include(x => x.Tournament)
+            .Include(x => x.RequestedByUser)
+            .Include(x => x.RequestedToUser)
+            .Include(x => x.Registration)
+            .FirstOrDefaultAsync(x => x.PairRequestId == pairRequestId, ct);
+
+        if (pairRequest == null)
+            return NotFound(new { message = "Lời mời không tồn tại." });
+
+        // Check permission: user must be either the sender or receiver
+        if (pairRequest.RequestedByUserId != userId && pairRequest.RequestedToUserId != userId)
+            return StatusCode(403, new { message = "Bạn không có quyền xem lời mời này." });
+
+        // Auto-expire if needed
+        if (pairRequest.Status == "PENDING" && pairRequest.ExpiresAt.HasValue && pairRequest.ExpiresAt.Value <= DateTime.UtcNow)
+        {
+            pairRequest.Status = "EXPIRED";
+            pairRequest.RespondedAt = DateTime.UtcNow;
+            _db.TournamentPairRequests.Update(pairRequest);
+            await _db.SaveChangesAsync(ct);
+        }
+
+        // Resolve latest ratings from UserRatingHistories for both users
+        var userIdsNeedingRating = new List<long>
+        {
+            pairRequest.RequestedByUserId,
+            pairRequest.RequestedToUserId
+        };
+
+        var ratingMap = await GetLatestRatingDoubleForUsers(userIdsNeedingRating, ct);
+
+        var isSent = pairRequest.RequestedByUserId == userId;
+
+        // Build response DTO with resolved ratings
+        var result = new PairRequestDetailDto
+        {
+            PairRequestId = pairRequest.PairRequestId,
+            TournamentId = pairRequest.TournamentId,
+            TournamentTitle = pairRequest.Tournament.Title,
+            TournamentBanner = ToAbsoluteUrl(pairRequest.Tournament.BannerUrl),
+            TournamentDate = pairRequest.Tournament.StartTime,
+            TournamentLocation = pairRequest.Tournament.LocationText,
+            RequestedByUser = new UserBrief
+            {
+                UserId = pairRequest.RequestedByUser.UserId,
+                FullName = pairRequest.RequestedByUser.FullName,
+                AvatarUrl = ToAbsoluteUrl(pairRequest.RequestedByUser.AvatarUrl),
+                Verified = pairRequest.RequestedByUser.Verified,
+                RatingDouble = ratingMap.TryGetValue(pairRequest.RequestedByUser.UserId, out var byRating) ? byRating : (pairRequest.RequestedByUser.RatingDouble ?? 0m)
+            },
+            RequestedToUser = new UserBrief
+            {
+                UserId = pairRequest.RequestedToUser.UserId,
+                FullName = pairRequest.RequestedToUser.FullName,
+                AvatarUrl = ToAbsoluteUrl(pairRequest.RequestedToUser.AvatarUrl),
+                Verified = pairRequest.RequestedToUser.Verified,
+                RatingDouble = ratingMap.TryGetValue(pairRequest.RequestedToUser.UserId, out var toRating) ? toRating : (pairRequest.RequestedToUser.RatingDouble ?? 0m)
+            },
+            RequestedAt = pairRequest.RequestedAt,
+            ExpiresAt = pairRequest.ExpiresAt,
+            RespondedAt = pairRequest.RespondedAt,
+            ResponseNote = pairRequest.ResponseNote,
+            Status = pairRequest.Status,
+            RegistrationId = pairRequest.RegistrationId,
+            IsSent = isSent
+        };
+
+        // Include registration details if exists
+        if (pairRequest.RegistrationId.HasValue)
+        {
+            var reg = pairRequest.Registration;
+            result.Registration = new PairRequestRegistrationDto
+            {
+                RegistrationId = reg.RegistrationId,
+                RegCode = reg.RegCode,
+                Player1Name = reg.Player1Name,
+                Player2Name = reg.Player2Name,
+                Points = reg.Points,
+                Success = reg.Success,
+                WaitingPair = reg.WaitingPair
+            };
+        }
+
+        return Ok(result);
     }
 
     private async Task<IActionResult> RespondPairRequestAsync(long pairRequestId, long userId, string status, string? note, CancellationToken ct)
@@ -854,6 +983,12 @@ public class TournamentRegistrationUserController : ControllerBase
         pairRequest.ResponseNote = Clean(note, 500);
 
         var notificationType = status == "REJECTED" ? "PAIR_REJECTED" : status;
+
+        // Load proper user snapshot for requestedTo user to get correct rating
+        var requestedToSnapshot = await LoadUserSnapshotAsync(pairRequest.RequestedToUserId, ct);
+        if (requestedToSnapshot == null)
+            return NotFound(new { message = "User not found." });
+
         var notification = BuildNotification(
             pairRequest.RequestedByUserId,
             notificationType,
@@ -867,16 +1002,7 @@ public class TournamentRegistrationUserController : ControllerBase
                 pairRequest.TournamentId,
                 pairRequest.Tournament.Title,
                 responseNote = pairRequest.ResponseNote,
-                requestedTo = ToUserBrief(new UserRegistrationSnapshot
-                {
-                    UserId = pairRequest.RequestedToUser.UserId,
-                    FullName = pairRequest.RequestedToUser.FullName,
-                    AvatarUrl = pairRequest.RequestedToUser.AvatarUrl,
-                    AvatarUrlAbsolute = ToAbsoluteUrl(pairRequest.RequestedToUser.AvatarUrl),
-                    Verified = pairRequest.RequestedToUser.Verified,
-                    RatingSingle = pairRequest.RequestedToUser.RatingSingle ?? 0m,
-                    RatingDouble = pairRequest.RequestedToUser.RatingDouble ?? 0m
-                })
+                requestedTo = ToUserBrief(requestedToSnapshot)
             });
 
         _db.UserNotifications.Add(notification);
@@ -1359,6 +1485,37 @@ public class TournamentRegistrationUserController : ControllerBase
         public string? AvatarUrl { get; set; }
         public bool Verified { get; set; }
         public decimal RatingDouble { get; set; }
+    }
+
+    public class PairRequestRegistrationDto
+    {
+        public long RegistrationId { get; set; }
+        public string RegCode { get; set; } = "";
+        public string? Player1Name { get; set; }
+        public string? Player2Name { get; set; }
+        public decimal Points { get; set; }
+        public bool Success { get; set; }
+        public bool WaitingPair { get; set; }
+    }
+
+    public class PairRequestDetailDto
+    {
+        public long PairRequestId { get; set; }
+        public long TournamentId { get; set; }
+        public string TournamentTitle { get; set; } = "";
+        public string? TournamentBanner { get; set; }
+        public DateTime? TournamentDate { get; set; }
+        public string? TournamentLocation { get; set; }
+        public UserBrief? RequestedByUser { get; set; }
+        public UserBrief? RequestedToUser { get; set; }
+        public DateTime RequestedAt { get; set; }
+        public DateTime? ExpiresAt { get; set; }
+        public string Status { get; set; } = "";
+        public long? RegistrationId { get; set; }
+        public DateTime? RespondedAt { get; set; }
+        public string? ResponseNote { get; set; }
+        public bool IsSent { get; set; }
+        public PairRequestRegistrationDto? Registration { get; set; }
     }
 
     public sealed class PairRequestListItemDto
