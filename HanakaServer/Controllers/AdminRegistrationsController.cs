@@ -55,7 +55,8 @@ namespace HanakaServer.Controllers
             var tournamentType = TournamentTypeHelper.Resolve(tournament.GameType, tournament.GenderCategory);
             var isDoubleLike = tournamentType.IsDoubleLike;
 
-            // LEFT JOIN Users để lấy ratingSingle/ratingDouble (giữ lại UI S/D)
+            // LEFT JOIN Users để lấy avatar/verified
+            // LEFT JOIN UserRatingHistories để lấy rating mới nhất
             var rawItems = await (
                 from r in q.OrderBy(x => x.RegIndex)
 
@@ -64,6 +65,22 @@ namespace HanakaServer.Controllers
 
                 join u2x in _db.Users on r.Player2UserId equals (long?)u2x.UserId into u2g
                 from u2 in u2g.DefaultIfEmpty()
+
+                // Get latest rating history for Player1
+                let u1Rating = _db.UserRatingHistories
+                    .Where(rh => rh.UserId == u1.UserId)
+                    .OrderByDescending(rh => rh.RatedAt)
+                    .ThenByDescending(rh => rh.RatingHistoryId)
+                    .Select(rh => new { rh.RatingSingle, rh.RatingDouble })
+                    .FirstOrDefault()
+
+                // Get latest rating history for Player2
+                let u2Rating = _db.UserRatingHistories
+                    .Where(rh => rh.UserId == u2.UserId)
+                    .OrderByDescending(rh => rh.RatedAt)
+                    .ThenByDescending(rh => rh.RatingHistoryId)
+                    .Select(rh => new { rh.RatingSingle, rh.RatingDouble })
+                    .FirstOrDefault()
 
                 select new RegistrationAdminItemDto
                 {
@@ -79,8 +96,8 @@ namespace HanakaServer.Controllers
                     Player1Verified = r.Player1Verified,
                     Player1UserId = r.Player1UserId,
 
-                    Player1LevelSingle = (decimal?)((u1 != null ? (u1.RatingSingle ?? 0m) : r.Player1Level)),
-                    Player1LevelDouble = (decimal?)((u1 != null ? (u1.RatingDouble ?? 0m) : r.Player1Level)),
+                    Player1LevelSingle = (decimal?)(u1Rating != null ? u1Rating.RatingSingle : (r.Player1Level)),
+                    Player1LevelDouble = (decimal?)(u1Rating != null ? u1Rating.RatingDouble : (r.Player1Level)),
 
                     Player2Name = r.Player2Name,
                     Player2Avatar = r.Player2Avatar,
@@ -88,8 +105,8 @@ namespace HanakaServer.Controllers
                     Player2Verified = r.Player2Verified,
                     Player2UserId = r.Player2UserId,
 
-                    Player2LevelSingle = (decimal?)((u2 != null ? (u2.RatingSingle ?? 0m) : (r.Player2Name != null ? r.Player2Level : 0m))),
-                    Player2LevelDouble = (decimal?)((u2 != null ? (u2.RatingDouble ?? 0m) : (r.Player2Name != null ? r.Player2Level : 0m))),
+                    Player2LevelSingle = (decimal?)(u2Rating != null ? u2Rating.RatingSingle : (r.Player2Name != null ? r.Player2Level : 0m)),
+                    Player2LevelDouble = (decimal?)(u2Rating != null ? u2Rating.RatingDouble : (r.Player2Name != null ? r.Player2Level : 0m)),
 
                     Points = r.Points,
                     BtCode = r.BtCode,
@@ -462,6 +479,11 @@ namespace HanakaServer.Controllers
             bool isDoubleLike)
         {
             if (!userId.HasValue)
+                return storedLevel;
+
+            // If storedLevel > 0, use it (it's the snapshot at registration time)
+            // Only fallback to User rating if storedLevel is 0 (legacy data)
+            if (storedLevel > 0)
                 return storedLevel;
 
             var picked = isDoubleLike ? ratingDouble : ratingSingle;

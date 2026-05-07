@@ -147,6 +147,22 @@ namespace HanakaServer.Controllers
                 join u2x in _db.Users on r.Player2UserId equals (long?)u2x.UserId into u2g
                 from u2 in u2g.DefaultIfEmpty()
 
+                // Get latest rating from UserRatingHistories for Player1
+                let u1LatestRating = _db.UserRatingHistories
+                    .Where(rh => rh.UserId == u1.UserId)
+                    .OrderByDescending(rh => rh.RatedAt)
+                    .ThenByDescending(rh => rh.RatingHistoryId)
+                    .Select(rh => new { rh.RatingSingle, rh.RatingDouble })
+                    .FirstOrDefault()
+
+                // Get latest rating from UserRatingHistories for Player2
+                let u2LatestRating = _db.UserRatingHistories
+                    .Where(rh => rh.UserId == u2.UserId)
+                    .OrderByDescending(rh => rh.RatedAt)
+                    .ThenByDescending(rh => rh.RatingHistoryId)
+                    .Select(rh => new { rh.RatingSingle, rh.RatingDouble })
+                    .FirstOrDefault()
+
                 select new
                 {
                     r.RegistrationId,
@@ -170,10 +186,10 @@ namespace HanakaServer.Controllers
                     U1Avatar = (string?)u1.AvatarUrl,
                     U2Avatar = (string?)u2.AvatarUrl,
 
-                    U1RatingSingle = (decimal?)(u1 != null ? (u1.RatingSingle ?? 0m) : null),
-                    U1RatingDouble = (decimal?)(u1 != null ? (u1.RatingDouble ?? 0m) : null),
-                    U2RatingSingle = (decimal?)(u2 != null ? (u2.RatingSingle ?? 0m) : null),
-                    U2RatingDouble = (decimal?)(u2 != null ? (u2.RatingDouble ?? 0m) : null),
+                    U1RatingSingle = (decimal?)(u1LatestRating != null ? u1LatestRating.RatingSingle : null),
+                    U1RatingDouble = (decimal?)(u1LatestRating != null ? u1LatestRating.RatingDouble : null),
+                    U2RatingSingle = (decimal?)(u2LatestRating != null ? u2LatestRating.RatingSingle : null),
+                    U2RatingDouble = (decimal?)(u2LatestRating != null ? u2LatestRating.RatingDouble : null),
 
                     U1Verified = (bool?)(u1 != null ? u1.Verified : null),
                     U2Verified = (bool?)(u2 != null ? u2.Verified : null),
@@ -188,13 +204,15 @@ namespace HanakaServer.Controllers
                 decimal p1Level = x.Player1Level;
                 decimal p2Level = x.Player2Level;
 
-                if (x.Player1UserId != null)
+                // Only override with User rating if Player1Level is 0 or null (legacy data)
+                // For new registrations, Player1Level already contains the correct snapshot rating
+                if (x.Player1UserId != null && (p1Level == 0 || p1Level == null))
                 {
                     var picked = (isDouble ? x.U1RatingDouble : x.U1RatingSingle);
                     if (picked != null) p1Level = (decimal)picked;
                 }
 
-                if (x.Player2UserId != null)
+                if (x.Player2UserId != null && (!x.WaitingPair && !string.IsNullOrWhiteSpace(x.Player2Name)))
                 {
                     var picked = (isDouble ? x.U2RatingDouble : x.U2RatingSingle);
                     if (picked != null) p2Level = (decimal)picked;

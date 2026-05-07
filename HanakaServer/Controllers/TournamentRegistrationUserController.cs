@@ -776,6 +776,64 @@ public class TournamentRegistrationUserController : ControllerBase
         return Ok(new { ok = true, message = "Đã hủy lời mời ghép đôi." });
     }
 
+    /// <summary>
+    /// GET /api/tournament-registrations/pair-requests?sent=true|false
+    /// Lấy danh sách lời mời ghép đôi của user hiện tại (đã gửi hoặc đã nhận).
+    /// </summary>
+    [HttpGet("pair-requests")]
+    public async Task<IActionResult> GetMyPairRequests(CancellationToken ct, [FromQuery] bool sent = false)
+    {
+        var userId = GetUserIdFromToken();
+
+        // Expire pending pair requests globally first
+        await ExpirePendingPairRequestsAsync(null, ct);
+
+        var query = _db.TournamentPairRequests
+            .AsNoTracking()
+            .Include(x => x.Tournament)
+            .Include(x => x.RequestedByUser)
+            .Include(x => x.RequestedToUser)
+            .Where(x =>
+                (sent && x.RequestedByUserId == userId) || (!sent && x.RequestedToUserId == userId));
+
+        var items = await query
+            .OrderByDescending(x => x.RequestedAt)
+            .Select(x => new PairRequestListItemDto
+            {
+                PairRequestId = x.PairRequestId,
+                TournamentId = x.Tournament.TournamentId,
+                TournamentTitle = x.Tournament.Title,
+                TournamentBanner = x.Tournament.BannerUrl,
+                TournamentDate = x.Tournament.StartTime,
+                TournamentLocation = x.Tournament.LocationText,
+                RequestedByUser = sent ? null : new UserBrief
+                {
+                    UserId = x.RequestedByUser.UserId,
+                    FullName = x.RequestedByUser.FullName,
+                    AvatarUrl = x.RequestedByUser.AvatarUrl,
+                    Verified = x.RequestedByUser.Verified,
+                    RatingDouble = x.RequestedByUser.RatingDouble ?? 0m
+                },
+                RequestedToUser = sent ? new UserBrief
+                {
+                    UserId = x.RequestedToUser.UserId,
+                    FullName = x.RequestedToUser.FullName,
+                    AvatarUrl = x.RequestedToUser.AvatarUrl,
+                    Verified = x.RequestedToUser.Verified,
+                    RatingDouble = x.RequestedToUser.RatingDouble ?? 0m
+                } : null,
+                RequestedAt = x.RequestedAt,
+                ExpiresAt = x.ExpiresAt,
+                Status = x.Status,
+                RegistrationId = x.RegistrationId,
+                RespondedAt = x.RespondedAt,
+                ResponseNote = x.ResponseNote
+            })
+            .ToListAsync(ct);
+
+        return Ok(items);
+    }
+
     private async Task<IActionResult> RespondPairRequestAsync(long pairRequestId, long userId, string status, string? note, CancellationToken ct)
     {
         await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
@@ -1108,16 +1166,18 @@ public class TournamentRegistrationUserController : ControllerBase
              (x.BlockerUserId == userB && x.BlockedUserId == userA)), ct);
     }
 
-    private async Task ExpirePendingPairRequestsAsync(long tournamentId, CancellationToken ct)
+    private async Task ExpirePendingPairRequestsAsync(long? tournamentId, CancellationToken ct)
     {
         var now = DateTime.UtcNow;
-        var expired = await _db.TournamentPairRequests
-            .Where(x =>
-                x.TournamentId == tournamentId &&
-                x.Status == "PENDING" &&
-                x.ExpiresAt.HasValue &&
-                x.ExpiresAt.Value <= now)
-            .ToListAsync(ct);
+        var query = _db.TournamentPairRequests
+            .Where(x => x.Status == "PENDING" && x.ExpiresAt.HasValue && x.ExpiresAt.Value <= now);
+
+        if (tournamentId.HasValue)
+        {
+            query = query.Where(x => x.TournamentId == tournamentId.Value);
+        }
+
+        var expired = await query.ToListAsync(ct);
 
         if (expired.Count == 0)
             return;
@@ -1290,6 +1350,33 @@ public class TournamentRegistrationUserController : ControllerBase
     {
         public long RequestedToUserId { get; set; }
         public long RequestedToRegistrationId { get; set; }
+    }
+
+    public class UserBrief
+    {
+        public long UserId { get; set; }
+        public string FullName { get; set; } = "";
+        public string? AvatarUrl { get; set; }
+        public bool Verified { get; set; }
+        public decimal RatingDouble { get; set; }
+    }
+
+    public sealed class PairRequestListItemDto
+    {
+        public long PairRequestId { get; set; }
+        public long TournamentId { get; set; }
+        public string TournamentTitle { get; set; } = "";
+        public string? TournamentBanner { get; set; }
+        public DateTime? TournamentDate { get; set; }
+        public string? TournamentLocation { get; set; }
+        public UserBrief? RequestedByUser { get; set; }
+        public UserBrief? RequestedToUser { get; set; }
+        public DateTime RequestedAt { get; set; }
+        public DateTime? ExpiresAt { get; set; }
+        public string Status { get; set; } = "";
+        public long? RegistrationId { get; set; }
+        public DateTime? RespondedAt { get; set; }
+        public string? ResponseNote { get; set; }
     }
 
     public sealed class PairRequestResponseDto
