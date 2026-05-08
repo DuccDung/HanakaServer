@@ -131,7 +131,8 @@ namespace HanakaServer.Controllers
                 RegisteredCount = t.RegisteredCount,
                 PairedCount = t.PairedCount,
                 Content = t.Content,
-                TournamentRule = t.TournamentRule
+                TournamentRule = t.TournamentRule,
+                ZaloLink = t.ZaloLink
             };
         }
         // GET: /api/admin/tournaments?status=OPEN&page=1&pageSize=50
@@ -172,6 +173,7 @@ namespace HanakaServer.Controllers
                     CreatedAt = t.CreatedAt,
                     SingleLimit = t.SingleLimit,
                     DoubleLimit = t.DoubleLimit,
+                    ZaloLink = t.ZaloLink,
 
                     Organizer = t.Organizer,
                     CreatorName = t.CreatorName,
@@ -254,6 +256,7 @@ namespace HanakaServer.Controllers
                 DoubleLimit = req.DoubleLimit ?? 0,
                 Content = req.Content,
                 TournamentRule = req.TournamentRule,
+                ZaloLink = TrimToNull(req.ZaloLink),
                 CreatedAt = DateTime.UtcNow,
 
 
@@ -321,6 +324,7 @@ namespace HanakaServer.Controllers
             if (req.DoubleLimit.HasValue) t.DoubleLimit = req.DoubleLimit.Value;
 
             if (req.Content != null) t.Content = req.Content;
+            if (req.ZaloLink != null) t.ZaloLink = TrimToNull(req.ZaloLink);
 
             // edit các field mở rộng (cho phép clear bằng string rỗng)
             if (req.Organizer != null) t.Organizer = TrimToNull(req.Organizer);

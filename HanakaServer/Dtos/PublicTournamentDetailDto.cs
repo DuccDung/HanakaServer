@@ -37,6 +37,7 @@
 
         public string? Organizer { get; set; }
         public string? CreatorName { get; set; }
+        public string? ZaloLink { get; set; }
 
         public int? RegisteredCount { get; set; }
         public int? PairedCount { get; set; }

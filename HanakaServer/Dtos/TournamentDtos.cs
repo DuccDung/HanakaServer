@@ -21,6 +21,7 @@ namespace HanakaServer.Dtos
         public decimal? DoubleLimit { get; set; }
         public string? TournamentRule { get; set; }
         public string? Content { get; set; }
+        public string? ZaloLink { get; set; }
 
         // Optional (mở rộng)
         public string? FormatText { get; set; }   // Dạng thi đấu (mở rộng)
@@ -64,6 +65,7 @@ namespace HanakaServer.Dtos
         public int? PairedCount { get; set; }
         public string? Content { get; set; }
         public string? TournamentRule { get; set; }
+        public string? ZaloLink { get; set; }
     }
 
     public class UpdateTournamentRequest
@@ -85,6 +87,7 @@ namespace HanakaServer.Dtos
 
         public string? Content { get; set; }
         public string? TournamentRule { get; set; }
+        public string? ZaloLink { get; set; }
         public string? FormatText { get; set; }
         public string? PlayoffType { get; set; }
         public string? Organizer { get; set; }

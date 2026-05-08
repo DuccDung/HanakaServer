@@ -366,6 +366,16 @@
                         </div>
                     </div>
 
+                    <div class="form-group">
+                        <label>Link nhóm Zalo</label>
+                        <input id="zaloLink"
+                               class="form-control"
+                               placeholder="https://zalo.me/g/..." />
+                        <small class="text-muted d-block mt-2">
+                            Link Zalo riêng của giải đấu, dùng để hiển thị/chia sẻ nhóm trao đổi cho người tham gia.
+                        </small>
+                    </div>
+
                     <div class="form-row">
                         <div class="form-group col-md-8">
                             <label>Thể thức thi đấu mở rộng</label>
@@ -802,6 +812,7 @@
             const sub = `${t.areaText || "—"}${t.locationText ? " • " + t.locationText : ""}`;
             const extra1 = `${t.organizer ? "Đơn vị tổ chức: " + t.organizer : "Đơn vị tổ chức: —"}${t.creatorName ? " • Người tạo: " + t.creatorName : ""}`;
             const extra2 = `${t.formatText ? "Thể thức: " + t.formatText : "Thể thức: —"}${t.playoffType ? " • Vòng loại: " + t.playoffType : ""}`;
+            const zaloText = t.zaloLink ? `Zalo: ${t.zaloLink}` : "Zalo: —";
             const rulePreview = normalizeHtml(t.tournamentRule)
                 ? `<div class="small rule-preview-lite mt-1">${t.tournamentRule}</div>`
                 : `<div class="small text-gray-500 mt-1">Thể lệ: —</div>`;
@@ -819,6 +830,7 @@
                         <div class="small text-gray-500">${escapeHtml(sub)}</div>
                         <div class="small text-gray-500">${escapeHtml(extra1)}</div>
                         <div class="small text-gray-500">${escapeHtml(extra2)}</div>
+                        <div class="small text-gray-500">${escapeHtml(zaloText)}</div>
                         ${rulePreview}
                     </td>
                     <td>${badgeHtml(t.status)}</td>
@@ -903,6 +915,7 @@
             document.getElementById("tournamentType").value = "";
             document.getElementById("organizer").value = "";
             document.getElementById("creatorName").value = "";
+            document.getElementById("zaloLink").value = "";
             document.getElementById("formatText").value = "";
             document.getElementById("playoffType").value = "";
             document.getElementById("tournament_content").value = "";
@@ -1058,6 +1071,7 @@
             document.getElementById("tournament_content").value = t.content || "";
             document.getElementById("organizer").value = t.organizer || "";
             document.getElementById("creatorName").value = t.creatorName || "";
+            document.getElementById("zaloLink").value = t.zaloLink || "";
             document.getElementById("formatText").value = t.formatText || "";
             document.getElementById("playoffType").value = t.playoffType || "";
 
@@ -1134,6 +1148,7 @@
 
             fd.append("organizer", document.getElementById("organizer").value || "");
             fd.append("creatorName", document.getElementById("creatorName").value || "");
+            fd.append("zaloLink", document.getElementById("zaloLink").value || "");
             fd.append("formatText", document.getElementById("formatText").value || "");
             fd.append("playoffType", document.getElementById("playoffType").value || "");
 

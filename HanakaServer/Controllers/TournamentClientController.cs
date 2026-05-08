@@ -52,6 +52,7 @@ namespace HanakaServer.Controllers
                     MatchesCount = x.MatchesCount,
                     Organizer = x.Organizer,
                     CreatorName = x.CreatorName,
+                    ZaloLink = x.ZaloLink,
                     RegisteredCount = x.RegisteredCount,
                     PairedCount = x.PairedCount,
                     Content = x.Content,
@@ -300,6 +301,7 @@ namespace HanakaServer.Controllers
                     MatchesCount = x.MatchesCount,
                     Organizer = x.Organizer,
                     CreatorName = x.CreatorName,
+                    ZaloLink = x.ZaloLink,
                     RegisteredCount = x.RegisteredCount,
                     PairedCount = x.PairedCount,
                     Content = x.Content,
@@ -780,6 +782,7 @@ namespace HanakaServer.Controllers
         public int MatchesCount { get; set; }
         public string? Organizer { get; set; }
         public string? CreatorName { get; set; }
+        public string? ZaloLink { get; set; }
         public int RegisteredCount { get; set; }
         public int PairedCount { get; set; }
         public string? Content { get; set; }

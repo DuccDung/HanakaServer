@@ -70,6 +70,7 @@ namespace HanakaServer.Controllers
 
                     Organizer = x.Organizer,
                     CreatorName = x.CreatorName,
+                    ZaloLink = x.ZaloLink,
 
                     RegisteredCount = null,
                     PairedCount = null,
@@ -327,6 +328,7 @@ namespace HanakaServer.Controllers
             public string? AreaText { get; set; }
             public string? Organizer { get; set; }
             public string? CreatorName { get; set; }
+            public string? ZaloLink { get; set; }
             public string? FormatText { get; set; }
             public string? PlayoffType { get; set; }
             public string? BannerUrl { get; set; }
@@ -361,6 +363,7 @@ namespace HanakaServer.Controllers
                 AreaText = t.AreaText,
                 Organizer = t.Organizer,
                 CreatorName = t.CreatorName,
+                ZaloLink = t.ZaloLink,
                 FormatText = t.FormatText,
                 PlayoffType = t.PlayoffType,
                 BannerUrl = ToAbsoluteUrl(t.BannerUrl),
