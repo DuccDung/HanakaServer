@@ -623,8 +623,22 @@ public partial class PickleballDbContext : DbContext
 
             entity.HasIndex(e => e.Team2RegistrationId)
                 .HasDatabaseName("IX_TGM_Team2");
+
+            entity.HasIndex(e => new { e.Team1SourceMatchId, e.Team1SourceType })
+                .HasDatabaseName("IX_TGM_Team1SourceMatch");
+
+            entity.HasIndex(e => new { e.Team2SourceMatchId, e.Team2SourceType })
+                .HasDatabaseName("IX_TGM_Team2SourceMatch");
+
+            entity.HasIndex(e => new { e.Team1SourceGroupId, e.Team1SourceType, e.Team1SourceRank })
+                .HasDatabaseName("IX_TGM_Team1SourceGroup");
+
+            entity.HasIndex(e => new { e.Team2SourceGroupId, e.Team2SourceType, e.Team2SourceRank })
+                .HasDatabaseName("IX_TGM_Team2SourceGroup");
+
             entity.HasIndex(e => e.RefereeUserId)
                 .HasDatabaseName("IX_TGM_RefereeUserId");
+
             entity.HasOne(d => d.RefereeUser)
                 .WithMany(p => p.RefereeTournamentGroupMatches)
                 .HasForeignKey(d => d.RefereeUserId)
@@ -633,10 +647,19 @@ public partial class PickleballDbContext : DbContext
             // Unique pair per group (TeamMin/TeamMax)
             entity.HasIndex(e => new { e.TournamentRoundGroupId, e.TeamMin, e.TeamMax })
                 .IsUnique()
+                .HasFilter("[Team1RegistrationId] IS NOT NULL AND [Team2RegistrationId] IS NOT NULL")
                 .HasDatabaseName("UX_TGM_Group_TeamPair");
 
             entity.Property(e => e.AddressText).HasMaxLength(400);
             entity.Property(e => e.CourtText).HasMaxLength(100);
+            entity.Property(e => e.Team1SourceType)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue("REGISTRATION");
+            entity.Property(e => e.Team2SourceType)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue("REGISTRATION");
 
             entity.Property(e => e.CreatedAt)
                 .HasPrecision(0)
@@ -650,14 +673,16 @@ public partial class PickleballDbContext : DbContext
 
             // computed persisted columns
             entity.Property(e => e.TeamMin)
-                .HasComputedColumnSql("(CASE WHEN [Team1RegistrationId] < [Team2RegistrationId] THEN [Team1RegistrationId] ELSE [Team2RegistrationId] END)", stored: true)
+                .HasComputedColumnSql("(CASE WHEN [Team1RegistrationId] IS NULL OR [Team2RegistrationId] IS NULL THEN NULL WHEN [Team1RegistrationId] < [Team2RegistrationId] THEN [Team1RegistrationId] ELSE [Team2RegistrationId] END)", stored: true)
                 .ValueGeneratedOnAddOrUpdate();
 
             entity.Property(e => e.TeamMax)
-                .HasComputedColumnSql("(CASE WHEN [Team1RegistrationId] > [Team2RegistrationId] THEN [Team1RegistrationId] ELSE [Team2RegistrationId] END)", stored: true)
+                .HasComputedColumnSql("(CASE WHEN [Team1RegistrationId] IS NULL OR [Team2RegistrationId] IS NULL THEN NULL WHEN [Team1RegistrationId] > [Team2RegistrationId] THEN [Team1RegistrationId] ELSE [Team2RegistrationId] END)", stored: true)
                 .ValueGeneratedOnAddOrUpdate();
 
-            entity.HasCheckConstraint("CK_TGM_TeamsDifferent", "[Team1RegistrationId] <> [Team2RegistrationId]");
+            entity.HasCheckConstraint("CK_TGM_TeamsDifferent", "[Team1RegistrationId] IS NULL OR [Team2RegistrationId] IS NULL OR [Team1RegistrationId] <> [Team2RegistrationId]");
+            entity.HasCheckConstraint("CK_TGM_Team1SourceType", "[Team1SourceType] IN ('REGISTRATION','WINNER_MATCH','LOSER_MATCH','GROUP_RANK','BYE')");
+            entity.HasCheckConstraint("CK_TGM_Team2SourceType", "[Team2SourceType] IN ('REGISTRATION','WINNER_MATCH','LOSER_MATCH','GROUP_RANK','BYE')");
 
             entity.HasOne(d => d.TournamentRoundGroup)
                 .WithMany(p => p.TournamentGroupMatches)
@@ -688,6 +713,30 @@ public partial class PickleballDbContext : DbContext
                 .HasForeignKey(d => d.WinnerRegistrationId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("FK_TGM_Winner");
+
+            entity.HasOne(d => d.Team1SourceMatch)
+                .WithMany()
+                .HasForeignKey(d => d.Team1SourceMatchId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_TGM_Team1SourceMatch");
+
+            entity.HasOne(d => d.Team2SourceMatch)
+                .WithMany()
+                .HasForeignKey(d => d.Team2SourceMatchId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_TGM_Team2SourceMatch");
+
+            entity.HasOne(d => d.Team1SourceGroup)
+                .WithMany()
+                .HasForeignKey(d => d.Team1SourceGroupId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_TGM_Team1SourceGroup");
+
+            entity.HasOne(d => d.Team2SourceGroup)
+                .WithMany()
+                .HasForeignKey(d => d.Team2SourceGroupId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_TGM_Team2SourceGroup");
         });
         modelBuilder.Entity<Banner>(entity =>
         {

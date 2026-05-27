@@ -44,7 +44,9 @@ namespace HanakaServer.Controllers
 
             var baseQuery = _db.TournamentGroupMatches
                 .AsNoTracking()
-                .Where(x => !string.IsNullOrWhiteSpace(x.VideoUrl));
+                .Where(x => !string.IsNullOrWhiteSpace(x.VideoUrl)
+                    && x.Team1RegistrationId.HasValue
+                    && x.Team2RegistrationId.HasValue);
 
             if (tournamentId.HasValue && tournamentId.Value > 0)
             {
@@ -229,8 +231,15 @@ namespace HanakaServer.Controllers
                 groupMap.TryGetValue(m.TournamentRoundGroupId, out var group);
                 roundMapDict.TryGetValue(group?.TournamentRoundMapId ?? 0, out var round);
 
-                regMap.TryGetValue(m.Team1RegistrationId, out var team1Reg);
-                regMap.TryGetValue(m.Team2RegistrationId, out var team2Reg);
+                var team1Reg = m.Team1RegistrationId.HasValue
+                    && regMap.TryGetValue(m.Team1RegistrationId.Value, out var foundTeam1)
+                        ? foundTeam1
+                        : null;
+
+                var team2Reg = m.Team2RegistrationId.HasValue
+                    && regMap.TryGetValue(m.Team2RegistrationId.Value, out var foundTeam2)
+                        ? foundTeam2
+                        : null;
 
                 var team1Name = BuildTeamDisplayName(
                     tournament?.GameType,
@@ -247,8 +256,8 @@ namespace HanakaServer.Controllers
                 string? winnerSide = null;
                 if (m.WinnerRegistrationId.HasValue)
                 {
-                    if (m.WinnerRegistrationId.Value == m.Team1RegistrationId) winnerSide = "1";
-                    else if (m.WinnerRegistrationId.Value == m.Team2RegistrationId) winnerSide = "2";
+                    if (m.Team1RegistrationId.HasValue && m.WinnerRegistrationId.Value == m.Team1RegistrationId.Value) winnerSide = "1";
+                    else if (m.Team2RegistrationId.HasValue && m.WinnerRegistrationId.Value == m.Team2RegistrationId.Value) winnerSide = "2";
                 }
 
                 var pairedCount = (registrationStat?.SuccessCount ?? 0) * 2;
@@ -376,8 +385,10 @@ namespace HanakaServer.Controllers
                 .AsNoTracking()
                 .Where(x =>
                     !string.IsNullOrWhiteSpace(x.VideoUrl) &&
-                    (registrationIds.Contains(x.Team1RegistrationId) ||
-                     registrationIds.Contains(x.Team2RegistrationId)));
+                    x.Team1RegistrationId.HasValue &&
+                    x.Team2RegistrationId.HasValue &&
+                    (registrationIds.Contains(x.Team1RegistrationId.Value) ||
+                     registrationIds.Contains(x.Team2RegistrationId.Value)));
 
             if (tab == "suggested")
             {
@@ -559,8 +570,15 @@ namespace HanakaServer.Controllers
                 groupMap.TryGetValue(m.TournamentRoundGroupId, out var group);
                 roundMapDict.TryGetValue(group?.TournamentRoundMapId ?? 0, out var round);
 
-                regMap.TryGetValue(m.Team1RegistrationId, out var team1Reg);
-                regMap.TryGetValue(m.Team2RegistrationId, out var team2Reg);
+                var team1Reg = m.Team1RegistrationId.HasValue
+                    && regMap.TryGetValue(m.Team1RegistrationId.Value, out var foundTeam1)
+                        ? foundTeam1
+                        : null;
+
+                var team2Reg = m.Team2RegistrationId.HasValue
+                    && regMap.TryGetValue(m.Team2RegistrationId.Value, out var foundTeam2)
+                        ? foundTeam2
+                        : null;
 
                 var team1Name = BuildTeamDisplayName(
                     tournament?.GameType,
@@ -577,8 +595,8 @@ namespace HanakaServer.Controllers
                 string? winnerSide = null;
                 if (m.WinnerRegistrationId.HasValue)
                 {
-                    if (m.WinnerRegistrationId.Value == m.Team1RegistrationId) winnerSide = "1";
-                    else if (m.WinnerRegistrationId.Value == m.Team2RegistrationId) winnerSide = "2";
+                    if (m.Team1RegistrationId.HasValue && m.WinnerRegistrationId.Value == m.Team1RegistrationId.Value) winnerSide = "1";
+                    else if (m.Team2RegistrationId.HasValue && m.WinnerRegistrationId.Value == m.Team2RegistrationId.Value) winnerSide = "2";
                 }
 
                 var pairedCount = (registrationStat?.SuccessCount ?? 0) * 2;
@@ -693,14 +711,14 @@ namespace HanakaServer.Controllers
         public long GroupId { get; set; }
         public string? GroupName { get; set; }
 
-        public long Team1RegistrationId { get; set; }
+        public long? Team1RegistrationId { get; set; }
         public string? Team1Name { get; set; }
         public string? Team1Player1Name { get; set; }
         public string? Team1Player1Avatar { get; set; }
         public string? Team1Player2Name { get; set; }
         public string? Team1Player2Avatar { get; set; }
 
-        public long Team2RegistrationId { get; set; }
+        public long? Team2RegistrationId { get; set; }
         public string? Team2Name { get; set; }
         public string? Team2Player1Name { get; set; }
         public string? Team2Player1Avatar { get; set; }

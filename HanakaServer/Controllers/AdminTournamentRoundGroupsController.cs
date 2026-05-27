@@ -136,6 +136,18 @@ namespace HanakaServer.Controllers
                 });
             }
 
+            var usedAsSource = await _db.TournamentGroupMatches
+                .AsNoTracking()
+                .AnyAsync(x => x.Team1SourceGroupId == groupId || x.Team2SourceGroupId == groupId);
+
+            if (usedAsSource)
+            {
+                return BadRequest(new
+                {
+                    message = "Không xóa được bảng đấu vì đang được dùng làm nguồn xếp hạng cho trận sau."
+                });
+            }
+
             _db.TournamentRoundGroups.Remove(g);
             await _db.SaveChangesAsync();
 

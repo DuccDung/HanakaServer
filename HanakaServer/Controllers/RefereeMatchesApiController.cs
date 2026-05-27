@@ -18,15 +18,18 @@ namespace HanakaServer.Controllers
         private readonly PickleballDbContext _db;
         private readonly PublicRealtimeHub _publicRealtimeHub;
         private readonly TournamentUserNotificationService _tournamentNotificationService;
+        private readonly ITournamentBracketPropagationService _bracketPropagationService;
 
         public RefereeMatchesApiController(
             PickleballDbContext db,
             PublicRealtimeHub publicRealtimeHub,
-            TournamentUserNotificationService tournamentNotificationService)
+            TournamentUserNotificationService tournamentNotificationService,
+            ITournamentBracketPropagationService bracketPropagationService)
         {
             _db = db;
             _publicRealtimeHub = publicRealtimeHub;
             _tournamentNotificationService = tournamentNotificationService;
+            _bracketPropagationService = bracketPropagationService;
         }
 
         private long? GetCurrentUserId()
@@ -65,6 +68,8 @@ namespace HanakaServer.Controllers
             var matches = await (
      from m in _db.TournamentGroupMatches.AsNoTracking()
      where m.RefereeUserId == currentUserId.Value
+        && m.Team1RegistrationId.HasValue
+        && m.Team2RegistrationId.HasValue
      join g in _db.TournamentRoundGroups.AsNoTracking()
          on m.TournamentRoundGroupId equals g.TournamentRoundGroupId
      join rm in _db.TournamentRoundMaps.AsNoTracking()
@@ -72,9 +77,9 @@ namespace HanakaServer.Controllers
      join t in _db.Tournaments.AsNoTracking()
          on m.TournamentId equals t.TournamentId
      join r1 in _db.TournamentRegistrations.AsNoTracking()
-         on m.Team1RegistrationId equals r1.RegistrationId
+         on m.Team1RegistrationId!.Value equals r1.RegistrationId
      join r2 in _db.TournamentRegistrations.AsNoTracking()
-         on m.Team2RegistrationId equals r2.RegistrationId
+         on m.Team2RegistrationId!.Value equals r2.RegistrationId
      where t.Status != "CLOSED"
      orderby (m.StartAt ?? DateTime.MaxValue), m.MatchId
      select new
@@ -183,6 +188,9 @@ namespace HanakaServer.Controllers
             if (m == null)
                 return NotFound(new { message = "Không tìm thấy trận đấu hoặc bạn không phải trọng tài của trận này." });
 
+            if (!m.Team1RegistrationId.HasValue || !m.Team2RegistrationId.HasValue)
+                return BadRequest(new { message = "Trận chưa xác định đủ 2 đội nên chưa thể chấm điểm." });
+
             if (!m.StartAt.HasValue)
                 return BadRequest(new { message = "Trận chưa có thời gian thi đấu." });
 
@@ -261,6 +269,21 @@ namespace HanakaServer.Controllers
             catch
             {
                 // Realtime broadcast must not break the scoring transaction that already committed.
+            }
+
+            if (m.IsCompleted)
+            {
+                try
+                {
+                    if (!wasCompleted || previousWinnerRegistrationId != m.WinnerRegistrationId)
+                        await _bracketPropagationService.PropagateFromMatchAsync(m.MatchId, HttpContext.RequestAborted);
+
+                    await _bracketPropagationService.PropagateFromGroupAsync(m.TournamentRoundGroupId, HttpContext.RequestAborted);
+                }
+                catch
+                {
+                    // Bracket propagation must not break a score that is already saved.
+                }
             }
 
             if (m.IsCompleted && (!wasCompleted || previousWinnerRegistrationId != m.WinnerRegistrationId))

@@ -2,8 +2,8 @@
 {
     public class CreateTournamentGroupMatchRequest
     {
-        public long Team1RegistrationId { get; set; }
-        public long Team2RegistrationId { get; set; }
+        public long? Team1RegistrationId { get; set; }
+        public long? Team2RegistrationId { get; set; }
         public DateTime? StartAt { get; set; }
         public string? AddressText { get; set; }
         public string? CourtText { get; set; }
@@ -15,8 +15,8 @@
 
     public class UpdateTournamentGroupMatchRequest
     {
-        public long Team1RegistrationId { get; set; }
-        public long Team2RegistrationId { get; set; }
+        public long? Team1RegistrationId { get; set; }
+        public long? Team2RegistrationId { get; set; }
 
         public bool StartAtSet { get; set; }
         public DateTime? StartAt { get; set; }

@@ -31,7 +31,13 @@ namespace HanakaServer.Services
                 .Include(x => x.RefereeUser)
                 .FirstOrDefaultAsync(x => x.MatchId == matchId, ct);
 
-            if (match == null || !match.IsCompleted || !match.WinnerRegistrationId.HasValue)
+            if (match == null
+                || !match.IsCompleted
+                || !match.WinnerRegistrationId.HasValue
+                || !match.Team1RegistrationId.HasValue
+                || !match.Team2RegistrationId.HasValue
+                || match.Team1Registration == null
+                || match.Team2Registration == null)
             {
                 return;
             }

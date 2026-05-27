@@ -40,6 +40,8 @@ builder.Services.AddScoped<IOtpGenerator, OtpGenerator>();
 builder.Services.AddScoped<IUserOtpService, UserOtpService>();
 builder.Services.AddScoped<IAppAuthService, AppAuthService>();
 builder.Services.AddScoped<TournamentUserNotificationService>();
+builder.Services.AddScoped<ITournamentStandingsService, TournamentStandingsService>();
+builder.Services.AddScoped<ITournamentBracketPropagationService, TournamentBracketPropagationService>();
 builder.Services.AddSingleton<IWebAuthCookieService, WebAuthCookieService>();
 
 builder.Services.AddSingleton<RealtimeHub>();

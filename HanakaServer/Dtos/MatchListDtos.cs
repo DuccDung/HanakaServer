@@ -29,8 +29,8 @@
 
         public string GameType { get; set; } = "DOUBLE";
 
-        public long Team1RegistrationId { get; set; }
-        public long Team2RegistrationId { get; set; }
+        public long? Team1RegistrationId { get; set; }
+        public long? Team2RegistrationId { get; set; }
 
         public List<MatchPlayerDto> Team1Players { get; set; } = new();
         public List<MatchPlayerDto> Team2Players { get; set; } = new();

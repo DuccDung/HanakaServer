@@ -2,6 +2,7 @@
 using HanakaServer.Dtos;
 using HanakaServer.Helpers;
 using HanakaServer.Models;
+using HanakaServer.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,10 +13,12 @@ namespace HanakaServer.Controllers
     public class TournamentClientController : ControllerBase
     {
         private readonly PickleballDbContext _db;
+        private readonly ITournamentStandingsService _standingsService;
 
-        public TournamentClientController(PickleballDbContext db)
+        public TournamentClientController(PickleballDbContext db, ITournamentStandingsService standingsService)
         {
             _db = db;
+            _standingsService = standingsService;
         }
 
         /// <summary>
@@ -111,7 +114,15 @@ namespace HanakaServer.Controllers
                     x.TournamentRoundGroupId,
                     x.TournamentId,
                     x.Team1RegistrationId,
+                    x.Team1SourceType,
+                    x.Team1SourceMatchId,
+                    x.Team1SourceGroupId,
+                    x.Team1SourceRank,
                     x.Team2RegistrationId,
+                    x.Team2SourceType,
+                    x.Team2SourceMatchId,
+                    x.Team2SourceGroupId,
+                    x.Team2SourceRank,
                     x.StartAt,
                     x.AddressText,
                     x.CourtText,
@@ -124,6 +135,18 @@ namespace HanakaServer.Controllers
                     x.UpdatedAt
                 })
                 .ToListAsync();
+
+            var sourceGroupIds = matchesRaw
+                .SelectMany(x => new[] { x.Team1SourceGroupId, x.Team2SourceGroupId })
+                .Where(x => x.HasValue)
+                .Select(x => x!.Value)
+                .Distinct()
+                .ToList();
+
+            var sourceGroupMap = await _db.TournamentRoundGroups.AsNoTracking()
+                .Where(x => sourceGroupIds.Contains(x.TournamentRoundGroupId))
+                .Select(x => new { x.TournamentRoundGroupId, x.GroupName })
+                .ToDictionaryAsync(x => x.TournamentRoundGroupId, x => x.GroupName);
 
             var registrationIds = matchesRaw
                 .SelectMany(x => new long?[]
@@ -178,8 +201,13 @@ namespace HanakaServer.Controllers
                         .Where(m => m.TournamentRoundGroupId == g.TournamentRoundGroupId)
                         .Select(m =>
                         {
-                            regMap.TryGetValue(m.Team1RegistrationId, out var team1Reg);
-                            regMap.TryGetValue(m.Team2RegistrationId, out var team2Reg);
+                            TournamentRegistrationLiteDto? team1Reg = null;
+                            if (m.Team1RegistrationId.HasValue)
+                                regMap.TryGetValue(m.Team1RegistrationId.Value, out team1Reg);
+
+                            TournamentRegistrationLiteDto? team2Reg = null;
+                            if (m.Team2RegistrationId.HasValue)
+                                regMap.TryGetValue(m.Team2RegistrationId.Value, out team2Reg);
 
                             TournamentRegistrationLiteDto? winnerReg = null;
                             if (m.WinnerRegistrationId.HasValue)
@@ -192,10 +220,32 @@ namespace HanakaServer.Controllers
                                 TournamentId = m.TournamentId,
 
                                 Team1RegistrationId = m.Team1RegistrationId,
-                                Team1 = team1Reg == null ? null : BuildTeamDto(tournament.GameType, team1Reg),
+                                Team1 = team1Reg == null
+                                    ? BuildTbdTeamDto(m.Team1SourceType, m.Team1SourceMatchId, m.Team1SourceGroupId, m.Team1SourceRank, sourceGroupMap)
+                                    : BuildTeamDto(tournament.GameType, team1Reg),
+                                Team1Text = team1Reg == null
+                                    ? BuildSourceText(m.Team1SourceType, m.Team1SourceMatchId, m.Team1SourceGroupId, m.Team1SourceRank, sourceGroupMap)
+                                    : BuildTeamDto(tournament.GameType, team1Reg).DisplayName,
+                                Team1SourceType = m.Team1SourceType,
+                                Team1SourceMatchId = m.Team1SourceMatchId,
+                                Team1SourceGroupId = m.Team1SourceGroupId,
+                                Team1SourceRank = m.Team1SourceRank,
+                                Team1SourceText = BuildSourceText(m.Team1SourceType, m.Team1SourceMatchId, m.Team1SourceGroupId, m.Team1SourceRank, sourceGroupMap),
+                                Team1Resolved = m.Team1RegistrationId.HasValue,
 
                                 Team2RegistrationId = m.Team2RegistrationId,
-                                Team2 = team2Reg == null ? null : BuildTeamDto(tournament.GameType, team2Reg),
+                                Team2 = team2Reg == null
+                                    ? BuildTbdTeamDto(m.Team2SourceType, m.Team2SourceMatchId, m.Team2SourceGroupId, m.Team2SourceRank, sourceGroupMap)
+                                    : BuildTeamDto(tournament.GameType, team2Reg),
+                                Team2Text = team2Reg == null
+                                    ? BuildSourceText(m.Team2SourceType, m.Team2SourceMatchId, m.Team2SourceGroupId, m.Team2SourceRank, sourceGroupMap)
+                                    : BuildTeamDto(tournament.GameType, team2Reg).DisplayName,
+                                Team2SourceType = m.Team2SourceType,
+                                Team2SourceMatchId = m.Team2SourceMatchId,
+                                Team2SourceGroupId = m.Team2SourceGroupId,
+                                Team2SourceRank = m.Team2SourceRank,
+                                Team2SourceText = BuildSourceText(m.Team2SourceType, m.Team2SourceMatchId, m.Team2SourceGroupId, m.Team2SourceRank, sourceGroupMap),
+                                Team2Resolved = m.Team2RegistrationId.HasValue,
 
                                 StartAt = m.StartAt,
                                 AddressText = m.AddressText,
@@ -257,7 +307,15 @@ namespace HanakaServer.Controllers
                     x.TournamentRoundGroupId,
                     x.TournamentId,
                     x.Team1RegistrationId,
+                    x.Team1SourceType,
+                    x.Team1SourceMatchId,
+                    x.Team1SourceGroupId,
+                    x.Team1SourceRank,
                     x.Team2RegistrationId,
+                    x.Team2SourceType,
+                    x.Team2SourceMatchId,
+                    x.Team2SourceGroupId,
+                    x.Team2SourceRank,
                     x.StartAt,
                     x.AddressText,
                     x.CourtText,
@@ -347,7 +405,11 @@ namespace HanakaServer.Controllers
             if (round == null)
                 return NotFound(new { message = "Round not found." });
 
-            var registrationIds = new List<long> { match.Team1RegistrationId, match.Team2RegistrationId };
+            var registrationIds = new List<long>();
+            if (match.Team1RegistrationId.HasValue)
+                registrationIds.Add(match.Team1RegistrationId.Value);
+            if (match.Team2RegistrationId.HasValue)
+                registrationIds.Add(match.Team2RegistrationId.Value);
             if (match.WinnerRegistrationId.HasValue)
                 registrationIds.Add(match.WinnerRegistrationId.Value);
 
@@ -382,12 +444,28 @@ namespace HanakaServer.Controllers
 
             var regMap = regs.ToDictionary(x => x.RegistrationId, x => x);
 
-            regMap.TryGetValue(match.Team1RegistrationId, out var team1Reg);
-            regMap.TryGetValue(match.Team2RegistrationId, out var team2Reg);
+            TournamentRegistrationLiteDto? team1Reg = null;
+            if (match.Team1RegistrationId.HasValue)
+                regMap.TryGetValue(match.Team1RegistrationId.Value, out team1Reg);
+
+            TournamentRegistrationLiteDto? team2Reg = null;
+            if (match.Team2RegistrationId.HasValue)
+                regMap.TryGetValue(match.Team2RegistrationId.Value, out team2Reg);
 
             TournamentRegistrationLiteDto? winnerReg = null;
             if (match.WinnerRegistrationId.HasValue)
                 regMap.TryGetValue(match.WinnerRegistrationId.Value, out winnerReg);
+
+            var sourceGroupIds = new[] { match.Team1SourceGroupId, match.Team2SourceGroupId }
+                .Where(x => x.HasValue)
+                .Select(x => x!.Value)
+                .Distinct()
+                .ToList();
+
+            var sourceGroupMap = await _db.TournamentRoundGroups.AsNoTracking()
+                .Where(x => sourceGroupIds.Contains(x.TournamentRoundGroupId))
+                .Select(x => new { x.TournamentRoundGroupId, x.GroupName })
+                .ToDictionaryAsync(x => x.TournamentRoundGroupId, x => x.GroupName);
 
             var response = new TournamentMatchDetailResponseDto
             {
@@ -418,10 +496,32 @@ namespace HanakaServer.Controllers
                     TournamentId = match.TournamentId,
 
                     Team1RegistrationId = match.Team1RegistrationId,
-                    Team1 = team1Reg == null ? null : BuildTeamDto(tournament.GameType, team1Reg),
+                    Team1 = team1Reg == null
+                        ? BuildTbdTeamDto(match.Team1SourceType, match.Team1SourceMatchId, match.Team1SourceGroupId, match.Team1SourceRank, sourceGroupMap)
+                        : BuildTeamDto(tournament.GameType, team1Reg),
+                    Team1Text = team1Reg == null
+                        ? BuildSourceText(match.Team1SourceType, match.Team1SourceMatchId, match.Team1SourceGroupId, match.Team1SourceRank, sourceGroupMap)
+                        : BuildTeamDto(tournament.GameType, team1Reg).DisplayName,
+                    Team1SourceType = match.Team1SourceType,
+                    Team1SourceMatchId = match.Team1SourceMatchId,
+                    Team1SourceGroupId = match.Team1SourceGroupId,
+                    Team1SourceRank = match.Team1SourceRank,
+                    Team1SourceText = BuildSourceText(match.Team1SourceType, match.Team1SourceMatchId, match.Team1SourceGroupId, match.Team1SourceRank, sourceGroupMap),
+                    Team1Resolved = match.Team1RegistrationId.HasValue,
 
                     Team2RegistrationId = match.Team2RegistrationId,
-                    Team2 = team2Reg == null ? null : BuildTeamDto(tournament.GameType, team2Reg),
+                    Team2 = team2Reg == null
+                        ? BuildTbdTeamDto(match.Team2SourceType, match.Team2SourceMatchId, match.Team2SourceGroupId, match.Team2SourceRank, sourceGroupMap)
+                        : BuildTeamDto(tournament.GameType, team2Reg),
+                    Team2Text = team2Reg == null
+                        ? BuildSourceText(match.Team2SourceType, match.Team2SourceMatchId, match.Team2SourceGroupId, match.Team2SourceRank, sourceGroupMap)
+                        : BuildTeamDto(tournament.GameType, team2Reg).DisplayName,
+                    Team2SourceType = match.Team2SourceType,
+                    Team2SourceMatchId = match.Team2SourceMatchId,
+                    Team2SourceGroupId = match.Team2SourceGroupId,
+                    Team2SourceRank = match.Team2SourceRank,
+                    Team2SourceText = BuildSourceText(match.Team2SourceType, match.Team2SourceMatchId, match.Team2SourceGroupId, match.Team2SourceRank, sourceGroupMap),
+                    Team2Resolved = match.Team2RegistrationId.HasValue,
 
                     StartAt = match.StartAt,
                     AddressText = match.AddressText,
@@ -491,6 +591,72 @@ namespace HanakaServer.Controllers
             };
         }
 
+        private static TournamentTeamDto BuildTbdTeamDto(
+            string? sourceType,
+            long? sourceMatchId,
+            long? sourceGroupId,
+            int? sourceRank,
+            IReadOnlyDictionary<long, string>? sourceGroupMap)
+        {
+            var displayName = BuildSourceText(sourceType, sourceMatchId, sourceGroupId, sourceRank, sourceGroupMap);
+            if (string.IsNullOrWhiteSpace(displayName) || displayName == "TBD")
+                displayName = "Chưa xác định";
+
+            return new TournamentTeamDto
+            {
+                RegistrationId = 0,
+                TournamentId = 0,
+                RegCode = "",
+                RegIndex = 0,
+                DisplayName = displayName,
+                IsSingle = false,
+                Player1 = new TournamentPlayerDto
+                {
+                    Name = displayName
+                },
+                Points = 0,
+                Paid = false,
+                WaitingPair = false,
+                Success = false,
+                CreatedAt = DateTime.MinValue
+            };
+        }
+
+        private static string BuildSourceText(
+            string? sourceType,
+            long? sourceMatchId,
+            long? sourceGroupId,
+            int? sourceRank,
+            IReadOnlyDictionary<long, string>? sourceGroupMap)
+        {
+            sourceType = MatchSourceTypes.Normalize(sourceType);
+
+            return sourceType switch
+            {
+                MatchSourceTypes.WinnerMatch => sourceMatchId.HasValue ? $"Chờ thắng trận #{sourceMatchId}" : "Chờ thắng trận",
+                MatchSourceTypes.LoserMatch => sourceMatchId.HasValue ? $"Chờ thua trận #{sourceMatchId}" : "Chờ thua trận",
+                MatchSourceTypes.GroupRank => BuildGroupRankSourceText(sourceGroupId, sourceRank, sourceGroupMap),
+                MatchSourceTypes.Bye => "Miễn đấu",
+                _ => "Chưa xác định"
+            };
+        }
+
+        private static string BuildGroupRankSourceText(
+            long? sourceGroupId,
+            int? sourceRank,
+            IReadOnlyDictionary<long, string>? sourceGroupMap)
+        {
+            var groupName = sourceGroupId.HasValue
+                && sourceGroupMap != null
+                && sourceGroupMap.TryGetValue(sourceGroupId.Value, out var found)
+                    ? found
+                    : (sourceGroupId.HasValue ? $"#{sourceGroupId}" : "");
+
+            return sourceRank.HasValue
+                ? $"Chờ hạng {sourceRank.Value} bảng {groupName}".Trim()
+                : $"Chờ hạng bảng {groupName}".Trim();
+        }
+
         private static string BuildDoubleDisplayName(string? player1Name, string? player2Name)
         {
             var p1 = (player1Name ?? "").Trim();
@@ -502,15 +668,15 @@ namespace HanakaServer.Controllers
             return $"{p1} & {p2}";
         }
 
-        private static string? GetWinnerTeam(long? winnerRegistrationId, long team1RegistrationId, long team2RegistrationId)
+        private static string? GetWinnerTeam(long? winnerRegistrationId, long? team1RegistrationId, long? team2RegistrationId)
         {
             if (!winnerRegistrationId.HasValue)
                 return null;
 
-            if (winnerRegistrationId.Value == team1RegistrationId)
+            if (team1RegistrationId.HasValue && winnerRegistrationId.Value == team1RegistrationId.Value)
                 return "1";
 
-            if (winnerRegistrationId.Value == team2RegistrationId)
+            if (team2RegistrationId.HasValue && winnerRegistrationId.Value == team2RegistrationId.Value)
                 return "2";
 
             return null;
@@ -561,48 +727,6 @@ namespace HanakaServer.Controllers
                 })
                 .ToListAsync();
 
-            var groupIds = groups.Select(x => x.TournamentRoundGroupId).ToList();
-
-            var matches = await _db.TournamentGroupMatches
-                .AsNoTracking()
-                .Where(x => groupIds.Contains(x.TournamentRoundGroupId) && x.IsCompleted)
-                .Select(x => new
-                {
-                    x.MatchId,
-                    x.TournamentRoundGroupId,
-                    x.Team1RegistrationId,
-                    x.Team2RegistrationId,
-                    x.ScoreTeam1,
-                    x.ScoreTeam2,
-                    x.WinnerRegistrationId
-                })
-                .ToListAsync();
-
-            var registrationIds = matches
-                .SelectMany(x => new[] { x.Team1RegistrationId, x.Team2RegistrationId })
-                .Distinct()
-                .ToList();
-
-            var registrations = await _db.TournamentRegistrations
-                .AsNoTracking()
-                .Where(x => registrationIds.Contains(x.RegistrationId))
-                .Select(x => new
-                {
-                    x.RegistrationId,
-                    x.RegIndex,
-                    x.Player1Name,
-                    x.Player2Name
-                })
-                .ToListAsync();
-
-            var regMap = registrations.ToDictionary(
-                x => x.RegistrationId,
-                x => new
-                {
-                    x.RegIndex,
-                    TeamName = BuildTeamName(tournament.GameType, x.Player1Name, x.Player2Name)
-                });
-
             var result = new RoundStandingResponseDto
             {
                 TournamentId = tournamentId,
@@ -614,73 +738,20 @@ namespace HanakaServer.Controllers
 
             foreach (var g in groups)
             {
-                var groupMatches = matches
-                    .Where(m => m.TournamentRoundGroupId == g.TournamentRoundGroupId)
+                var ordered = (await _standingsService.GetGroupStandingsAsync(g.TournamentRoundGroupId))
+                    .Select(x => new GroupStandingRowDto
+                    {
+                        RegistrationId = x.RegistrationId,
+                        TeamName = x.TeamName,
+                        Played = x.Played,
+                        Wins = x.Wins,
+                        Points = x.Points,
+                        ScoreDiff = x.ScoreDiff,
+                        ScoreFor = x.ScoreFor,
+                        ScoreAgainst = x.ScoreAgainst,
+                        Rank = x.Rank
+                    })
                     .ToList();
-
-                var stats = new Dictionary<long, GroupStandingRowDto>();
-
-                void EnsureTeam(long registrationId)
-                {
-                    if (!stats.ContainsKey(registrationId))
-                    {
-                        var reg = regMap[registrationId];
-                        stats[registrationId] = new GroupStandingRowDto
-                        {
-                            RegistrationId = registrationId,
-                            TeamName = reg.TeamName,
-                            Played = 0,
-                            Wins = 0,
-                            Points = 0,
-                            ScoreDiff = 0,
-                            ScoreFor = 0,
-                            ScoreAgainst = 0,
-                            Rank = 0
-                        };
-                    }
-                }
-
-                foreach (var m in groupMatches)
-                {
-                    EnsureTeam(m.Team1RegistrationId);
-                    EnsureTeam(m.Team2RegistrationId);
-
-                    var team1 = stats[m.Team1RegistrationId];
-                    var team2 = stats[m.Team2RegistrationId];
-
-                    team1.Played++;
-                    team2.Played++;
-
-                    team1.ScoreFor += m.ScoreTeam1;
-                    team1.ScoreAgainst += m.ScoreTeam2;
-                    team1.ScoreDiff = team1.ScoreFor - team1.ScoreAgainst;
-
-                    team2.ScoreFor += m.ScoreTeam2;
-                    team2.ScoreAgainst += m.ScoreTeam1;
-                    team2.ScoreDiff = team2.ScoreFor - team2.ScoreAgainst;
-
-                    if (m.ScoreTeam1 > m.ScoreTeam2)
-                    {
-                        team1.Wins++;
-                        team1.Points += 1;
-                    }
-                    else if (m.ScoreTeam2 > m.ScoreTeam1)
-                    {
-                        team2.Wins++;
-                        team2.Points += 1;
-                    }
-                }
-
-                var ordered = stats.Values
-                    .OrderByDescending(x => x.Points)
-                    .ThenByDescending(x => x.Wins)
-                    .ThenByDescending(x => x.ScoreDiff)
-                    .ThenByDescending(x => x.ScoreFor)
-                    .ThenBy(x => regMap[x.RegistrationId].RegIndex)
-                    .ToList();
-
-                for (int i = 0; i < ordered.Count; i++)
-                    ordered[i].Rank = i + 1;
 
                 result.Groups.Add(new GroupStandingDto
                 {
@@ -816,11 +887,25 @@ namespace HanakaServer.Controllers
         public long TournamentRoundGroupId { get; set; }
         public long TournamentId { get; set; }
 
-        public long Team1RegistrationId { get; set; }
+        public long? Team1RegistrationId { get; set; }
         public TournamentTeamDto? Team1 { get; set; }
+        public string? Team1Text { get; set; }
+        public string Team1SourceType { get; set; } = MatchSourceTypes.Registration;
+        public long? Team1SourceMatchId { get; set; }
+        public long? Team1SourceGroupId { get; set; }
+        public int? Team1SourceRank { get; set; }
+        public string? Team1SourceText { get; set; }
+        public bool Team1Resolved { get; set; }
 
-        public long Team2RegistrationId { get; set; }
+        public long? Team2RegistrationId { get; set; }
         public TournamentTeamDto? Team2 { get; set; }
+        public string? Team2Text { get; set; }
+        public string Team2SourceType { get; set; } = MatchSourceTypes.Registration;
+        public long? Team2SourceMatchId { get; set; }
+        public long? Team2SourceGroupId { get; set; }
+        public int? Team2SourceRank { get; set; }
+        public string? Team2SourceText { get; set; }
+        public bool Team2Resolved { get; set; }
 
         public DateTime? StartAt { get; set; }
         public string? AddressText { get; set; }

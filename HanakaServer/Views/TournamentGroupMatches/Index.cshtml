@@ -84,12 +84,34 @@
         height: 100%;
     }
 
+    .source-quick-actions {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 6px;
+    }
+
+        .source-quick-actions .btn {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+    .source-help {
+        line-height: 1.35;
+    }
+
     .team-select-summary {
         min-height: 122px;
         border: 1px dashed #ced4da;
         border-radius: 10px;
         padding: 12px;
         background: #fff;
+    }
+
+    @@media (max-width: 576px) {
+        .source-quick-actions {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
     }
 
         .team-select-summary.empty {
@@ -533,51 +555,129 @@
                         <div class="form-group col-md-6">
                             <label>Đội 1 (Đăng ký)</label>
                             <div class="match-team-selector">
-                                <div class="input-group mb-2">
-                                    <input class="form-control"
-                                           id="team1CodeSearch"
-                                           placeholder="Nhập mã đăng ký, ví dụ: 3-0001"
-                                           autocomplete="off" />
-                                    <div class="input-group-append">
-                                        <button class="btn btn-outline-info" type="button" id="btnFindTeam1">
-                                            <i class="fas fa-search"></i> Tìm
-                                        </button>
-                                        <button class="btn btn-outline-primary" type="button" id="btnBrowseTeam1">
-                                            <i class="fas fa-list"></i> Danh sách
-                                        </button>
+                                <div class="form-group mb-2">
+                                    <label class="small font-weight-bold text-uppercase text-muted mb-1">Nguồn đội</label>
+                                    <select class="form-control" id="team1SourceType">
+                                        <option value="REGISTRATION">Đội cụ thể</option>
+                                        <option value="WINNER_MATCH">Thắng trận</option>
+                                        <option value="LOSER_MATCH">Thua trận</option>
+                                        <option value="GROUP_RANK">Hạng bảng</option>
+                                    </select>
+                                </div>
+                                <div class="source-quick-actions mb-2" aria-label="Chọn nhanh nguồn đội 1">
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-slot="1" data-slot-source="REGISTRATION" aria-pressed="true">
+                                        <i class="fas fa-user-friends"></i> Đội
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary" type="button" data-slot="1" data-slot-source="WINNER_MATCH" aria-pressed="false">
+                                        <i class="fas fa-trophy"></i> Thắng
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-warning" type="button" data-slot="1" data-slot-source="LOSER_MATCH" aria-pressed="false">
+                                        <i class="fas fa-level-down-alt"></i> Thua
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info" type="button" data-slot="1" data-slot-source="GROUP_RANK" aria-pressed="false">
+                                        <i class="fas fa-list-ol"></i> Hạng
+                                    </button>
+                                </div>
+                                <small class="text-muted d-block mb-2 source-help">
+                                    Tạo trận chờ bằng cách chọn Thắng/Thua rồi chọn trận nguồn.
+                                </small>
+                                <div id="team1RegistrationPanel">
+                                    <div class="input-group mb-2">
+                                        <input class="form-control"
+                                               id="team1CodeSearch"
+                                               placeholder="Nhập mã đăng ký, ví dụ: 3-0001"
+                                               autocomplete="off" />
+                                        <div class="input-group-append">
+                                            <button class="btn btn-outline-info" type="button" id="btnFindTeam1">
+                                                <i class="fas fa-search"></i> Tìm
+                                            </button>
+                                            <button class="btn btn-outline-primary" type="button" id="btnBrowseTeam1">
+                                                <i class="fas fa-list"></i> Danh sách
+                                            </button>
+                                        </div>
                                     </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <small class="text-muted team-search-note">Có thể nhập mã đăng ký hoặc tên đội để tìm nhanh.</small>
+                                        <button class="btn btn-link btn-sm p-0" type="button" id="btnClearTeam1">Bỏ chọn</button>
+                                    </div>
+                                    <div class="team-select-summary empty" id="team1Summary">Chưa chọn đội 1.</div>
+                                    <select class="form-control d-none" id="team1"></select>
                                 </div>
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <small class="text-muted team-search-note">Có thể nhập mã đăng ký hoặc tên đội để tìm nhanh.</small>
-                                    <button class="btn btn-link btn-sm p-0" type="button" id="btnClearTeam1">Bỏ chọn</button>
+                                <div id="team1MatchSourcePanel" class="d-none">
+                                    <label class="small font-weight-bold text-uppercase text-muted mb-1">Trận nguồn</label>
+                                    <select class="form-control" id="team1SourceMatchId"></select>
+                                    <small class="text-muted d-block mt-2">Slot sẽ tự cập nhật khi trận nguồn hoàn tất.</small>
                                 </div>
-                                <div class="team-select-summary empty" id="team1Summary">Chưa chọn đội 1.</div>
-                                <select class="form-control d-none" id="team1"></select>
+                                <div id="team1GroupRankPanel" class="d-none">
+                                    <label class="small font-weight-bold text-uppercase text-muted mb-1">Bảng nguồn</label>
+                                    <select class="form-control mb-2" id="team1SourceGroupId"></select>
+                                    <label class="small font-weight-bold text-uppercase text-muted mb-1">Hạng</label>
+                                    <input type="number" min="1" class="form-control" id="team1SourceRank" value="1" />
+                                </div>
                             </div>
                         </div>
                         <div class="form-group col-md-6">
                             <label>Đội 2 (Đăng ký)</label>
                             <div class="match-team-selector">
-                                <div class="input-group mb-2">
-                                    <input class="form-control"
-                                           id="team2CodeSearch"
-                                           placeholder="Nhập mã đăng ký, ví dụ: 3-0002"
-                                           autocomplete="off" />
-                                    <div class="input-group-append">
-                                        <button class="btn btn-outline-info" type="button" id="btnFindTeam2">
-                                            <i class="fas fa-search"></i> Tìm
-                                        </button>
-                                        <button class="btn btn-outline-primary" type="button" id="btnBrowseTeam2">
-                                            <i class="fas fa-list"></i> Danh sách
-                                        </button>
+                                <div class="form-group mb-2">
+                                    <label class="small font-weight-bold text-uppercase text-muted mb-1">Nguồn đội</label>
+                                    <select class="form-control" id="team2SourceType">
+                                        <option value="REGISTRATION">Đội cụ thể</option>
+                                        <option value="WINNER_MATCH">Thắng trận</option>
+                                        <option value="LOSER_MATCH">Thua trận</option>
+                                        <option value="GROUP_RANK">Hạng bảng</option>
+                                    </select>
+                                </div>
+                                <div class="source-quick-actions mb-2" aria-label="Chọn nhanh nguồn đội 2">
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-slot="2" data-slot-source="REGISTRATION" aria-pressed="true">
+                                        <i class="fas fa-user-friends"></i> Đội
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-primary" type="button" data-slot="2" data-slot-source="WINNER_MATCH" aria-pressed="false">
+                                        <i class="fas fa-trophy"></i> Thắng
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-warning" type="button" data-slot="2" data-slot-source="LOSER_MATCH" aria-pressed="false">
+                                        <i class="fas fa-level-down-alt"></i> Thua
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info" type="button" data-slot="2" data-slot-source="GROUP_RANK" aria-pressed="false">
+                                        <i class="fas fa-list-ol"></i> Hạng
+                                    </button>
+                                </div>
+                                <small class="text-muted d-block mb-2 source-help">
+                                    Tạo trận chờ bằng cách chọn Thắng/Thua rồi chọn trận nguồn.
+                                </small>
+                                <div id="team2RegistrationPanel">
+                                    <div class="input-group mb-2">
+                                        <input class="form-control"
+                                               id="team2CodeSearch"
+                                               placeholder="Nhập mã đăng ký, ví dụ: 3-0002"
+                                               autocomplete="off" />
+                                        <div class="input-group-append">
+                                            <button class="btn btn-outline-info" type="button" id="btnFindTeam2">
+                                                <i class="fas fa-search"></i> Tìm
+                                            </button>
+                                            <button class="btn btn-outline-primary" type="button" id="btnBrowseTeam2">
+                                                <i class="fas fa-list"></i> Danh sách
+                                            </button>
+                                        </div>
                                     </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <small class="text-muted team-search-note">Có thể nhập mã đăng ký hoặc tên đội để tìm nhanh.</small>
+                                        <button class="btn btn-link btn-sm p-0" type="button" id="btnClearTeam2">Bỏ chọn</button>
+                                    </div>
+                                    <div class="team-select-summary empty" id="team2Summary">Chưa chọn đội 2.</div>
+                                    <select class="form-control d-none" id="team2"></select>
                                 </div>
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <small class="text-muted team-search-note">Có thể nhập mã đăng ký hoặc tên đội để tìm nhanh.</small>
-                                    <button class="btn btn-link btn-sm p-0" type="button" id="btnClearTeam2">Bỏ chọn</button>
+                                <div id="team2MatchSourcePanel" class="d-none">
+                                    <label class="small font-weight-bold text-uppercase text-muted mb-1">Trận nguồn</label>
+                                    <select class="form-control" id="team2SourceMatchId"></select>
+                                    <small class="text-muted d-block mt-2">Slot sẽ tự cập nhật khi trận nguồn hoàn tất.</small>
                                 </div>
-                                <div class="team-select-summary empty" id="team2Summary">Chưa chọn đội 2.</div>
-                                <select class="form-control d-none" id="team2"></select>
+                                <div id="team2GroupRankPanel" class="d-none">
+                                    <label class="small font-weight-bold text-uppercase text-muted mb-1">Bảng nguồn</label>
+                                    <select class="form-control mb-2" id="team2SourceGroupId"></select>
+                                    <label class="small font-weight-bold text-uppercase text-muted mb-1">Hạng</label>
+                                    <input type="number" min="1" class="form-control" id="team2SourceRank" value="1" />
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -889,6 +989,7 @@
             const API_FIND_REFEREE = `/api/admin/referees/find-by-user-id`;
             const API_WINNER_SOURCES = `${API}/winner-sources`;
             const API_LOSER_SOURCES = `${API}/loser-sources`;
+            const API_SOURCE_OPTIONS = `${API}/source-options`;
 
             let CACHE = {
                 items: [],
@@ -913,6 +1014,10 @@
             let LOSER_SOURCE_CACHE = {
                 current: null,
                 rounds: []
+            };
+            let SOURCE_OPTIONS_CACHE = {
+                current: null,
+                previousRounds: []
             };
             let LOSER_FILTER_STATE = {
                 draftGroupIds: [],
@@ -2249,6 +2354,137 @@
                 }
             }
 
+            function getSourceMatchOptions() {
+                const rows = [];
+                (SOURCE_OPTIONS_CACHE.previousRounds || []).forEach(round => {
+                    (round.groups || round.Groups || []).forEach(group => {
+                        (group.matches || group.Matches || []).forEach(match => {
+                            rows.push({
+                                matchId: Number(match.matchId ?? match.MatchId ?? 0),
+                                label: match.label || match.Label || `Trận #${match.matchId ?? match.MatchId}`,
+                                roundLabel: round.roundLabel || round.RoundLabel || "",
+                                groupName: group.groupName || group.GroupName || "",
+                                isCompleted: !!(match.isCompleted ?? match.IsCompleted)
+                            });
+                        });
+                    });
+                });
+                return rows.filter(x => x.matchId > 0);
+            }
+
+            function getSourceGroupOptions() {
+                const rows = [];
+                (SOURCE_OPTIONS_CACHE.previousRounds || []).forEach(round => {
+                    (round.groups || round.Groups || []).forEach(group => {
+                        rows.push({
+                            groupId: Number(group.groupId ?? group.GroupId ?? 0),
+                            groupName: group.groupName || group.GroupName || `Bảng #${group.groupId ?? group.GroupId}`,
+                            roundLabel: round.roundLabel || round.RoundLabel || ""
+                        });
+                    });
+                });
+                return rows.filter(x => x.groupId > 0);
+            }
+
+            function populateSourceOptionSelects() {
+                const matchOptions = [`<option value="">-- Chọn trận nguồn --</option>`]
+                    .concat(getSourceMatchOptions().map(item => {
+                        const suffix = item.isCompleted ? " - đã xong" : " - chưa xong";
+                        return `<option value="${item.matchId}">${esc(item.roundLabel)} / ${esc(item.groupName)} / ${esc(item.label)}${esc(suffix)}</option>`;
+                    }))
+                    .join("");
+
+                const groupOptions = [`<option value="">-- Chọn bảng nguồn --</option>`]
+                    .concat(getSourceGroupOptions().map(item =>
+                        `<option value="${item.groupId}">${esc(item.roundLabel)} / ${esc(item.groupName)}</option>`
+                    ))
+                    .join("");
+
+                ["team1SourceMatchId", "team2SourceMatchId"].forEach(id => {
+                    const el = $id(id);
+                    if (el) el.innerHTML = matchOptions;
+                });
+
+                ["team1SourceGroupId", "team2SourceGroupId"].forEach(id => {
+                    const el = $id(id);
+                    if (el) el.innerHTML = groupOptions;
+                });
+            }
+
+            function syncSlotSourcePanel(slot) {
+                const sourceType = $id(`team${slot}SourceType`).value || "REGISTRATION";
+                $id(`team${slot}RegistrationPanel`).classList.toggle("d-none", sourceType !== "REGISTRATION");
+                $id(`team${slot}MatchSourcePanel`).classList.toggle("d-none", sourceType !== "WINNER_MATCH" && sourceType !== "LOSER_MATCH");
+                $id(`team${slot}GroupRankPanel`).classList.toggle("d-none", sourceType !== "GROUP_RANK");
+                syncSourceQuickButtons(slot, sourceType);
+            }
+
+            function syncSourceQuickButtons(slot, sourceType) {
+                document.querySelectorAll(`[data-slot="${slot}"][data-slot-source]`).forEach(btn => {
+                    const active = btn.dataset.slotSource === sourceType;
+                    btn.classList.toggle("active", active);
+                    btn.setAttribute("aria-pressed", active ? "true" : "false");
+                });
+            }
+
+            function chooseSlotSource(slot, sourceType) {
+                const select = $id(`team${slot}SourceType`);
+                if (!select) return;
+
+                select.value = sourceType || "REGISTRATION";
+                syncSlotSourcePanel(slot);
+            }
+
+            function setSlotSourceControls(slot, match) {
+                const sourceType = match?.[`team${slot}SourceType`] || "REGISTRATION";
+                $id(`team${slot}SourceType`).value = sourceType;
+                $id(`team${slot}SourceMatchId`).value = match?.[`team${slot}SourceMatchId`] || "";
+                $id(`team${slot}SourceGroupId`).value = match?.[`team${slot}SourceGroupId`] || "";
+                $id(`team${slot}SourceRank`).value = match?.[`team${slot}SourceRank`] || 1;
+                syncSlotSourcePanel(slot);
+            }
+
+            function buildSlotPayload(slot) {
+                const sourceType = $id(`team${slot}SourceType`).value || "REGISTRATION";
+
+                if (sourceType === "REGISTRATION") {
+                    const registrationId = Number($id(`team${slot}`).value || 0);
+                    if (!registrationId) {
+                        throw new Error(`Vui lòng chọn đội ${slot}.`);
+                    }
+                    return {
+                        sourceType,
+                        registrationId
+                    };
+                }
+
+                if (sourceType === "WINNER_MATCH" || sourceType === "LOSER_MATCH") {
+                    const sourceMatchId = Number($id(`team${slot}SourceMatchId`).value || 0);
+                    if (!sourceMatchId) {
+                        throw new Error(`Vui lòng chọn trận nguồn cho đội ${slot}.`);
+                    }
+                    return {
+                        sourceType,
+                        sourceMatchId
+                    };
+                }
+
+                if (sourceType === "GROUP_RANK") {
+                    const sourceGroupId = Number($id(`team${slot}SourceGroupId`).value || 0);
+                    const sourceRank = Number($id(`team${slot}SourceRank`).value || 0);
+                    if (!sourceGroupId || sourceRank < 1) {
+                        throw new Error(`Vui lòng chọn bảng nguồn và hạng hợp lệ cho đội ${slot}.`);
+                    }
+                    return {
+                        sourceType,
+                        sourceGroupId,
+                        sourceRank
+                    };
+                }
+
+                return { sourceType };
+            }
+
             function cardHtml(m) {
                 const completed = !!m.isCompleted;
                 const scoreTeam1 = Number(m.scoreTeam1 || 0);
@@ -2260,6 +2496,7 @@
                 const cardCls = `match-card ${completed ? "completed" : ""}`;
                 const team1RegCode = getRegCode(m.team1RegistrationId);
                 const team2RegCode = getRegCode(m.team2RegistrationId);
+                const canScore = !!m.team1RegistrationId && !!m.team2RegistrationId && m.team1RegistrationId !== m.team2RegistrationId;
                 const statusBadgeHtml = completed
                     ? `<span class="badge badge-light">ĐÃ KẾT THÚC</span>`
                     : hasStartedByScore
@@ -2297,7 +2534,8 @@
                                 <button class="btn btn-sm ${completed ? "btn-light" : "btn-outline-success"}"
                                         type="button"
                                         onclick="openScore(${m.matchId})"
-                                        title="Nhập tỷ số">
+                                        ${canScore ? "" : "disabled"}
+                                        title="${canScore ? "Nhập tỷ số" : "Trận chưa xác định đủ 2 đội"}">
                                     <i class="fas fa-clipboard-check"></i>
                                 </button>
 
@@ -2323,11 +2561,13 @@
                             <div class="team-block">
                                 <div class="team-code">Mã ĐK: ${esc(team1RegCode)}</div>
                                 <div class="team-name ${t1Winner ? "winner" : ""}">${esc(m.team1Text)}</div>
+                                ${m.team1Resolved ? "" : `<div class="team-code"><span class="badge badge-warning">TBD</span> ${esc(m.team1SourceText || "")}</div>`}
                             </div>
                             <div class="score">${Number(m.scoreTeam1 || 0)} - ${Number(m.scoreTeam2 || 0)}</div>
                             <div class="team-block text-right align-items-end">
                                 <div class="team-code">Mã ĐK: ${esc(team2RegCode)}</div>
                                 <div class="team-name ${t2Winner ? "winner" : ""}">${esc(m.team2Text)}</div>
+                                ${m.team2Resolved ? "" : `<div class="team-code"><span class="badge badge-warning">TBD</span> ${esc(m.team2SourceText || "")}</div>`}
                             </div>
                         </div>
 
@@ -2362,13 +2602,14 @@
                 hideErr();
 
                 try {
-                    const [res, regsRes, winnerSourceRes, loserSourceRes] = await Promise.all([
+                    const [res, regsRes, winnerSourceRes, loserSourceRes, sourceOptionsRes] = await Promise.all([
                         axios.get(API),
                         axios.get(API_REGS, {
                             params: { tab: "SUCCESS" }
                         }),
                         axios.get(API_WINNER_SOURCES),
-                        axios.get(API_LOSER_SOURCES)
+                        axios.get(API_LOSER_SOURCES),
+                        axios.get(API_SOURCE_OPTIONS)
                     ]);
 
                     CACHE.items = res.data?.items || [];
@@ -2377,6 +2618,9 @@
                     WINNER_SOURCE_CACHE.rounds = winnerSourceRes.data?.rounds || [];
                     LOSER_SOURCE_CACHE.current = loserSourceRes.data?.current || null;
                     LOSER_SOURCE_CACHE.rounds = loserSourceRes.data?.rounds || [];
+                    SOURCE_OPTIONS_CACHE.current = sourceOptionsRes.data?.current || null;
+                    SOURCE_OPTIONS_CACHE.previousRounds = sourceOptionsRes.data?.previousRounds || [];
+                    populateSourceOptionSelects();
                     rebuildActiveWinnerFilter();
                     rebuildActiveLoserFilter();
                     renderWinnerFilterSummary();
@@ -2404,6 +2648,8 @@
                 setRefereeInfo(null);
 
                 fillTeamsSelects(null, null);
+                setSlotSourceControls(1, null);
+                setSlotSourceControls(2, null);
                 closeTeamPicker();
             }
 
@@ -2423,6 +2669,8 @@
                 $id("modalTitle").textContent = "Chỉnh sửa trận đấu";
 
                 fillTeamsSelects(m.team1RegistrationId, m.team2RegistrationId);
+                setSlotSourceControls(1, m);
+                setSlotSourceControls(2, m);
 
                 fillStartAtField(m.startAt);
                 $id("addressText").value = m.addressText || "";
@@ -2466,6 +2714,11 @@
                 const m = (CACHE.items || []).find(x => x.matchId === matchId);
                 if (!m) return;
 
+                if (!m.team1RegistrationId || !m.team2RegistrationId || m.team1RegistrationId === m.team2RegistrationId) {
+                    alert("Trận chưa xác định đủ 2 đội nên chưa thể nhập điểm.");
+                    return;
+                }
+
                 $id("scoreMatchId").value = String(matchId);
                 $id("scoreTeam1Name").textContent = m.team1Text || "Đội 1";
                 $id("scoreTeam2Name").textContent = m.team2Text || "Đội 2";
@@ -2483,23 +2736,29 @@
                 const mode = $id("mode").value;
                 const editingId = $id("editingId").value;
 
-                const team1 = Number($id("team1").value || 0);
-                const team2 = Number($id("team2").value || 0);
-
-                if (!team1 || !team2) {
-                    showFormErr("Vui lòng chọn đủ hai đội.", "formErr");
+                let team1Slot;
+                let team2Slot;
+                try {
+                    team1Slot = buildSlotPayload(1);
+                    team2Slot = buildSlotPayload(2);
+                } catch (err) {
+                    showFormErr(err?.message || "Nguồn đội không hợp lệ.", "formErr");
                     return;
                 }
 
-                if (team1 === team2) {
+                if (team1Slot.sourceType === "REGISTRATION"
+                    && team2Slot.sourceType === "REGISTRATION"
+                    && team1Slot.registrationId === team2Slot.registrationId) {
                     showFormErr("Đội 1 và Đội 2 không được trùng nhau.", "formErr");
                     return;
                 }
 
-                const duplicateMatch = findDuplicateMatchForPair(team1, team2, getEditingMatchId());
-                if (duplicateMatch) {
-                    showFormErr(`Không thể lưu vì cặp đội này đã tồn tại ở trận #${duplicateMatch.matchId} trong bảng đấu.`, "formErr");
-                    return;
+                if (team1Slot.sourceType === "REGISTRATION" && team2Slot.sourceType === "REGISTRATION") {
+                    const duplicateMatch = findDuplicateMatchForPair(team1Slot.registrationId, team2Slot.registrationId, getEditingMatchId());
+                    if (duplicateMatch) {
+                        showFormErr(`Không thể lưu vì cặp đội này đã tồn tại ở trận #${duplicateMatch.matchId} trong bảng đấu.`, "formErr");
+                        return;
+                    }
                 }
 
                 const videoUrl = ($id("videoUrl").value || "").trim();
@@ -2517,8 +2776,10 @@
                 const startAtIso = buildStartAtValue();
 
                 const payloadCreate = {
-                    team1RegistrationId: team1,
-                    team2RegistrationId: team2,
+                    team1: team1Slot,
+                    team2: team2Slot,
+                    team1RegistrationId: team1Slot.sourceType === "REGISTRATION" ? team1Slot.registrationId : null,
+                    team2RegistrationId: team2Slot.sourceType === "REGISTRATION" ? team2Slot.registrationId : null,
                     startAt: startAtIso,
                     addressText: $id("addressText").value || null,
                     courtText: $id("courtText").value || null,
@@ -2527,8 +2788,10 @@
                 };
 
                 const payloadUpdate = {
-                    team1RegistrationId: team1,
-                    team2RegistrationId: team2,
+                    team1: team1Slot,
+                    team2: team2Slot,
+                    team1RegistrationId: team1Slot.sourceType === "REGISTRATION" ? team1Slot.registrationId : null,
+                    team2RegistrationId: team2Slot.sourceType === "REGISTRATION" ? team2Slot.registrationId : null,
                     startAtSet: true,
                     startAt: startAtIso,
                     addressText: $id("addressText").value || null,
@@ -2623,6 +2886,15 @@
 
             $id("btnFindTeam1").addEventListener("click", () => findTeamByCode(1));
             $id("btnFindTeam2").addEventListener("click", () => findTeamByCode(2));
+
+            $id("team1SourceType").addEventListener("change", () => syncSlotSourcePanel(1));
+            $id("team2SourceType").addEventListener("change", () => syncSlotSourcePanel(2));
+
+            document.querySelectorAll("[data-slot-source]").forEach(btn => {
+                btn.addEventListener("click", () => {
+                    chooseSlotSource(Number(btn.dataset.slot || 0), btn.dataset.slotSource || "REGISTRATION");
+                });
+            });
 
             $id("btnBrowseTeam1").addEventListener("click", () => openTeamPicker(1));
             $id("btnBrowseTeam2").addEventListener("click", () => openTeamPicker(2));

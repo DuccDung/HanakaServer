@@ -344,9 +344,11 @@ namespace HanakaServer.Controllers
             var rows = await (
                 from m in _db.TournamentGroupMatches.AsNoTracking()
                 join t in _db.Tournaments.AsNoTracking() on m.TournamentId equals t.TournamentId
-                join team1 in _db.TournamentRegistrations.AsNoTracking() on m.Team1RegistrationId equals team1.RegistrationId
-                join team2 in _db.TournamentRegistrations.AsNoTracking() on m.Team2RegistrationId equals team2.RegistrationId
+                join team1 in _db.TournamentRegistrations.AsNoTracking() on m.Team1RegistrationId!.Value equals team1.RegistrationId
+                join team2 in _db.TournamentRegistrations.AsNoTracking() on m.Team2RegistrationId!.Value equals team2.RegistrationId
                 where !m.IsCompleted
+                      && m.Team1RegistrationId.HasValue
+                      && m.Team2RegistrationId.HasValue
                       && !t.Remove
                       && m.StartAt.HasValue
                       && m.StartAt.Value >= nowUtc
