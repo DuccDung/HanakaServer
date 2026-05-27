@@ -404,6 +404,7 @@
 
     async function requestJson(url, options) {
         var requestOptions = Object.assign({
+            cache: "no-store",
             headers: {
                 "Content-Type": "application/json",
                 Accept: "application/json"

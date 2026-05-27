@@ -201,6 +201,10 @@
         }
     }
 
+    function normalizeIdentityValue(value) {
+        return trimToEmpty(value).toLowerCase();
+    }
+
     function createEmptyProfile() {
         return {
             userId: "",
@@ -212,6 +216,7 @@
             bio: "",
             birthOfDate: "",
             avatarUrl: "",
+            updatedAt: "",
             verified: false
         };
     }
@@ -250,6 +255,7 @@
             bio: trimToEmpty(getProfileValue(value, ["bio", "Bio"])),
             birthOfDate: normalizeDateOnly(getProfileValue(value, ["birthOfDate", "BirthOfDate"])),
             avatarUrl: normalizeAvatarUrl(getProfileValue(value, ["avatarUrl", "AvatarUrl"])),
+            updatedAt: trimToEmpty(getProfileValue(value, ["updatedAt", "UpdatedAt"])),
             verified: !!verifiedValue
         };
     }
@@ -269,8 +275,49 @@
             bio: profile.bio,
             birthOfDate: profile.birthOfDate,
             avatarUrl: profile.avatarUrl,
+            updatedAt: profile.updatedAt,
             verified: profile.verified
         };
+    }
+
+    function isSameProfileIdentity(left, right) {
+        var a = normalizeProfile(left);
+        var b = normalizeProfile(right);
+        var aUserId = normalizeIdentityValue(a.userId);
+        var bUserId = normalizeIdentityValue(b.userId);
+        var aEmail = normalizeIdentityValue(a.email);
+        var bEmail = normalizeIdentityValue(b.email);
+
+        if (aUserId && bUserId) {
+            return aUserId === bUserId;
+        }
+
+        if (aEmail && bEmail) {
+            return aEmail === bEmail;
+        }
+
+        return true;
+    }
+
+    function buildAvatarImageSrc(profile) {
+        if (!profile || !profile.avatarUrl) {
+            return "";
+        }
+
+        try {
+            var url = new URL(profile.avatarUrl, window.location.origin);
+            if (profile.userId) {
+                url.searchParams.set("_hanakaUser", profile.userId);
+            }
+
+            if (profile.updatedAt) {
+                url.searchParams.set("_hanakaAvatarVersion", profile.updatedAt);
+            }
+
+            return url.href;
+        } catch (error) {
+            return profile.avatarUrl;
+        }
     }
 
     function readCommunityTermsState() {
@@ -344,6 +391,7 @@
 
     async function requestJson(url, options) {
         var response = await fetch(url, Object.assign({
+            cache: "no-store",
             credentials: "same-origin"
         }, options || {}));
         var payload = await parseResponsePayload(response);
@@ -621,13 +669,14 @@
 
         function renderAvatar() {
             var hasRenderableAvatar = !!state.form.avatarUrl && !state.avatarRenderFailed;
+            var avatarSrc = hasRenderableAvatar ? buildAvatarImageSrc(state.form) : "";
 
             refs.avatar.hidden = !hasRenderableAvatar;
             refs.avatarFallback.hidden = hasRenderableAvatar;
 
             if (hasRenderableAvatar) {
-                if (refs.avatarImage.getAttribute("src") !== state.form.avatarUrl) {
-                    refs.avatarImage.src = state.form.avatarUrl;
+                if (refs.avatarImage.getAttribute("src") !== avatarSrc) {
+                    refs.avatarImage.src = avatarSrc;
                 }
             } else {
                 refs.avatarImage.removeAttribute("src");
@@ -732,14 +781,31 @@
                 return;
             }
 
-            if (session.user && (!keepCurrent || !state.profile.userId)) {
-                applyProfile(session.user);
+            var sessionProfile = session.user ? normalizeProfile(session.user) : createEmptyProfile();
+            var sessionChanged =
+                !!state.profile.userId &&
+                !!sessionProfile.userId &&
+                state.profile.userId !== sessionProfile.userId;
+
+            if (sessionChanged) {
+                clearProfile();
+                render();
+            }
+
+            if (session.user && (!keepCurrent || !state.profile.userId || sessionChanged)) {
+                applyProfile(sessionProfile);
                 render();
             }
 
             try {
                 var profile = await fetchCurrentProfile();
                 if (requestId !== state.requestId) {
+                    return;
+                }
+
+                if (!isSameProfileIdentity(profile, sessionProfile)) {
+                    clearProfile();
+                    showError("Phiên đăng nhập vừa thay đổi. Vui lòng tải lại trang.");
                     return;
                 }
 
@@ -861,6 +927,12 @@
         }
 
         async function logout() {
+            state.requestId += 1;
+            state.isAuthenticated = false;
+            state.booting = false;
+            clearProfile();
+            render();
+
             try {
                 await requestJson("/api/web-auth/logout", {
                     method: "POST",
@@ -1033,7 +1105,14 @@
         });
 
         window.addEventListener("focus", syncOnFocus);
-        window.addEventListener("pageshow", syncOnFocus);
+        window.addEventListener("pageshow", function (event) {
+            if (event.persisted) {
+                loadProfile({ silent: true });
+                return;
+            }
+
+            syncOnFocus();
+        });
         document.addEventListener("visibilitychange", function () {
             if (document.visibilityState === "visible") {
                 syncOnFocus();

@@ -41,6 +41,8 @@ namespace HanakaServer.Controllers
         [HttpPost("login")]
         public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginRequestDto dto, CancellationToken ct)
         {
+            DisableResponseCaching();
+
             try
             {
                 var auth = await _appAuthService.LoginAsync(
@@ -141,6 +143,8 @@ namespace HanakaServer.Controllers
         [HttpGet("me")]
         public async Task<IActionResult> GetCurrentSession(CancellationToken ct)
         {
+            DisableResponseCaching();
+
             var authResult = await HttpContext.AuthenticateAsync(JwtBearerDefaults.AuthenticationScheme);
             if (!authResult.Succeeded || authResult.Principal == null)
             {
@@ -194,6 +198,7 @@ namespace HanakaServer.Controllers
         [HttpPost("logout")]
         public IActionResult Logout()
         {
+            DisableResponseCaching();
             _webAuthCookieService.ClearSessionCookies(Response);
             return Ok(new
             {
@@ -210,6 +215,13 @@ namespace HanakaServer.Controllers
             }
 
             return DateTimeOffset.FromUnixTimeSeconds(unixSeconds).UtcDateTime;
+        }
+
+        private void DisableResponseCaching()
+        {
+            Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+            Response.Headers["Pragma"] = "no-cache";
+            Response.Headers["Expires"] = "0";
         }
     }
 }

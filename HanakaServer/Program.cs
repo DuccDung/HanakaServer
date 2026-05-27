@@ -97,6 +97,18 @@ builder.Services.AddAuthentication(options =>
                 return Task.CompletedTask;
             }
 
+            var authorization = context.Request.Headers["Authorization"].ToString();
+            if (!string.IsNullOrWhiteSpace(authorization)
+                && authorization.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                var bearerToken = authorization["Bearer ".Length..].Trim();
+                if (!string.IsNullOrWhiteSpace(bearerToken))
+                {
+                    context.Token = bearerToken;
+                    return Task.CompletedTask;
+                }
+            }
+
             if (string.IsNullOrWhiteSpace(context.Token)
                 && context.Request.Cookies.TryGetValue(WebAuthCookieService.AccessTokenCookieName, out var cookieToken)
                 && !string.IsNullOrWhiteSpace(cookieToken))

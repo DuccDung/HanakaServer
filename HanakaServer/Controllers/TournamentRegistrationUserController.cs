@@ -21,15 +21,18 @@ public class TournamentRegistrationUserController : ControllerBase
 
     private readonly PickleballDbContext _db;
     private readonly IConfiguration _config;
+    private readonly IWebHostEnvironment _env;
     private readonly RealtimeHub _realtimeHub;
 
     public TournamentRegistrationUserController(
         PickleballDbContext db,
         IConfiguration config,
+        IWebHostEnvironment env,
         RealtimeHub realtimeHub)
     {
         _db = db;
         _config = config;
+        _env = env;
         _realtimeHub = realtimeHub;
     }
 
@@ -817,7 +820,7 @@ public class TournamentRegistrationUserController : ControllerBase
             PairRequestId = x.PairRequestId,
             TournamentId = x.Tournament.TournamentId,
             TournamentTitle = x.Tournament.Title,
-            TournamentBanner = x.Tournament.BannerUrl,
+            TournamentBanner = ToAbsoluteUrl(x.Tournament.BannerUrl),
             TournamentDate = x.Tournament.StartTime,
             TournamentLocation = x.Tournament.LocationText,
             RequestedByUser = sent ? null : new UserBrief
@@ -1386,6 +1389,9 @@ public class TournamentRegistrationUserController : ControllerBase
 
         url = url.Trim();
 
+        if (!HasExistingLocalUploadFile(url))
+            return null;
+
         if (Uri.TryCreate(url, UriKind.Absolute, out _))
             return url;
 
@@ -1400,6 +1406,45 @@ public class TournamentRegistrationUserController : ControllerBase
             return url;
 
         return url.StartsWith("/") ? baseUrl + url : baseUrl + "/" + url;
+    }
+
+    private bool HasExistingLocalUploadFile(string url)
+    {
+        var path = url;
+
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            var requestHost = Request?.Host.Value;
+            var baseUrlHost = Uri.TryCreate((_config["PublicBaseUrl"] ?? string.Empty).TrimEnd('/'), UriKind.Absolute, out var baseUri)
+                ? baseUri.Host
+                : null;
+            var isKnownLocalHost =
+                !string.IsNullOrWhiteSpace(requestHost) &&
+                string.Equals(uri.Authority, requestHost, StringComparison.OrdinalIgnoreCase);
+
+            if (!isKnownLocalHost && !string.IsNullOrWhiteSpace(baseUrlHost))
+            {
+                isKnownLocalHost = string.Equals(uri.Host, baseUrlHost, StringComparison.OrdinalIgnoreCase);
+            }
+
+            if (!isKnownLocalHost)
+                return true;
+
+            path = uri.AbsolutePath;
+        }
+
+        var normalizedPath = path.TrimStart('/');
+
+        if (!normalizedPath.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var relativePath = normalizedPath.Replace('/', Path.DirectorySeparatorChar);
+        var webRoot = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+        var fullPath = Path.GetFullPath(Path.Combine(webRoot, relativePath));
+        var uploadsRoot = Path.GetFullPath(Path.Combine(webRoot, "uploads"));
+
+        return fullPath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase) &&
+               System.IO.File.Exists(fullPath);
     }
 
     private static string NormalizeGameType(string? gameType)

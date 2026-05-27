@@ -83,6 +83,8 @@ namespace HanakaServer.Controllers
         [HttpGet("me")]
         public async Task<IActionResult> GetMe()
         {
+            DisableResponseCaching();
+
             var userId = GetUserIdFromToken();
 
             var user = await _db.Users
@@ -976,6 +978,13 @@ namespace HanakaServer.Controllers
                 user.CreatedAt,
                 user.UpdatedAt
             };
+        }
+
+        private void DisableResponseCaching()
+        {
+            Response.Headers["Cache-Control"] = "no-store, no-cache, must-revalidate";
+            Response.Headers["Pragma"] = "no-cache";
+            Response.Headers["Expires"] = "0";
         }
     }
 }
