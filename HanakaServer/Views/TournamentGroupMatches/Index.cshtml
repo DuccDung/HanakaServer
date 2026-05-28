@@ -8,6 +8,10 @@
         ?? $"/TournamentAdminBracket/Index?tournamentId={tournamentId}";
 }
 
+@section Styles {
+    <link href="~/css/admin-tournament-bracket.css" asp-append-version="true" rel="stylesheet" />
+}
+
 <style>
     .match-card {
         border: 1px solid #eee;
@@ -108,9 +112,226 @@
         background: #fff;
     }
 
+    .bracket-popup {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 1065;
+        display: flex;
+        flex-direction: column;
+        width: min(980px, calc(100vw - 48px));
+        height: min(720px, calc(100vh - 72px));
+        min-width: min(520px, calc(100vw - 24px));
+        min-height: 360px;
+        overflow: hidden;
+        resize: both;
+        border: 1px solid rgba(15, 23, 42, .16);
+        border-radius: 10px;
+        background: #fff;
+        box-shadow: 0 22px 56px rgba(15, 23, 42, .28);
+    }
+
+        .bracket-popup.d-none {
+            display: none !important;
+        }
+
+        .bracket-popup.is-fullscreen {
+            top: 16px !important;
+            right: 16px !important;
+            bottom: auto !important;
+            left: 16px !important;
+            width: auto !important;
+            height: calc(100vh - 32px) !important;
+            resize: none;
+        }
+
+    .bracket-popup__header {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 50px;
+        padding: 9px 12px;
+        border-bottom: 1px solid #e3e6f0;
+        background: #f8f9fc;
+        cursor: move;
+        user-select: none;
+    }
+
+    .bracket-popup__title {
+        min-width: 0;
+        color: #2e3a59;
+        font-size: .92rem;
+        font-weight: 800;
+    }
+
+    .bracket-popup__controls {
+        display: flex;
+        flex: 0 0 auto;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .bracket-popup__zoom {
+        min-width: 52px;
+        color: #6c757d;
+        font-size: .78rem;
+        font-weight: 800;
+        text-align: center;
+    }
+
+    .bracket-popup__body {
+        flex: 1 1 auto;
+        min-height: 0;
+        background: #07101d;
+    }
+
+    .bracket-popup__stage {
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+        zoom: var(--bracket-popup-zoom, .82);
+    }
+
+    .bracket-popup .admin-tournament-bracket-page {
+        height: 100%;
+        padding: 0;
+        gap: 0;
+    }
+
+    .bracket-popup .admin-tournament-bracket-panel {
+        height: 100%;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        background: #07101d;
+    }
+
+    .bracket-popup .admin-tournament-bracket-panel__top {
+        display: none;
+    }
+
+    .bracket-popup .admin-tournament-bracket-scroll {
+        height: 100%;
+        min-height: 100%;
+        border: 0;
+        border-radius: 0;
+    }
+
+    .match-error-popup {
+        position: fixed;
+        inset: 0;
+        z-index: 1090;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+
+        .match-error-popup.active {
+            display: flex;
+        }
+
+    .match-error-popup__backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(15, 23, 42, .48);
+    }
+
+    .match-error-popup__dialog {
+        position: relative;
+        z-index: 1;
+        width: min(520px, 100%);
+        overflow: hidden;
+        border-radius: 10px;
+        background: #fff;
+        box-shadow: 0 22px 58px rgba(15, 23, 42, .34);
+    }
+
+    .match-error-popup__header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 16px 18px;
+        border-bottom: 1px solid #f3c5c0;
+        background: #fff5f4;
+    }
+
+    .match-error-popup__title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 0;
+        color: #9b1c1c;
+        font-size: 1.05rem;
+        font-weight: 800;
+    }
+
+    .match-error-popup__body {
+        padding: 18px;
+        color: #4a5568;
+        font-size: .95rem;
+    }
+
+    .match-error-popup__list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+        .match-error-popup__list li {
+            display: flex;
+            gap: 10px;
+            padding: 10px 12px;
+            border: 1px solid #f3c5c0;
+            border-radius: 8px;
+            background: #fffafa;
+            color: #7f1d1d;
+            font-weight: 700;
+            line-height: 1.45;
+        }
+
+            .match-error-popup__list li::before {
+                content: "!";
+                flex: 0 0 auto;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 20px;
+                height: 20px;
+                border-radius: 999px;
+                background: #e74a3b;
+                color: #fff;
+                font-size: .72rem;
+                font-weight: 900;
+            }
+
+    .match-error-popup__footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        padding: 14px 18px 16px;
+        border-top: 1px solid #f3f4f6;
+        background: #fff;
+    }
+
     @@media (max-width: 576px) {
         .source-quick-actions {
             grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .bracket-popup {
+            right: 12px;
+            bottom: 12px;
+            width: calc(100vw - 24px);
+            height: min(72vh, 620px);
+            min-width: 0;
         }
     }
 
@@ -450,6 +671,10 @@
                 <i class="fas fa-sitemap"></i> Xem sơ đồ
             </a>
 
+            <button class="btn btn-sm btn-outline-dark" type="button" id="btnOpenBracketPopup">
+                <i class="fas fa-project-diagram"></i> Popup bracket
+            </button>
+
             <button class="btn btn-sm btn-outline-primary" type="button" id="btnOpenWinnerFilter">
                 <i class="fas fa-sitemap"></i> Lọc đội thắng
             </button>
@@ -513,6 +738,79 @@
     </div>
 </div>
 
+<div class="bracket-popup d-none" id="bracketPopup" aria-hidden="true">
+    <div class="bracket-popup__header" id="bracketPopupHandle">
+        <div class="bracket-popup__title">
+            <i class="fas fa-project-diagram mr-1"></i> Bracket giải đấu
+        </div>
+        <div class="bracket-popup__controls">
+            <button class="btn btn-sm btn-outline-secondary" type="button" id="btnBracketZoomOut" title="Thu nhỏ">
+                <i class="fas fa-search-minus"></i>
+            </button>
+            <span class="bracket-popup__zoom" id="bracketZoomLabel">82%</span>
+            <button class="btn btn-sm btn-outline-secondary" type="button" id="btnBracketZoomIn" title="Phóng to">
+                <i class="fas fa-search-plus"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-info" type="button" id="btnBracketReload" title="Làm mới bracket">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-dark" type="button" id="btnBracketFullscreen" title="Phóng panel">
+                <i class="fas fa-expand"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" type="button" id="btnCloseBracketPopup" title="Đóng">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <div class="bracket-popup__body">
+        <div class="bracket-popup__stage" id="bracketPopupStage" style="--bracket-popup-zoom:.82">
+            <div class="admin-tournament-bracket-page"
+                 id="bracketPopupViewer"
+                 data-admin-tournament-bracket-page
+                 data-admin-bracket-defer="true"
+                 data-tournament-id="@tournamentId">
+                <section class="admin-tournament-bracket-panel">
+                    <div class="admin-tournament-bracket-panel__top">
+                        <div>
+                            <h2>Board sơ đồ</h2>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-danger d-none m-2" role="alert" data-bracket-error></div>
+
+                    <div class="admin-tournament-bracket-scroll" data-bracket-scroll>
+                        <div class="admin-tournament-bracket-board" data-bracket-board>
+                            <div class="admin-tournament-bracket-loading" data-bracket-loading>
+                                <i class="fas fa-spinner fa-spin mr-2"></i> Đang tải sơ đồ...
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="match-error-popup" id="matchErrorPopup" aria-hidden="true">
+    <div class="match-error-popup__backdrop" id="matchErrorPopupBackdrop"></div>
+    <div class="match-error-popup__dialog" role="alertdialog" aria-modal="true" aria-labelledby="matchErrorPopupTitle">
+        <div class="match-error-popup__header">
+            <h5 class="match-error-popup__title" id="matchErrorPopupTitle">
+                <i class="fas fa-exclamation-circle"></i> Không thể lưu trận đấu
+            </h5>
+            <button class="close" type="button" id="btnCloseMatchErrorPopup" aria-label="Đóng">
+                <span aria-hidden="true">×</span>
+            </button>
+        </div>
+        <div class="match-error-popup__body">
+            <ul class="match-error-popup__list" id="matchErrorPopupList"></ul>
+        </div>
+        <div class="match-error-popup__footer">
+            <button class="btn btn-danger" type="button" id="btnAcknowledgeMatchErrorPopup">Quay lại kiểm tra</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Tạo/Sửa trận đấu -->
 <div class="modal fade" id="modalMatch" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
@@ -536,6 +834,9 @@
                     <div class="d-flex justify-content-between align-items-center flex-wrap mb-3" style="gap:8px">
                         <small class="text-muted" id="winnerSourceHint">Đang dùng toàn bộ đội đăng ký thành công của giải để tạo trận.</small>
                         <div class="d-flex" style="gap:8px">
+                            <button class="btn btn-sm btn-outline-dark" type="button" id="btnOpenBracketPopupFromModal">
+                                <i class="fas fa-project-diagram"></i> Bracket
+                            </button>
                             <button class="btn btn-sm btn-outline-primary" type="button" id="btnOpenWinnerFilterFromModal">
                                 <i class="fas fa-sitemap"></i> Lọc đội thắng
                             </button>
@@ -976,6 +1277,7 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="~/js/admin-tournament-bracket.js" asp-append-version="true"></script>
     <script>
         (() => {
             const $id = (id) => document.getElementById(id);
@@ -1028,6 +1330,8 @@
             };
             let REOPEN_MATCH_MODAL_AFTER_WINNER_FILTER = false;
             let REOPEN_MATCH_MODAL_AFTER_LOSER_FILTER = false;
+            let BRACKET_VIEWER = null;
+            let BRACKET_ZOOM = 0.82;
 
             const esc = (s) => String(s || "")
                 .replaceAll("&", "&amp;")
@@ -1171,7 +1475,9 @@
                 const dateValue = $id("startAtDate")?.value || "";
                 const timeValue = canonicalizeTime24h($id("startAtTime")?.value || "");
 
-                if (!dateValue && !timeValue) return null;
+                if (!dateValue && !timeValue) {
+                    throw new Error("Vui lòng chọn ngày thi đấu và giờ bắt đầu.");
+                }
                 if (!dateValue || !timeValue) {
                     throw new Error("Vui lòng nhập đủ ngày và giờ bắt đầu.");
                 }
@@ -1209,6 +1515,243 @@
                 const box = $id(boxId);
                 box.classList.add("d-none");
                 box.textContent = "";
+            }
+
+            function normalizeErrorMessages(value) {
+                if (Array.isArray(value)) {
+                    return value
+                        .flatMap(item => normalizeErrorMessages(item))
+                        .filter(Boolean);
+                }
+
+                const text = String(value || "").trim();
+                return text ? [text] : [];
+            }
+
+            function extractResponseErrors(err) {
+                const data = err?.response?.data;
+                const messages = [];
+
+                if (typeof data === "string") {
+                    messages.push(...normalizeErrorMessages(data));
+                }
+
+                if (data?.errors && typeof data.errors === "object") {
+                    Object.values(data.errors).forEach(value => {
+                        messages.push(...normalizeErrorMessages(value));
+                    });
+                }
+
+                messages.push(...normalizeErrorMessages(data?.message));
+
+                if (!messages.length && data?.title && data.title !== "One or more validation errors occurred.") {
+                    messages.push(...normalizeErrorMessages(data.title));
+                }
+
+                messages.push(...normalizeErrorMessages(err?.message));
+
+                return Array.from(new Set(messages)).filter(Boolean);
+            }
+
+            function clearMatchFieldErrors() {
+                [
+                    "team1",
+                    "team2",
+                    "team1SourceMatchId",
+                    "team2SourceMatchId",
+                    "team1SourceGroupId",
+                    "team2SourceGroupId",
+                    "team1SourceRank",
+                    "team2SourceRank",
+                    "team1CodeSearch",
+                    "team2CodeSearch",
+                    "startAtDate",
+                    "startAtTime",
+                    "videoUrl",
+                    "refereeUserIdInput"
+                ].forEach(id => $id(id)?.classList.remove("is-invalid"));
+            }
+
+            function markMatchFields(fieldIds) {
+                (fieldIds || []).forEach(id => $id(id)?.classList.add("is-invalid"));
+            }
+
+            function showMatchErrorPopup(messages, fieldIds) {
+                const normalized = normalizeErrorMessages(messages);
+                const list = $id("matchErrorPopupList");
+                const popup = $id("matchErrorPopup");
+                if (!popup || !list) return;
+
+                list.innerHTML = (normalized.length ? normalized : ["Đã xảy ra lỗi khi lưu trận đấu."])
+                    .map(message => `<li>${esc(message)}</li>`)
+                    .join("");
+
+                popup.classList.add("active");
+                popup.setAttribute("aria-hidden", "false");
+                markMatchFields(fieldIds);
+            }
+
+            function closeMatchErrorPopup() {
+                const popup = $id("matchErrorPopup");
+                if (!popup) return;
+
+                popup.classList.remove("active");
+                popup.setAttribute("aria-hidden", "true");
+            }
+
+            function showMatchValidationError(messages, fieldIds) {
+                const normalized = normalizeErrorMessages(messages);
+                showFormErr(normalized.join(" ") || "Vui lòng kiểm tra lại thông tin trận đấu.", "formErr");
+                showMatchErrorPopup(normalized, fieldIds);
+            }
+
+            function clamp(value, min, max) {
+                return Math.min(max, Math.max(min, value));
+            }
+
+            function setBracketZoom(value) {
+                BRACKET_ZOOM = clamp(Number(value) || 0.82, 0.55, 1.35);
+
+                const stage = $id("bracketPopupStage");
+                if (stage) {
+                    stage.style.setProperty("--bracket-popup-zoom", String(BRACKET_ZOOM));
+                    stage.style.zoom = String(BRACKET_ZOOM);
+                    stage.style.width = `${100 / BRACKET_ZOOM}%`;
+                    stage.style.height = `${100 / BRACKET_ZOOM}%`;
+                }
+
+                const label = $id("bracketZoomLabel");
+                if (label) {
+                    label.textContent = `${Math.round(BRACKET_ZOOM * 100)}%`;
+                }
+
+                window.setTimeout(() => BRACKET_VIEWER?.rerender?.(), 80);
+            }
+
+            function openBracketPopup(forceReload = false) {
+                const popup = $id("bracketPopup");
+                const viewerRoot = $id("bracketPopupViewer");
+                if (!popup || !viewerRoot) return;
+
+                popup.classList.remove("d-none");
+                popup.setAttribute("aria-hidden", "false");
+                setBracketZoom(BRACKET_ZOOM);
+
+                if (!BRACKET_VIEWER) {
+                    BRACKET_VIEWER = window.AdminTournamentBracket?.init?.(viewerRoot, {
+                        tournamentId: TOURNAMENT_ID,
+                        autoLoad: true
+                    }) || null;
+                    return;
+                }
+
+                if (forceReload) {
+                    BRACKET_VIEWER.reload?.();
+                } else {
+                    BRACKET_VIEWER.rerender?.();
+                }
+            }
+
+            function closeBracketPopup() {
+                const popup = $id("bracketPopup");
+                if (!popup) return;
+
+                popup.classList.add("d-none");
+                popup.setAttribute("aria-hidden", "true");
+            }
+
+            function reloadBracketPopupIfOpen() {
+                const popup = $id("bracketPopup");
+                if (!popup || popup.classList.contains("d-none")) return;
+
+                BRACKET_VIEWER?.reload?.();
+            }
+
+            function toggleBracketPopupFullscreen() {
+                const popup = $id("bracketPopup");
+                if (!popup) return;
+
+                popup.classList.toggle("is-fullscreen");
+                window.setTimeout(() => BRACKET_VIEWER?.rerender?.(), 120);
+            }
+
+            function keepBracketPopupInViewport(left, top, width, height) {
+                const margin = 12;
+                const maxLeft = Math.max(margin, window.innerWidth - width - margin);
+                const maxTop = Math.max(margin, window.innerHeight - height - margin);
+
+                return {
+                    left: clamp(left, margin, maxLeft),
+                    top: clamp(top, margin, maxTop)
+                };
+            }
+
+            function initBracketPopupDrag() {
+                const popup = $id("bracketPopup");
+                const handle = $id("bracketPopupHandle");
+                if (!popup || !handle || handle.dataset.dragReady === "true") return;
+
+                handle.dataset.dragReady = "true";
+                let dragging = false;
+                let startX = 0;
+                let startY = 0;
+                let startLeft = 0;
+                let startTop = 0;
+
+                handle.addEventListener("pointerdown", (event) => {
+                    if (event.button !== undefined && event.button !== 0) return;
+                    if (event.target.closest("button,a,input,select,textarea")) return;
+                    if (popup.classList.contains("is-fullscreen")) return;
+
+                    const rect = popup.getBoundingClientRect();
+                    dragging = true;
+                    startX = event.clientX;
+                    startY = event.clientY;
+                    startLeft = rect.left;
+                    startTop = rect.top;
+
+                    popup.style.left = `${rect.left}px`;
+                    popup.style.top = `${rect.top}px`;
+                    popup.style.right = "auto";
+                    popup.style.bottom = "auto";
+                    popup.style.width = `${rect.width}px`;
+                    popup.style.height = `${rect.height}px`;
+
+                    try {
+                        handle.setPointerCapture?.(event.pointerId);
+                    } catch (_error) {
+                        // Pointer capture is optional in older embedded browsers.
+                    }
+                });
+
+                handle.addEventListener("pointermove", (event) => {
+                    if (!dragging) return;
+
+                    const rect = popup.getBoundingClientRect();
+                    const next = keepBracketPopupInViewport(
+                        startLeft + event.clientX - startX,
+                        startTop + event.clientY - startY,
+                        rect.width,
+                        rect.height
+                    );
+
+                    popup.style.left = `${next.left}px`;
+                    popup.style.top = `${next.top}px`;
+                });
+
+                const stopDragging = (event) => {
+                    if (!dragging) return;
+
+                    dragging = false;
+                    try {
+                        handle.releasePointerCapture?.(event.pointerId);
+                    } catch (_error) {
+                        // Matching the setPointerCapture fallback above.
+                    }
+                };
+
+                handle.addEventListener("pointerup", stopDragging);
+                handle.addEventListener("pointercancel", stopDragging);
             }
 
             function setRefereeInfo(u) {
@@ -2444,6 +2987,24 @@
                 syncSlotSourcePanel(slot);
             }
 
+            function getSlotFieldIds(slot) {
+                const sourceType = $id(`team${slot}SourceType`).value || "REGISTRATION";
+
+                if (sourceType === "REGISTRATION") {
+                    return [`team${slot}CodeSearch`, `team${slot}`];
+                }
+
+                if (sourceType === "WINNER_MATCH" || sourceType === "LOSER_MATCH") {
+                    return [`team${slot}SourceMatchId`];
+                }
+
+                if (sourceType === "GROUP_RANK") {
+                    return [`team${slot}SourceGroupId`, `team${slot}SourceRank`];
+                }
+
+                return [];
+            }
+
             function buildSlotPayload(slot) {
                 const sourceType = $id(`team${slot}SourceType`).value || "REGISTRATION";
 
@@ -2634,6 +3195,8 @@
 
             function resetMatchForm() {
                 hideFormErr("formErr");
+                closeMatchErrorPopup();
+                clearMatchFieldErrors();
 
                 $id("mode").value = "create";
                 $id("editingId").value = "";
@@ -2656,10 +3219,13 @@
             function openCreate() {
                 resetMatchForm();
                 $("#modalMatch").modal("show");
+                openBracketPopup(false);
             }
 
             window.openEdit = (matchId) => {
                 hideFormErr("formErr");
+                closeMatchErrorPopup();
+                clearMatchFieldErrors();
 
                 const m = (CACHE.items || []).find(x => x.matchId === matchId);
                 if (!m) return;
@@ -2695,6 +3261,7 @@
                 }
 
                 $("#modalMatch").modal("show");
+                openBracketPopup(false);
             };
 
             window.delMatch = async (matchId) => {
@@ -2703,6 +3270,7 @@
                 try {
                     await axios.delete(`${API}/${matchId}`);
                     await load();
+                    reloadBracketPopupIfOpen();
                 } catch (err) {
                     alert(err?.response?.data?.message || err?.message || "Xóa thất bại.");
                 }
@@ -2732,48 +3300,70 @@
             $id("formMatch").addEventListener("submit", async (e) => {
                 e.preventDefault();
                 hideFormErr("formErr");
+                closeMatchErrorPopup();
+                clearMatchFieldErrors();
 
                 const mode = $id("mode").value;
                 const editingId = $id("editingId").value;
+                const clientErrors = [];
+                const invalidFields = [];
 
                 let team1Slot;
                 let team2Slot;
                 try {
                     team1Slot = buildSlotPayload(1);
+                } catch (err) {
+                    clientErrors.push(err?.message || "Nguồn đội 1 không hợp lệ.");
+                    invalidFields.push(...getSlotFieldIds(1));
+                }
+
+                try {
                     team2Slot = buildSlotPayload(2);
                 } catch (err) {
-                    showFormErr(err?.message || "Nguồn đội không hợp lệ.", "formErr");
-                    return;
+                    clientErrors.push(err?.message || "Nguồn đội 2 không hợp lệ.");
+                    invalidFields.push(...getSlotFieldIds(2));
                 }
 
-                if (team1Slot.sourceType === "REGISTRATION"
+                if (team1Slot && team2Slot
+                    && team1Slot.sourceType === "REGISTRATION"
                     && team2Slot.sourceType === "REGISTRATION"
                     && team1Slot.registrationId === team2Slot.registrationId) {
-                    showFormErr("Đội 1 và Đội 2 không được trùng nhau.", "formErr");
-                    return;
+                    clientErrors.push("Đội 1 và Đội 2 không được trùng nhau.");
+                    invalidFields.push(...getSlotFieldIds(1), ...getSlotFieldIds(2));
                 }
 
-                if (team1Slot.sourceType === "REGISTRATION" && team2Slot.sourceType === "REGISTRATION") {
+                if (team1Slot && team2Slot && team1Slot.sourceType === "REGISTRATION" && team2Slot.sourceType === "REGISTRATION") {
                     const duplicateMatch = findDuplicateMatchForPair(team1Slot.registrationId, team2Slot.registrationId, getEditingMatchId());
                     if (duplicateMatch) {
-                        showFormErr(`Không thể lưu vì cặp đội này đã tồn tại ở trận #${duplicateMatch.matchId} trong bảng đấu.`, "formErr");
-                        return;
+                        clientErrors.push(`Không thể lưu vì cặp đội này đã tồn tại ở trận #${duplicateMatch.matchId} trong bảng đấu.`);
+                        invalidFields.push(...getSlotFieldIds(1), ...getSlotFieldIds(2));
                     }
                 }
 
                 const videoUrl = ($id("videoUrl").value || "").trim();
                 if (videoUrl && !/^https?:\/\//i.test(videoUrl)) {
-                    showFormErr("Liên kết video phải bắt đầu bằng http:// hoặc https://", "formErr");
-                    return;
+                    clientErrors.push("Liên kết video phải bắt đầu bằng http:// hoặc https://.");
+                    invalidFields.push("videoUrl");
                 }
 
                 const refereeUserId = Number($id("refereeUserId").value || 0) || null;
                 if (!refereeUserId) {
-                    showFormErr("Trận đấu bắt buộc phải có trọng tài hợp lệ.", "formErr");
-                    return;
+                    clientErrors.push("Trận đấu bắt buộc phải có trọng tài hợp lệ.");
+                    invalidFields.push("refereeUserIdInput");
                 }
 
-                const startAtIso = buildStartAtValue();
+                let startAtIso = null;
+                try {
+                    startAtIso = buildStartAtValue();
+                } catch (err) {
+                    clientErrors.push(err?.message || "Thời gian bắt đầu không hợp lệ.");
+                    invalidFields.push("startAtDate", "startAtTime");
+                }
+
+                if (clientErrors.length) {
+                    showMatchValidationError(clientErrors, invalidFields);
+                    return;
+                }
 
                 const payloadCreate = {
                     team1: team1Slot,
@@ -2813,8 +3403,10 @@
 
                     $("#modalMatch").modal("hide");
                     await load();
+                    reloadBracketPopupIfOpen();
                 } catch (err) {
-                    showFormErr(err?.response?.data?.message || err?.message || "Lưu thất bại.", "formErr");
+                    const messages = extractResponseErrors(err);
+                    showMatchValidationError(messages.length ? messages : ["Lưu thất bại. Vui lòng kiểm tra lại thông tin trận đấu."], []);
                 } finally {
                     btn.disabled = false;
                     btn.innerHTML = `<i class="fas fa-save"></i> Lưu`;
@@ -2849,6 +3441,7 @@
                     }
 
                     render();
+                    reloadBracketPopupIfOpen();
                 } catch (err) {
                     showFormErr(
                         err?.response?.data?.message || err?.message || "Cập nhật tỷ số thất bại.",
@@ -2858,6 +3451,18 @@
             });
 
             $id("btnOpenCreate").addEventListener("click", openCreate);
+            $id("btnOpenBracketPopup").addEventListener("click", () => openBracketPopup(false));
+            $id("btnOpenBracketPopupFromModal").addEventListener("click", () => openBracketPopup(false));
+            $id("btnCloseBracketPopup").addEventListener("click", closeBracketPopup);
+            $id("btnBracketReload").addEventListener("click", () => openBracketPopup(true));
+            $id("btnBracketZoomOut").addEventListener("click", () => setBracketZoom(BRACKET_ZOOM - 0.1));
+            $id("btnBracketZoomIn").addEventListener("click", () => setBracketZoom(BRACKET_ZOOM + 0.1));
+            $id("btnBracketFullscreen").addEventListener("click", toggleBracketPopupFullscreen);
+            $id("btnCloseMatchErrorPopup").addEventListener("click", closeMatchErrorPopup);
+            $id("btnAcknowledgeMatchErrorPopup").addEventListener("click", closeMatchErrorPopup);
+            $id("matchErrorPopupBackdrop").addEventListener("click", closeMatchErrorPopup);
+            initBracketPopupDrag();
+
             $id("btnOpenWinnerFilter").addEventListener("click", () => openWinnerFilterModal(false));
             $id("btnOpenWinnerFilterFromModal").addEventListener("click", () => openWinnerFilterModal(true));
             $id("btnClearWinnerFilter").addEventListener("click", () => clearWinnerFilter(false));

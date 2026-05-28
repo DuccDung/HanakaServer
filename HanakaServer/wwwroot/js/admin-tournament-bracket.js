@@ -881,12 +881,28 @@
         return qs('.admin-bracket-group[data-round-index="' + roundIndex + '"][data-group-index="' + groupIndex + '"]', board);
     }
 
-    function getElementMidpoint(element, boardRect, edge) {
+    function getBoardViewportScale(board, boardRect) {
+        const rect = boardRect || board?.getBoundingClientRect?.();
+        const styleWidth = toNumber((board?.style?.width || "").replace("px", ""));
+        const styleHeight = toNumber((board?.style?.height || "").replace("px", ""));
+        const width = Math.max(1, styleWidth || toNumber(board?.offsetWidth));
+        const height = Math.max(1, styleHeight || toNumber(board?.offsetHeight));
+
+        return {
+            x: rect && rect.width > 0 ? rect.width / width : 1,
+            y: rect && rect.height > 0 ? rect.height / height : 1
+        };
+    }
+
+    function getElementMidpoint(element, boardRect, edge, scale) {
         const rect = element.getBoundingClientRect();
         const x = edge === "right" ? rect.right : edge === "left" ? rect.left : rect.left + rect.width / 2;
+        const scaleX = scale?.x || 1;
+        const scaleY = scale?.y || 1;
+
         return {
-            x: x - boardRect.left,
-            y: rect.top + rect.height / 2 - boardRect.top
+            x: (x - boardRect.left) / scaleX,
+            y: (rect.top + rect.height / 2 - boardRect.top) / scaleY
         };
     }
 
@@ -987,6 +1003,7 @@
 
     function alignDependencyTargetCards(board) {
         const boardRect = board.getBoundingClientRect();
+        const boardScale = getBoardViewportScale(board, boardRect);
         const targetEntries = collectDependencyTargets(board);
 
         targetEntries.forEach(function (entry) {
@@ -997,12 +1014,12 @@
             }
 
             const sourceYValues = dependencies.map(function (dependency) {
-                return getElementMidpoint(dependency.sourceElement, boardRect, "right").y;
+                return getElementMidpoint(dependency.sourceElement, boardRect, "right", boardScale).y;
             });
             const minY = Math.min.apply(null, sourceYValues);
             const maxY = Math.max.apply(null, sourceYValues);
             const desiredCenter = Math.round((minY + maxY) / 2);
-            const targetCenter = getElementMidpoint(entry.targetMatch, boardRect, "left").y;
+            const targetCenter = getElementMidpoint(entry.targetMatch, boardRect, "left", boardScale).y;
             const currentMargin = toNumber(window.getComputedStyle(entry.targetMatch).marginTop);
             const nextMargin = Math.max(0, Math.round(currentMargin + desiredCenter - targetCenter));
 
@@ -1014,6 +1031,7 @@
 
     function buildDependencyLinePathsFromDom(board) {
         const boardRect = board.getBoundingClientRect();
+        const boardScale = getBoardViewportScale(board, boardRect);
         const targetEntries = collectDependencyTargets(board);
         const lines = [];
 
@@ -1024,8 +1042,8 @@
                 dependencies.forEach(function (dependency) {
                     lines.push({
                         d: buildConnectorPath(
-                            getElementMidpoint(dependency.sourceElement, boardRect, "right"),
-                            getElementMidpoint(dependency.targetSlot, boardRect, "left")
+                            getElementMidpoint(dependency.sourceElement, boardRect, "right", boardScale),
+                            getElementMidpoint(dependency.targetSlot, boardRect, "left", boardScale)
                         ),
                         type: dependency.sourceType,
                         className: dependency.className
@@ -1036,7 +1054,7 @@
 
             const sourcePoints = dependencies
                 .map(function (dependency) {
-                    const point = getElementMidpoint(dependency.sourceElement, boardRect, "right");
+                    const point = getElementMidpoint(dependency.sourceElement, boardRect, "right", boardScale);
                     return {
                         x: Math.round(point.x),
                         y: Math.round(point.y),
@@ -1048,7 +1066,7 @@
                     return left.y - right.y;
                 });
 
-            const targetPoint = getElementMidpoint(entry.targetMatch, boardRect, "left");
+            const targetPoint = getElementMidpoint(entry.targetMatch, boardRect, "left", boardScale);
             const targetX = Math.round(targetPoint.x);
             const targetY = Math.round(targetPoint.y);
             const maxSourceX = Math.max.apply(null, sourcePoints.map(function (point) { return point.x; }));
@@ -1285,12 +1303,17 @@
         });
     }
 
-    const page = qs("#adminTournamentBracketPage");
-    if (!page) {
-        return;
-    }
+    function initBracketViewer(page, options) {
+        if (!page) {
+            return null;
+        }
 
-    const tournamentId = toNumber(page.dataset.tournamentId);
+        if (page._adminTournamentBracketViewer) {
+            return page._adminTournamentBracketViewer;
+        }
+
+        options = options || {};
+        const tournamentId = toNumber(options.tournamentId || page.dataset.tournamentId);
     const board = qs("[data-bracket-board]", page);
     const loading = qs("[data-bracket-loading]", page);
     const errorBox = qs("[data-bracket-error]", page);
@@ -1351,7 +1374,7 @@
             syncMeasuredLayout(board, layout);
             board.classList.remove("is-measuring");
 
-            if (layout.initialScrollLeft > 0) {
+            if (layout.initialScrollLeft > 0 && scroller) {
                 scroller.scrollLeft = layout.initialScrollLeft;
             }
         });
@@ -1405,6 +1428,31 @@
     }
 
         initDragScroller(scroller);
-    window.addEventListener("resize", rerender);
-    loadBracket();
+        window.addEventListener("resize", rerender);
+
+        const api = {
+            load: loadBracket,
+            reload: loadBracket,
+            rerender: rerender
+        };
+
+        page._adminTournamentBracketViewer = api;
+
+        if (options.autoLoad !== false) {
+            loadBracket();
+        }
+
+        return api;
+    }
+
+    window.AdminTournamentBracket = window.AdminTournamentBracket || {};
+    window.AdminTournamentBracket.init = initBracketViewer;
+
+    qsa("#adminTournamentBracketPage, [data-admin-tournament-bracket-page]").forEach(function (page) {
+        if (page.dataset.adminBracketDefer === "true") {
+            return;
+        }
+
+        initBracketViewer(page);
+    });
 })();
