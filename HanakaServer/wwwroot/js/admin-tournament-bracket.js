@@ -473,6 +473,95 @@
         return roundStage;
     }
 
+    function collectNextRoundMatchTargets(currentRound) {
+        const targetMap = new Map();
+        let targetOrder = 0;
+
+        (currentRound?.groups || []).forEach(function (group, groupIndex) {
+            (group?.matches || []).forEach(function (match, matchIndex) {
+                const targetKey = [
+                    groupIndex,
+                    matchIndex,
+                    toNumber(match?.matchId)
+                ].join(":");
+
+                [match?.teamASource, match?.teamBSource].forEach(function (slotSource, slotIndex) {
+                    if (!slotSource || !slotSource.matchId) {
+                        return;
+                    }
+
+                    const sourceType = normalizeSourceType(slotSource.type);
+                    if (sourceType !== "WINNER_MATCH" && sourceType !== "LOSER_MATCH") {
+                        return;
+                    }
+
+                    const sourceMatchId = toNumber(slotSource.matchId);
+                    if (sourceMatchId <= 0) {
+                        return;
+                    }
+
+                    const sourceKey = String(sourceMatchId);
+                    const candidate = {
+                        targetKey: targetKey,
+                        targetOrder: targetOrder,
+                        slotOrder: slotIndex
+                    };
+                    const existing = targetMap.get(sourceKey);
+
+                    if (
+                        !existing
+                        || candidate.targetOrder < existing.targetOrder
+                        || (candidate.targetOrder === existing.targetOrder && candidate.slotOrder < existing.slotOrder)
+                    ) {
+                        targetMap.set(sourceKey, candidate);
+                    }
+                });
+
+                targetOrder += 1;
+            });
+        });
+
+        return targetMap;
+    }
+
+    function orderPreviousRoundMatchesForTargets(previousRound, currentRound) {
+        const targetMap = collectNextRoundMatchTargets(currentRound);
+        if (!targetMap.size) {
+            return;
+        }
+
+        (previousRound?.groups || []).forEach(function (group) {
+            if (!Array.isArray(group?.matches) || group.matches.length <= 1) {
+                return;
+            }
+
+            group.matches = group.matches
+                .map(function (match, originalIndex) {
+                    const target = targetMap.get(String(toNumber(match?.matchId)));
+                    return {
+                        match: match,
+                        originalIndex: originalIndex,
+                        targetOrder: target ? target.targetOrder : Number.MAX_SAFE_INTEGER,
+                        slotOrder: target ? target.slotOrder : Number.MAX_SAFE_INTEGER
+                    };
+                })
+                .sort(function (left, right) {
+                    if (left.targetOrder !== right.targetOrder) {
+                        return left.targetOrder - right.targetOrder;
+                    }
+
+                    if (left.slotOrder !== right.slotOrder) {
+                        return left.slotOrder - right.slotOrder;
+                    }
+
+                    return left.originalIndex - right.originalIndex;
+                })
+                .map(function (entry) {
+                    return entry.match;
+                });
+        });
+    }
+
     function buildStageRounds(payload) {
         const apiRounds = Array.isArray(payload?.rounds) ? payload.rounds : [];
         const rounds = apiRounds.map(function (round, index) {
@@ -501,6 +590,8 @@
                     group.sourceIndexes = sourceIndexes;
                     group.sourceKeys = buildSourceKeys(previousRound, sourceIndexes);
                 });
+
+                orderPreviousRoundMatchesForTargets(previousRound, currentRound);
             }
 
             finalizeRoundMetrics(currentRound);
@@ -1053,23 +1144,39 @@
             }
 
             const sourcePoints = dependencies
-                .map(function (dependency) {
-                    const point = getElementMidpoint(dependency.sourceElement, boardRect, "right", boardScale);
+                .map(function (dependency, index) {
+                    const sourcePoint = getElementMidpoint(dependency.sourceElement, boardRect, "right", boardScale);
+                    const targetPoint = getElementMidpoint(dependency.targetSlot, boardRect, "left", boardScale);
+
                     return {
-                        x: Math.round(point.x),
-                        y: Math.round(point.y),
+                        x: Math.round(sourcePoint.x),
+                        y: Math.round(sourcePoint.y),
+                        targetY: targetPoint.y,
                         sourceType: dependency.sourceType,
-                        className: dependency.className
+                        className: dependency.className,
+                        order: index
                     };
                 })
                 .sort(function (left, right) {
-                    return left.y - right.y;
+                    if (left.y !== right.y) {
+                        return left.y - right.y;
+                    }
+
+                    if (left.targetY !== right.targetY) {
+                        return left.targetY - right.targetY;
+                    }
+
+                    return left.order - right.order;
                 });
 
             const targetPoint = getElementMidpoint(entry.targetMatch, boardRect, "left", boardScale);
             const targetX = Math.round(targetPoint.x);
             const targetY = Math.round(targetPoint.y);
             const maxSourceX = Math.max.apply(null, sourcePoints.map(function (point) { return point.x; }));
+            const sourceYValues = sourcePoints.map(function (point) { return point.y; });
+            const minY = Math.min.apply(null, sourceYValues);
+            const maxY = Math.max.apply(null, sourceYValues);
+            const junctionY = Math.round((minY + maxY) / 2);
             const available = targetX - maxSourceX;
             const trunkX = available > 72
                 ? clampNumber(maxSourceX + Math.round(available * 0.58), maxSourceX + 28, targetX - 34)
@@ -1077,10 +1184,6 @@
             const className = sourcePoints.every(function (point) { return point.className === sourcePoints[0].className; })
                 ? sourcePoints[0].className
                 : "is-mixed-source";
-            const sourceYValues = sourcePoints.map(function (point) { return point.y; });
-            const minY = Math.min.apply(null, sourceYValues);
-            const maxY = Math.max.apply(null, sourceYValues);
-            const junctionY = Math.round((minY + maxY) / 2);
 
             sourcePoints.forEach(function (point) {
                 lines.push({
@@ -1096,7 +1199,7 @@
                 className: className + " is-tree-trunk"
             });
             lines.push({
-                d: "M " + trunkX + " " + junctionY + " H " + targetX,
+                d: "M " + trunkX + " " + junctionY + " V " + targetY + " H " + targetX,
                 type: "TREE_OUTPUT",
                 className: className + " is-tree-output"
             });
