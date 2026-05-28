@@ -36,7 +36,8 @@ namespace HanakaServer.Controllers
                     x.RoundKey,
                     x.RoundLabel,
                     x.SortOrder,
-                    x.CreatedAt
+                    x.CreatedAt,
+                    GroupCount = x.TournamentRoundGroups.Count()
                 })
                 .ToListAsync();
 
@@ -79,7 +80,8 @@ namespace HanakaServer.Controllers
                 row.RoundKey,
                 row.RoundLabel,
                 row.SortOrder,
-                row.CreatedAt
+                row.CreatedAt,
+                GroupCount = 0
             });
         }
 
@@ -123,7 +125,10 @@ namespace HanakaServer.Controllers
                 row.RoundKey,
                 row.RoundLabel,
                 row.SortOrder,
-                row.CreatedAt
+                row.CreatedAt,
+                GroupCount = await _db.TournamentRoundGroups
+                    .AsNoTracking()
+                    .CountAsync(x => x.TournamentRoundMapId == id)
             });
         }
 

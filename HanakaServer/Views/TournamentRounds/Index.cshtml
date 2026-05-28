@@ -7,8 +7,108 @@
         ?? $"/TournamentAdminBracket/Index?tournamentId={tid}";
 }
 
+<style>
+    .round-page-title-bar {
+        gap: 12px;
+    }
+
+    .round-page-toolbar {
+        gap: 8px;
+    }
+
+    .round-list-card .card-body {
+        padding: 1.5rem;
+    }
+
+    .round-list-table {
+        min-width: 980px;
+        margin-bottom: 0;
+        table-layout: fixed;
+    }
+
+        .round-list-table thead th {
+            padding: 1rem .9rem;
+            background: #fff;
+            color: #7f8599;
+            font-weight: 700;
+            vertical-align: middle;
+        }
+
+        .round-list-table tbody td {
+            padding: .95rem .9rem;
+            color: #778096;
+            vertical-align: middle;
+        }
+
+    .round-key {
+        color: #7b8398;
+        font-weight: 700;
+    }
+
+    .round-name {
+        color: #758096;
+        font-weight: 500;
+    }
+
+    .round-count-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 46px;
+        height: 32px;
+        padding: 0 .75rem;
+        border: 1px solid #bfe9f2;
+        border-radius: 6px;
+        background: #eefbfe;
+        color: #1aa9bd;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    button.round-count-badge {
+        cursor: pointer;
+    }
+
+        button.round-count-badge:hover {
+            border-color: #36b9cc;
+            color: #138496;
+        }
+
+    .round-actions {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 6px;
+    }
+
+    .round-action-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 38px;
+        padding: 0;
+        border-radius: 4px;
+    }
+
+    @@media (max-width: 575.98px) {
+        .round-page-title-bar > div:last-child {
+            width: 100%;
+        }
+
+        .round-page-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+            .round-page-toolbar > * {
+                flex: 1 1 calc(50% - 4px);
+            }
+    }
+</style>
+
 <div class="container-fluid" id="pageRoot" data-tournament-id="@tid">
-    <div class="d-sm-flex align-items-center justify-content-between mb-3">
+    <div class="d-sm-flex align-items-center justify-content-between mb-3 round-page-title-bar">
         <div>
             <h1 class="h3 mb-0 text-gray-800">Vòng đấu</h1>
             <div class="small text-muted">
@@ -16,7 +116,7 @@
             </div>
         </div>
 
-        <div class="d-flex flex-wrap" style="gap:8px">
+        <div class="d-flex flex-wrap round-page-toolbar">
             <button class="btn btn-sm btn-primary shadow-sm" type="button" id="btnOpenCreate">
                 <i class="fas fa-plus fa-sm text-white-50"></i> Tạo vòng đấu
             </button>
@@ -29,7 +129,7 @@
         </div>
     </div>
 
-    <div class="card shadow mb-4">
+    <div class="card shadow mb-4 round-list-card">
         <div class="card-header py-3 d-flex align-items-center justify-content-between">
             <h6 class="m-0 font-weight-bold text-primary">Danh sách vòng đấu</h6>
         </div>
@@ -38,18 +138,19 @@
             <div id="errBox" class="alert alert-danger d-none"></div>
 
             <div class="table-responsive">
-                <table class="table table-bordered" width="100%" cellspacing="0">
+                <table class="table table-bordered round-list-table" width="100%" cellspacing="0">
                     <thead>
                         <tr>
                             <th style="width:120px">Mã vòng</th>
                             <th>Tên vòng</th>
+                            <th style="width:130px">Số lượng bảng</th>
                             <th style="width:110px">Thứ tự sắp xếp</th>
                             <th style="width:160px">Ngày tạo</th>
                             <th style="width:140px">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody id="body">
-                        <tr><td colspan="5" class="text-center text-muted">Đang tải...</td></tr>
+                        <tr><td colspan="6" class="text-center text-muted">Đang tải...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -162,6 +263,7 @@
           };
 
           const esc = (s) => String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+          const escAttr = (s) => esc(s).replaceAll('"',"&quot;").replaceAll("'","&#39;");
 
           function showErr(msg){
             const box = $id("errBox");
@@ -232,28 +334,41 @@
           }
 
           function rowHtml(x){
+            const id = Number(x.tournamentRoundMapId || 0);
+            const sortOrder = Number(x.sortOrder ?? 0);
+            const groupCount = Number(x.groupCount ?? 0);
+
             return `
-              <tr data-id="${x.tournamentRoundMapId}">
-                <td><b>${esc(x.roundKey)}</b></td>
-                <td>${esc(x.roundLabel)}</td>
-                <td>${x.sortOrder ?? 0}</td>
+              <tr data-id="${id}">
+                <td><span class="round-key">${esc(x.roundKey)}</span></td>
+                <td><span class="round-name">${esc(x.roundLabel)}</span></td>
+                <td>
+                  <button class="round-count-badge js-goto-groups" type="button"
+                          data-id="${id}" title="Xem danh sách bảng đấu">${groupCount}</button>
+                </td>
+                <td>${sortOrder}</td>
                 <td>${fmt(x.createdAt)}</td>
-                <td style="white-space:nowrap">
-                  <button class="btn btn-sm btn-outline-primary" type="button"
-                          onclick="openEdit(${x.tournamentRoundMapId}, '${esc(x.roundKey)}', '${esc(x.roundLabel)}', ${x.sortOrder ?? 0})"
+                <td>
+                  <div class="round-actions">
+                  <button class="btn btn-sm btn-outline-primary round-action-btn js-edit-round" type="button"
+                          data-id="${id}"
+                          data-key="${escAttr(x.roundKey)}"
+                          data-label="${escAttr(x.roundLabel)}"
+                          data-sort="${sortOrder}"
                           title="Chỉnh sửa">
                     <i class="fas fa-edit"></i>
                   </button>
-                  <button class="btn btn-sm btn-outline-danger" type="button"
-                          onclick="delRound(${x.tournamentRoundMapId})"
+                  <button class="btn btn-sm btn-outline-danger round-action-btn js-delete-round" type="button"
+                          data-id="${id}"
                           title="Xóa">
                     <i class="fas fa-trash"></i>
                   </button>
-                  <button class="btn btn-sm btn-outline-info" type="button"
-                          onclick="gotoGroups(${x.tournamentRoundMapId})"
+                  <button class="btn btn-sm btn-outline-info round-action-btn js-goto-groups" type="button"
+                          data-id="${id}"
                           title="Bảng đấu">
                     <i class="fas fa-th-large"></i>
                   </button>
+                  </div>
                 </td>
               </tr>
             `;
@@ -266,18 +381,18 @@
           async function load(){
             hideErr();
             const body = $id("body");
-            body.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Đang tải...</td></tr>`;
+            body.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Đang tải...</td></tr>`;
             try{
               const res = await axios.get(API);
               const items = res.data?.items || [];
               if(!items.length){
-                body.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Không có vòng đấu nào</td></tr>`;
+                body.innerHTML = `<tr><td colspan="6" class="text-center text-muted">Không có vòng đấu nào</td></tr>`;
                 return;
               }
               body.innerHTML = items.map(rowHtml).join("");
             }catch(err){
               showErr(err?.response?.data?.message || err?.message || "Tải dữ liệu thất bại.");
-              body.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Tải dữ liệu thất bại</td></tr>`;
+              body.innerHTML = `<tr><td colspan="6" class="text-center text-danger">Tải dữ liệu thất bại</td></tr>`;
             }
           }
 
@@ -324,6 +439,29 @@
           };
 
           $id("btnOpenCreate").addEventListener("click", openCreate);
+          $id("body").addEventListener("click", (event) => {
+            const editBtn = event.target.closest(".js-edit-round");
+            if(editBtn){
+              window.openEdit(
+                Number(editBtn.dataset.id || 0),
+                editBtn.dataset.key || "",
+                editBtn.dataset.label || "",
+                Number(editBtn.dataset.sort || 0)
+              );
+              return;
+            }
+
+            const deleteBtn = event.target.closest(".js-delete-round");
+            if(deleteBtn){
+              window.delRound(Number(deleteBtn.dataset.id || 0));
+              return;
+            }
+
+            const groupsBtn = event.target.closest(".js-goto-groups");
+            if(groupsBtn){
+              window.gotoGroups(Number(groupsBtn.dataset.id || 0));
+            }
+          });
 
           $id("formRound").addEventListener("submit", async (e) => {
             e.preventDefault();

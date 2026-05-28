@@ -195,6 +195,52 @@
         return parts.join(" | ");
     }
 
+    function normalizeSourceType(value) {
+        const normalized = trimToEmpty(value).toUpperCase();
+        if (normalized === "WINNER_MATCH" || normalized === "LOSER_MATCH" || normalized === "GROUP_RANK" || normalized === "BYE") {
+            return normalized;
+        }
+
+        return "REGISTRATION";
+    }
+
+    function buildSlotSource(match, slotNumber) {
+        const prefix = slotNumber === 1 ? "team1" : "team2";
+        const sourceType = normalizeSourceType(match?.[prefix + "SourceType"]);
+        const sourceMatchId = toNumber(match?.[prefix + "SourceMatchId"]);
+        const sourceGroupId = toNumber(match?.[prefix + "SourceGroupId"]);
+        const sourceRank = toNumber(match?.[prefix + "SourceRank"]);
+        const sourceText = trimToEmpty(match?.[prefix + "SourceText"]);
+
+        let badge = "";
+        let tone = "registration";
+
+        if (sourceType === "WINNER_MATCH") {
+            badge = sourceMatchId > 0 ? "W#" + sourceMatchId : "WIN";
+            tone = "winner";
+        } else if (sourceType === "LOSER_MATCH") {
+            badge = sourceMatchId > 0 ? "L#" + sourceMatchId : "LOS";
+            tone = "loser";
+        } else if (sourceType === "GROUP_RANK") {
+            badge = sourceRank > 0 ? "R" + sourceRank : "R?";
+            tone = "group-rank";
+        } else if (sourceType === "BYE") {
+            badge = "BYE";
+            tone = "bye";
+        }
+
+        return {
+            type: sourceType,
+            matchId: sourceMatchId,
+            groupId: sourceGroupId,
+            rank: sourceRank,
+            text: sourceText,
+            badge: badge,
+            tone: tone,
+            isLinked: sourceType !== "REGISTRATION"
+        };
+    }
+
     function buildMatchMeta(match) {
         const details = [];
         const timeText = formatClock(match?.startAt);
@@ -214,20 +260,31 @@
         return details.join(" | ");
     }
 
-    function buildMatchCard(match, matchIndex, groupKey) {
+    function buildMatchCard(match, matchIndex, groupKey, groupName) {
         const winnerId = match?.winnerRegistrationId;
         const isWinnerA = !!winnerId && winnerId === match?.team1RegistrationId;
         const isWinnerB = !!winnerId && winnerId === match?.team2RegistrationId;
+        const teamASource = buildSlotSource(match, 1);
+        const teamBSource = buildSlotSource(match, 2);
+        const teamAResolved = !!match?.team1Resolved || toNumber(match?.team1RegistrationId) > 0;
+        const teamBResolved = !!match?.team2Resolved || toNumber(match?.team2RegistrationId) > 0;
 
         return {
+            matchId: toNumber(match?.matchId),
             isCompleted: !!match?.isCompleted,
             hasVideo: !!trimToEmpty(match?.videoUrl),
             title: "#" + (trimToEmpty(match?.matchId) || (groupKey + "-" + (matchIndex + 1))),
+            groupKey: groupKey,
+            groupName: groupName,
             metaText: buildMatchMeta(match),
             teamA: buildTeamName(match?.team1, groupKey + "-#1"),
             teamB: buildTeamName(match?.team2, groupKey + "-#2"),
             teamAIdentity: buildTeamIdentity(match?.team1, match?.team1RegistrationId),
             teamBIdentity: buildTeamIdentity(match?.team2, match?.team2RegistrationId),
+            teamASource: teamASource,
+            teamBSource: teamBSource,
+            teamAResolved: teamAResolved,
+            teamBResolved: teamBResolved,
             scoreA: formatScore(match?.scoreTeam1),
             scoreB: formatScore(match?.scoreTeam2),
             isWinnerA: isWinnerA,
@@ -244,16 +301,18 @@
         const groupName = trimToEmpty(group?.groupName) || ("Bảng " + (groupIndex + 1));
         const groupKey = buildGroupDisplayKey(roundKey, groupName, groupIndex);
         const matches = Array.isArray(group?.matches) ? group.matches : [];
+        const completedCount = matches.filter(function (match) { return !!match?.isCompleted; }).length;
         const matchCards = matches.map(function (match, matchIndex) {
-            return buildMatchCard(match, matchIndex, groupKey);
+            return buildMatchCard(match, matchIndex, groupKey, groupName);
         });
 
         return {
             isReal: true,
+            groupId: toNumber(group?.groupId) || toNumber(group?.tournamentRoundGroupId),
             groupName: groupName,
             groupKey: groupKey,
             matchCount: matchCards.length,
-            completedCount: matchCards.filter(function (item) { return item.isCompleted; }).length,
+            completedCount: completedCount,
             matches: matchCards,
             sourceIndexes: [],
             sourceKeys: []
@@ -286,6 +345,20 @@
                         sourceMap.set(key, groupIndex);
                     }
                 });
+            });
+        });
+
+        return sourceMap;
+    }
+
+    function buildMatchSourceMap(round) {
+        const sourceMap = new Map();
+
+        (round?.groups || []).forEach(function (group, groupIndex) {
+            (group?.matches || []).forEach(function (match) {
+                if (toNumber(match?.matchId) > 0) {
+                    sourceMap.set(String(match.matchId), groupIndex);
+                }
             });
         });
 
@@ -325,11 +398,26 @@
         if (!previousRound._sourceMap) {
             previousRound._sourceMap = buildWinnerSourceMap(previousRound);
         }
+        if (!previousRound._matchSourceMap) {
+            previousRound._matchSourceMap = buildMatchSourceMap(previousRound);
+        }
 
         const inferred = new Set();
         const sourceMap = previousRound._sourceMap;
+        const matchSourceMap = previousRound._matchSourceMap;
 
         (currentGroup?.matches || []).forEach(function (match) {
+            [match?.teamASource, match?.teamBSource].forEach(function (slotSource) {
+                if (!slotSource || !slotSource.matchId) {
+                    return;
+                }
+
+                const key = String(toNumber(slotSource.matchId));
+                if (matchSourceMap.has(key)) {
+                    inferred.add(matchSourceMap.get(key));
+                }
+            });
+
             (match?.teamRegistrationIds || []).forEach(function (registrationId) {
                 const key = String(toNumber(registrationId));
                 if (sourceMap.has(key)) {
@@ -362,6 +450,7 @@
 
         return {
             isReal: false,
+            groupId: 0,
             groupName: groupName,
             groupKey: groupKey,
             matchCount: 0,
@@ -459,12 +548,11 @@
 
     function calculateGroupHeight(group) {
         const matchCount = Math.max(0, toNumber(group?.matchCount));
-        const hasSources = Array.isArray(group?.sourceKeys) && group.sourceKeys.length > 0;
         const matchSectionHeight = matchCount > 0
-            ? matchCount * 94 + Math.max(0, matchCount - 1) * 12
-            : 80;
+            ? matchCount * 108 + Math.max(0, matchCount - 1) * 10
+            : 72;
 
-        return 112 + (hasSources ? 44 : 0) + matchSectionHeight;
+        return matchSectionHeight;
     }
 
     function getBoardBottomPadding() {
@@ -481,6 +569,43 @@
         return groups.reduce(function (total, group) {
             return total + toNumber(group?.height);
         }, 0) + Math.max(0, groups.length - 1) * groupGap;
+    }
+
+    function getSourceGroupSpanHeight(previousRound, sourceIndexes, groupGap) {
+        const groups = Array.isArray(previousRound?.groups) ? previousRound.groups : [];
+        const indexes = Array.from(new Set((sourceIndexes || [])
+            .map(function (index) { return toNumber(index); })
+            .filter(function (index) { return index >= 0 && index < groups.length; })))
+            .sort(function (left, right) { return left - right; });
+
+        if (indexes.length === 0) {
+            return 0;
+        }
+
+        const firstIndex = indexes[0];
+        const lastIndex = indexes[indexes.length - 1];
+        let height = 0;
+
+        for (let index = firstIndex; index <= lastIndex; index += 1) {
+            height += toNumber(groups[index]?.height);
+        }
+
+        height += Math.max(0, lastIndex - firstIndex) * groupGap;
+        return height;
+    }
+
+    function stretchDependentGroupHeights(rounds, groupGap) {
+        for (let roundIndex = 1; roundIndex < rounds.length; roundIndex += 1) {
+            const previousRound = rounds[roundIndex - 1];
+            const currentRound = rounds[roundIndex];
+
+            currentRound.groups.forEach(function (group) {
+                const sourceSpanHeight = getSourceGroupSpanHeight(previousRound, group.sourceIndexes, groupGap);
+                if (sourceSpanHeight > 0) {
+                    group.height = Math.max(group.height, sourceSpanHeight);
+                }
+            });
+        }
     }
 
     function updateRoundPositions(rounds, metrics) {
@@ -532,7 +657,11 @@
 
                     const sourceX = sourceGroup.x + sourceGroup.width;
                     const sourceY = sourceGroup.y + sourceGroup.height / 2;
-                    lines.push("M " + sourceX + " " + sourceY + " H " + midX + " V " + targetY + " H " + targetX);
+                    lines.push({
+                        d: "M " + sourceX + " " + sourceY + " H " + midX + " V " + targetY + " H " + targetX,
+                        type: "fallback",
+                        className: "is-fallback"
+                    });
                 });
             });
         }
@@ -562,6 +691,7 @@
             });
         });
 
+        layout.leftOffset += leftPadding;
         layout.width = baseWidth + leftPadding + rightPadding;
         layout.initialScrollLeft = Math.max(0, leftPadding - 48);
         layout.lines = buildLinePaths(layout.rounds, layout.columnGap);
@@ -582,6 +712,7 @@
                 group.height = calculateGroupHeight(group);
             });
         });
+        stretchDependentGroupHeights(rounds, groupGap);
 
         const boardHeight = updateRoundPositions(rounds, {
             columnWidth: columnWidth,
@@ -625,30 +756,51 @@
         ].filter(Boolean).join(" ");
 
         return [
-            '<article class="' + escapeHtml(classes) + '">',
+            '<article class="' + escapeHtml(classes) + '" data-match-id="' + escapeHtml(match.matchId || "") + '">',
             '<div class="admin-bracket-match__top">',
+            '<div class="admin-bracket-match__title">',
+            '<div class="admin-bracket-match__group"><b>' + escapeHtml(match.groupKey || "") + "</b><span>" + escapeHtml(match.groupName || "") + "</span></div>",
             '<strong>' + escapeHtml(match.title) + "</strong>",
+            "</div>",
             "<span>" + escapeHtml(match.metaText || "Chưa có giờ / sân") + "</span>",
             "</div>",
-            '<div class="admin-bracket-match__team">',
-            '<div class="admin-bracket-match__team-main">',
-            match.teamAIdentity
-                ? '<small class="admin-bracket-match__team-meta">' + escapeHtml(match.teamAIdentity) + "</small>"
-                : "",
-            '<span class="' + (match.isWinnerA ? "is-winner" : "") + '">' + escapeHtml(match.teamA) + "</span>",
-            "</div>",
-            '<b class="' + (match.isWinnerA ? "is-winner" : "") + '">' + escapeHtml(match.scoreA) + "</b>",
-            "</div>",
-            '<div class="admin-bracket-match__team">',
-            '<div class="admin-bracket-match__team-main">',
-            match.teamBIdentity
-                ? '<small class="admin-bracket-match__team-meta">' + escapeHtml(match.teamBIdentity) + "</small>"
-                : "",
-            '<span class="' + (match.isWinnerB ? "is-winner" : "") + '">' + escapeHtml(match.teamB) + "</span>",
-            "</div>",
-            '<b class="' + (match.isWinnerB ? "is-winner" : "") + '">' + escapeHtml(match.scoreB) + "</b>",
-            "</div>",
+            renderMatchTeam(match, 1),
+            renderMatchTeam(match, 2),
             "</article>"
+        ].join("");
+    }
+
+    function renderMatchTeam(match, slotNumber) {
+        const isTeamA = slotNumber === 1;
+        const source = isTeamA ? match.teamASource : match.teamBSource;
+        const identity = isTeamA ? match.teamAIdentity : match.teamBIdentity;
+        const teamName = isTeamA ? match.teamA : match.teamB;
+        const score = isTeamA ? match.scoreA : match.scoreB;
+        const isWinner = isTeamA ? match.isWinnerA : match.isWinnerB;
+        const isResolved = isTeamA ? match.teamAResolved : match.teamBResolved;
+        const sourceClasses = [
+            "admin-bracket-match__source",
+            source?.isLinked ? "is-" + source.tone : "",
+            isResolved ? "is-resolved" : "is-pending"
+        ].filter(Boolean).join(" ");
+        const sourceHtml = source?.isLinked
+            ? '<small class="' + escapeHtml(sourceClasses) + '" title="' + escapeHtml(source.text || "") + '"><b>' + escapeHtml(source.badge) + "</b></small>"
+            : "";
+        const identityHtml = identity
+            ? '<small class="admin-bracket-match__team-meta">' + escapeHtml(identity) + "</small>"
+            : "";
+        const tagsHtml = sourceHtml || identityHtml
+            ? '<div class="admin-bracket-match__team-tags">' + sourceHtml + identityHtml + "</div>"
+            : "";
+
+        return [
+            '<div class="admin-bracket-match__team" data-slot="' + slotNumber + '" data-source-type="' + escapeHtml(source?.type || "REGISTRATION") + '" data-source-match-id="' + escapeHtml(source?.matchId || "") + '" data-source-group-id="' + escapeHtml(source?.groupId || "") + '" data-source-rank="' + escapeHtml(source?.rank || "") + '">',
+            '<div class="admin-bracket-match__team-main">',
+            tagsHtml,
+            '<span class="' + (isWinner ? "is-winner" : "") + '">' + escapeHtml(teamName) + "</span>",
+            "</div>",
+            '<b class="' + (isWinner ? "is-winner" : "") + '">' + escapeHtml(score) + "</b>",
+            "</div>"
         ].join("");
     }
 
@@ -659,23 +811,7 @@
         ].join(" ");
 
         return [
-            '<article class="' + escapeHtml(groupClasses) + '" data-round-index="' + escapeHtml(roundIndex) + '" data-group-index="' + escapeHtml(groupIndex) + '" style="left:' + escapeHtml(group.x) + "px;top:" + escapeHtml(group.y) + "px;width:" + escapeHtml(group.width) + "px;height:" + escapeHtml(group.height) + 'px">',
-            '<div class="admin-bracket-group__head">',
-            '<div class="admin-bracket-group__title">',
-            '<span class="admin-bracket-group__key">' + escapeHtml(group.groupKey) + "</span>",
-            "<strong>" + escapeHtml(group.groupName) + "</strong>",
-            "</div>",
-            '<span class="admin-bracket-group__state-dot ' + (group.isReal ? "is-real" : "is-virtual") + '" aria-hidden="true"></span>',
-            "</div>",
-            '<div class="admin-bracket-group__meta">',
-            "<span>" + escapeHtml(String(group.matchCount)) + " trận</span>",
-            "<span>" + escapeHtml(String(group.completedCount)) + "/" + escapeHtml(String(group.matchCount)) + " xong</span>",
-            "</div>",
-            group.sourceKeys.length > 0
-                ? '<div class="admin-bracket-group__sources">' + group.sourceKeys.map(function (item) {
-                    return "<span>" + escapeHtml(item) + "</span>";
-                }).join("") + "</div>"
-                : "",
+            '<article class="' + escapeHtml(groupClasses) + '" data-round-index="' + escapeHtml(roundIndex) + '" data-group-index="' + escapeHtml(groupIndex) + '" data-group-id="' + escapeHtml(group.groupId || "") + '" style="left:' + escapeHtml(group.x) + "px;top:" + escapeHtml(group.y) + "px;width:" + escapeHtml(group.width) + "px;height:" + escapeHtml(group.height) + 'px">',
             '<div class="admin-bracket-group__body">',
             group.matches.length > 0
                 ? group.matches.map(renderMatch).join("")
@@ -685,14 +821,14 @@
         ].join("");
     }
 
-    function renderRoundTitle(round, headerTop) {
+    function renderRoundTitle(round, headerTop, roundIndex) {
         const classes = [
             "admin-bracket-round-title",
             round.isSynthetic ? "is-virtual" : "is-real"
         ].join(" ");
 
         return [
-            '<div class="' + escapeHtml(classes) + '" style="left:' + escapeHtml(round.x) + "px;top:" + escapeHtml(headerTop) + "px;width:" + escapeHtml(round.width) + 'px">',
+            '<div class="' + escapeHtml(classes) + '" data-round-title-index="' + escapeHtml(roundIndex) + '" style="left:' + escapeHtml(round.x) + "px;top:" + escapeHtml(headerTop) + "px;width:" + escapeHtml(round.width) + 'px">',
             '<div class="admin-bracket-round-title__text">',
             "<span>" + escapeHtml(round.roundKey) + "</span>",
             "<strong>" + escapeHtml(round.roundLabel) + "</strong>",
@@ -700,20 +836,38 @@
             '<div class="admin-bracket-round-title__meta">',
             "<span>" + escapeHtml(String(round.groupCount)) + " bảng</span>",
             "<span>" + escapeHtml(String(round.matchCount)) + " trận</span>",
+            '<i class="' + (round.isSynthetic ? "is-virtual" : "is-real") + '" aria-hidden="true"></i>',
             "</div>",
             "</div>"
         ].join("");
+    }
+
+    function renderLinePath(line) {
+        if (line?.shape === "circle") {
+            return '<circle class="' + escapeHtml(["admin-bracket-line-node", line?.className].filter(Boolean).join(" ")) + '" cx="' + escapeHtml(line.cx) + '" cy="' + escapeHtml(line.cy) + '" r="' + escapeHtml(line.r || 4) + '"></circle>';
+        }
+
+        const path = typeof line === "string" ? line : line?.d;
+        if (!path) {
+            return "";
+        }
+
+        const classes = ["admin-bracket-line", typeof line === "string" ? "" : line?.className]
+            .filter(Boolean)
+            .join(" ");
+
+        return '<path class="' + escapeHtml(classes) + '" d="' + escapeHtml(path) + '"></path>';
     }
 
     function buildBoardHtml(layout) {
         return [
             '<svg class="admin-bracket-lines" data-bracket-lines="true" viewBox="0 0 ' + escapeHtml(layout.width) + " " + escapeHtml(layout.height) + '" aria-hidden="true">',
             layout.lines.map(function (path) {
-                return '<path d="' + escapeHtml(path) + '"></path>';
+                return renderLinePath(path);
             }).join(""),
             "</svg>",
-            layout.rounds.map(function (round) {
-                return renderRoundTitle(round, layout.headerTop);
+            layout.rounds.map(function (round, roundIndex) {
+                return renderRoundTitle(round, layout.headerTop, roundIndex);
             }).join(""),
             layout.rounds.map(function (round, roundIndex) {
                 return round.groups.map(function (group, groupIndex) {
@@ -727,9 +881,218 @@
         return qs('.admin-bracket-group[data-round-index="' + roundIndex + '"][data-group-index="' + groupIndex + '"]', board);
     }
 
+    function getElementMidpoint(element, boardRect, edge) {
+        const rect = element.getBoundingClientRect();
+        const x = edge === "right" ? rect.right : edge === "left" ? rect.left : rect.left + rect.width / 2;
+        return {
+            x: x - boardRect.left,
+            y: rect.top + rect.height / 2 - boardRect.top
+        };
+    }
+
+    function buildConnectorPath(source, target) {
+        const sourceX = Math.round(source.x);
+        const sourceY = Math.round(source.y);
+        const targetX = Math.round(target.x);
+        const targetY = Math.round(target.y);
+        const forward = sourceX <= targetX;
+        const distance = Math.max(48, Math.abs(targetX - sourceX));
+        const midX = forward
+            ? sourceX + Math.round(distance / 2)
+            : sourceX + 52;
+
+        return "M " + sourceX + " " + sourceY + " H " + midX + " V " + targetY + " H " + targetX;
+    }
+
+    function clampNumber(value, min, max) {
+        return Math.min(max, Math.max(min, value));
+    }
+
+    function getLineClassForSource(sourceType) {
+        sourceType = normalizeSourceType(sourceType);
+
+        if (sourceType === "WINNER_MATCH") {
+            return "is-winner-source";
+        }
+
+        if (sourceType === "LOSER_MATCH") {
+            return "is-loser-source";
+        }
+
+        if (sourceType === "GROUP_RANK") {
+            return "is-group-rank-source";
+        }
+
+        return "is-fallback";
+    }
+
+    function collectDependencyTargets(board) {
+        const matchMap = new Map();
+        const groupMap = new Map();
+        const targetMap = new Map();
+
+        qsa("[data-match-id]", board).forEach(function (element) {
+            const id = toNumber(element.dataset.matchId);
+            if (id > 0) {
+                matchMap.set(String(id), element);
+            }
+        });
+
+        qsa("[data-group-id]", board).forEach(function (element) {
+            const id = toNumber(element.dataset.groupId);
+            if (id > 0) {
+                groupMap.set(String(id), element);
+            }
+        });
+
+        qsa(".admin-bracket-match__team[data-source-type]", board).forEach(function (targetSlot) {
+            const sourceType = normalizeSourceType(targetSlot.dataset.sourceType);
+            let sourceElement = null;
+
+            if (sourceType === "WINNER_MATCH" || sourceType === "LOSER_MATCH") {
+                const sourceMatchId = toNumber(targetSlot.dataset.sourceMatchId);
+                sourceElement = matchMap.get(String(sourceMatchId));
+            } else if (sourceType === "GROUP_RANK") {
+                const sourceGroupId = toNumber(targetSlot.dataset.sourceGroupId);
+                sourceElement = groupMap.get(String(sourceGroupId));
+            }
+
+            if (!sourceElement) {
+                return;
+            }
+
+            const targetMatch = targetSlot.closest(".admin-bracket-match");
+            if (!targetMatch) {
+                return;
+            }
+
+            const targetKey = targetMatch.dataset.matchId || ("target-" + targetMap.size);
+            if (!targetMap.has(targetKey)) {
+                targetMap.set(targetKey, {
+                    targetMatch: targetMatch,
+                    dependencies: []
+                });
+            }
+
+            targetMap.get(targetKey).dependencies.push({
+                sourceElement: sourceElement,
+                targetSlot: targetSlot,
+                sourceType: sourceType,
+                className: getLineClassForSource(sourceType)
+            });
+        });
+
+        return Array.from(targetMap.values());
+    }
+
+    function alignDependencyTargetCards(board) {
+        const boardRect = board.getBoundingClientRect();
+        const targetEntries = collectDependencyTargets(board);
+
+        targetEntries.forEach(function (entry) {
+            const dependencies = entry.dependencies;
+
+            if (dependencies.length <= 1) {
+                return;
+            }
+
+            const sourceYValues = dependencies.map(function (dependency) {
+                return getElementMidpoint(dependency.sourceElement, boardRect, "right").y;
+            });
+            const minY = Math.min.apply(null, sourceYValues);
+            const maxY = Math.max.apply(null, sourceYValues);
+            const desiredCenter = Math.round((minY + maxY) / 2);
+            const targetCenter = getElementMidpoint(entry.targetMatch, boardRect, "left").y;
+            const currentMargin = toNumber(window.getComputedStyle(entry.targetMatch).marginTop);
+            const nextMargin = Math.max(0, Math.round(currentMargin + desiredCenter - targetCenter));
+
+            if (Math.abs(nextMargin - currentMargin) > 1) {
+                entry.targetMatch.style.marginTop = nextMargin + "px";
+            }
+        });
+    }
+
+    function buildDependencyLinePathsFromDom(board) {
+        const boardRect = board.getBoundingClientRect();
+        const targetEntries = collectDependencyTargets(board);
+        const lines = [];
+
+        targetEntries.forEach(function (entry) {
+            const dependencies = entry.dependencies;
+
+            if (dependencies.length <= 1) {
+                dependencies.forEach(function (dependency) {
+                    lines.push({
+                        d: buildConnectorPath(
+                            getElementMidpoint(dependency.sourceElement, boardRect, "right"),
+                            getElementMidpoint(dependency.targetSlot, boardRect, "left")
+                        ),
+                        type: dependency.sourceType,
+                        className: dependency.className
+                    });
+                });
+                return;
+            }
+
+            const sourcePoints = dependencies
+                .map(function (dependency) {
+                    const point = getElementMidpoint(dependency.sourceElement, boardRect, "right");
+                    return {
+                        x: Math.round(point.x),
+                        y: Math.round(point.y),
+                        sourceType: dependency.sourceType,
+                        className: dependency.className
+                    };
+                })
+                .sort(function (left, right) {
+                    return left.y - right.y;
+                });
+
+            const targetPoint = getElementMidpoint(entry.targetMatch, boardRect, "left");
+            const targetX = Math.round(targetPoint.x);
+            const targetY = Math.round(targetPoint.y);
+            const maxSourceX = Math.max.apply(null, sourcePoints.map(function (point) { return point.x; }));
+            const available = targetX - maxSourceX;
+            const trunkX = available > 72
+                ? clampNumber(maxSourceX + Math.round(available * 0.58), maxSourceX + 28, targetX - 34)
+                : Math.max(maxSourceX + 36, targetX - 38);
+            const className = sourcePoints.every(function (point) { return point.className === sourcePoints[0].className; })
+                ? sourcePoints[0].className
+                : "is-mixed-source";
+            const sourceYValues = sourcePoints.map(function (point) { return point.y; });
+            const minY = Math.min.apply(null, sourceYValues);
+            const maxY = Math.max.apply(null, sourceYValues);
+            const junctionY = Math.round((minY + maxY) / 2);
+
+            sourcePoints.forEach(function (point) {
+                lines.push({
+                    d: "M " + point.x + " " + point.y + " H " + trunkX,
+                    type: point.sourceType,
+                    className: className + " is-tree-branch"
+                });
+            });
+
+            lines.push({
+                d: "M " + trunkX + " " + minY + " V " + maxY,
+                type: "TREE_TRUNK",
+                className: className + " is-tree-trunk"
+            });
+            lines.push({
+                d: "M " + trunkX + " " + junctionY + " H " + targetX,
+                type: "TREE_OUTPUT",
+                className: className + " is-tree-output"
+            });
+        });
+
+        return lines;
+    }
+
     function updateBoardLines(board, layout) {
         const svg = qs("[data-bracket-lines]", board);
-        const lines = buildLinePaths(layout.rounds, layout.columnGap);
+        const dependencyLines = buildDependencyLinePathsFromDom(board);
+        const lines = dependencyLines.length > 0
+            ? dependencyLines
+            : buildLinePaths(layout.rounds, layout.columnGap);
 
         layout.lines = lines;
 
@@ -738,15 +1101,17 @@
         }
 
         svg.setAttribute("viewBox", "0 0 " + layout.width + " " + layout.height);
-        svg.innerHTML = lines.map(function (path) {
-            return '<path d="' + escapeHtml(path) + '"></path>';
-        }).join("");
+        svg.innerHTML = lines.map(renderLinePath).join("");
     }
 
     function syncMeasuredLayout(board, layout) {
         if (!board || !layout || !Array.isArray(layout.rounds)) {
             return;
         }
+
+        qsa(".admin-bracket-match", board).forEach(function (matchElement) {
+            matchElement.style.marginTop = "";
+        });
 
         layout.rounds.forEach(function (round, roundIndex) {
             round.groups.forEach(function (group, groupIndex) {
@@ -757,14 +1122,26 @@
                 }
 
                 element.style.height = "auto";
-                group.height = Math.max(calculateGroupHeight(group), Math.ceil(Math.max(element.scrollHeight, element.offsetHeight)));
+                group.height = Math.max(
+                    toNumber(group.height),
+                    calculateGroupHeight(group),
+                    Math.ceil(Math.max(element.scrollHeight, element.offsetHeight))
+                );
             });
         });
 
+        stretchDependentGroupHeights(layout.rounds, layout.groupGap);
         layout.height = updateRoundPositions(layout.rounds, layout);
         board.style.height = layout.height + "px";
 
         layout.rounds.forEach(function (round, roundIndex) {
+            const titleElement = qs('.admin-bracket-round-title[data-round-title-index="' + roundIndex + '"]', board);
+            if (titleElement) {
+                titleElement.style.left = round.x + "px";
+                titleElement.style.top = layout.headerTop + "px";
+                titleElement.style.width = round.width + "px";
+            }
+
             round.groups.forEach(function (group, groupIndex) {
                 const element = findGroupElement(board, roundIndex, groupIndex);
 
@@ -779,6 +1156,7 @@
             });
         });
 
+        alignDependencyTargetCards(board);
         updateBoardLines(board, layout);
     }
 
