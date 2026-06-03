@@ -1,0 +1,648 @@
+@{
+    Layout = null;
+    ViewData["Title"] = "Dashboard chấm trình";
+}
+
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>@ViewData["Title"]</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg: #f1f5f9;
+            --card: #ffffff;
+            --border: #e2e8f0;
+            --text: #0f172a;
+            --muted: #64748b;
+            --brand: #0284c7;
+            --success: #16a34a;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: Arial, sans-serif;
+        }
+
+        .topbar {
+            height: 62px;
+            background: #0f172a;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 22px;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 800;
+        }
+
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .page {
+            max-width: 1260px;
+            margin: 24px auto;
+            padding: 0 16px 36px;
+        }
+
+        .page-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            align-items: flex-end;
+            margin-bottom: 18px;
+        }
+
+        .page-title {
+            font-size: 30px;
+            font-weight: 900;
+            margin-bottom: 4px;
+        }
+
+        .page-subtitle {
+            color: var(--muted);
+            line-height: 1.6;
+        }
+
+        .search-card,
+        .table-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            box-shadow: 0 8px 22px rgba(15, 23, 42, .05);
+        }
+
+        .search-card {
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .search-row input {
+            flex: 1 1 320px;
+        }
+
+        .table-card {
+            overflow: hidden;
+        }
+
+        .table-card .table {
+            margin-bottom: 0;
+        }
+
+        .avatar-sm {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid var(--border);
+            background: #f8fafc;
+        }
+
+        .avatar-fallback {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px dashed #cbd5e1;
+            color: var(--muted);
+            font-weight: 800;
+        }
+
+        .rating-chip {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 5px 10px;
+            background: #e0f2fe;
+            color: #075985;
+            font-weight: 800;
+            font-size: 13px;
+        }
+
+        .modal-header {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .history-box {
+            max-height: 300px;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+        }
+
+        .history-item {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .history-item:last-child {
+            border-bottom: none;
+        }
+
+        .history-score {
+            font-weight: 900;
+            color: var(--text);
+        }
+
+        .history-meta {
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .history-note {
+            margin-top: 8px;
+            color: var(--text);
+            line-height: 1.5;
+        }
+
+        @@media (max-width: 767.98px) {
+            .page-head {
+                display: block;
+            }
+
+            .search-row button {
+                width: 100%;
+            }
+
+            .topbar {
+                height: auto;
+                min-height: 62px;
+                align-items: flex-start;
+                padding: 12px;
+                gap: 10px;
+            }
+
+            .topbar-actions {
+                flex-wrap: wrap;
+                justify-content: flex-end;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand">
+            <i class="fas fa-user-check"></i>
+            <span>Hanaka Rating Dashboard</span>
+        </div>
+        <div class="topbar-actions">
+            <span id="meBox" class="small"></span>
+            <button id="btnLogout" class="btn btn-sm btn-light" type="button">
+                <i class="fas fa-sign-out-alt"></i> Đăng xuất
+            </button>
+        </div>
+    </header>
+
+    <main class="page">
+        <div class="page-head">
+            <div>
+                <div class="page-title">Chấm trình vận động viên</div>
+                <div class="page-subtitle">
+                    Điểm hiện tại và lịch sử đều đọc từ UserRatingHistory. Mỗi lần chấm phải có ghi chú.
+                </div>
+            </div>
+        </div>
+
+        <div id="pageError" class="alert alert-danger d-none"></div>
+
+        <section class="search-card">
+            <div class="search-row">
+                <input id="keyword" class="form-control" placeholder="Tìm theo tên / email / số điện thoại / UserId" />
+                <button id="btnSearch" class="btn btn-primary" type="button">
+                    <i class="fas fa-search"></i> Tìm
+                </button>
+                <button id="btnRefresh" class="btn btn-outline-secondary" type="button">
+                    <i class="fas fa-sync"></i> Làm mới
+                </button>
+            </div>
+        </section>
+
+        <section class="table-card">
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th style="width:72px;">Ảnh</th>
+                            <th>Vận động viên</th>
+                            <th>Thành phố</th>
+                            <th>Điểm đơn</th>
+                            <th>Điểm đôi</th>
+                            <th>Cập nhật gần nhất</th>
+                            <th style="width:135px;">Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsBody">
+                        <tr><td colspan="7" class="text-center text-muted p-4">Đang tải...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <div class="d-flex justify-content-between align-items-center mt-3 flex-wrap" style="gap:8px;">
+            <div class="text-muted small" id="pagingInfo">—</div>
+            <div class="d-flex align-items-center flex-wrap" style="gap:8px;">
+                <select id="pageSize" class="form-control form-control-sm" style="width:90px;">
+                    <option value="10">10</option>
+                    <option value="20" selected>20</option>
+                    <option value="50">50</option>
+                </select>
+                <button id="btnPrev" class="btn btn-sm btn-outline-secondary" type="button">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button id="btnNext" class="btn btn-sm btn-outline-secondary" type="button">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <div class="modal fade" id="modalRating" tabindex="-1" role="dialog" aria-hidden="true">
+        <div class="modal-dialog modal-xl" role="document">
+            <div class="modal-content">
+                <form id="formRating">
+                    <input type="hidden" id="editingUserId" />
+
+                    <div class="modal-header">
+                        <div>
+                            <h5 class="modal-title" id="modalTitle">Chấm trình</h5>
+                            <div class="small text-muted" id="modalSub">—</div>
+                        </div>
+                        <button class="close" type="button" data-dismiss="modal">
+                            <span aria-hidden="true">×</span>
+                        </button>
+                    </div>
+
+                    <div class="modal-body">
+                        <div id="formError" class="alert alert-danger d-none"></div>
+
+                        <div class="row">
+                            <div class="col-lg-5">
+                                <div class="card border-0 bg-light mb-3">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center" style="gap:12px;">
+                                            <div id="modalAvatar"></div>
+                                            <div>
+                                                <div class="font-weight-bold" id="modalName">—</div>
+                                                <div class="small text-muted" id="modalInfo">—</div>
+                                            </div>
+                                        </div>
+
+                                        <hr />
+
+                                        <div class="row">
+                                            <div class="col-6">
+                                                <div class="small text-muted">Điểm đơn hiện tại</div>
+                                                <div class="rating-chip" id="currentSingle">—</div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="small text-muted">Điểm đôi hiện tại</div>
+                                                <div class="rating-chip" id="currentDouble">—</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Điểm đơn mới</label>
+                                    <input id="ratingSingle" class="form-control" type="number" min="0" max="5" step="0.01" required />
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Điểm đôi mới</label>
+                                    <input id="ratingDouble" class="form-control" type="number" min="0" max="5" step="0.01" required />
+                                </div>
+
+                                <div class="form-group">
+                                    <label>Ghi chú bắt buộc</label>
+                                    <textarea id="note" class="form-control" rows="4" maxlength="400" required
+                                              placeholder="Ví dụ: Chấm trình sau buổi test nội bộ ngày ..."></textarea>
+                                    <small class="form-text text-muted">
+                                        Hệ thống sẽ tự thêm "nhân viên Hanaka userid:..." vào ghi chú lưu trong UserRatingHistory.
+                                    </small>
+                                </div>
+                            </div>
+
+                            <div class="col-lg-7">
+                                <h6 class="font-weight-bold">Lịch sử điểm trình</h6>
+                                <div id="historyBox" class="history-box">
+                                    <div class="history-item text-muted text-center">Chưa có dữ liệu</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" type="button" data-dismiss="modal">Đóng</button>
+                        <button id="btnSubmit" class="btn btn-success" type="submit">
+                            <i class="fas fa-save"></i> Lưu điểm trình
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        const API = "/api/rating-assessment";
+        const AUTH = "/api/rating-auth";
+        const EMPTY_IMG = "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
+
+        const state = {
+            page: 1,
+            pageSize: 20,
+            total: 0,
+            items: [],
+            activeUser: null
+        };
+
+        const $id = (id) => document.getElementById(id);
+
+        function esc(value) {
+            return String(value || "")
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function fmtDate(value) {
+            if (!value) return "—";
+            const d = new Date(value);
+            if (Number.isNaN(d.getTime())) return "—";
+            const dd = String(d.getDate()).padStart(2, "0");
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const yyyy = d.getFullYear();
+            const hh = String(d.getHours()).padStart(2, "0");
+            const mi = String(d.getMinutes()).padStart(2, "0");
+            return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
+        }
+
+        function fmtScore(value) {
+            if (value === null || value === undefined) return "—";
+            const n = Number(value);
+            if (Number.isNaN(n)) return "—";
+            return n.toFixed(2).replace(/\.?0+$/, "");
+        }
+
+        function avatarHtml(url, name) {
+            if (url) return `<img class="avatar-sm" src="${esc(url)}" alt="" />`;
+            const first = String(name || "U").substring(0, 1).toUpperCase();
+            return `<span class="avatar-fallback">${esc(first)}</span>`;
+        }
+
+        function showPageError(message) {
+            const box = $id("pageError");
+            box.textContent = message || "Đã xảy ra lỗi.";
+            box.classList.remove("d-none");
+        }
+
+        function clearPageError() {
+            const box = $id("pageError");
+            box.textContent = "";
+            box.classList.add("d-none");
+        }
+
+        function showFormError(message) {
+            const box = $id("formError");
+            box.textContent = message || "Đã xảy ra lỗi.";
+            box.classList.remove("d-none");
+        }
+
+        function clearFormError() {
+            const box = $id("formError");
+            box.textContent = "";
+            box.classList.add("d-none");
+        }
+
+        function rowHtml(item) {
+            return `
+                <tr>
+                    <td>${avatarHtml(item.avatarUrl, item.fullName)}</td>
+                    <td>
+                        <div class="font-weight-bold">${esc(item.fullName || "—")}</div>
+                        <div class="small text-muted">UserId: ${esc(item.userId)} • ${esc(item.email || "—")}${item.phone ? " • " + esc(item.phone) : ""}</div>
+                    </td>
+                    <td>${esc(item.city || "—")}</td>
+                    <td><span class="rating-chip">${fmtScore(item.ratingSingle)}</span></td>
+                    <td><span class="rating-chip">${fmtScore(item.ratingDouble)}</span></td>
+                    <td>${fmtDate(item.ratingUpdatedAt)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" type="button" onclick="openRating(${item.userId})">
+                            <i class="fas fa-clipboard-check"></i> Chấm
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function getParams() {
+            const params = {
+                page: state.page,
+                pageSize: state.pageSize
+            };
+
+            const keyword = $id("keyword").value.trim();
+            if (keyword) params.keyword = keyword;
+            return params;
+        }
+
+        async function loadUsers(resetPage = false) {
+            if (resetPage) state.page = 1;
+            clearPageError();
+
+            const body = $id("itemsBody");
+            body.innerHTML = `<tr><td colspan="7" class="text-center text-muted p-4">Đang tải...</td></tr>`;
+
+            try {
+                const res = await axios.get(`${API}/users`, { params: getParams() });
+                state.items = res.data?.items || [];
+                state.total = res.data?.total || 0;
+
+                body.innerHTML = state.items.length
+                    ? state.items.map(rowHtml).join("")
+                    : `<tr><td colspan="7" class="text-center text-muted p-4">Không tìm thấy vận động viên</td></tr>`;
+
+                renderPaging();
+            } catch (err) {
+                body.innerHTML = `<tr><td colspan="7" class="text-center text-danger p-4">Tải dữ liệu thất bại</td></tr>`;
+                showPageError(err?.response?.data?.message || err?.message || "Tải dữ liệu thất bại.");
+            }
+        }
+
+        function renderPaging() {
+            const total = state.total || 0;
+            const page = state.page || 1;
+            const pageSize = state.pageSize || 20;
+            const start = total === 0 ? 0 : ((page - 1) * pageSize + 1);
+            const end = Math.min(page * pageSize, total);
+
+            $id("pagingInfo").textContent = `Hiển thị ${start}-${end} trên tổng ${total}`;
+            $id("btnPrev").disabled = page <= 1;
+            $id("btnNext").disabled = end >= total;
+        }
+
+        function historyHtml(items) {
+            if (!items || !items.length) {
+                return `<div class="history-item text-muted text-center">Chưa có lịch sử điểm trình</div>`;
+            }
+
+            return items.map(item => `
+                <div class="history-item">
+                    <div class="history-score">${fmtScore(item.ratingSingle)} / ${fmtScore(item.ratingDouble)}</div>
+                    <div class="history-meta">
+                        ${fmtDate(item.ratedAt)}
+                        ${item.ratedByUserId ? " • User chấm #" + esc(item.ratedByUserId) : ""}
+                    </div>
+                    ${item.note ? `<div class="history-note">${esc(item.note)}</div>` : ""}
+                </div>
+            `).join("");
+        }
+
+        async function openRating(userId) {
+            clearFormError();
+            $id("formRating").reset();
+            $id("editingUserId").value = String(userId);
+            $id("historyBox").innerHTML = `<div class="history-item text-muted text-center">Đang tải...</div>`;
+
+            $("#modalRating").modal("show");
+
+            try {
+                const res = await axios.get(`${API}/users/${userId}`);
+                const user = res.data?.user || {};
+                state.activeUser = user;
+
+                $id("modalTitle").textContent = `Chấm trình: ${user.fullName || "—"}`;
+                $id("modalSub").textContent = `UserId: ${user.userId || "—"} • ${user.email || "—"}${user.phone ? " • " + user.phone : ""}`;
+                $id("modalAvatar").innerHTML = avatarHtml(user.avatarUrl, user.fullName);
+                $id("modalName").textContent = user.fullName || "—";
+                $id("modalInfo").textContent = `${user.city || "—"} • ${user.gender || "—"}`;
+                $id("currentSingle").textContent = fmtScore(user.ratingSingle);
+                $id("currentDouble").textContent = fmtScore(user.ratingDouble);
+                $id("ratingSingle").value = user.ratingSingle ?? "";
+                $id("ratingDouble").value = user.ratingDouble ?? "";
+                $id("historyBox").innerHTML = historyHtml(res.data?.ratingHistory || []);
+            } catch (err) {
+                showFormError(err?.response?.data?.message || err?.message || "Tải chi tiết thất bại.");
+            }
+        }
+
+        async function submitRating(e) {
+            e.preventDefault();
+            clearFormError();
+
+            const userId = Number($id("editingUserId").value || 0);
+            const ratingSingle = Number($id("ratingSingle").value);
+            const ratingDouble = Number($id("ratingDouble").value);
+            const note = $id("note").value.trim();
+
+            if (!userId) {
+                showFormError("Thiếu UserId vận động viên.");
+                return;
+            }
+
+            if (!note) {
+                showFormError("Ghi chú là bắt buộc.");
+                return;
+            }
+
+            const btn = $id("btnSubmit");
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang lưu...`;
+
+            try {
+                await axios.post(`${API}/users/${userId}/rating`, {
+                    ratingSingle,
+                    ratingDouble,
+                    note
+                });
+
+                $("#modalRating").modal("hide");
+                await loadUsers(false);
+            } catch (err) {
+                showFormError(err?.response?.data?.message || err?.message || "Lưu điểm thất bại.");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fas fa-save"></i> Lưu điểm trình`;
+            }
+        }
+
+        async function loadMe() {
+            try {
+                const res = await axios.get(`${AUTH}/me`);
+                $id("meBox").textContent = res.data?.fullName || "";
+            } catch {
+                $id("meBox").textContent = "";
+            }
+        }
+
+        async function logout() {
+            await axios.post(`${AUTH}/logout`);
+            window.location.href = "/RatingPortal/Login";
+        }
+
+        window.openRating = openRating;
+
+        document.addEventListener("DOMContentLoaded", async () => {
+            state.pageSize = Number($id("pageSize").value || 20);
+            await loadMe();
+            await loadUsers(true);
+
+            $id("btnSearch").addEventListener("click", () => loadUsers(true));
+            $id("btnRefresh").addEventListener("click", () => loadUsers(false));
+            $id("btnLogout").addEventListener("click", logout);
+            $id("formRating").addEventListener("submit", submitRating);
+
+            $id("keyword").addEventListener("keydown", (e) => {
+                if (e.key === "Enter") loadUsers(true);
+            });
+
+            $id("pageSize").addEventListener("change", () => {
+                state.pageSize = Number($id("pageSize").value || 20);
+                loadUsers(true);
+            });
+
+            $id("btnPrev").addEventListener("click", () => {
+                if (state.page > 1) {
+                    state.page--;
+                    loadUsers(false);
+                }
+            });
+
+            $id("btnNext").addEventListener("click", () => {
+                state.page++;
+                loadUsers(false);
+            });
+        });
+    </script>
+</body>
+</html>

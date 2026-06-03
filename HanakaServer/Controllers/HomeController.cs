@@ -101,5 +101,11 @@ namespace HanakaServer.Controllers
         {
             return View();
         }
+
+        [Authorize(Roles = "Admin")]
+        public IActionResult RatingAssessors()
+        {
+            return View();
+        }
     }
 }

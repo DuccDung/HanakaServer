@@ -1,0 +1,314 @@
+@{
+    Layout = null;
+    ViewData["Title"] = "Đăng nhập chấm trình";
+}
+
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>@ViewData["Title"]</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #ffffff;
+            --brand: #0ea5e9;
+            --brand-dark: #0284c7;
+            --muted: #64748b;
+            --line: #e2e8f0;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background:
+                radial-gradient(circle at top left, rgba(14, 165, 233, .25), transparent 32%),
+                radial-gradient(circle at bottom right, rgba(34, 197, 94, .18), transparent 30%),
+                linear-gradient(135deg, #0f172a, #111827);
+            font-family: Arial, sans-serif;
+            padding: 22px;
+        }
+
+        .auth-shell {
+            width: 100%;
+            max-width: 980px;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 390px;
+            overflow: hidden;
+            border-radius: 24px;
+            background: rgba(255,255,255,.08);
+            border: 1px solid rgba(255,255,255,.12);
+            box-shadow: 0 24px 80px rgba(0,0,0,.32);
+        }
+
+        .hero {
+            padding: 44px;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 540px;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(255,255,255,.1);
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .hero h1 {
+            margin: 28px 0 14px;
+            max-width: 560px;
+            font-size: 44px;
+            line-height: 1.08;
+            font-weight: 900;
+        }
+
+        .hero p {
+            max-width: 560px;
+            color: rgba(255,255,255,.74);
+            line-height: 1.75;
+            margin: 0;
+        }
+
+        .hero-points {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 12px;
+            margin-top: 34px;
+        }
+
+        .hero-point {
+            border: 1px solid rgba(255,255,255,.12);
+            background: rgba(255,255,255,.08);
+            border-radius: 16px;
+            padding: 16px;
+            min-height: 120px;
+        }
+
+        .hero-point i {
+            color: #7dd3fc;
+            margin-bottom: 12px;
+        }
+
+        .hero-point strong {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .hero-point span {
+            color: rgba(255,255,255,.68);
+            font-size: 12px;
+            line-height: 1.5;
+        }
+
+        .panel {
+            background: var(--panel);
+            padding: 32px;
+            display: flex;
+            align-items: center;
+        }
+
+        .card-login {
+            width: 100%;
+        }
+
+        .brand-icon {
+            width: 58px;
+            height: 58px;
+            border-radius: 18px;
+            background: #e0f2fe;
+            color: var(--brand-dark);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            margin-bottom: 18px;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: 900;
+            color: #0f172a;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            color: var(--muted);
+            line-height: 1.6;
+            margin-bottom: 22px;
+        }
+
+        .form-control {
+            height: 50px;
+            border-radius: 12px;
+            border-color: var(--line);
+        }
+
+        .btn-login {
+            height: 52px;
+            border-radius: 14px;
+            font-weight: 800;
+            background: var(--brand);
+            border-color: var(--brand);
+        }
+
+        .btn-login:hover {
+            background: var(--brand-dark);
+            border-color: var(--brand-dark);
+        }
+
+        @@media (max-width: 900px) {
+            .auth-shell {
+                grid-template-columns: 1fr;
+            }
+
+            .hero {
+                min-height: unset;
+                padding: 28px;
+            }
+
+            .hero h1 {
+                font-size: 32px;
+            }
+
+            .hero-points {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="auth-shell">
+        <section class="hero">
+            <div>
+                <div class="hero-badge">
+                    <i class="fas fa-user-check"></i>
+                    Hanaka Rating Dashboard
+                </div>
+                <h1>Dashboard riêng cho nhân viên chấm trình Hanaka.</h1>
+                <p>
+                    Đăng nhập bằng tài khoản người dùng đã được admin gán quyền chấm trình.
+                    Mọi lần cập nhật điểm đều được ghi lịch sử trong UserRatingHistory.
+                </p>
+                <div class="hero-points">
+                    <div class="hero-point">
+                        <i class="fas fa-search"></i>
+                        <strong>Tìm vận động viên</strong>
+                        <span>Tìm theo tên, email, số điện thoại hoặc UserId.</span>
+                    </div>
+                    <div class="hero-point">
+                        <i class="fas fa-clipboard-check"></i>
+                        <strong>Ghi điểm chuẩn</strong>
+                        <span>Dữ liệu chuẩn nằm trong UserRatingHistory.</span>
+                    </div>
+                    <div class="hero-point">
+                        <i class="fas fa-history"></i>
+                        <strong>Có audit</strong>
+                        <span>Ghi chú luôn kèm nhân viên Hanaka userid.</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="card-login">
+                <div class="brand-icon">
+                    <i class="fas fa-chart-line"></i>
+                </div>
+                <div class="title">Đăng nhập</div>
+                <div class="subtitle">Tài khoản phải được admin gán quyền chấm trình trước khi truy cập.</div>
+
+                <div id="errBox" class="alert alert-danger d-none"></div>
+
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input id="email" type="email" class="form-control" autocomplete="username" placeholder="you@example.com" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>Mật khẩu</label>
+                        <input id="password" type="password" class="form-control" autocomplete="current-password" placeholder="Nhập mật khẩu" />
+                    </div>
+
+                    <div class="form-group form-check">
+                        <input id="rememberMe" type="checkbox" class="form-check-input" />
+                        <label class="form-check-label" for="rememberMe">Ghi nhớ đăng nhập</label>
+                    </div>
+
+                    <button id="btnLogin" class="btn btn-primary btn-login btn-block" type="submit">
+                        <i class="fas fa-sign-in-alt"></i> Vào dashboard
+                    </button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        const $id = (id) => document.getElementById(id);
+
+        function showError(message) {
+            const box = $id("errBox");
+            box.textContent = message || "Đăng nhập thất bại.";
+            box.classList.remove("d-none");
+        }
+
+        function clearError() {
+            const box = $id("errBox");
+            box.textContent = "";
+            box.classList.add("d-none");
+        }
+
+        $id("loginForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            clearError();
+
+            const email = $id("email").value.trim();
+            const password = $id("password").value.trim();
+            const rememberMe = $id("rememberMe").checked;
+
+            if (!email || !password) {
+                showError("Vui lòng nhập email và mật khẩu.");
+                return;
+            }
+
+            const btn = $id("btnLogin");
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang đăng nhập...`;
+
+            try {
+                const res = await axios.post("/api/rating-auth/login", {
+                    email,
+                    password,
+                    rememberMe
+                });
+
+                window.location.href = res.data?.redirectUrl || "/RatingPortal/Dashboard";
+            } catch (err) {
+                showError(err?.response?.data?.message || err?.message || "Đăng nhập thất bại.");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fas fa-sign-in-alt"></i> Vào dashboard`;
+            }
+        });
+    </script>
+</body>
+</html>

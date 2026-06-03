@@ -1,4 +1,5 @@
 ﻿using HanakaServer.Data;
+using HanakaServer.Helpers;
 using HanakaServer.Services;
 using mail_service.Internal;
 using mail_service.service;
@@ -39,6 +40,7 @@ builder.Services.AddScoped<IOtpEmailService, OtpEmailService>();
 builder.Services.AddScoped<IOtpGenerator, OtpGenerator>();
 builder.Services.AddScoped<IUserOtpService, UserOtpService>();
 builder.Services.AddScoped<IAppAuthService, AppAuthService>();
+builder.Services.AddScoped<IUserRatingService, UserRatingService>();
 builder.Services.AddScoped<TournamentUserNotificationService>();
 builder.Services.AddScoped<ITournamentStandingsService, TournamentStandingsService>();
 builder.Services.AddScoped<ITournamentBracketPropagationService, TournamentBracketPropagationService>();
@@ -71,6 +73,39 @@ builder.Services.AddAuthentication(options =>
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Lax;
     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    options.Events = new CookieAuthenticationEvents
+    {
+        OnRedirectToLogin = context =>
+        {
+            if (context.Request.Path.StartsWithSegments("/RatingPortal"))
+            {
+                context.Response.Redirect("/RatingPortal/Login");
+                return Task.CompletedTask;
+            }
+
+            if (context.Request.Path.StartsWithSegments("/api/rating-auth")
+                || context.Request.Path.StartsWithSegments("/api/rating-assessment"))
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            }
+
+            context.Response.Redirect(context.RedirectUri);
+            return Task.CompletedTask;
+        },
+        OnRedirectToAccessDenied = context =>
+        {
+            if (context.Request.Path.StartsWithSegments("/api/rating-auth")
+                || context.Request.Path.StartsWithSegments("/api/rating-assessment"))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                return Task.CompletedTask;
+            }
+
+            context.Response.Redirect(context.RedirectUri);
+            return Task.CompletedTask;
+        }
+    };
 })
 .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
 {
@@ -128,11 +163,15 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("RefereeOnly", policy =>
         policy.RequireAuthenticatedUser()
-              .RequireRole("REFEREE", "Admin"));
+              .RequireRole(RoleCodes.Referee, RoleCodes.Admin));
+
+    options.AddPolicy("RatingAssessorOnly", policy =>
+        policy.RequireAuthenticatedUser()
+              .RequireRole(RoleCodes.RatingAssessor, RoleCodes.Admin));
 
     options.AddPolicy("AdminOnly", policy =>
         policy.RequireAuthenticatedUser()
-              .RequireRole("Admin"));
+              .RequireRole(RoleCodes.Admin));
 });
 
 var app = builder.Build();
