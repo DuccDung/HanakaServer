@@ -12,10 +12,13 @@
 
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
     <style>
         :root {
-            --bg: #f3f4f6;
+            --bg: #f5f7fb;
             --card: #ffffff;
             --border: #e5e7eb;
             --muted: #6b7280;
@@ -32,9 +35,19 @@
 
         body {
             background: var(--bg);
-            font-family: Arial, sans-serif;
+            font-family: "Be Vietnam Pro", Arial, sans-serif;
             color: var(--text);
             margin: 0;
+            min-height: 100vh;
+            min-height: 100dvh;
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+            overflow-x: hidden;
+        }
+
+        button,
+        .match-card {
+            touch-action: manipulation;
         }
 
         .topbar {
@@ -44,6 +57,11 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 16px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, .16);
         }
 
         .topbar-left {
@@ -51,12 +69,136 @@
             align-items: center;
             gap: 10px;
             font-weight: 700;
+            min-width: 0;
+            line-height: 1.35;
         }
 
         .topbar-right {
             display: flex;
             align-items: center;
             gap: 10px;
+            min-width: 0;
+        }
+
+        .topbar-right .small {
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: rgba(255, 255, 255, .78);
+        }
+
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex: 0 0 auto;
+        }
+
+        .topbar .btn {
+            min-height: 40px;
+            border-radius: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .topbar-icon-btn {
+            width: 42px;
+            height: 42px;
+            min-width: 42px;
+            border: 0;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, .12);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            transition: background-color .15s ease, transform .15s ease;
+        }
+
+        .topbar-icon-btn:active {
+            transform: scale(.96);
+        }
+
+        .topbar-icon-btn:hover,
+        .topbar-icon-btn:focus,
+        .topbar-icon-btn.active {
+            background: #fff;
+            color: var(--dark);
+            outline: 0;
+        }
+
+        .topbar-search {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 24px;
+            z-index: 120;
+            width: min(390px, calc(100vw - 28px));
+            padding: 10px;
+            border: 1px solid rgba(148, 163, 184, .3);
+            border-radius: 16px;
+            background: #fff;
+            box-shadow: 0 18px 42px rgba(15, 23, 42, .2);
+            display: none;
+        }
+
+        .topbar.search-open .topbar-search {
+            display: block;
+        }
+
+        .search-input-shell {
+            display: grid;
+            grid-template-columns: 20px minmax(0, 1fr) 34px;
+            align-items: center;
+            gap: 8px;
+            min-height: 46px;
+            padding: 0 8px 0 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 14px;
+            background: #f8fafc;
+            color: #64748b;
+        }
+
+        .search-input-shell input {
+            width: 100%;
+            border: 0;
+            outline: 0;
+            background: transparent;
+            color: var(--text);
+            font-size: 15px;
+            font-weight: 700;
+        }
+
+        .search-input-shell input::placeholder {
+            color: #94a3b8;
+            font-weight: 600;
+        }
+
+        .search-clear-btn {
+            width: 34px;
+            height: 34px;
+            border: 0;
+            border-radius: 12px;
+            background: transparent;
+            color: #64748b;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .search-clear-btn:hover,
+        .search-clear-btn:focus {
+            background: #e5e7eb;
+            color: #111827;
+            outline: 0;
+        }
+
+        .search-hint {
+            margin-top: 8px;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 700;
         }
 
         .page-wrap {
@@ -70,11 +212,13 @@
             font-weight: 800;
             margin-bottom: 6px;
             color: var(--text);
+            line-height: 1.2;
         }
 
         .page-subtitle {
             color: var(--muted);
             margin-bottom: 24px;
+            line-height: 1.65;
         }
 
         .match-grid {
@@ -91,12 +235,17 @@
             padding: 18px;
             cursor: pointer;
             transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .match-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 12px 28px rgba(0,0,0,.08);
             border-color: #cbd5e1;
+        }
+
+        .match-card:active {
+            transform: scale(.995);
         }
 
         .match-card.completed {
@@ -115,12 +264,16 @@
             font-weight: 800;
             color: var(--text);
             margin-bottom: 4px;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
         }
 
         .match-meta {
             font-size: 12px;
             color: var(--muted);
             margin-bottom: 2px;
+            line-height: 1.55;
+            overflow-wrap: anywhere;
         }
 
         .match-chip-col {
@@ -140,6 +293,8 @@
             font-weight: 700;
             background: #eef2ff;
             color: #3730a3;
+            line-height: 1.25;
+            white-space: nowrap;
         }
 
         .match-chip.success {
@@ -197,6 +352,7 @@
             color: var(--text);
             min-width: 96px;
             text-align: center;
+            font-variant-numeric: tabular-nums;
         }
 
         .hint-click {
@@ -204,6 +360,7 @@
             font-size: 12px;
             color: var(--primary);
             font-weight: 700;
+            line-height: 1.45;
         }
 
         .empty-box {
@@ -213,6 +370,7 @@
             padding: 32px;
             text-align: center;
             color: var(--muted);
+            grid-column: 1 / -1;
         }
 
         .overlay {
@@ -233,6 +391,7 @@
             background: #fff;
             width: 100%;
             height: 100%;
+            min-height: 0;
             overflow: auto;
             display: flex;
             flex-direction: column;
@@ -247,7 +406,7 @@
             padding: 16px 22px;
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
+            align-items: center;
             gap: 16px;
         }
 
@@ -256,6 +415,8 @@
             font-weight: 800;
             margin-bottom: 4px;
             color: var(--text);
+            line-height: 1.25;
+            overflow-wrap: anywhere;
         }
 
         .overlay-subtitle {
@@ -269,6 +430,39 @@
             align-items: center;
             gap: 10px;
             flex-wrap: wrap;
+            flex: 0 0 auto;
+        }
+
+        .overlay-actions .btn {
+            min-height: 44px;
+            border-radius: 14px;
+            font-weight: 800;
+        }
+
+        #btnCloseOverlay {
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            color: #64748b;
+            min-width: 44px;
+            min-height: 44px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #btnCloseOverlay:hover,
+        #btnCloseOverlay:focus {
+            border: 0;
+            background: rgba(15, 23, 42, .06);
+            box-shadow: none;
+            color: #334155;
+        }
+
+        #btnCloseOverlay i {
+            margin: 0;
+            font-size: 16px;
         }
 
         .overlay-body {
@@ -295,6 +489,7 @@
             font-size: 13px;
             color: var(--muted);
             line-height: 1.7;
+            overflow-wrap: anywhere;
         }
 
         .focus-badges {
@@ -319,6 +514,7 @@
             font-weight: 800;
             line-height: 1.35;
             color: var(--text);
+            overflow-wrap: anywhere;
         }
 
         .focus-team.right {
@@ -343,6 +539,7 @@
             font-weight: 900;
             line-height: 1;
             letter-spacing: 1px;
+            font-variant-numeric: tabular-nums;
         }
 
         .focus-score-label {
@@ -397,6 +594,7 @@
             font-size: 18px;
             font-weight: 900;
             color: var(--text);
+            font-variant-numeric: tabular-nums;
         }
 
         .history-meta {
@@ -421,6 +619,8 @@
             font-weight: 700;
             margin-bottom: 8px;
             display: block;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
         }
 
         .big-score-box input {
@@ -429,11 +629,178 @@
             font-weight: 900;
             text-align: center;
             border-radius: 16px;
+            font-variant-numeric: tabular-nums;
+            -webkit-appearance: none;
+            appearance: textfield;
+            touch-action: manipulation;
+        }
+
+        .big-score-box input::-webkit-outer-spin-button,
+        .big-score-box input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .score-stepper {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr);
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        .score-stepper-btn {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            min-width: 58px;
+            min-height: 58px;
+            border: 0;
+            border-radius: 18px;
+            background: #2563eb;
+            color: #fff;
+            font-size: 22px;
+            box-shadow: 0 12px 24px rgba(37, 99, 235, .22);
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+            transition: transform .12s ease, background-color .12s ease, box-shadow .12s ease;
+        }
+
+        .score-stepper-btn:active {
+            transform: scale(.96);
+            background: #1d4ed8;
+            box-shadow: 0 8px 18px rgba(37, 99, 235, .22);
+        }
+
+        .score-stepper-btn--minus {
+            background: #475569;
+            box-shadow: 0 12px 24px rgba(71, 85, 105, .18);
+        }
+
+        .score-stepper-btn--minus:active {
+            background: #334155;
+            box-shadow: 0 8px 18px rgba(71, 85, 105, .18);
+        }
+
+        .score-stepper-btn:disabled {
+            opacity: .9;
+        }
+
+        .score-stepper-btn:focus {
+            outline: 3px solid rgba(37, 99, 235, .22);
+            outline-offset: 2px;
+        }
+
+        .score-toast {
+            position: fixed;
+            top: calc(12px + env(safe-area-inset-top));
+            left: 50%;
+            z-index: 2000;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            max-width: calc(100vw - 28px);
+            min-height: 42px;
+            padding: 10px 16px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, .94);
+            color: #fff;
+            font-size: 14px;
+            font-weight: 800;
+            line-height: 1.25;
+            box-shadow: 0 14px 34px rgba(15, 23, 42, .22);
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(-50%, -12px);
+            transition: opacity .18s ease, transform .18s ease;
+        }
+
+        .score-toast.show {
+            opacity: 1;
+            transform: translate(-50%, 0);
+        }
+
+        .score-toast.success {
+            background: rgba(22, 101, 52, .96);
+        }
+
+        .score-toast.error {
+            background: rgba(185, 28, 28, .96);
+        }
+
+        .end-match-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 4200;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            background: rgba(15, 23, 42, .66);
+        }
+
+        .end-match-modal.show {
+            display: flex;
+        }
+
+        .end-match-dialog {
+            width: min(430px, 100%);
+            border-radius: 22px;
+            background: #fff;
+            padding: 22px;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, .28);
+        }
+
+        .end-match-icon {
+            width: 54px;
+            height: 54px;
+            border-radius: 18px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #dcfce7;
+            color: #15803d;
+            font-size: 22px;
+            margin-bottom: 14px;
+        }
+
+        .end-match-title {
+            color: var(--text);
+            font-size: 24px;
+            font-weight: 900;
+            line-height: 1.2;
+            margin-bottom: 8px;
+        }
+
+        .end-match-text {
+            color: #64748b;
+            font-size: 15px;
+            line-height: 1.55;
+            margin-bottom: 18px;
+        }
+
+        .end-match-actions {
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            gap: 10px;
+        }
+
+        .end-match-actions .btn {
+            min-height: 48px;
+            border-radius: 14px;
+            font-weight: 900;
         }
 
         .form-note-select {
             height: 48px;
             border-radius: 12px;
+        }
+
+        .score-form-section .btn-success {
+            min-height: 52px;
+            border-radius: 14px;
+            font-weight: 800;
+            box-shadow: 0 12px 24px rgba(22, 163, 74, .18);
         }
 
         .switch-wrap {
@@ -479,6 +846,106 @@
         @@media (max-width: 768px) {
             .topbar {
                 padding: 12px 14px;
+                align-items: stretch;
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .topbar-left {
+                font-size: 15px;
+            }
+
+            .topbar-right {
+                justify-content: space-between;
+                width: 100%;
+            }
+
+            .topbar-right .small {
+                max-width: calc(100vw - 206px);
+                min-height: 24px;
+                display: inline-flex;
+                align-items: center;
+            }
+
+            .topbar-actions {
+                gap: 8px;
+            }
+
+            .topbar-search {
+                left: 14px;
+                right: 14px;
+                top: calc(100% + 8px);
+                width: auto;
+            }
+
+            .page-wrap {
+                margin: 0 auto;
+                padding: 18px 14px calc(28px + env(safe-area-inset-bottom));
+            }
+
+            .page-title {
+                font-size: 24px;
+                margin-bottom: 8px;
+            }
+
+            .page-subtitle {
+                font-size: 14px;
+                margin-bottom: 16px;
+            }
+
+            .match-grid {
+                gap: 14px;
+            }
+
+            .match-card {
+                border-radius: 18px;
+                padding: 16px;
+                box-shadow: 0 8px 22px rgba(15, 23, 42, .07);
+            }
+
+            .match-head {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .match-chip-col {
+                width: 100%;
+                align-items: flex-start;
+                flex-direction: row;
+                flex-wrap: wrap;
+            }
+
+            .score-preview {
+                grid-template-columns: 1fr;
+                gap: 8px;
+                margin-top: 14px;
+                padding-top: 14px;
+            }
+
+            .score-preview-value {
+                order: -1;
+                width: 100%;
+                min-width: 0;
+                padding: 12px 14px;
+                border-radius: 16px;
+                background: #f8fafc;
+                border: 1px solid #e5e7eb;
+            }
+
+            .team-preview,
+            .team-preview.right {
+                text-align: left;
+                font-size: 14px;
+            }
+
+            .hint-click {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                min-height: 44px;
+                padding: 10px 12px;
+                border-radius: 14px;
+                background: #eff6ff;
             }
 
             .overlay-header,
@@ -486,17 +953,356 @@
                 padding: 14px;
             }
 
+            .overlay-header {
+                align-items: flex-start;
+                gap: 10px;
+            }
+
+            .overlay-title {
+                font-size: 18px;
+            }
+
+            .overlay-subtitle {
+                font-size: 12px;
+            }
+
+            .overlay-actions .btn {
+                width: 44px;
+                padding: 0;
+                overflow: hidden;
+                color: transparent;
+            }
+
+            .overlay-actions .btn i {
+                color: #6b7280;
+                margin: 0;
+                font-size: 16px;
+            }
+
             .focus-match {
-                padding: 16px;
+                padding: 14px;
+                border-radius: 20px;
+                box-shadow: none;
+            }
+
+            .focus-top {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .focus-badges {
+                justify-content: flex-start;
+            }
+
+            .focus-scoreboard {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 10px;
+                margin-top: 14px;
+                padding-top: 16px;
+            }
+
+            .focus-score-center {
+                grid-column: 1 / -1;
+                order: -1;
+                border-radius: 20px;
+                padding: 18px 12px;
             }
 
             .focus-score-value {
                 font-size: 54px;
+                letter-spacing: 0;
+            }
+
+            .focus-team,
+            .focus-team.right {
+                min-height: 68px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
+                font-size: 16px;
+                padding: 12px;
+                border: 1px solid #e5e7eb;
+                border-radius: 16px;
+                background: #fff;
+            }
+
+            .focus-controls {
+                gap: 14px;
+                margin-top: 16px;
+            }
+
+            .score-form-section {
+                order: -1;
+            }
+
+            .history-section,
+            .score-form-section {
+                border-radius: 16px;
+                padding: 14px;
+            }
+
+            .section-title {
+                font-size: 16px;
+                margin-bottom: 12px;
+            }
+
+            .history-list {
+                max-height: 260px;
+            }
+
+            .big-score-inputs {
+                grid-template-columns: 1fr;
+                gap: 10px;
             }
 
             .big-score-box input {
                 height: 76px;
-                font-size: 34px;
+                font-size: 36px;
+                font-size: clamp(32px, 10vw, 38px);
+                padding: 6px;
+            }
+
+            .score-stepper {
+                grid-template-columns: 56px minmax(0, 1fr) 64px;
+                gap: 8px;
+            }
+
+            .score-stepper-btn {
+                display: inline-flex;
+            }
+
+            .form-note-select,
+            .score-form-section .form-control {
+                min-height: 48px;
+                font-size: 16px;
+            }
+
+        }
+
+        @@media (max-width: 380px) {
+            .topbar,
+            .page-wrap,
+            .overlay-header,
+            .overlay-body {
+                padding-left: 10px;
+                padding-right: 10px;
+            }
+
+            .match-card,
+            .focus-match,
+            .history-section,
+            .score-form-section {
+                border-radius: 14px;
+                padding: 12px;
+            }
+
+            .match-chip {
+                white-space: normal;
+            }
+
+            .focus-score-value {
+                font-size: 46px;
+            }
+
+            .big-score-inputs {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @@media (orientation: landscape) and (max-height: 520px) {
+            .topbar {
+                position: static;
+            }
+
+            .topbar.search-open {
+                position: sticky;
+            }
+
+            .overlay-panel {
+                overflow: hidden;
+            }
+
+            .overlay-header {
+                position: static;
+                min-height: 44px;
+                padding: 6px 10px;
+                align-items: center;
+            }
+
+            .overlay-title {
+                display: -webkit-box;
+                -webkit-line-clamp: 1;
+                -webkit-box-orient: vertical;
+                overflow: hidden;
+                font-size: 14px;
+                line-height: 1.2;
+                margin: 0;
+            }
+
+            .overlay-subtitle {
+                display: none;
+            }
+
+            .overlay-actions .btn {
+                width: 40px;
+                min-height: 40px;
+                padding: 0;
+                overflow: hidden;
+                color: transparent;
+            }
+
+            .overlay-actions .btn i {
+                color: #64748b;
+                margin: 0;
+                font-size: 15px;
+            }
+
+            .overlay-body {
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow: auto;
+                padding: 8px;
+            }
+
+            .focus-match {
+                display: grid;
+                grid-template-columns: minmax(190px, .72fr) minmax(0, 1.28fr);
+                grid-template-areas: "score form";
+                align-items: start;
+                gap: 8px;
+                min-height: 100%;
+                padding: 8px;
+                border-radius: 14px;
+            }
+
+            .focus-top,
+            .history-section {
+                display: none;
+            }
+
+            .focus-scoreboard {
+                grid-area: score;
+                display: block;
+                margin: 0;
+                padding: 0;
+                border: 0;
+            }
+
+            .focus-team,
+            .focus-team.right {
+                display: none;
+            }
+
+            .focus-score-center {
+                min-height: 126px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                border-radius: 16px;
+                padding: 14px 10px;
+            }
+
+            .focus-score-value {
+                font-size: clamp(42px, 8vw, 60px);
+                letter-spacing: 0;
+            }
+
+            .focus-score-label {
+                margin-top: 8px;
+                font-size: 13px;
+            }
+
+            .focus-controls {
+                grid-area: form;
+                display: block;
+                margin: 0;
+            }
+
+            .score-form-section {
+                order: 0;
+                padding: 10px;
+                border-radius: 14px;
+            }
+
+            .section-title {
+                font-size: 15px;
+                margin-bottom: 8px;
+            }
+
+            .big-score-inputs {
+                grid-template-columns: 1fr;
+                gap: 6px;
+            }
+
+            .big-score-box label {
+                margin-bottom: 4px;
+                font-size: 13px;
+                line-height: 1.25;
+            }
+
+            .score-stepper {
+                grid-template-columns: 46px minmax(0, 1fr) 52px;
+                gap: 6px;
+            }
+
+            .score-stepper-btn {
+                display: inline-flex;
+                min-width: 46px;
+                min-height: 46px;
+                border-radius: 14px;
+                font-size: 20px;
+                box-shadow: none;
+            }
+
+            .big-score-box input {
+                height: 46px;
+                padding: 4px;
+                font-size: 22px;
+            }
+
+            .form-group.mt-3 {
+                margin-top: 8px !important;
+            }
+
+            .form-note-select,
+            .score-form-section .form-control {
+                min-height: 40px;
+                height: 40px;
+                font-size: 14px;
+            }
+
+            .score-form-section .big-score-box input {
+                min-height: 46px;
+                height: 46px;
+                font-size: 22px;
+            }
+
+            .switch-wrap {
+                margin-top: 8px;
+                padding: 8px 10px;
+                font-size: 13px;
+            }
+
+            .score-form-section .btn-success {
+                min-height: 42px;
+                margin-top: 8px !important;
+                border-radius: 12px;
+            }
+
+            .score-toast {
+                top: calc(8px + env(safe-area-inset-top));
+            }
+        }
+
+        @@media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                transition-duration: 0.01ms !important;
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
             }
         }
     </style>
@@ -509,9 +1315,24 @@
         </div>
         <div class="topbar-right">
             <span id="meBox" class="small"></span>
-            <button class="btn btn-sm btn-light" id="btnLogout" type="button">
-                <i class="fas fa-sign-out-alt"></i> Đăng xuất
-            </button>
+            <div class="topbar-actions">
+                <button class="topbar-icon-btn" id="btnSearchToggle" type="button" aria-label="Tìm trận đấu" aria-expanded="false" aria-controls="matchSearchPopover">
+                    <i class="fas fa-search"></i>
+                </button>
+                <button class="btn btn-sm btn-light" id="btnLogout" type="button">
+                    <i class="fas fa-sign-out-alt"></i> Đăng xuất
+                </button>
+            </div>
+        </div>
+        <div class="topbar-search" id="matchSearchPopover" role="search">
+            <div class="search-input-shell">
+                <i class="fas fa-search"></i>
+                <input type="search" id="matchSearchInput" placeholder="Tìm theo mã trận hoặc tên đội" autocomplete="off" />
+                <button type="button" class="search-clear-btn" id="btnSearchClear" aria-label="Xóa tìm kiếm">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="search-hint" id="searchHint">Nhập mã trận hoặc tên đội để lọc nhanh.</div>
         </div>
     </div>
 
@@ -538,14 +1359,34 @@
                 </div>
 
                 <div class="overlay-actions">
-                    <button type="button" class="btn btn-outline-secondary" id="btnCloseOverlay">
-                        <i class="fas fa-times"></i> Đóng
+                    <button type="button" class="btn btn-outline-secondary" id="btnCloseOverlay" aria-label="Đóng">
+                        <i class="fas fa-times" aria-hidden="true"></i>
                     </button>
                 </div>
             </div>
 
             <div class="overlay-body">
                 <div id="overlayContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="score-toast" id="scoreToast" role="status" aria-live="polite"></div>
+
+    <div class="end-match-modal" id="endMatchConfirm" aria-hidden="true">
+        <div class="end-match-dialog" role="dialog" aria-modal="true" aria-labelledby="endMatchConfirmTitle">
+            <div class="end-match-icon">
+                <i class="fas fa-flag-checkered"></i>
+            </div>
+            <div class="end-match-title" id="endMatchConfirmTitle">Kết thúc trận đấu?</div>
+            <div class="end-match-text">
+                Xác nhận kết thúc trận và lưu tỷ số hiện tại cho trận đấu này.
+            </div>
+            <div class="end-match-actions">
+                <button type="button" class="btn btn-outline-secondary" id="btnEndMatchCancel">Xem lại</button>
+                <button type="button" class="btn btn-success" id="btnEndMatchConfirm">
+                    <i class="fas fa-check"></i> Xác nhận
+                </button>
             </div>
         </div>
     </div>
@@ -561,6 +1402,11 @@
 
             let CACHE = { items: [] };
             let ACTIVE_MATCH_ID = null;
+            let SCORE_SAVE_BUSY = false;
+            let SCORE_TOAST_TIMER = null;
+            let REFRESH_CARDS_ON_CLOSE = false;
+            let SEARCH_QUERY = "";
+            let END_MATCH_CONFIRM_RESOLVE = null;
 
             const esc = (s) => String(s || "")
                 .replaceAll("&", "&amp;")
@@ -727,11 +1573,27 @@
                                         <div class="big-score-inputs">
                                             <div class="big-score-box">
                                                 <label>${esc(m.team1Text)}</label>
-                                                <input type="number" class="form-control" id="inlineScore1" min="0" value="${Number(m.scoreTeam1 || 0)}" />
+                                                <div class="score-stepper">
+                                                    <button type="button" class="score-stepper-btn score-stepper-btn--minus" data-score-target="inlineScore1" data-score-step="-1" aria-label="Trừ 1 điểm cho ${esc(m.team1Text)}">
+                                                        <i class="fas fa-minus"></i>
+                                                    </button>
+                                                    <input type="text" class="form-control" id="inlineScore1" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" value="${Number(m.scoreTeam1 || 0)}" aria-label="Điểm ${esc(m.team1Text)}" />
+                                                    <button type="button" class="score-stepper-btn" data-score-target="inlineScore1" data-score-step="1" aria-label="Cộng 1 điểm cho ${esc(m.team1Text)}">
+                                                        <i class="fas fa-plus"></i>
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div class="big-score-box">
                                                 <label>${esc(m.team2Text)}</label>
-                                                <input type="number" class="form-control" id="inlineScore2" min="0" value="${Number(m.scoreTeam2 || 0)}" />
+                                                <div class="score-stepper">
+                                                    <button type="button" class="score-stepper-btn score-stepper-btn--minus" data-score-target="inlineScore2" data-score-step="-1" aria-label="Trừ 1 điểm cho ${esc(m.team2Text)}">
+                                                        <i class="fas fa-minus"></i>
+                                                    </button>
+                                                    <input type="text" class="form-control" id="inlineScore2" inputmode="numeric" pattern="[0-9]*" autocomplete="off" enterkeyhint="done" value="${Number(m.scoreTeam2 || 0)}" aria-label="Điểm ${esc(m.team2Text)}" />
+                                                    <button type="button" class="score-stepper-btn" data-score-target="inlineScore2" data-score-step="1" aria-label="Cộng 1 điểm cho ${esc(m.team2Text)}">
+                                                        <i class="fas fa-plus"></i>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -747,7 +1609,7 @@
 
                                         <div class="switch-wrap">
                                             <div class="custom-control custom-switch">
-                                                <input type="checkbox" class="custom-control-input" id="inlineIsCompleted">
+                                                <input type="checkbox" class="custom-control-input" id="inlineIsCompleted" ${completed ? "checked" : ""}>
                                                 <label class="custom-control-label" for="inlineIsCompleted">Kết thúc trận đấu</label>
                                             </div>
                                         </div>
@@ -768,19 +1630,100 @@
                 `;
             }
 
+            function normalizeSearchText(value) {
+                return String(value || "")
+                    .normalize("NFD")
+                    .replace(/[\u0300-\u036f]/g, "")
+                    .toLowerCase()
+                    .trim();
+            }
+
+            function getSearchText(m) {
+                return normalizeSearchText([
+                    m.matchId,
+                    `#${m.matchId}`,
+                    m.team1Text,
+                    m.team2Text
+                ].join(" "));
+            }
+
+            function getVisibleMatches() {
+                const items = CACHE.items || [];
+                const query = normalizeSearchText(SEARCH_QUERY);
+
+                if (!query) return items;
+
+                return items.filter(m => getSearchText(m).includes(query));
+            }
+
+            function updateSearchHint(visibleCount, totalCount) {
+                const hint = $id("searchHint");
+                const toggle = $id("btnSearchToggle");
+                if (!hint || !toggle) return;
+
+                const hasQuery = !!SEARCH_QUERY.trim();
+                toggle.classList.toggle("active", hasQuery);
+
+                if (!hasQuery) {
+                    hint.textContent = "Nhập mã trận hoặc tên đội để lọc nhanh.";
+                    return;
+                }
+
+                hint.textContent = `Đang hiển thị ${visibleCount}/${totalCount} trận phù hợp.`;
+            }
+
             function render() {
                 const box = $id("cards");
-                const items = CACHE.items || [];
+                const allItems = CACHE.items || [];
+                const items = getVisibleMatches();
+
+                updateSearchHint(items.length, allItems.length);
+
+                if (!allItems.length) {
+                    box.innerHTML = `<div class="empty-box">Bạn chưa được phân công trận đấu nào.</div>`;
+                    return;
+                }
 
                 if (!items.length) {
-                    box.innerHTML = `<div class="empty-box">Bạn chưa được phân công trận đấu nào.</div>`;
+                    box.innerHTML = `<div class="empty-box">Không tìm thấy trận đấu phù hợp với từ khóa đang nhập.</div>`;
                     return;
                 }
 
                 box.innerHTML = items.map(cardHtml).join("");
             }
 
-            function openOverlay(matchId) {
+            function getMatchIdFromUrl() {
+                const params = new URLSearchParams(window.location.search);
+                const queryId = Number(params.get("matchId") || 0);
+
+                if (Number.isFinite(queryId) && queryId > 0) {
+                    return queryId;
+                }
+
+                const parts = window.location.pathname.replace(/\/+$/, "").split("/").filter(Boolean);
+                const isMatchesPage = parts[0]?.toLowerCase() === "refereeportal" && parts[1]?.toLowerCase() === "matches";
+                const pathId = Number(isMatchesPage ? parts[2] : 0);
+
+                return Number.isFinite(pathId) && pathId > 0 ? pathId : null;
+            }
+
+            function setMatchUrl(matchId, replace = false) {
+                const nextUrl = `/RefereePortal/Matches/${encodeURIComponent(matchId)}`;
+                const currentUrl = `${window.location.pathname}${window.location.search}`;
+                if (currentUrl === nextUrl) return;
+
+                window.history[replace ? "replaceState" : "pushState"]({ matchId }, "", nextUrl);
+            }
+
+            function setMatchesListUrl() {
+                const nextUrl = "/RefereePortal/Matches";
+                const currentUrl = `${window.location.pathname}${window.location.search}`;
+                if (currentUrl === nextUrl) return;
+
+                window.history.replaceState({ matchId: null }, "", nextUrl);
+            }
+
+            function openOverlay(matchId, options = {}) {
                 ACTIVE_MATCH_ID = matchId;
                 const m = getMatch(matchId);
                 if (!m) return;
@@ -794,68 +1737,327 @@
                 document.body.style.overflow = "hidden";
 
                 bindInlineScoreForm();
+
+                if (options.syncUrl !== false) {
+                    setMatchUrl(matchId, !!options.replaceUrl);
+                }
             }
 
-            function closeOverlay() {
+            function closeOverlay(options = {}) {
                 ACTIVE_MATCH_ID = null;
                 $id("matchOverlay").classList.remove("show");
                 $id("overlayContent").innerHTML = "";
                 document.body.style.overflow = "";
+
+                if (REFRESH_CARDS_ON_CLOSE) {
+                    render();
+                    REFRESH_CARDS_ON_CLOSE = false;
+                }
+
+                if (options.syncUrl !== false) {
+                    setMatchesListUrl();
+                }
+            }
+
+            function normalizeScoreInput(input, fallbackToZero = false) {
+                if (!input) return "0";
+
+                const cleaned = String(input.value || "").replace(/[^\d]/g, "");
+                const nextValue = fallbackToZero && cleaned === "" ? "0" : cleaned;
+
+                if (input.value !== nextValue) {
+                    input.value = nextValue;
+                }
+
+                return nextValue;
+            }
+
+            function readScoreInput(input) {
+                const value = normalizeScoreInput(input, true);
+                const score = Number(value || 0);
+                return Number.isFinite(score) ? Math.max(0, Math.floor(score)) : 0;
+            }
+
+            function setScoreInput(input, value) {
+                if (!input) return;
+
+                const score = Number(value || 0);
+                input.value = String(Number.isFinite(score) ? Math.max(0, Math.floor(score)) : 0);
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+
+                try {
+                    input.focus({ preventScroll: true });
+                } catch {
+                    input.focus();
+                }
+
+                const end = input.value.length;
+                if (typeof input.setSelectionRange === "function") {
+                    input.setSelectionRange(end, end);
+                }
+            }
+
+            function getInlineScorePayload() {
+                const note = ($id("inlineScoreNote")?.value || "").trim();
+                const isCompleted = !!$id("inlineIsCompleted")?.checked;
+
+                return {
+                    scoreTeam1: readScoreInput($id("inlineScore1")),
+                    scoreTeam2: readScoreInput($id("inlineScore2")),
+                    isCompleted,
+                    note: note || null
+                };
+            }
+
+            function setInlineScoreSaving(form, isSaving, triggerButton = null, showTriggerSpinner = true, showSubmitSpinner = true) {
+                const submitButton = $id("btnInlineSubmit");
+                const stepButtons = form ? Array.from(form.querySelectorAll("[data-score-target]")) : [];
+
+                if (submitButton) {
+                    submitButton.disabled = isSaving;
+
+                    if (showSubmitSpinner) {
+                        submitButton.innerHTML = isSaving
+                            ? `<i class="fas fa-spinner fa-spin"></i> Đang lưu...`
+                            : `<i class="fas fa-save"></i> Lưu điểm cho trận này`;
+                    }
+                }
+
+                stepButtons.forEach(button => {
+                    button.disabled = isSaving;
+                });
+
+                if (!triggerButton || !showTriggerSpinner) return;
+
+                if (isSaving) {
+                    triggerButton.dataset.originalHtml = triggerButton.innerHTML;
+                    triggerButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`;
+                } else if (triggerButton.dataset.originalHtml) {
+                    triggerButton.innerHTML = triggerButton.dataset.originalHtml;
+                    delete triggerButton.dataset.originalHtml;
+                }
+            }
+
+            function applyScoreSaveResult(matchId, data) {
+                const idx = (CACHE.items || []).findIndex(x => x.matchId === matchId);
+                if (idx < 0) return;
+
+                CACHE.items[idx].scoreTeam1 = data.scoreTeam1;
+                CACHE.items[idx].scoreTeam2 = data.scoreTeam2;
+                CACHE.items[idx].isCompleted = data.isCompleted;
+                CACHE.items[idx].winnerRegistrationId = data.winnerRegistrationId;
+                CACHE.items[idx].winnerTeam = data.winnerTeam;
+
+                if (!Array.isArray(CACHE.items[idx].scoreHistories)) {
+                    CACHE.items[idx].scoreHistories = [];
+                }
+
+                CACHE.items[idx].scoreHistories.unshift(data.history);
+            }
+
+            function syncInlineScoreView(data) {
+                const scoreTeam1 = Number(data.scoreTeam1 || 0);
+                const scoreTeam2 = Number(data.scoreTeam2 || 0);
+                const scoreText = `${scoreTeam1} - ${scoreTeam2}`;
+                const scoreValue = document.querySelector("#overlayContent .focus-score-value");
+                const score1Input = $id("inlineScore1");
+                const score2Input = $id("inlineScore2");
+
+                if (scoreValue) {
+                    scoreValue.textContent = scoreText;
+                }
+
+                if (score1Input) {
+                    score1Input.value = String(scoreTeam1);
+                }
+
+                if (score2Input) {
+                    score2Input.value = String(scoreTeam2);
+                }
+            }
+
+            function showScoreToast(message, type = "success") {
+                const toast = $id("scoreToast");
+                if (!toast) return;
+
+                window.clearTimeout(SCORE_TOAST_TIMER);
+                toast.className = `score-toast ${type}`;
+                toast.innerHTML = `<i class="fas ${type === "error" ? "fa-exclamation-circle" : "fa-check-circle"}"></i><span></span>`;
+                toast.querySelector("span").textContent = message;
+
+                window.requestAnimationFrame(() => toast.classList.add("show"));
+                SCORE_TOAST_TIMER = window.setTimeout(() => {
+                    toast.classList.remove("show");
+                }, 1400);
+            }
+
+            async function saveInlineScore(form, options = {}) {
+                if (SCORE_SAVE_BUSY || !ACTIVE_MATCH_ID) return false;
+
+                const triggerButton = options.triggerButton || null;
+                const refreshOverlay = options.refreshOverlay !== false;
+                const showToast = !!options.showToast;
+                const triggerSpinner = options.triggerSpinner !== false;
+                const submitSpinner = options.submitSpinner !== false;
+                const matchId = ACTIVE_MATCH_ID;
+                const errBox = $id("inlineScoreErr");
+                const payload = getInlineScorePayload();
+
+                if (errBox) {
+                    errBox.classList.add("d-none");
+                    errBox.textContent = "";
+                }
+
+                SCORE_SAVE_BUSY = true;
+                setInlineScoreSaving(form, true, triggerButton, triggerSpinner, submitSpinner);
+
+                try {
+                    const res = await axios.put(`${API}/${matchId}/score`, payload);
+
+                    applyScoreSaveResult(matchId, res.data);
+
+                    if (refreshOverlay) {
+                        render();
+
+                        if (ACTIVE_MATCH_ID === matchId) {
+                            openOverlay(matchId, { syncUrl: false });
+                        }
+                    } else {
+                        syncInlineScoreView(res.data);
+                        REFRESH_CARDS_ON_CLOSE = true;
+
+                        if (showToast) {
+                            showScoreToast("Đã lưu điểm");
+                        }
+                    }
+
+                    return true;
+                } catch (err) {
+                    if (errBox) {
+                        errBox.textContent = err?.response?.data?.message || err?.message || "Chấm điểm thất bại.";
+                        errBox.classList.remove("d-none");
+                    }
+
+                    if (showToast) {
+                        showScoreToast("Không lưu được điểm", "error");
+                    }
+
+                    return false;
+                } finally {
+                    SCORE_SAVE_BUSY = false;
+                    setInlineScoreSaving(form, false, triggerButton, triggerSpinner, submitSpinner);
+                }
+            }
+
+            function shouldConfirmEndMatch() {
+                const match = getMatch(ACTIVE_MATCH_ID);
+                const checkbox = $id("inlineIsCompleted");
+
+                return !!checkbox?.checked && !match?.isCompleted;
+            }
+
+            function setEndMatchConfirmVisible(isVisible) {
+                const modal = $id("endMatchConfirm");
+                if (!modal) return;
+
+                modal.classList.toggle("show", isVisible);
+                modal.setAttribute("aria-hidden", isVisible ? "false" : "true");
+
+                if (isVisible) {
+                    window.setTimeout(() => $id("btnEndMatchConfirm")?.focus(), 0);
+                }
+            }
+
+            function resolveEndMatchConfirm(result) {
+                if (!END_MATCH_CONFIRM_RESOLVE) return;
+
+                const resolve = END_MATCH_CONFIRM_RESOLVE;
+                END_MATCH_CONFIRM_RESOLVE = null;
+                setEndMatchConfirmVisible(false);
+                resolve(result);
+            }
+
+            function confirmEndMatch() {
+                if (END_MATCH_CONFIRM_RESOLVE) {
+                    resolveEndMatchConfirm(false);
+                }
+
+                setEndMatchConfirmVisible(true);
+
+                return new Promise(resolve => {
+                    END_MATCH_CONFIRM_RESOLVE = resolve;
+                });
+            }
+
+            function bindEndMatchConfirm() {
+                const modal = $id("endMatchConfirm");
+                const cancelButton = $id("btnEndMatchCancel");
+                const confirmButton = $id("btnEndMatchConfirm");
+                if (!modal || !cancelButton || !confirmButton) return;
+
+                cancelButton.addEventListener("click", () => resolveEndMatchConfirm(false));
+                confirmButton.addEventListener("click", () => resolveEndMatchConfirm(true));
+
+                modal.addEventListener("click", (event) => {
+                    if (event.target === modal) {
+                        resolveEndMatchConfirm(false);
+                    }
+                });
+            }
+
+            function bindScoreInputs(form) {
+                const scoreInputs = [$id("inlineScore1"), $id("inlineScore2")].filter(Boolean);
+
+                scoreInputs.forEach(input => {
+                    input.addEventListener("input", () => normalizeScoreInput(input));
+                    input.addEventListener("blur", () => normalizeScoreInput(input, true));
+                    input.addEventListener("focus", () => {
+                        window.setTimeout(() => input.select?.(), 0);
+                    });
+                });
+
+                form.querySelectorAll("[data-score-target]").forEach(button => {
+                    button.addEventListener("click", async (event) => {
+                        event.preventDefault();
+
+                        const input = $id(button.dataset.scoreTarget);
+                        const step = Number(button.dataset.scoreStep || 1);
+                        const currentScore = readScoreInput(input);
+                        const nextScore = Math.max(0, currentScore + step);
+
+                        if (nextScore === currentScore && step < 0) return;
+
+                        setScoreInput(input, nextScore);
+                        const saved = await saveInlineScore(form, {
+                            triggerButton: button,
+                            refreshOverlay: false,
+                            showToast: true,
+                            triggerSpinner: false,
+                            submitSpinner: false
+                        });
+
+                        if (!saved) {
+                            setScoreInput(input, currentScore);
+                        }
+                    });
+                });
             }
 
             function bindInlineScoreForm() {
                 const form = $id("inlineScoreForm");
                 if (!form || !ACTIVE_MATCH_ID) return;
 
+                bindScoreInputs(form);
+
                 form.addEventListener("submit", async (e) => {
                     e.preventDefault();
 
-                    const errBox = $id("inlineScoreErr");
-                    const btn = $id("btnInlineSubmit");
-
-                    errBox.classList.add("d-none");
-                    errBox.textContent = "";
-
-                    const s1 = Number($id("inlineScore1").value || 0);
-                    const s2 = Number($id("inlineScore2").value || 0);
-                    const note = ($id("inlineScoreNote").value || "").trim();
-                    const isCompleted = !!$id("inlineIsCompleted").checked;
-
-                    btn.disabled = true;
-                    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang lưu...`;
-
-                    try {
-                        const res = await axios.put(`${API}/${ACTIVE_MATCH_ID}/score`, {
-                            scoreTeam1: s1,
-                            scoreTeam2: s2,
-                            isCompleted,
-                            note: note || null
-                        });
-
-                        const idx = (CACHE.items || []).findIndex(x => x.matchId === ACTIVE_MATCH_ID);
-                        if (idx >= 0) {
-                            CACHE.items[idx].scoreTeam1 = res.data.scoreTeam1;
-                            CACHE.items[idx].scoreTeam2 = res.data.scoreTeam2;
-                            CACHE.items[idx].isCompleted = res.data.isCompleted;
-                            CACHE.items[idx].winnerRegistrationId = res.data.winnerRegistrationId;
-                            CACHE.items[idx].winnerTeam = res.data.winnerTeam;
-
-                            if (!Array.isArray(CACHE.items[idx].scoreHistories)) {
-                                CACHE.items[idx].scoreHistories = [];
-                            }
-
-                            CACHE.items[idx].scoreHistories.unshift(res.data.history);
-                        }
-
-                        render();
-                        openOverlay(ACTIVE_MATCH_ID);
-                    } catch (err) {
-                        errBox.textContent = err?.response?.data?.message || err?.message || "Chấm điểm thất bại.";
-                        errBox.classList.remove("d-none");
-                    } finally {
-                        btn.disabled = false;
-                        btn.innerHTML = `<i class="fas fa-save"></i> Lưu điểm cho trận này`;
+                    if (shouldConfirmEndMatch()) {
+                        const confirmed = await confirmEndMatch();
+                        if (!confirmed) return;
                     }
+
+                    await saveInlineScore(form);
                 });
             }
 
@@ -874,9 +2076,109 @@
                     const res = await axios.get(API);
                     CACHE.items = res.data?.items || [];
                     render();
+
+                    const matchId = getMatchIdFromUrl();
+                    if (matchId) {
+                        if (getMatch(matchId)) {
+                            openOverlay(matchId, {
+                                replaceUrl: true
+                            });
+                        } else {
+                            showErr("Không tìm thấy trận đấu này trong danh sách được phân công.");
+                            setMatchesListUrl();
+                        }
+                    }
                 } catch (err) {
                     showErr(err?.response?.data?.message || err?.message || "Tải dữ liệu thất bại.");
                 }
+            }
+
+            function openSearchPopover() {
+                const topbar = document.querySelector(".topbar");
+                const button = $id("btnSearchToggle");
+                const input = $id("matchSearchInput");
+                if (!topbar || !button || !input) return;
+
+                topbar.classList.add("search-open");
+                button.setAttribute("aria-expanded", "true");
+
+                window.setTimeout(() => {
+                    try {
+                        input.focus({ preventScroll: true });
+                    } catch {
+                        input.focus();
+                    }
+                    input.select?.();
+                }, 0);
+            }
+
+            function closeSearchPopover() {
+                const topbar = document.querySelector(".topbar");
+                const button = $id("btnSearchToggle");
+                if (!topbar || !button) return;
+
+                topbar.classList.remove("search-open");
+                button.setAttribute("aria-expanded", "false");
+            }
+
+            function clearSearch() {
+                SEARCH_QUERY = "";
+
+                const input = $id("matchSearchInput");
+                if (input) {
+                    input.value = "";
+                }
+
+                render();
+            }
+
+            function bindMatchSearch() {
+                const topbar = document.querySelector(".topbar");
+                const toggle = $id("btnSearchToggle");
+                const input = $id("matchSearchInput");
+                const clearButton = $id("btnSearchClear");
+                if (!topbar || !toggle || !input || !clearButton) return;
+
+                toggle.addEventListener("click", (event) => {
+                    event.stopPropagation();
+
+                    if (topbar.classList.contains("search-open")) {
+                        closeSearchPopover();
+                    } else {
+                        openSearchPopover();
+                    }
+                });
+
+                input.addEventListener("input", () => {
+                    SEARCH_QUERY = input.value || "";
+                    render();
+                });
+
+                input.addEventListener("keydown", (event) => {
+                    if (event.key !== "Escape") return;
+
+                    if (SEARCH_QUERY.trim()) {
+                        clearSearch();
+                    } else {
+                        closeSearchPopover();
+                    }
+                });
+
+                clearButton.addEventListener("click", () => {
+                    clearSearch();
+                    try {
+                        input.focus({ preventScroll: true });
+                    } catch {
+                        input.focus();
+                    }
+                });
+
+                document.addEventListener("click", (event) => {
+                    if (!topbar.classList.contains("search-open")) return;
+                    if (topbar.contains(event.target)) return;
+
+                    closeSearchPopover();
+                });
             }
 
             window.openMatchDetail = (matchId) => {
@@ -892,8 +2194,26 @@
             });
 
             document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape" && $id("endMatchConfirm")?.classList.contains("show")) {
+                    resolveEndMatchConfirm(false);
+                    return;
+                }
+
                 if (e.key === "Escape" && $id("matchOverlay").classList.contains("show")) {
                     closeOverlay();
+                }
+            });
+
+            window.addEventListener("popstate", () => {
+                const matchId = getMatchIdFromUrl();
+
+                if (matchId && getMatch(matchId)) {
+                    openOverlay(matchId, { syncUrl: false });
+                    return;
+                }
+
+                if ($id("matchOverlay").classList.contains("show")) {
+                    closeOverlay({ syncUrl: false });
                 }
             });
 
@@ -903,6 +2223,8 @@
             });
 
             document.addEventListener("DOMContentLoaded", async () => {
+                bindMatchSearch();
+                bindEndMatchConfirm();
                 await loadMe();
                 await loadMatches();
             });

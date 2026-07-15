@@ -1,0 +1,51 @@
+@model HanakaServer.ViewModels.PickleballWeb.PickleballWebDetailPageViewModel
+@{
+    Layout = null;
+    ViewData["Title"] = "So do giai dau | Hanaka Sport";
+
+    var tournamentId = ViewBag.TournamentId is long id ? id : Model.EntityId;
+}
+
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <title>@ViewData["Title"]</title>
+    <meta name="description" content="@Model.Description" />
+    <meta name="theme-color" content="#050b14" />
+    <link rel="icon" type="image/png" href="~/img/logo_admin_hanaka.png" asp-append-version="true" />
+    <link rel="shortcut icon" type="image/png" href="~/img/logo_admin_hanaka.png" asp-append-version="true" />
+    <link rel="apple-touch-icon" href="~/img/logo_admin_hanaka.png" asp-append-version="true" />
+    <link href="~/css/public-tournament-bracket.css" asp-append-version="true" rel="stylesheet" />
+</head>
+
+<body class="public-bracket-body">
+    <main class="public-bracket"
+          id="publicTournamentBracket"
+          data-public-tournament-bracket
+          data-tournament-id="@tournamentId">
+        <div class="public-bracket__error" role="alert" data-bracket-error></div>
+
+        <div class="public-bracket__viewport" data-bracket-viewport>
+            <div class="public-bracket__surface" data-bracket-surface>
+                <div class="public-bracket__board" data-bracket-board>
+                    <div class="public-bracket__loading" data-bracket-loading>
+                        &#272;ang t&#7843;i s&#417; &#273;&#7891;...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="public-bracket__toolbar" aria-label="Dieu khien phong to thu nho">
+            <button type="button" data-bracket-zoom="out" aria-label="Thu nho">-</button>
+            <span class="public-bracket__zoom" data-bracket-zoom-label>86%</span>
+            <button type="button" data-bracket-zoom="in" aria-label="Phong to">+</button>
+            <button type="button" data-bracket-zoom="reset" aria-label="Dat lai">1x</button>
+        </div>
+    </main>
+
+    <script src="~/js/public-tournament-bracket.js" asp-append-version="true"></script>
+</body>
+</html>

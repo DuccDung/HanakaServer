@@ -193,6 +193,37 @@ namespace HanakaServer.Controllers.Admin
             referee.LevelDouble = latestDouble ?? user.RatingDouble ?? defaults.doubleScore;
         }
 
+        private async Task EnsureRefereeRoleAsync(long userId)
+        {
+            var role = await _db.Roles
+                .FirstOrDefaultAsync(x => x.RoleCode == RoleCodes.Referee);
+
+            if (role == null)
+            {
+                role = new Role
+                {
+                    RoleCode = RoleCodes.Referee,
+                    RoleName = "Trọng tài"
+                };
+
+                _db.Roles.Add(role);
+                await _db.SaveChangesAsync();
+            }
+
+            var hasRole = await _db.UserRoles
+                .AnyAsync(x => x.UserId == userId && x.RoleId == role.RoleId);
+
+            if (!hasRole)
+            {
+                _db.UserRoles.Add(new UserRole
+                {
+                    UserId = userId,
+                    RoleId = role.RoleId,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+        }
+
         private string? BuildLinkWarning(string? externalId, User? linkedUser)
         {
             if (string.IsNullOrWhiteSpace(externalId))
@@ -614,6 +645,7 @@ namespace HanakaServer.Controllers.Admin
                 latestRating.RatingDouble
             );
 
+            await EnsureRefereeRoleAsync(user.UserId);
             _db.Referees.Add(entity);
             await _db.SaveChangesAsync();
 
@@ -664,6 +696,7 @@ namespace HanakaServer.Controllers.Admin
                 latestRating.RatingDouble
             );
 
+            await EnsureRefereeRoleAsync(user.UserId);
             await _db.SaveChangesAsync();
 
             return await GetDetail(entity.RefereeId);

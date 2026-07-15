@@ -1,12 +1,21 @@
+using HanakaServer.Data;
 using HanakaServer.ViewModels.PickleballWeb;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace HanakaServer.Controllers.Web
 {
     [AllowAnonymous]
     public class PickleballWebController : Controller
     {
+        private readonly PickleballDbContext _db;
+
+        public PickleballWebController(PickleballDbContext db)
+        {
+            _db = db;
+        }
+
         [HttpGet]
         public IActionResult Index()
         {
@@ -339,15 +348,47 @@ namespace HanakaServer.Controllers.Web
         }
 
         [HttpGet("/PickleballWeb/Tournament/{id:long}/Bracket")]
-        public IActionResult TournamentBracket(long id)
+        public async Task<IActionResult> TournamentBracket(long id, string? returnUrl = null)
         {
-            return View("Detail", BuildDetailPage(
+            var tournament = await _db.Tournaments.AsNoTracking()
+                .Where(x => x.TournamentId == id && !x.Remove)
+                .Select(x => new
+                {
+                    x.TournamentId,
+                    x.Title,
+                    x.Status,
+                    x.GameType,
+                    x.ExpectedTeams,
+                    x.StartTime,
+                    x.RegisterDeadline
+                })
+                .FirstOrDefaultAsync();
+
+            if (tournament == null)
+            {
+                return NotFound();
+            }
+
+            string safeReturnUrl = !string.IsNullOrWhiteSpace(returnUrl) && Url.IsLocalUrl(returnUrl)
+                ? returnUrl
+                : $"/PickleballWeb/Tournament/{id}/Schedule";
+
+            ViewBag.TournamentId = tournament.TournamentId;
+            ViewBag.TournamentTitle = tournament.Title;
+            ViewBag.TournamentStatus = tournament.Status;
+            ViewBag.TournamentGameType = string.IsNullOrWhiteSpace(tournament.GameType) ? "DOUBLE" : tournament.GameType;
+            ViewBag.ExpectedTeams = tournament.ExpectedTeams;
+            ViewBag.StartTime = tournament.StartTime;
+            ViewBag.RegisterDeadline = tournament.RegisterDeadline;
+            ViewBag.ReturnUrl = safeReturnUrl;
+
+            return View("TournamentBracket", BuildDetailPage(
                 title: "So Do Thi Dau",
                 eyebrow: "Tournament bracket",
                 description: "So do truc quan cac nhanh thi dau, tu dong tao cac vong ao neu lich dau moi co vong dau tien.",
                 pageKind: "tournament-bracket-page",
                 entityId: id,
-                backHref: $"/PickleballWeb/Tournament/{id}/Schedule",
+                backHref: safeReturnUrl,
                 backLabel: "Lich thi dau",
                 activeTab: "tournaments"));
         }
