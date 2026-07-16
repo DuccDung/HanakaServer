@@ -18,18 +18,24 @@ public class LoginRequestDto
 
 public class ForgotPasswordRequestDto
 {
-    public string Email { get; set; } = null!;
+    public string? Identifier { get; set; }
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
 }
 
 public class ForgotPasswordVerifyOtpRequestDto
 {
-    public string Email { get; set; } = null!;
+    public string? Identifier { get; set; }
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
     public string Otp { get; set; } = null!;
 }
 
 public class ForgotPasswordResetRequestDto
 {
-    public string Email { get; set; } = null!;
+    public string? Identifier { get; set; }
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
     public string Otp { get; set; } = null!;
     public string NewPassword { get; set; } = null!;
     public string ConfirmPassword { get; set; } = null!;
@@ -37,26 +43,37 @@ public class ForgotPasswordResetRequestDto
 
 public class ConfirmOtpRequestDto
 {
-    public string Email { get; set; } = null!;
+    public string? Identifier { get; set; }
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
     public string Otp { get; set; } = null!;
 }
 
 public class ResendOtpRequestDto
 {
-    public string Email { get; set; } = null!;
+    public string? Identifier { get; set; }
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
 }
 
 public class RegisterResponseDto
 {
     public string Message { get; set; } = null!;
     public string Email { get; set; } = null!;
+    public string? Phone { get; set; }
     public DateTime OtpExpiredAtUtc { get; set; }
+    public string? OtpDeliveryChannel { get; set; }
+    public string? OtpDeliveryTarget { get; set; }
+    public string? OtpDeliveryMessage { get; set; }
 }
 
 public class ForgotPasswordResponseDto
 {
     public string Message { get; set; } = null!;
     public DateTime? OtpExpiredAtUtc { get; set; }
+    public string? OtpDeliveryChannel { get; set; }
+    public string? OtpDeliveryTarget { get; set; }
+    public string? OtpDeliveryMessage { get; set; }
 }
 
 public class AuthUserDto

@@ -13,6 +13,7 @@
      data-auth-page="otp"
      data-return-url="@Model.ReturnUrl"
      data-auth-email="@Model.Email"
+     data-auth-phone="@Model.Phone"
      data-auth-fullname="@Model.FullName"
      data-auth-terms="@(Model.AgreedToTerms ? "true" : "false")">
     <header class="auth-header auth-header--plain">
@@ -37,8 +38,8 @@
                     Xin chào <strong data-auth-fullname-text>@(string.IsNullOrWhiteSpace(Model.FullName) ? "bạn" : Model.FullName)</strong>
                 </p>
 
-                <p class="auth-otp-desc">Hệ thống đã gửi mã OTP đến email:</p>
-                <p class="auth-otp-email" data-auth-email-text>@Model.Email</p>
+                <p class="auth-otp-desc">Hệ thống đã gửi mã OTP đến số điện thoại:</p>
+                <p class="auth-otp-email" data-auth-phone-text>@Model.Phone</p>
 
                 <form data-auth-form="otp" novalidate>
                     <label class="auth-label auth-label--offset" for="auth-register-otp">Nhập mã OTP</label>

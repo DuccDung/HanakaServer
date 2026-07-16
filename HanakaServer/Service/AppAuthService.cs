@@ -15,20 +15,20 @@ namespace HanakaServer.Services
     {
         private readonly PickleballDbContext _db;
         private readonly IConfiguration _config;
-        private readonly IOtpEmailService _otpEmailService;
+        private readonly IOtpDeliveryService _otpDeliveryService;
         private readonly IUserOtpService _userOtpService;
         private readonly IHttpContextAccessor _httpContextAccessor;
 
         public AppAuthService(
             PickleballDbContext db,
             IConfiguration config,
-            IOtpEmailService otpEmailService,
+            IOtpDeliveryService otpDeliveryService,
             IUserOtpService userOtpService,
             IHttpContextAccessor httpContextAccessor)
         {
             _db = db;
             _config = config;
-            _otpEmailService = otpEmailService;
+            _otpDeliveryService = otpDeliveryService;
             _userOtpService = userOtpService;
             _httpContextAccessor = httpContextAccessor;
         }
@@ -57,6 +57,10 @@ namespace HanakaServer.Services
 
             var email = dto.Email.Trim().ToLowerInvariant();
             var phone = NormalizePhone(dto.Phone);
+            if (string.IsNullOrWhiteSpace(phone))
+            {
+                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập số điện thoại.");
+            }
 
             var existedByEmail = await _db.Users.FirstOrDefaultAsync(x => x.Email == email, ct);
             await EnsurePhoneIsUniqueAsync(phone, existedByEmail?.UserId, ct);
@@ -78,14 +82,13 @@ namespace HanakaServer.Services
                 await EnsureInitialRatingHistoryAsync(existedByEmail, ct);
 
                 var resend = await _userOtpService.CreateOtpAsync(existedByEmail, ct);
-                await _otpEmailService.SendOtpAsync(email, existedByEmail.FullName, resend.otp, ct);
+                var delivery = await DeliverRegistrationOtpOrThrowAsync(existedByEmail, resend.otp, ct);
 
-                return new RegisterResponseDto
-                {
-                    Message = "Tài khoản chưa kích hoạt. Hệ thống đã gửi lại OTP.",
-                    Email = email,
-                    OtpExpiredAtUtc = resend.expiredAtUtc
-                };
+                return BuildRegisterResponse(
+                    existedByEmail,
+                    resend.expiredAtUtc,
+                    delivery,
+                    "Tài khoản chưa kích hoạt. Hệ thống đã gửi lại OTP.");
             }
 
             var user = new User
@@ -128,72 +131,72 @@ namespace HanakaServer.Services
             await EnsureInitialRatingHistoryAsync(user, ct);
 
             var otpResult = await _userOtpService.CreateOtpAsync(user, ct);
-            await _otpEmailService.SendOtpAsync(email, user.FullName, otpResult.otp, ct);
+            var otpDelivery = await DeliverRegistrationOtpOrThrowAsync(user, otpResult.otp, ct);
 
-            return new RegisterResponseDto
-            {
-                Message = "Đăng ký thành công. Vui lòng kiểm tra email để lấy mã OTP.",
-                Email = email,
-                OtpExpiredAtUtc = otpResult.expiredAtUtc
-            };
+            return BuildRegisterResponse(
+                user,
+                otpResult.expiredAtUtc,
+                otpDelivery,
+                "Đăng ký thành công.");
         }
 
         public async Task<ForgotPasswordResponseDto> ForgotPasswordAsync(ForgotPasswordRequestDto dto, CancellationToken ct = default)
         {
-            const string GenericMessage =
-                "Nếu email tồn tại và tài khoản đã kích hoạt, mã OTP đã được gửi về hộp thư của bạn.";
-
-            var email = NormalizeEmail(dto.Email);
-            if (string.IsNullOrWhiteSpace(email))
             {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập email.");
-            }
+                const string phoneFirstGenericMessage =
+                    "Nếu thông tin tồn tại và tài khoản đã kích hoạt, mã OTP sẽ được gửi theo số điện thoại Zalo hoặc email dự phòng.";
 
-            var user = await FindActiveUserByEmailAsync(email, ct);
-            if (user == null)
-            {
-                return new ForgotPasswordResponseDto
+                var identifier = ResolveIdentifier(dto.Identifier, dto.Phone, dto.Email);
+                if (string.IsNullOrWhiteSpace(identifier))
                 {
-                    Message = GenericMessage
-                };
+                    throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập số điện thoại.");
+                }
+
+                var activeUser = await FindActiveUserByIdentifierAsync(identifier, ct);
+                if (activeUser == null)
+                {
+                    return new ForgotPasswordResponseDto
+                    {
+                        Message = phoneFirstGenericMessage
+                    };
+                }
+
+                var passwordResetOtpResult = await _userOtpService.CreateOtpAsync(activeUser, ct);
+                var delivery = await DeliverPasswordResetOtpOrThrowAsync(activeUser, passwordResetOtpResult.otp, ct);
+
+                return BuildForgotPasswordResponse(delivery, passwordResetOtpResult.expiredAtUtc);
             }
-
-            var otpResult = await _userOtpService.CreateOtpAsync(user, ct);
-            await _otpEmailService.SendPasswordResetOtpAsync(email, ResolveDisplayName(user), otpResult.otp, ct);
-
-            return new ForgotPasswordResponseDto
-            {
-                Message = GenericMessage,
-                OtpExpiredAtUtc = otpResult.expiredAtUtc
-            };
         }
 
         public async Task<ForgotPasswordResponseDto> VerifyForgotPasswordOtpAsync(
             ForgotPasswordVerifyOtpRequestDto dto,
             CancellationToken ct = default)
         {
-            var email = NormalizeEmail(dto.Email);
-            var otp = dto.Otp?.Trim();
-
-            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(otp))
             {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập email và mã OTP.");
+                var identifier = ResolveIdentifier(dto.Identifier, dto.Phone, dto.Email);
+                var otpCode = dto.Otp?.Trim();
+
+                if (string.IsNullOrWhiteSpace(identifier) || string.IsNullOrWhiteSpace(otpCode))
+                {
+                    throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập số điện thoại và mã OTP.");
+                }
+
+                var activeUser = await FindActiveUserByIdentifierAsync(identifier, ct);
+                var activeUserEmail = NormalizeEmail(activeUser?.Email);
+                var availableOtp = activeUser == null || string.IsNullOrWhiteSpace(activeUserEmail)
+                    ? null
+                    : await FindAvailableOtpAsync(activeUser.UserId, activeUserEmail, otpCode, ct);
+
+                if (availableOtp == null)
+                {
+                    throw new AuthFlowException(StatusCodes.Status400BadRequest, "OTP không đúng hoặc đã hết hạn.");
+                }
+
+                return new ForgotPasswordResponseDto
+                {
+                    Message = "OTP hợp lệ. Vui lòng nhập mật khẩu mới."
+                };
             }
-
-            var user = await FindActiveUserByEmailAsync(email, ct);
-            var otpEntity = user == null
-                ? null
-                : await FindAvailableOtpAsync(user.UserId, email, otp, ct);
-
-            if (otpEntity == null)
-            {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "OTP không đúng hoặc đã hết hạn.");
-            }
-
-            return new ForgotPasswordResponseDto
-            {
-                Message = "OTP hợp lệ. Vui lòng nhập mật khẩu mới."
-            };
         }
 
         public async Task<AuthResponseDto> ResetPasswordWithOtpAsync(
@@ -201,61 +204,64 @@ namespace HanakaServer.Services
             CancellationToken ct = default,
             TimeSpan? accessTokenLifetime = null)
         {
-            var email = NormalizeEmail(dto.Email);
-            var otp = dto.Otp?.Trim();
-            var newPassword = dto.NewPassword?.Trim() ?? string.Empty;
-            var confirmPassword = dto.ConfirmPassword?.Trim() ?? string.Empty;
-
-            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(otp))
             {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập email và mã OTP.");
+                var identifier = ResolveIdentifier(dto.Identifier, dto.Phone, dto.Email);
+                var otpCode = dto.Otp?.Trim();
+                var nextPassword = dto.NewPassword?.Trim() ?? string.Empty;
+                var nextConfirmPassword = dto.ConfirmPassword?.Trim() ?? string.Empty;
+
+                if (string.IsNullOrWhiteSpace(identifier) || string.IsNullOrWhiteSpace(otpCode))
+                {
+                    throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập số điện thoại và mã OTP.");
+                }
+
+                if (nextPassword.Length < 6)
+                {
+                    throw new AuthFlowException(StatusCodes.Status400BadRequest, "Mật khẩu mới phải có ít nhất 6 ký tự.");
+                }
+
+                if (!string.Equals(nextPassword, nextConfirmPassword, StringComparison.Ordinal))
+                {
+                    throw new AuthFlowException(StatusCodes.Status400BadRequest, "Mật khẩu nhập lại không khớp.");
+                }
+
+                var activeUser = await FindActiveUserByIdentifierAsync(identifier, ct);
+                var activeUserEmail = NormalizeEmail(activeUser?.Email);
+                var availableOtp = activeUser == null || string.IsNullOrWhiteSpace(activeUserEmail)
+                    ? null
+                    : await FindAvailableOtpAsync(activeUser.UserId, activeUserEmail, otpCode, ct);
+
+                if (activeUser == null || availableOtp == null)
+                {
+                    throw new AuthFlowException(StatusCodes.Status400BadRequest, "OTP không đúng hoặc đã hết hạn.");
+                }
+
+                var currentTime = DateTime.UtcNow;
+                activeUser.PasswordHash = BCrypt.Net.BCrypt.HashPassword(nextPassword);
+                activeUser.UpdatedAt = currentTime;
+
+                availableOtp.IsUsed = true;
+                availableOtp.UsedAt = currentTime;
+
+                var remainingOtps = await _db.UserOtps
+                    .Where(x => x.UserId == activeUser.UserId
+                                && x.Email == activeUserEmail
+                                && !x.IsUsed
+                                && x.UserOtpId != availableOtp.UserOtpId
+                                && x.ExpiredAt > currentTime)
+                    .ToListAsync(ct);
+
+                foreach (var item in remainingOtps)
+                {
+                    item.IsUsed = true;
+                    item.UsedAt = currentTime;
+                }
+
+                await _db.SaveChangesAsync(ct);
+                await EnsureInitialRatingHistoryAsync(activeUser, ct);
+
+                return await CreateAuthResponseAsync(activeUser, ct, accessTokenLifetime);
             }
-
-            if (newPassword.Length < 6)
-            {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Mật khẩu mới phải có ít nhất 6 ký tự.");
-            }
-
-            if (!string.Equals(newPassword, confirmPassword, StringComparison.Ordinal))
-            {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Mật khẩu nhập lại không khớp.");
-            }
-
-            var user = await FindActiveUserByEmailAsync(email, ct);
-            var otpEntity = user == null
-                ? null
-                : await FindAvailableOtpAsync(user.UserId, email, otp, ct);
-
-            if (user == null || otpEntity == null)
-            {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "OTP không đúng hoặc đã hết hạn.");
-            }
-
-            var now = DateTime.UtcNow;
-            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
-            user.UpdatedAt = now;
-
-            otpEntity.IsUsed = true;
-            otpEntity.UsedAt = now;
-
-            var otherActiveOtps = await _db.UserOtps
-                .Where(x => x.UserId == user.UserId
-                            && x.Email == email
-                            && !x.IsUsed
-                            && x.UserOtpId != otpEntity.UserOtpId
-                            && x.ExpiredAt > now)
-                .ToListAsync(ct);
-
-            foreach (var item in otherActiveOtps)
-            {
-                item.IsUsed = true;
-                item.UsedAt = now;
-            }
-
-            await _db.SaveChangesAsync(ct);
-            await EnsureInitialRatingHistoryAsync(user, ct);
-
-            return await CreateAuthResponseAsync(user, ct, accessTokenLifetime);
         }
 
         public async Task<AuthResponseDto> ConfirmOtpAsync(
@@ -263,75 +269,82 @@ namespace HanakaServer.Services
             CancellationToken ct = default,
             TimeSpan? accessTokenLifetime = null)
         {
-            if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Otp))
             {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập email và mã OTP.");
+                var identifier = ResolveIdentifier(dto.Identifier, dto.Phone, dto.Email);
+                var otpCode = dto.Otp?.Trim();
+
+                if (string.IsNullOrWhiteSpace(identifier) || string.IsNullOrWhiteSpace(otpCode))
+                {
+                    throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập số điện thoại và mã OTP.");
+                }
+
+                var pendingUser = await FindUserByIdentifierAsync(identifier, activeOnly: false, ct);
+                if (pendingUser == null)
+                {
+                    throw new AuthFlowException(StatusCodes.Status404NotFound, "Không tìm thấy tài khoản.");
+                }
+
+                if (pendingUser.IsActive)
+                {
+                    throw new AuthFlowException(
+                        StatusCodes.Status400BadRequest,
+                        "Tài khoản đã được kích hoạt. Vui lòng đăng nhập hoặc dùng quên mật khẩu nếu cần đặt lại mật khẩu.");
+                }
+
+                var pendingUserEmail = NormalizeEmail(pendingUser.Email);
+                var availableOtp = string.IsNullOrWhiteSpace(pendingUserEmail)
+                    ? null
+                    : await FindAvailableOtpAsync(pendingUser.UserId, pendingUserEmail, otpCode, ct);
+
+                if (availableOtp == null)
+                {
+                    throw new AuthFlowException(StatusCodes.Status400BadRequest, "OTP không đúng hoặc đã hết hạn.");
+                }
+
+                availableOtp.IsUsed = true;
+                availableOtp.UsedAt = DateTime.UtcNow;
+                pendingUser.IsActive = true;
+                pendingUser.UpdatedAt = DateTime.UtcNow;
+
+                await _db.SaveChangesAsync(ct);
+                await EnsureInitialRatingHistoryAsync(pendingUser, ct);
+
+                return await CreateAuthResponseAsync(pendingUser, ct, accessTokenLifetime);
             }
-
-            var email = NormalizeEmail(dto.Email);
-            var otp = dto.Otp.Trim();
-
-            var user = await _db.Users.FirstOrDefaultAsync(x => x.Email == email, ct);
-            if (user == null)
-            {
-                throw new AuthFlowException(StatusCodes.Status404NotFound, "Không tìm thấy tài khoản.");
-            }
-
-            if (user.IsActive)
-            {
-                throw new AuthFlowException(
-                    StatusCodes.Status400BadRequest,
-                    "Tài khoản đã được kích hoạt. Vui lòng đăng nhập hoặc dùng quên mật khẩu nếu cần đặt lại mật khẩu.");
-            }
-
-            var otpEntity = await FindAvailableOtpAsync(user.UserId, email, otp, ct);
-            if (otpEntity == null)
-            {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "OTP không đúng hoặc đã hết hạn.");
-            }
-
-            otpEntity.IsUsed = true;
-            otpEntity.UsedAt = DateTime.UtcNow;
-            user.IsActive = true;
-            user.UpdatedAt = DateTime.UtcNow;
-
-            await _db.SaveChangesAsync(ct);
-            await EnsureInitialRatingHistoryAsync(user, ct);
-
-            return await CreateAuthResponseAsync(user, ct, accessTokenLifetime);
         }
 
         public async Task<RegisterResponseDto> ResendOtpAsync(ResendOtpRequestDto dto, CancellationToken ct = default)
         {
-            if (string.IsNullOrWhiteSpace(dto.Email))
             {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập email.");
+                var identifier = ResolveIdentifier(dto.Identifier, dto.Phone, dto.Email);
+                if (string.IsNullOrWhiteSpace(identifier))
+                {
+                    throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập số điện thoại.");
+                }
+
+                var pendingUser = await FindUserByIdentifierAsync(identifier, activeOnly: false, ct);
+
+                if (pendingUser == null)
+                {
+                    throw new AuthFlowException(StatusCodes.Status404NotFound, "Không tìm thấy tài khoản.");
+                }
+
+                if (pendingUser.IsActive)
+                {
+                    throw new AuthFlowException(StatusCodes.Status400BadRequest, "Tài khoản đã được kích hoạt.");
+                }
+
+                await EnsureInitialRatingHistoryAsync(pendingUser, ct);
+
+                var resendOtpResult = await _userOtpService.CreateOtpAsync(pendingUser, ct);
+                var delivery = await DeliverRegistrationOtpOrThrowAsync(pendingUser, resendOtpResult.otp, ct);
+
+                return BuildRegisterResponse(
+                    pendingUser,
+                    resendOtpResult.expiredAtUtc,
+                    delivery,
+                    "OTP mới đã được gửi.");
             }
-
-            var email = NormalizeEmail(dto.Email);
-            var user = await _db.Users.FirstOrDefaultAsync(x => x.Email == email, ct);
-
-            if (user == null)
-            {
-                throw new AuthFlowException(StatusCodes.Status404NotFound, "Không tìm thấy tài khoản.");
-            }
-
-            if (user.IsActive)
-            {
-                throw new AuthFlowException(StatusCodes.Status400BadRequest, "Tài khoản đã được kích hoạt.");
-            }
-
-            await EnsureInitialRatingHistoryAsync(user, ct);
-
-            var otpResult = await _userOtpService.CreateOtpAsync(user, ct);
-            await _otpEmailService.SendOtpAsync(email, ResolveDisplayName(user), otpResult.otp, ct);
-
-            return new RegisterResponseDto
-            {
-                Message = "OTP mới đã được gửi.",
-                Email = email,
-                OtpExpiredAtUtc = otpResult.expiredAtUtc
-            };
         }
 
         public async Task<AuthResponseDto> LoginAsync(
@@ -345,9 +358,7 @@ namespace HanakaServer.Services
                 throw new AuthFlowException(StatusCodes.Status400BadRequest, "Vui lòng nhập email hoặc số điện thoại và mật khẩu.");
             }
 
-            var user = await _db.Users.FirstOrDefaultAsync(x =>
-                (x.Email != null && x.Email == identifier) ||
-                (x.Phone != null && x.Phone == identifier), ct);
+            var user = await FindActiveUserByIdentifierAsync(identifier, ct);
 
             if (user == null)
             {
@@ -404,6 +415,130 @@ namespace HanakaServer.Services
                 ct);
         }
 
+        private Task<User?> FindActiveUserByIdentifierAsync(string identifier, CancellationToken ct)
+        {
+            return FindUserByIdentifierAsync(identifier, activeOnly: true, ct);
+        }
+
+        private async Task<User?> FindUserByIdentifierAsync(string identifier, bool activeOnly, CancellationToken ct)
+        {
+            identifier = identifier.Trim();
+            var email = NormalizeEmail(identifier);
+            var comparablePhone = BuildComparablePhoneForLookup(identifier);
+
+            var q = _db.Users.AsQueryable();
+            if (activeOnly)
+            {
+                q = q.Where(x => x.IsActive);
+            }
+
+            return await q.FirstOrDefaultAsync(
+                x => (x.Email != null && x.Email == email)
+                     || (!string.IsNullOrWhiteSpace(comparablePhone)
+                         && x.Phone != null
+                         && x.Phone.Trim()
+                             .Replace(" ", string.Empty)
+                             .Replace("-", string.Empty)
+                             .Replace(".", string.Empty)
+                             .Replace("(", string.Empty)
+                             .Replace(")", string.Empty)
+                             .Replace("+", string.Empty) == comparablePhone),
+                ct);
+        }
+
+        private async Task<OtpDeliveryResult> DeliverRegistrationOtpOrThrowAsync(
+            User user,
+            string otp,
+            CancellationToken ct)
+        {
+            var delivery = await _otpDeliveryService.SendRegistrationOtpAsync(user, otp, ct);
+            await EnsureOtpWasDeliveredAsync(user, delivery, ct);
+            return delivery;
+        }
+
+        private async Task<OtpDeliveryResult> DeliverPasswordResetOtpOrThrowAsync(
+            User user,
+            string otp,
+            CancellationToken ct)
+        {
+            var delivery = await _otpDeliveryService.SendPasswordResetOtpAsync(user, otp, ct);
+            await EnsureOtpWasDeliveredAsync(user, delivery, ct);
+            return delivery;
+        }
+
+        private async Task EnsureOtpWasDeliveredAsync(User user, OtpDeliveryResult delivery, CancellationToken ct)
+        {
+            if (delivery.Delivered)
+            {
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.Email))
+            {
+                await _userOtpService.InvalidateActiveOtpsAsync(user.UserId, NormalizeEmail(user.Email), ct);
+            }
+
+            throw new AuthFlowException(
+                StatusCodes.Status503ServiceUnavailable,
+                "Không thể gửi OTP qua Zalo hoặc email. Vui lòng thử lại sau.");
+        }
+
+        private static RegisterResponseDto BuildRegisterResponse(
+            User user,
+            DateTime expiredAtUtc,
+            OtpDeliveryResult delivery,
+            string messagePrefix)
+        {
+            return new RegisterResponseDto
+            {
+                Message = BuildDeliveryMessage(messagePrefix, delivery),
+                Email = user.Email ?? string.Empty,
+                Phone = user.Phone,
+                OtpExpiredAtUtc = expiredAtUtc,
+                OtpDeliveryChannel = delivery.Channel,
+                OtpDeliveryTarget = delivery.Target,
+                OtpDeliveryMessage = delivery.Message
+            };
+        }
+
+        private static ForgotPasswordResponseDto BuildForgotPasswordResponse(
+            OtpDeliveryResult delivery,
+            DateTime expiredAtUtc)
+        {
+            return new ForgotPasswordResponseDto
+            {
+                Message = delivery.Message ?? "Mã OTP đã được gửi.",
+                OtpExpiredAtUtc = expiredAtUtc,
+                OtpDeliveryChannel = delivery.Channel,
+                OtpDeliveryTarget = delivery.Target,
+                OtpDeliveryMessage = delivery.Message
+            };
+        }
+
+        private static string BuildDeliveryMessage(string messagePrefix, OtpDeliveryResult delivery)
+        {
+            var deliveryMessage = delivery.Message?.Trim();
+            if (string.IsNullOrWhiteSpace(deliveryMessage))
+            {
+                return messagePrefix;
+            }
+
+            return $"{messagePrefix.Trim()} {deliveryMessage}";
+        }
+
+        private static string ResolveIdentifier(params string?[] values)
+        {
+            foreach (var value in values)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value.Trim();
+                }
+            }
+
+            return string.Empty;
+        }
+
         private async Task<UserOtp?> FindAvailableOtpAsync(long userId, string email, string otp, CancellationToken ct)
         {
             var now = DateTime.UtcNow;
@@ -434,7 +569,8 @@ namespace HanakaServer.Services
                          .Replace("-", string.Empty)
                          .Replace(".", string.Empty)
                          .Replace("(", string.Empty)
-                         .Replace(")", string.Empty) == comparablePhone,
+                         .Replace(")", string.Empty)
+                         .Replace("+", string.Empty) == comparablePhone,
                 ct);
 
             if (existsPhone)
@@ -468,7 +604,25 @@ namespace HanakaServer.Services
                 .Replace("-", string.Empty)
                 .Replace(".", string.Empty)
                 .Replace("(", string.Empty)
-                .Replace(")", string.Empty);
+                .Replace(")", string.Empty)
+                .Replace("+", string.Empty);
+        }
+
+        private static string? BuildComparablePhoneForLookup(string? phone)
+        {
+            var normalizedPhone = NormalizePhone(phone);
+            if (string.IsNullOrWhiteSpace(normalizedPhone))
+            {
+                return null;
+            }
+
+            var digitCount = normalizedPhone.Count(char.IsDigit);
+            if (digitCount < 6)
+            {
+                return null;
+            }
+
+            return BuildComparablePhone(normalizedPhone);
         }
 
         private static string NormalizeEmail(string? email)

@@ -61,6 +61,35 @@
         return digitsLength >= 9 && digitsLength <= 15;
     }
 
+    function normalizeIdentifier(value) {
+        var raw = trimToEmpty(value);
+        if (!raw) {
+            return "";
+        }
+
+        return isEmail(raw) ? raw.toLowerCase() : normalizePhone(raw);
+    }
+
+    function isValidIdentifier(value) {
+        return isEmail(value) || isPhone(value);
+    }
+
+    function buildIdentifierPayload(value) {
+        var raw = trimToEmpty(value);
+        var identifier = normalizeIdentifier(raw);
+        var payload = {
+            identifier: identifier
+        };
+
+        if (isEmail(raw)) {
+            payload.email = identifier;
+        } else if (isPhone(raw)) {
+            payload.phone = identifier;
+        }
+
+        return payload;
+    }
+
     function isSafeLocalUrl(value) {
         return value && value.charAt(0) === "/" && !value.startsWith("//");
     }
@@ -70,25 +99,25 @@
         return isSafeLocalUrl(raw) ? raw : "/";
     }
 
-    function buildLoginHref(root, email) {
+    function buildLoginHref(root, identifier) {
         var url = new URL("/PickleballWeb/Login", window.location.origin);
         url.searchParams.set("returnUrl", getReturnUrl(root));
 
-        var normalizedEmail = trimToEmpty(email);
-        if (normalizedEmail) {
-            url.searchParams.set("email", normalizedEmail);
+        var normalizedIdentifier = normalizeIdentifier(identifier);
+        if (normalizedIdentifier) {
+            url.searchParams.set("identifier", normalizedIdentifier);
         }
 
         return url.pathname + url.search;
     }
 
-    function buildForgotPasswordHref(root, email) {
+    function buildForgotPasswordHref(root, identifier) {
         var url = new URL("/PickleballWeb/ForgotPassword", window.location.origin);
         url.searchParams.set("returnUrl", getReturnUrl(root));
 
-        var normalizedEmail = trimToEmpty(email);
-        if (normalizedEmail) {
-            url.searchParams.set("email", normalizedEmail);
+        var normalizedIdentifier = normalizeIdentifier(identifier);
+        if (normalizedIdentifier) {
+            url.searchParams.set("identifier", normalizedIdentifier);
         }
 
         return url.pathname + url.search;
@@ -505,11 +534,13 @@
         }
     }
 
-    async function showForgotPasswordOtpPopup(root, email) {
+    async function showForgotPasswordOtpPopup(root, identifier) {
         return new Promise(function (resolve) {
+            var identifierPayload = buildIdentifierPayload(identifier);
+
             showPopupFrame({
                 title: "Xác thực OTP",
-                message: "Nhập mã OTP vừa được gửi tới email của bạn để tiếp tục.",
+                message: "Nhập mã OTP vừa được gửi tới thông tin đã đăng ký để tiếp tục.",
                 confirmText: "Xác nhận OTP",
                 secondaryText: "Gửi lại OTP",
                 variant: "info",
@@ -517,7 +548,7 @@
                 focusSelector: "[data-auth-reset-otp]",
                 contentHtml: [
                     '<form class="auth-popup__form" data-auth-popup-form="forgot-otp" novalidate>',
-                    '    <p class="auth-popup__email-pill">' + escapeHtml(email) + "</p>",
+                    '    <p class="auth-popup__email-pill">' + escapeHtml(identifierPayload.identifier) + "</p>",
                     '    <div class="auth-field-block">',
                     '        <div class="auth-label-row">',
                     '            <label class="auth-label" for="auth-popup-reset-otp">Mã OTP</label>',
@@ -533,7 +564,7 @@
                     '                   data-auth-reset-otp />',
                     "        </div>",
                     "    </div>",
-                    '    <p class="auth-popup__footnote">Nếu chưa thấy email, hãy kiểm tra mục thư rác hoặc gửi lại mã OTP.</p>',
+                    '    <p class="auth-popup__footnote">Nếu chưa nhận được OTP, hãy thử gửi lại mã sau ít phút.</p>',
                     "</form>"
                 ].join("")
             });
@@ -568,14 +599,12 @@
                 try {
                     var payload = await requestJson("/api/web-auth/forgot-password", {
                         method: "POST",
-                        body: JSON.stringify({
-                            email: email
-                        })
+                        body: JSON.stringify(identifierPayload)
                     });
 
                     setPopupNote(payload && payload.message
                         ? payload.message
-                        : "Nếu email tồn tại và tài khoản đã kích hoạt, mã OTP đã được gửi về hộp thư của bạn.");
+                        : "Nếu thông tin tồn tại và tài khoản đã kích hoạt, mã OTP đã được gửi.");
                 } catch (error) {
                     setPopupError(error.message || "Không thể gửi lại OTP lúc này.");
                 } finally {
@@ -614,10 +643,9 @@
                         var otp = trimToEmpty(otpInput.value);
                         await requestJson("/api/web-auth/forgot-password/verify-otp", {
                             method: "POST",
-                            body: JSON.stringify({
-                                email: email,
+                            body: JSON.stringify(Object.assign({}, identifierPayload, {
                                 otp: otp
-                            })
+                            }))
                         });
 
                         await hidePopup();
@@ -638,8 +666,10 @@
         });
     }
 
-    async function showForgotPasswordResetPopup(root, email, otp) {
+    async function showForgotPasswordResetPopup(root, identifier, otp) {
         return new Promise(function (resolve) {
+            var identifierPayload = buildIdentifierPayload(identifier);
+
             showPopupFrame({
                 title: "Đặt mật khẩu mới",
                 message: "OTP đã hợp lệ. Nhập mật khẩu mới để hoàn tất và đăng nhập ngay.",
@@ -776,12 +806,11 @@
                     try {
                         await requestJson("/api/web-auth/forgot-password/reset", {
                             method: "POST",
-                            body: JSON.stringify({
-                                email: email,
+                            body: JSON.stringify(Object.assign({}, identifierPayload, {
                                 otp: otp,
                                 newPassword: trimToEmpty(newPasswordInput.value),
                                 confirmPassword: trimToEmpty(confirmPasswordInput.value)
-                            })
+                            }))
                         });
 
                         await hidePopup();
@@ -804,24 +833,24 @@
 
     function initLoginPage(root) {
         var form = qs('[data-auth-form="login"]', root);
-        var emailInput = qs("[data-auth-email]", root);
+        var identifierInput = qs("[data-auth-identifier]", root);
         var passwordInput = qs("[data-auth-password]", root);
         var forgotLink = qs("[data-auth-forgot-link]", root);
         var loading = false;
 
         function syncButton() {
-            var canSubmit = isEmail(emailInput && emailInput.value) &&
+            var canSubmit = isValidIdentifier(identifierInput && identifierInput.value) &&
                 trimToEmpty(passwordInput && passwordInput.value).length >= 6;
 
             setSubmitState(root, canSubmit, loading, "Đăng nhập", "Đang đăng nhập...");
             if (forgotLink) {
-                forgotLink.href = buildForgotPasswordHref(root, emailInput && emailInput.value);
+                forgotLink.href = buildForgotPasswordHref(root, identifierInput && identifierInput.value);
             }
 
             return canSubmit;
         }
 
-        [emailInput, passwordInput].forEach(function (input) {
+        [identifierInput, passwordInput].forEach(function (input) {
             if (!input) {
                 return;
             }
@@ -831,6 +860,13 @@
                 syncButton();
             });
         });
+
+        if (identifierInput) {
+            identifierInput.addEventListener("blur", function () {
+                identifierInput.value = normalizeIdentifier(identifierInput.value);
+                syncButton();
+            });
+        }
 
         form.addEventListener("submit", async function (event) {
             event.preventDefault();
@@ -843,12 +879,12 @@
             syncButton();
 
             try {
+                var identifierPayload = buildIdentifierPayload(identifierInput.value);
                 await requestJson("/api/web-auth/login", {
                     method: "POST",
-                    body: JSON.stringify({
-                        identifier: trimToEmpty(emailInput.value),
+                    body: JSON.stringify(Object.assign({}, identifierPayload, {
                         password: passwordInput.value || ""
-                    })
+                    }))
                 });
 
                 safeRedirect(getReturnUrl(root));
@@ -866,17 +902,22 @@
 
     function initForgotPasswordPage(root) {
         var form = qs('[data-auth-form="forgot-password"]', root);
-        var emailInput = qs("[data-auth-email]", root);
+        var identifierInput = qs("[data-auth-identifier]", root);
         var loading = false;
 
         function syncButton() {
-            var canSubmit = isEmail(emailInput && emailInput.value);
-            setSubmitState(root, canSubmit, loading, "Gửi mã OTP", "Đang gửi email...");
+            var canSubmit = isValidIdentifier(identifierInput && identifierInput.value);
+            setSubmitState(root, canSubmit, loading, "Gửi mã OTP", "Đang gửi OTP...");
             return canSubmit;
         }
 
-        emailInput.addEventListener("input", function () {
+        identifierInput.addEventListener("input", function () {
             setError(root, "");
+            syncButton();
+        });
+
+        identifierInput.addEventListener("blur", function () {
+            identifierInput.value = normalizeIdentifier(identifierInput.value);
             syncButton();
         });
 
@@ -891,20 +932,19 @@
             syncButton();
 
             try {
-                var email = trimToEmpty(emailInput.value);
+                var identifierPayload = buildIdentifierPayload(identifierInput.value);
+                var identifier = identifierPayload.identifier;
                 await requestJson("/api/web-auth/forgot-password", {
                     method: "POST",
-                    body: JSON.stringify({
-                        email: email
-                    })
+                    body: JSON.stringify(identifierPayload)
                 });
 
-                var otp = await showForgotPasswordOtpPopup(root, email);
+                var otp = await showForgotPasswordOtpPopup(root, identifier);
                 if (!otp) {
                     return;
                 }
 
-                var resetDone = await showForgotPasswordResetPopup(root, email, otp);
+                var resetDone = await showForgotPasswordResetPopup(root, identifier, otp);
                 if (!resetDone) {
                     return;
                 }
@@ -1092,7 +1132,7 @@
                     title: "OTP đã được gửi",
                     message: payload && payload.message
                         ? payload.message
-                        : "Vui lòng kiểm tra email để lấy mã OTP xác thực tài khoản.",
+                        : "Vui lòng kiểm tra Zalo hoặc email dự phòng để lấy mã OTP xác thực tài khoản.",
                     confirmText: "Nhập OTP",
                     variant: "info",
                     icon: "mail-outline"
@@ -1100,6 +1140,7 @@
 
                 var otpUrl = new URL("/PickleballWeb/RegisterOtp", window.location.origin);
                 otpUrl.searchParams.set("email", trimToEmpty(emailInput.value));
+                otpUrl.searchParams.set("phone", normalizePhone(phoneInput.value));
                 otpUrl.searchParams.set("fullName", trimToEmpty(fullNameInput.value));
                 otpUrl.searchParams.set("agreedToTerms", agreedToTerms ? "true" : "false");
                 otpUrl.searchParams.set("returnUrl", getReturnUrl(root));
@@ -1119,6 +1160,7 @@
         var otpInput = qs("[data-auth-otp]", root);
         var resendButton = qs("[data-auth-resend]", root);
         var email = trimToEmpty(root.getAttribute("data-auth-email"));
+        var phone = normalizePhone(root.getAttribute("data-auth-phone"));
         var fullName = trimToEmpty(root.getAttribute("data-auth-fullname"));
         var agreedToTerms = trimToEmpty(root.getAttribute("data-auth-terms")) === "true";
         var loading = false;
@@ -1129,15 +1171,15 @@
             setSubmitState(root, canSubmit, loading, "Xác nhận OTP", "Đang xác nhận...");
 
             if (resendButton) {
-                resendButton.disabled = resending || loading || !email;
+                resendButton.disabled = resending || loading || !phone;
                 resendButton.textContent = resending ? "Đang gửi lại..." : "Gửi lại OTP";
             }
 
             return canSubmit;
         }
 
-        if (qs("[data-auth-email-text]", root) && email) {
-            qs("[data-auth-email-text]", root).textContent = email;
+        if (qs("[data-auth-phone-text]", root) && phone) {
+            qs("[data-auth-phone-text]", root).textContent = phone;
         }
 
         if (qs("[data-auth-fullname-text]", root) && fullName) {
@@ -1153,7 +1195,7 @@
 
         form.addEventListener("submit", async function (event) {
             event.preventDefault();
-            if (loading || !syncButton() || !email) {
+            if (loading || !syncButton() || !phone) {
                 return;
             }
 
@@ -1165,6 +1207,8 @@
                 await requestJson("/api/web-auth/confirm-otp", {
                     method: "POST",
                     body: JSON.stringify({
+                        identifier: phone,
+                        phone: phone,
                         email: email,
                         otp: trimToEmpty(otpInput.value)
                     })
@@ -1193,7 +1237,7 @@
 
         if (resendButton) {
             resendButton.addEventListener("click", async function () {
-                if (resending || loading || !email) {
+                if (resending || loading || !phone) {
                     return;
                 }
 
@@ -1205,6 +1249,8 @@
                     var payload = await requestJson("/api/web-auth/resend-otp", {
                         method: "POST",
                         body: JSON.stringify({
+                            identifier: phone,
+                            phone: phone,
                             email: email
                         })
                     });
@@ -1213,7 +1259,7 @@
                         title: "Đã gửi lại OTP",
                         message: payload && payload.message
                             ? payload.message
-                            : "Mã OTP mới đã được gửi về email của bạn.",
+                            : "Mã OTP mới đã được gửi về số điện thoại của bạn.",
                         confirmText: "Đã hiểu",
                         variant: "info",
                         icon: "mail-outline"

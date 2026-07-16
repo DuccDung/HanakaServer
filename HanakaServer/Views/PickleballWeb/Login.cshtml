@@ -12,6 +12,10 @@
 @{
     var encodedReturnUrl = Uri.EscapeDataString(Model.ReturnUrl);
     var forgotPasswordHref = $"/PickleballWeb/ForgotPassword?returnUrl={encodedReturnUrl}";
+    if (!string.IsNullOrWhiteSpace(Model.Identifier))
+    {
+        forgotPasswordHref += $"&identifier={Uri.EscapeDataString(Model.Identifier)}";
+    }
 }
 
 <div class="auth-screen auth-screen--login"
@@ -23,15 +27,16 @@
         <div class="container mobile-web-screen__container">
             <section class="auth-login-card">
                 <form data-auth-form="login" novalidate>
-                    <label class="auth-label" for="auth-login-email">Email</label>
+                    <label class="auth-label" for="auth-login-identifier">Số điện thoại hoặc email</label>
                     <div class="auth-input-wrap">
-                        <input id="auth-login-email"
+                        <input id="auth-login-identifier"
                                class="auth-input"
-                               type="email"
-                               placeholder="vd: admin@hanaka.com"
-                               autocomplete="email"
-                               value="@Model.Email"
-                               data-auth-email />
+                               type="text"
+                               placeholder="0987654321 hoặc a@test.com"
+                               autocomplete="username"
+                               inputmode="text"
+                               value="@Model.Identifier"
+                               data-auth-identifier />
                     </div>
 
                     <label class="auth-label auth-label--offset" for="auth-login-password">Mật khẩu</label>

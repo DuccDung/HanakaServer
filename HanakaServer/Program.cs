@@ -39,6 +39,8 @@ builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<IOtpEmailService, OtpEmailService>();
 builder.Services.AddScoped<IOtpGenerator, OtpGenerator>();
 builder.Services.AddScoped<IUserOtpService, UserOtpService>();
+builder.Services.AddHttpClient<IZaloOtpSender, AbenlaZaloOtpSender>();
+builder.Services.AddScoped<IOtpDeliveryService, OtpDeliveryService>();
 builder.Services.AddScoped<IAppAuthService, AppAuthService>();
 builder.Services.AddScoped<IUserRatingService, UserRatingService>();
 builder.Services.AddScoped<TournamentUserNotificationService>();

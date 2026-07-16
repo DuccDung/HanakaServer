@@ -6,7 +6,9 @@ namespace HanakaServer.ViewModels.PickleballWeb
         public string BackHref { get; set; } = "/";
         public string BackLabel { get; set; } = "Quay lại";
         public string ReturnUrl { get; set; } = "/";
+        public string Identifier { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
         public string Gender { get; set; } = string.Empty;
         public bool AgreedToTerms { get; set; }

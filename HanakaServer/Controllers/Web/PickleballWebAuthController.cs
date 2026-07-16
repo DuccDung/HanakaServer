@@ -10,7 +10,11 @@ namespace HanakaServer.Controllers.Web
     public class PickleballWebAuthController : Controller
     {
         [HttpGet("/PickleballWeb/Login")]
-        public async Task<IActionResult> Login([FromQuery] string? returnUrl = null, [FromQuery] string? email = null)
+        public async Task<IActionResult> Login(
+            [FromQuery] string? returnUrl = null,
+            [FromQuery] string? identifier = null,
+            [FromQuery] string? phone = null,
+            [FromQuery] string? email = null)
         {
             var normalizedReturnUrl = NormalizeReturnUrl(returnUrl);
             var redirect = await RedirectIfAuthenticatedAsync(normalizedReturnUrl);
@@ -23,12 +27,18 @@ namespace HanakaServer.Controllers.Web
             {
                 Title = "Đăng nhập",
                 ReturnUrl = normalizedReturnUrl,
-                Email = email?.Trim() ?? string.Empty
+                Identifier = ResolveIdentifier(identifier, phone, email),
+                Email = email?.Trim() ?? string.Empty,
+                Phone = phone?.Trim() ?? string.Empty
             });
         }
 
         [HttpGet("/PickleballWeb/ForgotPassword")]
-        public async Task<IActionResult> ForgotPassword([FromQuery] string? returnUrl = null, [FromQuery] string? email = null)
+        public async Task<IActionResult> ForgotPassword(
+            [FromQuery] string? returnUrl = null,
+            [FromQuery] string? identifier = null,
+            [FromQuery] string? phone = null,
+            [FromQuery] string? email = null)
         {
             var normalizedReturnUrl = NormalizeReturnUrl(returnUrl);
             var redirect = await RedirectIfAuthenticatedAsync(normalizedReturnUrl);
@@ -43,7 +53,9 @@ namespace HanakaServer.Controllers.Web
                 BackHref = "/PickleballWeb/Login",
                 BackLabel = "Đăng nhập",
                 ReturnUrl = normalizedReturnUrl,
-                Email = email?.Trim() ?? string.Empty
+                Identifier = ResolveIdentifier(identifier, phone, email),
+                Email = email?.Trim() ?? string.Empty,
+                Phone = phone?.Trim() ?? string.Empty
             });
         }
 
@@ -69,6 +81,7 @@ namespace HanakaServer.Controllers.Web
         [HttpGet("/PickleballWeb/RegisterOtp")]
         public async Task<IActionResult> RegisterOtp(
             [FromQuery] string? email = null,
+            [FromQuery] string? phone = null,
             [FromQuery] string? fullName = null,
             [FromQuery] bool agreedToTerms = false,
             [FromQuery] string? returnUrl = null)
@@ -87,6 +100,7 @@ namespace HanakaServer.Controllers.Web
                 BackLabel = "Đăng ký",
                 ReturnUrl = normalizedReturnUrl,
                 Email = email?.Trim() ?? string.Empty,
+                Phone = phone?.Trim() ?? string.Empty,
                 FullName = fullName?.Trim() ?? string.Empty,
                 AgreedToTerms = agreedToTerms
             });
@@ -149,6 +163,19 @@ namespace HanakaServer.Controllers.Web
             }
 
             return "/";
+        }
+
+        private static string ResolveIdentifier(params string?[] values)
+        {
+            foreach (var value in values)
+            {
+                if (!string.IsNullOrWhiteSpace(value))
+                {
+                    return value.Trim();
+                }
+            }
+
+            return string.Empty;
         }
     }
 }
