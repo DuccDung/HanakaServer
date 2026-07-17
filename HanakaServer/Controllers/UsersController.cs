@@ -637,7 +637,8 @@ namespace HanakaServer.Controllers
 
             var g = gender.Trim().ToLowerInvariant();
 
-            return g == "Nữ"
+            return g == "nữ"
+                || g == "Nữ"
                 || g == "nu"
                 || g == "female"
                 || g == "f"
@@ -647,11 +648,11 @@ namespace HanakaServer.Controllers
 
         private static (decimal single, decimal @double) GetDefaultInitialRating(string? gender)
         {
-            // Nữ = 1.8, Nam = 2.6
+            // Nữ = 2.0, Nam/không xác định = 2.5
             if (IsFemale(gender))
-                return (1.8m, 1.8m);
+                return (2.0m, 2.0m);
 
-            return (2.6m, 2.6m);
+            return (2.5m, 2.5m);
         }
         private async Task SyncRefereeShadowFromUserAsync(
                             User user,

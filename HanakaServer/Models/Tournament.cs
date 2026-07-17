@@ -55,6 +55,10 @@ public partial class Tournament
 
     public int PairedCount { get; set; }
 
+    public decimal RegistrationFeeAmount { get; set; }
+
+    public string RegistrationFeeCurrency { get; set; } = "VND";
+
     public bool Remove { get; set; }
 
     public string? ZaloLink { get; set; }
@@ -66,6 +70,7 @@ public partial class Tournament
     public string? TournamentRule { get; set; }
 
     public virtual ICollection<TournamentRegistration> TournamentRegistrations { get; set; } = new List<TournamentRegistration>();
+    public virtual ICollection<TournamentRegistrationPayment> TournamentRegistrationPayments { get; set; } = new List<TournamentRegistrationPayment>();
     public virtual ICollection<UserAchievement> UserAchievements { get; set; } = new List<UserAchievement>();
     public virtual ICollection<TournamentPrize> TournamentPrizes { get; set; } = new List<TournamentPrize>();
     public virtual ICollection<TournamentPairRequest> TournamentPairRequests { get; set; } = new List<TournamentPairRequest>();

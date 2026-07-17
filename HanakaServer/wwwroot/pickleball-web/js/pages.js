@@ -100,6 +100,20 @@
         return Number.isFinite(number) ? number.toFixed(2) : "0.00";
     }
 
+    function formatMoney(value, currency) {
+        const number = Number(value);
+        const safeCurrency = trimToEmpty(currency || "VND").toUpperCase() || "VND";
+        if (!Number.isFinite(number)) {
+            return safeCurrency === "VND" ? "0 VND" : `0 ${safeCurrency}`;
+        }
+
+        const formatted = new Intl.NumberFormat("vi-VN", {
+            maximumFractionDigits: safeCurrency === "VND" ? 0 : 2
+        }).format(number);
+
+        return `${formatted} ${safeCurrency}`;
+    }
+
     function initials(name) {
         const words = trimToEmpty(name).split(/\s+/).filter(Boolean).slice(0, 2);
         if (words.length === 0) {
@@ -398,7 +412,8 @@
         reconnectTimer: null,
         pingTimer: null,
         manualClose: false,
-        tournaments: Object.create(null)
+        tournaments: Object.create(null),
+        payments: Object.create(null)
     };
 
     function addTournamentPublicRealtimeListener(listener) {
@@ -446,6 +461,17 @@
             sendTournamentPublicRealtime({
                 type: "tournament.subscribe",
                 tournamentId: Number(key)
+            });
+        });
+
+        Object.keys(tournamentPublicRealtime.payments).forEach(function (key) {
+            if (!tournamentPublicRealtime.payments[key]) {
+                return;
+            }
+
+            sendTournamentPublicRealtime({
+                type: "payment.subscribe",
+                transactionCode: key
             });
         });
     }
@@ -512,6 +538,33 @@
         return sendTournamentPublicRealtime({
             type: "tournament.subscribe",
             tournamentId: id
+        });
+    }
+
+    function subscribeTournamentPaymentRealtime(transactionCode) {
+        const code = trimToEmpty(transactionCode).toUpperCase();
+        if (!code) {
+            return false;
+        }
+
+        tournamentPublicRealtime.payments[code] = true;
+        connectTournamentPublicRealtime();
+        return sendTournamentPublicRealtime({
+            type: "payment.subscribe",
+            transactionCode: code
+        });
+    }
+
+    function unsubscribeTournamentPaymentRealtime(transactionCode) {
+        const code = trimToEmpty(transactionCode).toUpperCase();
+        if (!code) {
+            return false;
+        }
+
+        delete tournamentPublicRealtime.payments[code];
+        return sendTournamentPublicRealtime({
+            type: "payment.unsubscribe",
+            transactionCode: code
         });
     }
 
@@ -2203,6 +2256,8 @@
     function renderTournamentScheduleMatch(match, index) {
         const teamA = trimToEmpty(match?.team1?.displayName) || "\u0110\u1ed9i ch\u01b0a x\u00e1c \u0111\u1ecbnh";
         const teamB = trimToEmpty(match?.team2?.displayName) || "\u0110\u1ed9i ch\u01b0a x\u00e1c \u0111\u1ecbnh";
+        const teamAId = toNumber(match?.team1RegistrationId || match?.team1?.registrationId);
+        const teamBId = toNumber(match?.team2RegistrationId || match?.team2?.registrationId);
         const hasWinner = !!match?.winnerRegistrationId || !!match?.winner || trimToEmpty(match?.winnerTeam);
         const isWinnerA = hasWinner && match?.winnerRegistrationId === match?.team1RegistrationId;
         const isWinnerB = hasWinner && match?.winnerRegistrationId === match?.team2RegistrationId;
@@ -2214,11 +2269,21 @@
             `<div class="tournament-match-card ${hasWinner ? "is-finished" : ""}" data-schedule-match-id="${escapeHtml(String(match?.matchId || ""))}">`,
             `<div class="tournament-match-card__index ${hasWinner ? "is-finished" : ""}" data-schedule-match-index>${index + 1}</div>`,
             '<div class="tournament-match-card__body">',
-            `<p class="tournament-match-card__meta">#${escapeHtml(String(match?.matchId || index + 1))} (${escapeHtml(formatClock(match?.startAt))}; S\u00e2n: ${escapeHtml(courtText)})</p>`,
+            '<div class="tournament-match-card__meta">',
+            `<span>#${escapeHtml(String(match?.matchId || index + 1))}</span>`,
+            `<time>${escapeHtml(formatClock(match?.startAt))}</time>`,
+            "</div>",
+            `<p class="tournament-match-card__court">S\u00e2n: ${escapeHtml(courtText)}</p>`,
             '<div class="tournament-match-card__teams">',
             '<div class="tournament-match-card__teamnames">',
+            '<div class="tournament-match-card__team">',
+            `<span class="tournament-match-card__team-id">${teamAId > 0 ? `ID ${escapeHtml(String(teamAId))}` : "Ch\u01b0a c\u00f3 ID"}</span>`,
             `<strong class="${isWinnerA ? "is-winner" : ""}" data-schedule-team-side="1">${escapeHtml(teamA)}</strong>`,
+            "</div>",
+            '<div class="tournament-match-card__team">',
+            `<span class="tournament-match-card__team-id">${teamBId > 0 ? `ID ${escapeHtml(String(teamBId))}` : "Ch\u01b0a c\u00f3 ID"}</span>`,
             `<strong class="${isWinnerB ? "is-winner" : ""}" data-schedule-team-side="2">${escapeHtml(teamB)}</strong>`,
+            "</div>",
             "</div>",
             '<div class="tournament-match-card__scores">',
             `<span class="${isWinnerA ? "is-winner" : ""}" data-schedule-score-side="1">${escapeHtml(String(toNumber(match?.scoreTeam1)))}</span>`,
@@ -2562,6 +2627,9 @@
                 index: toNumber(item?.regIndex),
                 regCode: trimToEmpty(item?.regCode),
                 regTime: formatSlashDateTime(item?.regTime),
+                paid: !!item?.paid,
+                paidAt: item?.paidAt || null,
+                paymentAmount: item?.paymentAmount ?? null,
                 points: calculateTournamentRegistrationPoints(
                     player1?.level,
                     item?.waitingPair || !item?.player2 ? null : player2Resolved?.level,
@@ -2615,6 +2683,31 @@
             pendingSentUserMap: pendingSentUserMap,
             canRegister: state ? !!state.canRegister : true
         };
+    }
+
+    function getTournamentRegistrationFee(data) {
+        return toNumber(
+            data?.registrations?.tournament?.registrationFeeAmount ??
+            data?.detail?.registrationFeeAmount
+        );
+    }
+
+    function getTournamentRegistrationCurrency(data) {
+        return trimToEmpty(
+            data?.registrations?.tournament?.registrationFeeCurrency ??
+            data?.detail?.registrationFeeCurrency ??
+            "VND"
+        ) || "VND";
+    }
+
+    function isCurrentUserRegistration(item, data) {
+        const viewer = buildTournamentRegistrationViewerState(data);
+        if (!viewer.isAuthenticated || viewer.currentUserId <= 0) {
+            return false;
+        }
+
+        return toNumber(item?.player1?.userId) === viewer.currentUserId ||
+            toNumber(item?.player2?.userId) === viewer.currentUserId;
     }
 
     function resolveTournamentRegistrationInvite(item, data) {
@@ -2732,6 +2825,7 @@
             item?.player2?.name
         ].join(" "));
         const invite = resolveTournamentRegistrationInvite(item, data);
+        const paymentAction = renderTournamentRegistrationPaymentAction(item, data);
 
         return [
             `<article class="tournament-registration-page__item" data-registration-search="${escapeHtml(searchText)}">`,
@@ -2744,7 +2838,42 @@
             renderTournamentRegistrationPlayer(item?.player2, { invite: invite, pickLabel: item?.pickLabel }),
             `<div class="tournament-registration-page__points">${escapeHtml(formatFlexibleNumber(item?.points))}</div>`,
             "</div>",
+            paymentAction,
             "</article>"
+        ].join("");
+    }
+
+    function renderTournamentRegistrationPaymentAction(item, data) {
+        if (!item?.success || item?.waitingPair) {
+            return "";
+        }
+
+        const feeAmount = getTournamentRegistrationFee(data);
+        const currency = getTournamentRegistrationCurrency(data);
+        const paidAmount = toNumber(item?.paymentAmount) > 0 ? toNumber(item.paymentAmount) : feeAmount;
+
+        if (item?.paid) {
+            return [
+                '<div class="tournament-registration-page__payment-row">',
+                '<span class="tournament-registration-page__payment-badge is-paid">',
+                '<ion-icon name="checkmark-circle"></ion-icon>',
+                `<span>\u0110\u00e3 thanh to\u00e1n${paidAmount > 0 ? ` \u00b7 ${escapeHtml(formatMoney(paidAmount, currency))}` : ""}</span>`,
+                "</span>",
+                "</div>"
+            ].join("");
+        }
+
+        if (feeAmount <= 0) {
+            return "";
+        }
+
+        return [
+            '<div class="tournament-registration-page__payment-row">',
+            `<button class="tournament-registration-page__pay-button" type="button" data-registration-pay="${escapeHtml(item.registrationId)}">`,
+            '<ion-icon name="card-outline"></ion-icon>',
+            `<span>Thanh to\u00e1n ${escapeHtml(formatMoney(feeAmount, currency))}</span>`,
+            "</button>",
+            "</div>"
         ].join("");
     }
 
@@ -2804,6 +2933,7 @@
             "</div>",
             '<div class="tournament-registration-page__stats">',
             `<div class="tournament-registration-page__badge is-green"><span>Th\u00e0nh c\u00f4ng</span><strong>${escapeHtml(String(toNumber(counts?.success)))}</strong></div>`,
+            `<div class="tournament-registration-page__badge is-blue"><span>\u0110\u00e3 thanh to\u00e1n</span><strong>${escapeHtml(String(toNumber(counts?.paid)))}</strong></div>`,
             `<div class="tournament-registration-page__badge is-orange"><span>Ch\u1edd gh\u00e9p</span><strong>${escapeHtml(String(toNumber(counts?.waiting)))}</strong></div>`,
             `<div class="tournament-registration-page__badge is-grey"><span>C\u00f2n ch\u1ed7</span><strong>${escapeHtml(String(toNumber(capacityLeft)))}</strong></div>`,
             "</div>",
@@ -2821,6 +2951,116 @@
             "</div>",
             `<div class="tournament-registration-page__list" data-registration-list>${items.map(function (item) { return renderTournamentRegistrationRow(item, data); }).join("")}</div>`,
             '<p class="tournament-registration-page__empty" data-registration-empty hidden>Kh\u00f4ng c\u00f3 d\u1eef li\u1ec7u \u0111\u0103ng k\u00fd.</p>',
+            "</div>"
+        ].join("");
+    }
+
+    function resolveTournamentPaymentRoute() {
+        const match = window.location.pathname.match(/\/PickleballWeb\/Tournament\/(\d+)\/Registration\/(\d+)\/Payment/i);
+        const query = new URLSearchParams(window.location.search);
+
+        return {
+            tournamentId: match ? toNumber(match[1]) : 0,
+            registrationId: match ? toNumber(match[2]) : 0,
+            transactionCode: trimToEmpty(query.get("code") || query.get("transactionCode"))
+        };
+    }
+
+    async function loadTournamentPaymentPage(id) {
+        const route = resolveTournamentPaymentRoute();
+        const transactionCode = route.transactionCode;
+
+        if (!transactionCode) {
+            throw new Error("payment-code-missing");
+        }
+
+        const payment = await requestJson(`/api/tournament-registration-payments/${encodeURIComponent(transactionCode)}`, {
+            method: "GET"
+        });
+
+        return {
+            route: Object.assign({}, route, { tournamentId: route.tournamentId || toNumber(id) }),
+            payment: payment
+        };
+    }
+
+    function renderTournamentPaymentInfoRow(label, value, copyValue, strong) {
+        const safeValue = trimToEmpty(value) || "-";
+        return [
+            '<div class="tournament-payment-info-row">',
+            `<span>${escapeHtml(label)}</span>`,
+            '<strong>',
+            `<span class="${strong ? "is-strong" : ""}">${escapeHtml(safeValue)}</span>`,
+            copyValue
+                ? `<button type="button" data-payment-copy="${escapeHtml(copyValue)}" aria-label="Sao ch\u00e9p ${escapeHtml(label)}"><ion-icon name="copy-outline"></ion-icon></button>`
+                : "",
+            "</strong>",
+            "</div>"
+        ].join("");
+    }
+
+    function renderTournamentPaymentPage(data) {
+        const payment = data?.payment || {};
+        const route = data?.route || {};
+        const transactionCode = trimToEmpty(payment?.transactionCode || route.transactionCode);
+        const isPaid = !!payment?.isPaid;
+        const isExpired = !!payment?.isExpired;
+        const statusClass = isPaid ? "is-paid" : isExpired ? "is-expired" : "is-pending";
+        const amountText = trimToEmpty(payment?.amountText) || formatMoney(payment?.amount, payment?.currency);
+        const listUrl = buildSafeHref(payment?.registrationListUrl || `/PickleballWeb/Tournament/${route.tournamentId}/Registrations`, "#");
+        const qrUrl = trimToEmpty(payment?.qrImageUrl);
+
+        return [
+            `<div class="tournament-payment-page" data-tournament-payment-page data-payment-code="${escapeHtml(transactionCode)}" data-payment-poll-url="${escapeHtml(payment?.pollStatusUrl || "")}" data-payment-paid="${isPaid ? "true" : "false"}">`,
+            `<section class="tournament-payment-status ${escapeHtml(statusClass)}" data-payment-status-panel>`,
+            '<div class="tournament-payment-status__icon"><ion-icon name="checkmark-circle"></ion-icon></div>',
+            '<div>',
+            `<h2 data-payment-status-title>${escapeHtml(payment?.statusTitle || (isPaid ? "\u0110\u00e3 thanh to\u00e1n" : "\u0110ang ch\u1edd thanh to\u00e1n"))}</h2>`,
+            `<p data-payment-status-desc>${escapeHtml(payment?.statusDescription || "Chuy\u1ec3n kho\u1ea3n \u0111\u00fang n\u1ed9i dung \u0111\u1ec3 h\u1ec7 th\u1ed1ng t\u1ef1 x\u00e1c nh\u1eadn.")}</p>`,
+            "</div>",
+            "</section>",
+            '<section class="tournament-payment-layout">',
+            '<article class="tournament-payment-card tournament-payment-card--qr">',
+            '<div class="tournament-payment-card__head">',
+            '<span>Mã QR thanh toán</span>',
+            `<strong>${escapeHtml(transactionCode || "-")}</strong>`,
+            "</div>",
+            qrUrl
+                ? `<div class="tournament-payment-qr ${isPaid ? "is-paid" : ""}" data-payment-qr><img src="${escapeHtml(qrUrl)}" alt="QR thanh to\u00e1n" loading="lazy"></div>`
+                : '<div class="tournament-payment-qr tournament-payment-qr--empty" data-payment-qr>Chưa có mã QR</div>',
+            '<div class="tournament-payment-amount">',
+            '<span>Số tiền</span>',
+            `<strong>${escapeHtml(amountText)}</strong>`,
+            "</div>",
+            "</article>",
+            '<article class="tournament-payment-card tournament-payment-card--details">',
+            '<div class="tournament-payment-card__head">',
+            '<span>Thông tin chuyển khoản</span>',
+            `<strong>ID đội #${escapeHtml(String(toNumber(payment?.registrationId || route.registrationId)))}</strong>`,
+            "</div>",
+            renderTournamentPaymentInfoRow("Giải đấu", payment?.tournamentTitle, "", false),
+            renderTournamentPaymentInfoRow("Đội đấu", payment?.teamName, "", true),
+            renderTournamentPaymentInfoRow("Ngân hàng", payment?.receiverBankShortName || payment?.receiverBankName, "", false),
+            renderTournamentPaymentInfoRow("Số tài khoản", payment?.receiverAccountNumber, payment?.receiverAccountNumber, true),
+            renderTournamentPaymentInfoRow("Chủ tài khoản", payment?.receiverAccountName, "", false),
+            renderTournamentPaymentInfoRow("Nội dung", payment?.transferContent || transactionCode, payment?.transferContent || transactionCode, true),
+            "</article>",
+            "</section>",
+            '<p class="tournament-payment-message" data-payment-message hidden></p>',
+            '<div class="tournament-payment-actions">',
+            `<button type="button" class="tournament-payment-action tournament-payment-action--primary" data-payment-check ${isPaid ? "hidden" : ""}><ion-icon name="sync-outline"></ion-icon><span>Kiểm tra thanh toán</span></button>`,
+            `<a class="tournament-payment-action tournament-payment-action--ghost" href="${escapeHtml(listUrl)}"><ion-icon name="list-outline"></ion-icon><span>Về danh sách</span></a>`,
+            "</div>",
+            '<div class="tournament-payment-success-modal" data-payment-success-modal hidden>',
+            '<div class="tournament-payment-success-modal__backdrop" data-payment-success-close></div>',
+            '<article class="tournament-payment-success-modal__dialog">',
+            '<div class="tournament-payment-success-modal__icon"><ion-icon name="checkmark-circle"></ion-icon></div>',
+            "<h3>Bạn đã thanh toán thành công</h3>",
+            "<p>Hệ thống đã ghi nhận thanh toán cho đội đăng ký này.</p>",
+            `<a href="${escapeHtml(listUrl)}">Về danh sách đăng ký</a>`,
+            '<button type="button" data-payment-success-close>Đóng</button>',
+            "</article>",
+            "</div>",
             "</div>"
         ].join("");
     }
@@ -2966,11 +3206,8 @@
                             : "",
                         isDoubleLike
                             ? [
-                                '<div class="tournament-register-options" role="radiogroup" aria-label="Hinh thuc dang ky">',
-                                '<label><input type="radio" name="mode" value="waiting" checked><span>Ch\u1edd gh\u00e9p</span><small>H\u1ec7 th\u1ed1ng t\u1ea1o phi\u1ebfu 1 ng\u01b0\u1eddi.</small></label>',
-                                '<label><input type="radio" name="mode" value="pair"><span>Gh\u00e9p c\u1eb7p</span><small>G\u1eedi l\u1eddi m\u1eddi cho ng\u01b0\u1eddi b\u1ea1n ch\u1ecdn.</small></label>',
-                                "</div>",
-                                '<div class="tournament-register-partner" data-partner-panel hidden>',
+                                '<input type="hidden" name="mode" value="pair">',
+                                '<div class="tournament-register-partner" data-partner-panel>',
                                 '<label class="tournament-register-field">',
                                 '<span>T\u00ecm v\u1eadn \u0111\u1ed9ng vi\u00ean 2</span>',
                                 '<input type="search" placeholder="Nh\u1eadp t\u00ean, s\u1ed1 \u0111i\u1ec7n tho\u1ea1i, email ho\u1eb7c ID..." autocomplete="off" data-partner-search>',
@@ -3625,6 +3862,7 @@
             kind === "tournament-detail" ||
             kind === "tournament-registrations" ||
             kind === "tournament-register-page" ||
+            kind === "tournament-payment-page" ||
             kind === "tournament-rule-page" ||
             kind === "tournament-schedule-page" ||
             kind === "tournament-bracket-page" ||
@@ -3831,6 +4069,10 @@
     detailConfigs["tournament-register-page"] = {
         load: loadTournamentRegisterPage,
         render: renderTournamentRegisterPage
+    };
+    detailConfigs["tournament-payment-page"] = {
+        load: loadTournamentPaymentPage,
+        render: renderTournamentPaymentPage
     };
     detailConfigs["tournament-rule-page"] = {
         load: loadTournamentRulePage,
@@ -4204,6 +4446,217 @@
         });
     }
 
+    function setTournamentPaymentMessage(page, text, isError) {
+        const message = qs("[data-payment-message]", page);
+        if (!message) {
+            if (text) {
+                window.alert(text);
+            }
+            return;
+        }
+
+        message.hidden = !text;
+        message.textContent = text || "";
+        message.classList.toggle("is-error", !!isError);
+    }
+
+    async function copyTournamentPaymentText(value) {
+        const text = trimToEmpty(value);
+        if (!text) {
+            return false;
+        }
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(text);
+            return true;
+        }
+
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "readonly");
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        const copied = document.execCommand("copy");
+        textarea.remove();
+        return copied;
+    }
+
+    function showTournamentPaymentSuccess(page) {
+        if (page.getAttribute("data-payment-popup-shown") === "true") {
+            return;
+        }
+
+        const modal = qs("[data-payment-success-modal]", page);
+        if (!modal) {
+            window.alert("B\u1ea1n \u0111\u00e3 thanh to\u00e1n th\u00e0nh c\u00f4ng");
+            page.setAttribute("data-payment-popup-shown", "true");
+            return;
+        }
+
+        page.setAttribute("data-payment-popup-shown", "true");
+        modal.hidden = false;
+        window.requestAnimationFrame(function () {
+            modal.classList.add("is-visible");
+        });
+    }
+
+    function applyTournamentPaymentStatus(page, status, options) {
+        const isPaid = !!status?.isPaid;
+        const isExpired = !!status?.isExpired;
+        const panel = qs("[data-payment-status-panel]", page);
+        const title = qs("[data-payment-status-title]", page);
+        const desc = qs("[data-payment-status-desc]", page);
+        const checkButton = qs("[data-payment-check]", page);
+        const qr = qs("[data-payment-qr]", page);
+
+        page.setAttribute("data-payment-paid", isPaid ? "true" : "false");
+
+        if (panel) {
+            panel.classList.remove("is-paid", "is-expired", "is-pending");
+            panel.classList.add(isPaid ? "is-paid" : isExpired ? "is-expired" : "is-pending");
+        }
+
+        if (title && trimToEmpty(status?.statusTitle)) {
+            title.textContent = trimToEmpty(status.statusTitle);
+        }
+
+        if (desc && trimToEmpty(status?.statusDescription)) {
+            desc.textContent = trimToEmpty(status.statusDescription);
+        }
+
+        if (checkButton) {
+            checkButton.hidden = isPaid;
+        }
+
+        if (qr) {
+            qr.classList.toggle("is-paid", isPaid);
+        }
+
+        if (isPaid && options?.showPopup) {
+            showTournamentPaymentSuccess(page);
+        }
+    }
+
+    function initTournamentPaymentPageInteractions(root, data) {
+        const page = qs("[data-tournament-payment-page]", root);
+        if (!page) {
+            return;
+        }
+
+        const transactionCode = trimToEmpty(page.getAttribute("data-payment-code"));
+        const pollUrl = trimToEmpty(page.getAttribute("data-payment-poll-url"));
+        let wasPaid = page.getAttribute("data-payment-paid") === "true";
+        let pollTimer = null;
+        let removeRealtimeListener = null;
+
+        function handleStatus(status, source) {
+            const nextCode = trimToEmpty(status?.transactionCode).toUpperCase();
+            if (transactionCode && nextCode && nextCode !== transactionCode.toUpperCase()) {
+                return;
+            }
+
+            const nextPaid = !!status?.isPaid;
+            applyTournamentPaymentStatus(page, status, {
+                showPopup: nextPaid && !wasPaid
+            });
+            wasPaid = nextPaid || wasPaid;
+
+            if (nextPaid && pollTimer) {
+                window.clearInterval(pollTimer);
+                pollTimer = null;
+            }
+
+            if (source === "manual" && !nextPaid) {
+                setTournamentPaymentMessage(page, "Ch\u01b0a ghi nh\u1eadn thanh to\u00e1n. Vui l\u00f2ng ki\u1ec3m tra l\u1ea1i sau v\u00e0i gi\u00e2y.", false);
+            }
+        }
+
+        async function pollStatus(source) {
+            if (!pollUrl || wasPaid) {
+                return;
+            }
+
+            try {
+                const status = await requestJson(pollUrl, { method: "GET" });
+                handleStatus(status, source || "poll");
+            } catch (_error) {
+                if (source === "manual") {
+                    setTournamentPaymentMessage(page, "Kh\u00f4ng th\u1ec3 ki\u1ec3m tra thanh to\u00e1n l\u00fac n\u00e0y.", true);
+                }
+            }
+        }
+
+        page.addEventListener("click", async function (event) {
+            const copyButton = event.target.closest("[data-payment-copy]");
+            if (copyButton) {
+                try {
+                    await copyTournamentPaymentText(copyButton.getAttribute("data-payment-copy"));
+                    setTournamentPaymentMessage(page, "\u0110\u00e3 sao ch\u00e9p.", false);
+                } catch (_error) {
+                    setTournamentPaymentMessage(page, "Kh\u00f4ng th\u1ec3 sao ch\u00e9p.", true);
+                }
+                return;
+            }
+
+            const closeButton = event.target.closest("[data-payment-success-close]");
+            if (closeButton) {
+                const modal = qs("[data-payment-success-modal]", page);
+                if (modal) {
+                    modal.classList.remove("is-visible");
+                    window.setTimeout(function () {
+                        modal.hidden = true;
+                    }, 180);
+                }
+                return;
+            }
+
+            const checkButton = event.target.closest("[data-payment-check]");
+            if (checkButton) {
+                checkButton.disabled = true;
+                await pollStatus("manual");
+                checkButton.disabled = false;
+            }
+        });
+
+        if (transactionCode) {
+            subscribeTournamentPaymentRealtime(transactionCode);
+            removeRealtimeListener = addTournamentPublicRealtimeListener(function (event) {
+                if (trimToEmpty(event?.type) !== "tournament.payment.status.updated") {
+                    return;
+                }
+
+                handleStatus(event?.payload || {}, "realtime");
+            });
+        }
+
+        if (!wasPaid && pollUrl) {
+            pollTimer = window.setInterval(function () {
+                pollStatus("poll");
+            }, 3000);
+            window.setTimeout(function () {
+                pollStatus("poll");
+            }, 900);
+        }
+
+        window.addEventListener("pagehide", function () {
+            if (pollTimer) {
+                window.clearInterval(pollTimer);
+                pollTimer = null;
+            }
+
+            if (removeRealtimeListener) {
+                removeRealtimeListener();
+                removeRealtimeListener = null;
+            }
+
+            if (transactionCode) {
+                unsubscribeTournamentPaymentRealtime(transactionCode);
+            }
+        }, { once: true });
+    }
+
     function initTournamentRegistrationSearch(root) {
         const input = qs("[data-registration-search-input]", root);
         const rows = qsa("[data-registration-search]", root);
@@ -4259,6 +4712,9 @@
             feedback.hidden = !text;
             feedback.textContent = text || "";
             feedback.classList.toggle("is-error", !!isError);
+            if (text) {
+                feedback.scrollIntoView({ block: "center", behavior: "smooth" });
+            }
         }
 
         function setBusy(button, busyText) {
@@ -4280,6 +4736,57 @@
                 }
             };
         }
+
+        function setPaymentBusy(button, busyHtml) {
+            const previousHtml = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = busyHtml || "\u0110ang t\u1ea1o m\u00e3...";
+
+            return function restore() {
+                if (!button.isConnected) {
+                    return;
+                }
+
+                button.innerHTML = previousHtml;
+                button.disabled = false;
+            };
+        }
+
+        list.addEventListener("click", async function (event) {
+            const button = event.target.closest("[data-registration-pay]");
+            if (!button) {
+                return;
+            }
+
+            const registrationId = toNumber(button.getAttribute("data-registration-pay"));
+            if (registrationId <= 0) {
+                return;
+            }
+
+            const restore = setPaymentBusy(button, "\u0110ang t\u1ea1o m\u00e3...");
+            setFeedback("", false);
+
+            try {
+                const payload = await requestJson(`/api/tournament-registration-payments/registrations/${registrationId}/checkout`, {
+                    method: "POST"
+                });
+                const transactionCode = trimToEmpty(payload?.transactionCode);
+                if (!transactionCode) {
+                    throw new Error("Kh\u00f4ng nh\u1eadn \u0111\u01b0\u1ee3c m\u00e3 thanh to\u00e1n.");
+                }
+
+                window.location.href = `/PickleballWeb/Tournament/${tournamentId}/Registration/${registrationId}/Payment?code=${encodeURIComponent(transactionCode)}`;
+            } catch (error) {
+                restore();
+
+                if (error?.status === 401) {
+                    window.location.href = `/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+                    return;
+                }
+
+                setFeedback(error?.message || "Kh\u00f4ng th\u1ec3 t\u1ea1o m\u00e3 thanh to\u00e1n.", true);
+            }
+        });
 
         list.addEventListener("click", async function (event) {
             const button = event.target.closest("[data-registration-invite], [data-registration-invite-mode='login']");
@@ -4527,14 +5034,12 @@
                 event.preventDefault();
                 setMessage("", false);
 
-                const mode = form.elements.mode ? trimToEmpty(form.elements.mode.value) : (gameType === "SINGLE" ? "single" : "waiting");
+                const mode = form.elements.mode ? trimToEmpty(form.elements.mode.value) : (gameType === "SINGLE" ? "single" : "pair");
                 let url = "";
                 let body = null;
 
                 if (mode === "single") {
                     url = `/api/tournament-registrations/tournaments/${tournamentId}/single`;
-                } else if (mode === "waiting") {
-                    url = `/api/tournament-registrations/tournaments/${tournamentId}/waiting`;
                 } else if (mode === "pair") {
                     const partnerId = Number(partnerIdInput && partnerIdInput.value);
                     if (!Number.isFinite(partnerId) || partnerId <= 0) {
@@ -4669,6 +5174,10 @@
             initTournamentRegisterPageInteractions(root, data);
         }
 
+        if (kind === "tournament-payment-page") {
+            initTournamentPaymentPageInteractions(root, data);
+        }
+
         if (kind === "tournament-schedule-page" || kind === "tournament-standings-page") {
             initTournamentTabGroup(root, "schedule");
             initTournamentTabGroup(root, "standings");
@@ -4711,6 +5220,7 @@
             kind === "tournament-detail" ||
             kind === "tournament-registrations" ||
             kind === "tournament-register-page" ||
+            kind === "tournament-payment-page" ||
             kind === "tournament-rule-page" ||
             kind === "tournament-schedule-page" ||
             kind === "tournament-bracket-page" ||
@@ -4722,6 +5232,8 @@
                     ? "Danh s\u00e1ch \u0111\u0103ng k\u00fd"
                     : kind === "tournament-register-page"
                         ? "\u0110\u0103ng k\u00ed gi\u1ea3i"
+                    : kind === "tournament-payment-page"
+                        ? "Thanh to\u00e1n \u0111\u0103ng k\u00fd"
                     : kind === "tournament-rule-page"
                         ? "Th\u1ec3 l\u1ec7 gi\u1ea3i"
                         : kind === "tournament-schedule-page"
@@ -4789,6 +5301,7 @@
                 kind === "tournament-detail" ||
                 kind === "tournament-registrations" ||
                 kind === "tournament-register-page" ||
+                kind === "tournament-payment-page" ||
                 kind === "tournament-rule-page" ||
                 kind === "tournament-schedule-page" ||
                 kind === "tournament-bracket-page" ||

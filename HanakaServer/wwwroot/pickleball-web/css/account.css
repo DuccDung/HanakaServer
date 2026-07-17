@@ -219,6 +219,128 @@
     background: #FFFFFF;
 }
 
+.account-rating-card {
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px solid #BBF7D0;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #F0FDF4 0%, #FFFFFF 100%);
+}
+
+.account-rating-card__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.account-rating-card__header h2 {
+    margin: 0;
+    color: #14532D;
+    font-size: 1rem;
+    font-weight: 900;
+}
+
+.account-rating-card__header p {
+    margin: 4px 0 0;
+    color: #4B5563;
+    font-size: 0.75rem;
+}
+
+.account-rating-card__toggle {
+    display: inline-flex;
+    min-height: 34px;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 0 10px;
+    border: 1px solid #86EFAC;
+    border-radius: 10px;
+    background: #FFFFFF;
+    color: #166534;
+    font-size: 0.75rem;
+    font-weight: 800;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.account-rating-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.account-rating-summary__item {
+    display: grid;
+    gap: 3px;
+    padding: 12px;
+    border: 1px solid #DCFCE7;
+    border-radius: 12px;
+    background: #FFFFFF;
+}
+
+.account-rating-summary__item span {
+    color: #4B5563;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.account-rating-summary__item strong {
+    color: #15803D;
+    font-size: 1.35rem;
+    font-weight: 900;
+    line-height: 1;
+}
+
+.account-rating-history {
+    margin-top: 12px;
+    border-top: 1px solid #DCFCE7;
+    padding-top: 10px;
+}
+
+.account-rating-history__list {
+    display: grid;
+    gap: 8px;
+}
+
+.account-rating-history__item {
+    padding: 10px;
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+    background: #FFFFFF;
+}
+
+.account-rating-history__scores {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.account-rating-history__scores span {
+    color: #4B5563;
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.account-rating-history__scores strong {
+    color: #166534;
+    font-weight: 900;
+}
+
+.account-rating-history__meta,
+.account-rating-history__note,
+.account-rating-history__empty {
+    margin: 6px 0 0;
+    color: #6B7280;
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+.account-rating-history__note {
+    color: #374151;
+}
+
 .account-label {
     display: block;
     margin-bottom: 6px;

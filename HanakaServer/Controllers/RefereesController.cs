@@ -124,9 +124,9 @@ namespace HanakaServer.Controllers
         private static (decimal single, decimal @double) GetDefaultInitialRating(string? gender)
         {
             if (IsFemale(gender))
-                return (1.8m, 1.8m);
+                return (2.0m, 2.0m);
 
-            return (2.6m, 2.6m);
+            return (2.5m, 2.5m);
         }
 
         /// <summary>

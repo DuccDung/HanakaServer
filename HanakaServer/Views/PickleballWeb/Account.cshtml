@@ -51,10 +51,36 @@
                 Thành viên:
                 <strong data-account-verified-text>Đang tải</strong>
             </p>
-            <p class="account-status-subtext">
-                Cộng đồng:
-                <strong data-account-community-text>Đang tải</strong>
-            </p>
+
+            <section class="account-rating-card" data-account-rating-card>
+                <div class="account-rating-card__header">
+                    <div>
+                        <h2>Điểm trình</h2>
+                        <p data-account-rating-updated>Đang tải</p>
+                    </div>
+                    <button class="account-rating-card__toggle" type="button" data-account-rating-toggle>
+                        <span data-account-rating-toggle-text>Xem lịch sử</span>
+                        <ion-icon name="chevron-down" data-account-rating-toggle-icon></ion-icon>
+                    </button>
+                </div>
+
+                <div class="account-rating-summary">
+                    <div class="account-rating-summary__item">
+                        <span>Đơn</span>
+                        <strong data-account-rating-single>--</strong>
+                    </div>
+                    <div class="account-rating-summary__item">
+                        <span>Đôi</span>
+                        <strong data-account-rating-double>--</strong>
+                    </div>
+                </div>
+
+                <div class="account-rating-history" data-account-rating-history hidden>
+                    <div class="account-rating-history__list" data-account-rating-history-list>
+                        <p class="account-rating-history__empty">Đang tải lịch sử điểm trình...</p>
+                    </div>
+                </div>
+            </section>
 
             <section class="account-card">
                 <label class="account-label" for="account-user-id">User ID</label>

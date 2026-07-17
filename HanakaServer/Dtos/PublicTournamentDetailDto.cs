@@ -25,6 +25,8 @@
 
         public decimal SingleLimit { get; set; }
         public decimal DoubleLimit { get; set; }
+        public decimal RegistrationFeeAmount { get; set; }
+        public string RegistrationFeeCurrency { get; set; } = "VND";
 
         public string? LocationText { get; set; }
         public string? AreaText { get; set; }

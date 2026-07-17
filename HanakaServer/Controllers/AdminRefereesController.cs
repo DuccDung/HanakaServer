@@ -80,9 +80,9 @@ namespace HanakaServer.Controllers.Admin
         private static (decimal single, decimal doubleScore) GetDefaultInitialRating(string? gender)
         {
             if (IsFemale(gender))
-                return (1.8m, 1.8m);
+                return (2.0m, 2.0m);
 
-            return (2.6m, 2.6m);
+            return (2.5m, 2.5m);
         }
 
         private async Task<(decimal? RatingSingle, decimal? RatingDouble, DateTime? RatedAt)> GetLatestRatingAsync(long userId)

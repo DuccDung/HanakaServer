@@ -19,6 +19,8 @@ namespace HanakaServer.Dtos
 
         public decimal? SingleLimit { get; set; }
         public decimal? DoubleLimit { get; set; }
+        public decimal? RegistrationFeeAmount { get; set; }
+        public string? RegistrationFeeCurrency { get; set; }
         public string? TournamentRule { get; set; }
         public string? Content { get; set; }
         public string? ZaloLink { get; set; }
@@ -53,6 +55,8 @@ namespace HanakaServer.Dtos
         public DateTime CreatedAt { get; set; }
         public decimal? SingleLimit { get; set; }
         public decimal? DoubleLimit { get; set; }
+        public decimal RegistrationFeeAmount { get; set; }
+        public string RegistrationFeeCurrency { get; set; } = "VND";
 
         public string? FormatText { get; set; }
         public string? PlayoffType { get; set; }
@@ -84,6 +88,8 @@ namespace HanakaServer.Dtos
 
         public decimal? SingleLimit { get; set; }
         public decimal? DoubleLimit { get; set; }
+        public decimal? RegistrationFeeAmount { get; set; }
+        public string? RegistrationFeeCurrency { get; set; }
 
         public string? Content { get; set; }
         public string? TournamentRule { get; set; }

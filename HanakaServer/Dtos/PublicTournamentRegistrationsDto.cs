@@ -23,6 +23,9 @@ namespace HanakaServer.Dtos
 
         public bool WaitingPair { get; set; }
         public bool Success { get; set; }
+        public bool Paid { get; set; }
+        public DateTime? PaidAt { get; set; }
+        public decimal? PaymentAmount { get; set; }
 
         public PublicPlayerDto Player1 { get; set; } = new();
         public PublicPlayerDto? Player2 { get; set; }  // waiting => null
@@ -32,6 +35,7 @@ namespace HanakaServer.Dtos
     {
         public int Success { get; set; }        // số bản ghi success (DOUBLE => số đội)
         public int Waiting { get; set; }        // số bản ghi waiting
+        public int Paid { get; set; }           // số đội/bản ghi đã thanh toán
         public int CapacityLeft { get; set; }   // còn chỗ (theo ExpectedTeams - success)
     }
 

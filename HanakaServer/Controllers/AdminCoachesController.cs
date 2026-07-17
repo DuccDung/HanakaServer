@@ -69,7 +69,8 @@ namespace HanakaServer.Controllers.Admin
 
             var g = gender.Trim().ToLowerInvariant();
 
-            return g == "Nữ"
+            return g == "nữ"
+                || g == "Nữ"
                 || g == "nu"
                 || g == "female"
                 || g == "f"
@@ -80,9 +81,9 @@ namespace HanakaServer.Controllers.Admin
         private static (decimal single, decimal @double) GetDefaultInitialRating(string? gender)
         {
             if (IsFemale(gender))
-                return (1.8m, 1.8m);
+                return (2.0m, 2.0m);
 
-            return (2.3m, 2.3m);
+            return (2.5m, 2.5m);
         }
 
         private async Task<(decimal? RatingSingle, decimal? RatingDouble, DateTime? RatedAt)> GetLatestRatingAsync(long userId)

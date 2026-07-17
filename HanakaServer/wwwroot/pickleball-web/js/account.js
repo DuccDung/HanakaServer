@@ -154,6 +154,38 @@
         return dd + "/" + mm + "/" + yyyy;
     }
 
+    function formatDateTimeDDMMYYYY(value) {
+        if (!value) {
+            return "";
+        }
+
+        var date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            return "";
+        }
+
+        var dd = String(date.getDate()).padStart(2, "0");
+        var mm = String(date.getMonth() + 1).padStart(2, "0");
+        var yyyy = date.getFullYear();
+        var hh = String(date.getHours()).padStart(2, "0");
+        var mi = String(date.getMinutes()).padStart(2, "0");
+
+        return dd + "/" + mm + "/" + yyyy + " " + hh + ":" + mi;
+    }
+
+    function formatRatingScore(value) {
+        if (value === null || value === undefined || value === "") {
+            return "--";
+        }
+
+        var numberValue = Number(value);
+        if (Number.isNaN(numberValue)) {
+            return "--";
+        }
+
+        return numberValue.toFixed(2).replace(/\.?0+$/, "");
+    }
+
     function normalizeDateOnly(value) {
         var raw = trimToEmpty(value);
         if (!raw) {
@@ -217,7 +249,10 @@
             birthOfDate: "",
             avatarUrl: "",
             updatedAt: "",
-            verified: false
+            verified: false,
+            ratingSingle: null,
+            ratingDouble: null,
+            ratingUpdatedAt: ""
         };
     }
 
@@ -256,7 +291,10 @@
             birthOfDate: normalizeDateOnly(getProfileValue(value, ["birthOfDate", "BirthOfDate"])),
             avatarUrl: normalizeAvatarUrl(getProfileValue(value, ["avatarUrl", "AvatarUrl"])),
             updatedAt: trimToEmpty(getProfileValue(value, ["updatedAt", "UpdatedAt"])),
-            verified: !!verifiedValue
+            verified: !!verifiedValue,
+            ratingSingle: getProfileValue(value, ["ratingSingle", "RatingSingle"]),
+            ratingDouble: getProfileValue(value, ["ratingDouble", "RatingDouble"]),
+            ratingUpdatedAt: trimToEmpty(getProfileValue(value, ["ratingUpdatedAt", "RatingUpdatedAt"]))
         };
     }
 
@@ -276,7 +314,10 @@
             birthOfDate: profile.birthOfDate,
             avatarUrl: profile.avatarUrl,
             updatedAt: profile.updatedAt,
-            verified: profile.verified
+            verified: profile.verified,
+            ratingSingle: profile.ratingSingle,
+            ratingDouble: profile.ratingDouble,
+            ratingUpdatedAt: profile.ratingUpdatedAt
         };
     }
 
@@ -442,6 +483,15 @@
         });
     }
 
+    async function fetchMyRatingHistory() {
+        return requestJson("/api/users/me/rating-history", {
+            method: "GET",
+            headers: {
+                Accept: "application/json"
+            }
+        });
+    }
+
     function syncFieldValue(field, value) {
         if (!field) {
             return;
@@ -507,6 +557,10 @@
             profile: createEmptyProfile(),
             form: createEmptyProfile(),
             provinceQuery: "",
+            ratingHistoryOpen: false,
+            ratingHistoryLoading: false,
+            ratingHistoryLoaded: false,
+            ratingHistoryItems: [],
             requestId: 0
         };
 
@@ -520,6 +574,14 @@
             avatarHint: qs("[data-account-avatar-hint]", root),
             verifiedText: qs("[data-account-verified-text]", root),
             communityText: qs("[data-account-community-text]", root),
+            ratingUpdated: qs("[data-account-rating-updated]", root),
+            ratingSingle: qs("[data-account-rating-single]", root),
+            ratingDouble: qs("[data-account-rating-double]", root),
+            ratingToggle: qs("[data-account-rating-toggle]", root),
+            ratingToggleText: qs("[data-account-rating-toggle-text]", root),
+            ratingToggleIcon: qs("[data-account-rating-toggle-icon]", root),
+            ratingHistory: qs("[data-account-rating-history]", root),
+            ratingHistoryList: qs("[data-account-rating-history-list]", root),
             userId: qs("[data-account-user-id]", root),
             fullName: qs("[data-account-full-name]", root),
             phone: qs("[data-account-phone]", root),
@@ -612,6 +674,10 @@
 
         function clearProfile() {
             applyProfile(null);
+            state.ratingHistoryOpen = false;
+            state.ratingHistoryLoading = false;
+            state.ratingHistoryLoaded = false;
+            state.ratingHistoryItems = [];
         }
 
         function setFormField(name, value) {
@@ -683,6 +749,49 @@
             }
         }
 
+        function renderRatingHistory() {
+            if (!refs.ratingHistory || !refs.ratingHistoryList) {
+                return;
+            }
+
+            refs.ratingHistory.hidden = !state.ratingHistoryOpen;
+
+            if (!state.ratingHistoryOpen) {
+                return;
+            }
+
+            if (state.ratingHistoryLoading) {
+                refs.ratingHistoryList.innerHTML = '<p class="account-rating-history__empty">Đang tải lịch sử điểm trình...</p>';
+                return;
+            }
+
+            if (!state.ratingHistoryItems.length) {
+                refs.ratingHistoryList.innerHTML = '<p class="account-rating-history__empty">Chưa có lịch sử điểm trình.</p>';
+                return;
+            }
+
+            refs.ratingHistoryList.innerHTML = state.ratingHistoryItems.map(function (item) {
+                var ratedAt = formatDateTimeDDMMYYYY(item.ratedAt || item.RatedAt);
+                var note = trimToEmpty(item.note || item.Note);
+                var ratedByName = trimToEmpty(item.ratedByName || item.RatedByName);
+                var ratedByUserId = item.ratedByUserId || item.RatedByUserId;
+                var sourceText = ratedByName || (ratedByUserId ? "User #" + ratedByUserId : "Hệ thống");
+
+                return [
+                    '<article class="account-rating-history__item">',
+                    '<div class="account-rating-history__scores">',
+                    '<span>Đơn <strong>', escapeHtml(formatRatingScore(item.ratingSingle ?? item.RatingSingle)), '</strong></span>',
+                    '<span>Đôi <strong>', escapeHtml(formatRatingScore(item.ratingDouble ?? item.RatingDouble)), '</strong></span>',
+                    '</div>',
+                    '<p class="account-rating-history__meta">',
+                    escapeHtml(ratedAt || "--"), ' · ', escapeHtml(sourceText),
+                    '</p>',
+                    note ? '<p class="account-rating-history__note">' + escapeHtml(note) + '</p>' : "",
+                    '</article>'
+                ].join("");
+            }).join("");
+        }
+
         function render() {
             var canInteract = state.isAuthenticated &&
                 !state.booting &&
@@ -691,7 +800,16 @@
                 !state.deleting;
 
             refs.verifiedText.textContent = verifiedStatusText();
-            refs.communityText.textContent = getCommunityStateText();
+            if (refs.communityText) {
+                refs.communityText.textContent = getCommunityStateText();
+            }
+            refs.ratingSingle.textContent = formatRatingScore(state.form.ratingSingle);
+            refs.ratingDouble.textContent = formatRatingScore(state.form.ratingDouble);
+            refs.ratingUpdated.textContent = state.isAuthenticated
+                ? (state.form.ratingUpdatedAt ? "Cập nhật " + formatDateTimeDDMMYYYY(state.form.ratingUpdatedAt) : "Chưa có lịch sử điểm trình")
+                : "Đăng nhập để xem điểm trình";
+            refs.ratingToggleText.textContent = state.ratingHistoryOpen ? "Ẩn lịch sử" : "Xem lịch sử";
+            refs.ratingToggleIcon.setAttribute("name", state.ratingHistoryOpen ? "chevron-up" : "chevron-down");
 
             syncFieldValue(refs.userId, state.form.userId);
             syncFieldValue(refs.fullName, state.form.fullName);
@@ -733,6 +851,8 @@
             setDisabled(refs.deleteButton, !state.isAuthenticated || state.booting || state.deleting);
             setDisabled(refs.logoutButton, !state.isAuthenticated || state.booting);
             refs.changePassword.classList.toggle("is-disabled", !state.isAuthenticated || state.booting);
+            setDisabled(refs.ratingToggle, !state.isAuthenticated || state.booting);
+            renderRatingHistory();
 
             renderSelectOptions(refs.genderList, GENDERS, state.form.gender, function (value) {
                 state.form.gender = value;
@@ -825,6 +945,30 @@
                 }
 
                 state.booting = false;
+                render();
+            }
+        }
+
+        async function loadRatingHistory() {
+            if (!state.isAuthenticated || state.ratingHistoryLoading) {
+                return;
+            }
+
+            state.ratingHistoryLoading = true;
+            render();
+
+            try {
+                var payload = await fetchMyRatingHistory();
+                state.ratingHistoryItems = Array.isArray(payload && payload.items)
+                    ? payload.items
+                    : [];
+                state.ratingHistoryLoaded = true;
+                showError("");
+            } catch (error) {
+                state.ratingHistoryItems = [];
+                showError(error.message || "Không lấy được lịch sử điểm trình.");
+            } finally {
+                state.ratingHistoryLoading = false;
                 render();
             }
         }
@@ -1102,6 +1246,19 @@
             event.preventDefault();
             window.alert("Vui lòng đăng nhập để đổi mật khẩu.");
             safeLocalRedirect(changePasswordLoginUrl());
+        });
+
+        refs.ratingToggle.addEventListener("click", function () {
+            if (requireLogin("Vui lòng đăng nhập để xem lịch sử điểm trình.", accountLoginUrl())) {
+                return;
+            }
+
+            state.ratingHistoryOpen = !state.ratingHistoryOpen;
+            render();
+
+            if (state.ratingHistoryOpen && !state.ratingHistoryLoaded) {
+                loadRatingHistory();
+            }
         });
 
         window.addEventListener("focus", syncOnFocus);

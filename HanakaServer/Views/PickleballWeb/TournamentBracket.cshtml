@@ -1,7 +1,7 @@
 @model HanakaServer.ViewModels.PickleballWeb.PickleballWebDetailPageViewModel
 @{
     Layout = null;
-    ViewData["Title"] = "So do giai dau | Hanaka Sport";
+    ViewData["Title"] = "Sơ đồ giải đấu | Hanaka Sport";
 
     var tournamentId = ViewBag.TournamentId is long id ? id : Model.EntityId;
 }
@@ -36,13 +36,6 @@
                     </div>
                 </div>
             </div>
-        </div>
-
-        <div class="public-bracket__toolbar" aria-label="Dieu khien phong to thu nho">
-            <button type="button" data-bracket-zoom="out" aria-label="Thu nho">-</button>
-            <span class="public-bracket__zoom" data-bracket-zoom-label>86%</span>
-            <button type="button" data-bracket-zoom="in" aria-label="Phong to">+</button>
-            <button type="button" data-bracket-zoom="reset" aria-label="Dat lai">1x</button>
         </div>
     </main>
 

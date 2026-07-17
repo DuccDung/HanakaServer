@@ -58,6 +58,8 @@ namespace HanakaServer.Controllers
 
                     SingleLimit = x.SingleLimit,
                     DoubleLimit = x.DoubleLimit,
+                    RegistrationFeeAmount = x.RegistrationFeeAmount,
+                    RegistrationFeeCurrency = x.RegistrationFeeCurrency,
 
                     LocationText = x.LocationText,
                     AreaText = x.AreaText,
@@ -121,7 +123,17 @@ namespace HanakaServer.Controllers
             var tournament = await _db.Tournaments
                 .AsNoTracking()
                 .Where(t => t.TournamentId == tournamentId && !t.Remove && t.Status != "DRAFT")
-                .Select(t => new { t.TournamentId, t.ExpectedTeams, t.GameType, t.GenderCategory, t.Title, t.Status })
+                .Select(t => new
+                {
+                    t.TournamentId,
+                    t.ExpectedTeams,
+                    t.GameType,
+                    t.GenderCategory,
+                    t.Title,
+                    t.Status,
+                    t.RegistrationFeeAmount,
+                    t.RegistrationFeeCurrency
+                })
                 .FirstOrDefaultAsync();
 
             if (tournament == null)
@@ -133,6 +145,7 @@ namespace HanakaServer.Controllers
 
             var successCount = await baseQ.CountAsync(x => x.Success);
             var waitingCount = await baseQ.CountAsync(x => x.WaitingPair);
+            var paidCount = await baseQ.CountAsync(x => x.Paid);
             var capacityLeft = Math.Max(0, tournament.ExpectedTeams - successCount);
 
             var q = baseQ;
@@ -171,6 +184,9 @@ namespace HanakaServer.Controllers
                     r.RegCode,
                     r.RegTime,
                     r.Points,
+                    r.Paid,
+                    r.PaidAt,
+                    r.PaymentAmount,
                     r.WaitingPair,
                     r.Success,
 
@@ -256,6 +272,9 @@ namespace HanakaServer.Controllers
                     Points = CalcPoints(isDouble ? "DOUBLE" : "SINGLE", p1Level, player2PickedLevel),
                     WaitingPair = x.WaitingPair,
                     Success = x.Success,
+                    Paid = x.Paid,
+                    PaidAt = x.PaidAt,
+                    PaymentAmount = x.PaymentAmount,
                     Player1 = p1,
                     Player2 = p2
                 };
@@ -277,12 +296,15 @@ namespace HanakaServer.Controllers
                     GenderCategory = tournamentType.GenderCategory,
                     TournamentTypeCode = tournamentType.TournamentTypeCode,
                     TournamentTypeLabel = tournamentType.TournamentTypeLabel,
-                    tournament.ExpectedTeams
+                    tournament.ExpectedTeams,
+                    tournament.RegistrationFeeAmount,
+                    tournament.RegistrationFeeCurrency
                 },
                 Counts = new PublicRegistrationCountsDto
                 {
                     Success = successCount,
                     Waiting = waitingCount,
+                    Paid = paidCount,
                     CapacityLeft = capacityLeft
                 },
                 SuccessItems = successItems,

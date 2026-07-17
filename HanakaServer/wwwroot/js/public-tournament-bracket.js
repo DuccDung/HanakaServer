@@ -100,7 +100,7 @@
     }
 
     function buildRoundLabel(round, roundIndex) {
-        return trimToEmpty(round?.roundLabel) || ("Vong " + (roundIndex + 1));
+        return trimToEmpty(round?.roundLabel) || ("Vòng " + (roundIndex + 1));
     }
 
     function buildSyntheticRoundKey(previousRoundKey, roundIndex) {
@@ -114,7 +114,7 @@
         const parsed = parseTrailingNumber(previousRoundLabel);
         return parsed
             ? parsed.prefix + String(parsed.start + 1).padStart(parsed.width, "0")
-            : "Vong " + (roundIndex + 1);
+            : "Vòng " + (roundIndex + 1);
     }
 
     function normalizeGroupKeyPart(groupName, groupIndex) {
@@ -129,8 +129,8 @@
             .trim();
         const compact = normalized.replace(/\s+/g, " ");
 
-        if (/^Bang\s+\d+$/i.test(compact)) {
-            return "B" + compact.replace(/^Bang\s+/i, "");
+        if (/^Bảng\s+\d+$/i.test(compact) || /^Bang\s+\d+$/i.test(compact)) {
+            return "B" + compact.replace(/^Bảng\s+/i, "").replace(/^Bang\s+/i, "");
         }
 
         if (/^\d+$/.test(compact)) {
@@ -196,19 +196,24 @@
         const sourceRank = toNumber(match?.[prefix + "SourceRank"]);
         const sourceText = trimToEmpty(match?.[prefix + "SourceText"]);
         let badge = "";
+        let label = "";
         let tone = "registration";
 
         if (sourceType === "WINNER_MATCH") {
             badge = sourceMatchId > 0 ? "W#" + sourceMatchId : "WIN";
+            label = sourceMatchId > 0 ? "Thắng trận #" + sourceMatchId : "Thắng trận";
             tone = "winner";
         } else if (sourceType === "LOSER_MATCH") {
             badge = sourceMatchId > 0 ? "L#" + sourceMatchId : "LOS";
+            label = sourceMatchId > 0 ? "Thua trận #" + sourceMatchId : "Thua trận";
             tone = "loser";
         } else if (sourceType === "GROUP_RANK") {
             badge = sourceRank > 0 ? "R" + sourceRank : "R?";
+            label = sourceRank > 0 ? "Hạng " + sourceRank + " bảng" : "Hạng bảng";
             tone = "group-rank";
         } else if (sourceType === "BYE") {
             badge = "BYE";
+            label = "Miễn đấu";
             tone = "bye";
         }
 
@@ -219,6 +224,7 @@
             rank: sourceRank,
             text: sourceText,
             badge: badge,
+            label: label,
             tone: tone,
             isLinked: sourceType !== "REGISTRATION"
         };
@@ -281,7 +287,7 @@
 
     function buildActualGroup(round, group, roundIndex, groupIndex) {
         const roundKey = buildRoundKey(round, roundIndex);
-        const groupName = trimToEmpty(group?.groupName) || ("Bang " + (groupIndex + 1));
+        const groupName = trimToEmpty(group?.groupName) || ("Bảng " + (groupIndex + 1));
         const groupKey = buildGroupDisplayKey(roundKey, groupName, groupIndex);
         const matches = Array.isArray(group?.matches) ? group.matches : [];
         const completedCount = matches.filter(function (match) { return !!match?.isCompleted; }).length;
@@ -424,7 +430,7 @@
     }
 
     function createVirtualGroup(roundStage, groupIndex, previousRound) {
-        const groupName = "Bang " + (groupIndex + 1);
+        const groupName = "Bảng " + (groupIndex + 1);
         const groupKey = buildGroupDisplayKey(roundStage.roundKey, groupName, groupIndex);
         const sourceIndexes = previousRound
             ? buildDistributedSourceIndexes(previousRound.groups.length, Math.max(1, previousRound.groups.length), groupIndex)
@@ -671,7 +677,7 @@
         rounds.forEach(function (round, roundIndex) {
             const x = metrics.leftOffset + roundIndex * (metrics.columnWidth + metrics.columnGap);
             const roundContentHeight = getRoundContentHeight(round, metrics.groupGap);
-            let y = metrics.topOffset + Math.max(0, (contentHeight - roundContentHeight) / 2);
+            let y = metrics.topOffset;
 
             round.x = x;
             round.width = metrics.columnWidth;
@@ -723,8 +729,8 @@
     function buildLayout(payload) {
         const rounds = buildStageRounds(payload);
         const columnWidth = getColumnWidth();
-        const columnGap = window.innerWidth >= 1200 ? 90 : 64;
-        const groupGap = 22;
+        const columnGap = window.innerWidth >= 1200 ? 44 : 28;
+        const groupGap = 14;
         const leftOffset = 44;
         const topOffset = 130;
         const headerTop = 32;
@@ -735,7 +741,6 @@
                 group.height = calculateGroupHeight(group);
             });
         });
-        stretchDependentGroupHeights(rounds, groupGap);
 
         const boardHeight = updateRoundPositions(rounds, {
             columnWidth: columnWidth,
@@ -745,7 +750,7 @@
             topOffset: topOffset,
             bottomPadding: bottomPadding
         });
-        const lines = buildLinePaths(rounds, columnGap);
+        const lines = [];
         const boardWidth = leftOffset * 2 + rounds.length * columnWidth + Math.max(0, rounds.length - 1) * columnGap + 80;
 
         return {
@@ -770,14 +775,14 @@
         }
 
         const viewportWidth = Math.max(0, toNumber(viewport?.clientWidth));
-        const desiredSidePadding = viewportWidth >= 1200 ? 160 : 96;
+        const desiredSidePadding = viewportWidth >= 1200 ? 56 : 32;
         const baseWidth = Math.max(0, toNumber(layout.width));
         const minimumWidth = viewportWidth > 0
-            ? viewportWidth + Math.max(720, desiredSidePadding * 2)
-            : baseWidth + 720;
-        const extraWidth = Math.max(720, minimumWidth - baseWidth);
-        const leftPadding = desiredSidePadding + Math.floor(extraWidth / 2);
-        const rightPadding = desiredSidePadding + Math.ceil(extraWidth / 2);
+            ? Math.max(baseWidth, viewportWidth)
+            : baseWidth;
+        const extraWidth = Math.max(0, minimumWidth - baseWidth);
+        const leftPadding = desiredSidePadding;
+        const rightPadding = desiredSidePadding + extraWidth;
 
         layout.rounds.forEach(function (round) {
             round.x += leftPadding;
@@ -788,8 +793,8 @@
 
         layout.leftOffset += leftPadding;
         layout.width = baseWidth + leftPadding + rightPadding;
-        layout.initialScrollLeft = Math.max(0, leftPadding - 40);
-        layout.lines = buildLinePaths(layout.rounds, layout.columnGap);
+        layout.initialScrollLeft = 0;
+        layout.lines = [];
     }
 
     function renderMatchTeam(match, slotNumber) {
@@ -805,8 +810,9 @@
             source?.isLinked ? "is-" + source.tone : "",
             isResolved ? "is-resolved" : "is-pending"
         ].filter(Boolean).join(" ");
+        const sourceTitle = trimToEmpty(source?.text) || trimToEmpty(source?.label);
         const sourceHtml = source?.isLinked
-            ? '<small class="' + escapeHtml(sourceClasses) + '" title="' + escapeHtml(source.text || "") + '"><b>' + escapeHtml(source.badge) + "</b></small>"
+            ? '<small class="' + escapeHtml(sourceClasses) + '" title="' + escapeHtml(sourceTitle) + '"><b>' + escapeHtml(source.badge) + "</b>" + (source?.label ? '<span>' + escapeHtml(source.label) + "</span>" : "") + "</small>"
             : "";
         const identityHtml = identity
             ? '<small class="pb-match__identity">' + escapeHtml(identity) + "</small>"
@@ -856,7 +862,7 @@
             '<div class="pb-group__body">',
             group.matches.length > 0
                 ? group.matches.map(renderMatch).join("")
-                : '<div class="pb-group__empty">' + escapeHtml(group.isReal ? "Bang nay chua co tran dau." : "Nhanh nay chua co bang hoac tran dau.") + "</div>",
+                : '<div class="pb-group__empty">' + escapeHtml(group.isReal ? "Bảng này chưa có trận đấu." : "Nhánh này chưa có bảng hoặc trận đấu.") + "</div>",
             "</div>",
             "</article>"
         ].join("");
@@ -871,8 +877,8 @@
             '<strong class="pb-round-title__label">' + escapeHtml(round.roundLabel) + "</strong>",
             "</div>",
             '<div class="pb-round-title__meta">',
-            "<span>" + escapeHtml(String(round.groupCount)) + " bang</span>",
-            "<span>" + escapeHtml(String(round.matchCount)) + " tran</span>",
+            "<span>" + escapeHtml(String(round.groupCount)) + " bảng</span>",
+            "<span>" + escapeHtml(String(round.matchCount)) + " trận</span>",
             '<i class="pb-round-title__dot" aria-hidden="true"></i>',
             "</div>",
             "</div>"
@@ -894,9 +900,6 @@
 
     function buildBoardHtml(layout) {
         return [
-            '<svg class="pb-lines" data-bracket-lines="true" viewBox="0 0 ' + escapeHtml(layout.width) + " " + escapeHtml(layout.height) + '" aria-hidden="true">',
-            layout.lines.map(renderLinePath).join(""),
-            "</svg>",
             layout.rounds.map(function (round, roundIndex) {
                 return renderRoundTitle(round, layout.headerTop, roundIndex);
             }).join(""),
@@ -950,6 +953,28 @@
         return "M " + sourceX + " " + sourceY + " H " + midX + " V " + targetY + " H " + targetX;
     }
 
+    function buildSeparatedConnectorPath(source, target, index, count) {
+        const sourceX = Math.round(source.x);
+        const sourceY = Math.round(source.y);
+        const targetX = Math.round(target.x);
+        const targetY = Math.round(target.y);
+        const distance = Math.max(48, Math.abs(targetX - sourceX));
+        const laneOffset = (index - (count - 1) / 2) * 24;
+        let midX = sourceX <= targetX
+            ? sourceX + Math.round(distance * 0.5) + laneOffset
+            : sourceX + 52 + laneOffset;
+
+        if (sourceX <= targetX) {
+            const minMidX = sourceX + 26;
+            const maxMidX = targetX - 26;
+            midX = maxMidX > minMidX
+                ? clamp(midX, minMidX, maxMidX)
+                : sourceX + Math.round(distance / 2);
+        }
+
+        return "M " + sourceX + " " + sourceY + " H " + midX + " V " + targetY + " H " + targetX;
+    }
+
     function getLineClassForSource(sourceType) {
         sourceType = normalizeSourceType(sourceType);
         if (sourceType === "WINNER_MATCH") {
@@ -994,6 +1019,19 @@
             }
 
             if (!sourceElement) {
+                return;
+            }
+
+            const sourceGroup = sourceElement.closest(".pb-group[data-round-index]");
+            const targetGroup = targetSlot.closest(".pb-group[data-round-index]");
+            if (!sourceGroup || !targetGroup) {
+                return;
+            }
+
+            const sourceRoundIndex = toNumber(sourceGroup?.dataset.roundIndex);
+            const targetRoundIndex = toNumber(targetGroup?.dataset.roundIndex);
+
+            if (targetRoundIndex - sourceRoundIndex !== 1) {
                 return;
             }
 
@@ -1099,6 +1137,25 @@
             const sourceYValues = sourcePoints.map(function (point) { return point.y; });
             const minY = Math.min.apply(null, sourceYValues);
             const maxY = Math.max.apply(null, sourceYValues);
+            const sourceSpanY = maxY - minY;
+            const shouldSeparateLongSpan = sourceSpanY > 380;
+
+            if (shouldSeparateLongSpan) {
+                sourcePoints.forEach(function (point, index) {
+                    const dependency = dependencies[point.order];
+                    lines.push({
+                        d: buildSeparatedConnectorPath(
+                            getElementMidpoint(dependency.sourceElement, boardRect, "right", boardScale),
+                            getElementMidpoint(dependency.targetSlot, boardRect, "left", boardScale),
+                            index,
+                            sourcePoints.length
+                        ),
+                        className: point.className + " is-split-long"
+                    });
+                });
+                return;
+            }
+
             const junctionY = Math.round((minY + maxY) / 2);
             const available = targetX - maxSourceX;
             const trunkX = available > 72
@@ -1129,20 +1186,9 @@
     }
 
     function updateBoardLines(board, layout) {
-        const svg = qs("[data-bracket-lines]", board);
-        const dependencyLines = buildDependencyLinePathsFromDom(board);
-        const lines = dependencyLines.length > 0
-            ? dependencyLines
-            : buildLinePaths(layout.rounds, layout.columnGap);
-
-        layout.lines = lines;
-
-        if (!svg) {
-            return;
+        if (layout) {
+            layout.lines = [];
         }
-
-        svg.setAttribute("viewBox", "0 0 " + layout.width + " " + layout.height);
-        svg.innerHTML = lines.map(renderLinePath).join("");
     }
 
     function syncMeasuredLayout(board, layout, onSizeChanged) {
@@ -1170,7 +1216,6 @@
             });
         });
 
-        stretchDependentGroupHeights(layout.rounds, layout.groupGap);
         layout.height = updateRoundPositions(layout.rounds, layout);
         board.style.height = layout.height + "px";
 
@@ -1195,7 +1240,6 @@
             });
         });
 
-        alignDependencyTargetCards(board);
         updateBoardLines(board, layout);
         if (typeof onSizeChanged === "function") {
             onSizeChanged();
@@ -1213,7 +1257,6 @@
         const board = qs("[data-bracket-board]", root);
         const loading = qs("[data-bracket-loading]", root);
         const errorBox = qs("[data-bracket-error]", root);
-        const zoomLabel = qs("[data-bracket-zoom-label]", root);
         let latestPayload = null;
         let latestLayout = null;
         let scale = DEFAULT_SCALE;
@@ -1246,12 +1289,6 @@
             }
         }
 
-        function updateZoomLabel() {
-            if (zoomLabel) {
-                zoomLabel.textContent = Math.round(scale * 100) + "%";
-            }
-        }
-
         function updateSurfaceSize() {
             if (!latestLayout || !surface || !board) {
                 return;
@@ -1264,7 +1301,6 @@
             surface.style.minWidth = width + "px";
             surface.style.minHeight = height + "px";
             board.style.transform = "scale(" + scale + ")";
-            updateZoomLabel();
         }
 
         function setScale(nextScale, anchorClientX, anchorClientY) {
@@ -1478,7 +1514,7 @@
                 board.style.height = "640px";
                 surface.style.width = "100%";
                 surface.style.height = "640px";
-                board.innerHTML = '<div class="public-bracket__loading">Giai dau nay chua co du lieu de dung so do.</div>';
+                board.innerHTML = '<div class="public-bracket__loading">Giải đấu này chưa có dữ liệu để dựng sơ đồ.</div>';
                 updateZoomLabel();
                 return;
             }
@@ -1502,7 +1538,7 @@
 
         async function load() {
             if (!tournamentId) {
-                setError("Thieu tournamentId de tai so do.");
+                setError("Thiếu tournamentId để tải sơ đồ.");
                 return;
             }
 
@@ -1513,9 +1549,9 @@
                 latestPayload = await fetchJson("/api/tournaments/" + tournamentId + "/rounds-with-matches");
                 render(latestPayload);
             } catch (error) {
-                setError(error?.message || "Tai so do that bai.");
+                setError(error?.message || "Tải sơ đồ thất bại.");
                 if (board) {
-                    board.innerHTML = '<div class="public-bracket__loading">Khong tai duoc so do giai dau.</div>';
+                    board.innerHTML = '<div class="public-bracket__loading">Không tải được sơ đồ giải đấu.</div>';
                 }
             } finally {
                 setLoading(false);
@@ -1528,25 +1564,7 @@
             }
         }, 140);
 
-        qsa("[data-bracket-zoom]", root).forEach(function (button) {
-            button.addEventListener("click", function () {
-                const action = trimToEmpty(button.dataset.bracketZoom);
-                const rect = viewport?.getBoundingClientRect?.();
-                const anchorX = rect ? rect.left + rect.width / 2 : undefined;
-                const anchorY = rect ? rect.top + rect.height / 2 : undefined;
-
-                if (action === "in") {
-                    setScale(scale + 0.1, anchorX, anchorY);
-                } else if (action === "out") {
-                    setScale(scale - 0.1, anchorX, anchorY);
-                } else if (action === "reset") {
-                    setScale(DEFAULT_SCALE, anchorX, anchorY);
-                }
-            });
-        });
-
         initGestures();
-        updateZoomLabel();
         window.addEventListener("resize", rerender);
 
         const api = {

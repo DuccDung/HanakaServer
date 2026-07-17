@@ -45,6 +45,10 @@ public partial class TournamentRegistration
 
     public bool Paid { get; set; }
 
+    public DateTime? PaidAt { get; set; }
+
+    public decimal? PaymentAmount { get; set; }
+
     public bool WaitingPair { get; set; }
 
     public bool Success { get; set; }
@@ -56,6 +60,7 @@ public partial class TournamentRegistration
     public virtual User? Player2User { get; set; }
 
     public virtual Tournament Tournament { get; set; } = null!;
+    public virtual ICollection<TournamentRegistrationPayment> TournamentRegistrationPayments { get; set; } = new List<TournamentRegistrationPayment>();
     public virtual ICollection<TournamentPrize> TournamentPrizes { get; set; } = new List<TournamentPrize>();
     public virtual ICollection<TournamentPairRequest> TournamentPairRequests { get; set; } = new List<TournamentPairRequest>();
 }

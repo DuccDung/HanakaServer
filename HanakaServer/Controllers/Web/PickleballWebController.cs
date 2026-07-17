@@ -319,6 +319,22 @@ namespace HanakaServer.Controllers.Web
                 activeTab: "tournaments"));
         }
 
+        [HttpGet("/PickleballWeb/Tournament/{id:long}/Registration/{registrationId:long}/Payment")]
+        public IActionResult TournamentRegistrationPayment(long id, long registrationId)
+        {
+            ViewBag.RegistrationId = registrationId;
+
+            return View("Detail", BuildDetailPage(
+                title: "Thanh toán đăng ký",
+                eyebrow: "SePay QR",
+                description: "Quét mã QR hoặc chuyển khoản đúng nội dung để hệ thống tự xác nhận thanh toán.",
+                pageKind: "tournament-payment-page",
+                entityId: id,
+                backHref: $"/PickleballWeb/Tournament/{id}/Registrations",
+                backLabel: "Danh sách",
+                activeTab: "tournaments"));
+        }
+
         [HttpGet("/PickleballWeb/Tournament/{id:long}/Rule")]
         public IActionResult TournamentRule(long id)
         {

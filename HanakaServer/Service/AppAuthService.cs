@@ -667,10 +667,10 @@ namespace HanakaServer.Services
         {
             if (IsFemale(gender))
             {
-                return (1.8m, 1.8m);
+                return (2.0m, 2.0m);
             }
 
-            return (2.3m, 2.3m);
+            return (2.5m, 2.5m);
         }
 
         private async Task EnsureInitialRatingHistoryAsync(User user, CancellationToken ct)

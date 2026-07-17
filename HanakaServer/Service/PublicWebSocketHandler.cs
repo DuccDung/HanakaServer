@@ -119,6 +119,22 @@ namespace HanakaServer.Services
                     _hub.UnsubscribeVideosFeed(socketId);
                     await SendAsync(ws, new { type = "videos.unsubscribed" }, ct);
                     break;
+
+                case "payment.subscribe":
+                    if (TryGetNonEmptyString(doc.RootElement, "transactionCode", out var transactionCode))
+                    {
+                        _hub.SubscribePayment(socketId, transactionCode);
+                        await SendAsync(ws, new { type = "payment.subscribed", transactionCode }, ct);
+                    }
+                    break;
+
+                case "payment.unsubscribe":
+                    if (TryGetNonEmptyString(doc.RootElement, "transactionCode", out var unsubscribeTransactionCode))
+                    {
+                        _hub.UnsubscribePayment(socketId, unsubscribeTransactionCode);
+                        await SendAsync(ws, new { type = "payment.unsubscribed", transactionCode = unsubscribeTransactionCode }, ct);
+                    }
+                    break;
             }
         }
 
@@ -128,6 +144,18 @@ namespace HanakaServer.Services
             return root.TryGetProperty(propertyName, out var property)
                 && property.TryGetInt64(out value)
                 && value > 0;
+        }
+
+        private static bool TryGetNonEmptyString(JsonElement root, string propertyName, out string value)
+        {
+            value = string.Empty;
+            if (!root.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.String)
+            {
+                return false;
+            }
+
+            value = property.GetString()?.Trim() ?? string.Empty;
+            return !string.IsNullOrWhiteSpace(value);
         }
 
         private static async Task<string> ReadFullMessageAsync(WebSocket ws, byte[] buffer, WebSocketReceiveResult first, CancellationToken ct)

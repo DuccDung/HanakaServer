@@ -36,6 +36,10 @@ public partial class PickleballDbContext : DbContext
 
     public virtual DbSet<TournamentRegistration> TournamentRegistrations { get; set; }
 
+    public virtual DbSet<TournamentRegistrationPayment> TournamentRegistrationPayments { get; set; }
+
+    public virtual DbSet<TournamentSepayWebhook> TournamentSepayWebhooks { get; set; }
+
     public virtual DbSet<TournamentPairRequest> TournamentPairRequests { get; set; }
 
     public virtual DbSet<TournamentRound> TournamentRounds { get; set; }
@@ -970,6 +974,13 @@ public partial class PickleballDbContext : DbContext
                 .HasDefaultValue(false);
             entity.Property(e => e.RegisterDeadline).HasPrecision(0);
             entity.Property(e => e.RegisterDeadlineRaw).HasMaxLength(30);
+            entity.Property(e => e.RegistrationFeeAmount)
+                .HasColumnType("decimal(18, 2)")
+                .HasDefaultValue(0m);
+            entity.Property(e => e.RegistrationFeeCurrency)
+                .HasMaxLength(10)
+                .IsUnicode(false)
+                .HasDefaultValue("VND");
             entity.Property(e => e.SingleLimit).HasColumnType("decimal(4, 2)");
             entity.Property(e => e.StartTime).HasPrecision(0);
             entity.Property(e => e.StartTimeRaw).HasMaxLength(30);
@@ -1002,6 +1013,8 @@ public partial class PickleballDbContext : DbContext
             entity.Property(e => e.Player2Avatar).HasMaxLength(500);
             entity.Property(e => e.Player2Level).HasColumnType("decimal(4, 2)");
             entity.Property(e => e.Player2Name).HasMaxLength(150);
+            entity.Property(e => e.PaidAt).HasPrecision(0);
+            entity.Property(e => e.PaymentAmount).HasColumnType("decimal(18, 2)");
             entity.Property(e => e.Points).HasColumnType("decimal(6, 2)");
             entity.Property(e => e.RegCode).HasMaxLength(50);
             entity.Property(e => e.RegTime).HasPrecision(0);
@@ -1019,6 +1032,124 @@ public partial class PickleballDbContext : DbContext
                 .HasForeignKey(d => d.TournamentId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Reg_Tournament");
+        });
+
+        modelBuilder.Entity<TournamentRegistrationPayment>(entity =>
+        {
+            entity.HasKey(e => e.PaymentId).HasName("PK_TournamentRegistrationPayments");
+
+            entity.HasIndex(e => e.TransactionCode, "UX_TournamentRegistrationPayments_TransactionCode").IsUnique();
+
+            entity.HasIndex(e => new { e.RegistrationId, e.Status, e.CreatedAt }, "IX_TournamentRegistrationPayments_Registration_Status")
+                .IsDescending(false, false, true);
+
+            entity.HasIndex(e => new { e.TournamentId, e.Status, e.CreatedAt }, "IX_TournamentRegistrationPayments_Tournament_Status")
+                .IsDescending(false, false, true);
+
+            entity.HasIndex(e => e.ProviderTransactionId, "IX_TournamentRegistrationPayments_ProviderTransactionId")
+                .HasFilter("[ProviderTransactionId] IS NOT NULL");
+
+            entity.Property(e => e.Amount).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.BankAccountName).HasMaxLength(255);
+            entity.Property(e => e.BankAccountNo)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.BankCode)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.Currency)
+                .HasMaxLength(10)
+                .IsUnicode(false)
+                .HasDefaultValue("VND");
+            entity.Property(e => e.ExpiredAt).HasPrecision(0);
+            entity.Property(e => e.PaidAmount).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.PaidAt).HasPrecision(0);
+            entity.Property(e => e.PaymentMethod)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue("qr_transfer");
+            entity.Property(e => e.Provider)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue("sepay");
+            entity.Property(e => e.ProviderTransactionId)
+                .HasMaxLength(100)
+                .IsUnicode(false);
+            entity.Property(e => e.QrImageUrl).HasMaxLength(1000);
+            entity.Property(e => e.RawResponse).HasColumnType("nvarchar(max)");
+            entity.Property(e => e.Status)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue("pending");
+            entity.Property(e => e.TransactionCode)
+                .HasMaxLength(100)
+                .IsUnicode(false);
+            entity.Property(e => e.TransferContent).HasMaxLength(255);
+            entity.Property(e => e.UpdatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.HasOne(d => d.Registration).WithMany(p => p.TournamentRegistrationPayments)
+                .HasForeignKey(d => d.RegistrationId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_TournamentRegistrationPayments_Registrations");
+
+            entity.HasOne(d => d.Tournament).WithMany(p => p.TournamentRegistrationPayments)
+                .HasForeignKey(d => d.TournamentId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_TournamentRegistrationPayments_Tournaments");
+
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.UserId)
+                .HasConstraintName("FK_TournamentRegistrationPayments_Users");
+        });
+
+        modelBuilder.Entity<TournamentSepayWebhook>(entity =>
+        {
+            entity.HasKey(e => e.SepayWebhookId).HasName("PK_TournamentSepayWebhooks");
+
+            entity.HasIndex(e => e.PaymentId, "IX_TournamentSepayWebhooks_PaymentId");
+
+            entity.HasIndex(e => e.ReferenceCode, "IX_TournamentSepayWebhooks_ReferenceCode")
+                .HasFilter("[ReferenceCode] IS NOT NULL");
+
+            entity.HasIndex(e => new { e.IsProcessed, e.CreatedAt }, "IX_TournamentSepayWebhooks_IsProcessed")
+                .IsDescending(false, true);
+
+            entity.Property(e => e.AccountNumber)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.Amount).HasColumnType("decimal(18, 2)");
+            entity.Property(e => e.Code)
+                .HasMaxLength(100)
+                .IsUnicode(false);
+            entity.Property(e => e.ContentTransfer).HasMaxLength(1000);
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+            entity.Property(e => e.Description).HasMaxLength(1000);
+            entity.Property(e => e.EventType)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.Gateway)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue("sepay");
+            entity.Property(e => e.ProcessedAt).HasPrecision(0);
+            entity.Property(e => e.RawPayload).HasColumnType("nvarchar(max)");
+            entity.Property(e => e.ReferenceCode)
+                .HasMaxLength(100)
+                .IsUnicode(false);
+            entity.Property(e => e.TransferType)
+                .HasMaxLength(20)
+                .IsUnicode(false);
+
+            entity.HasOne(d => d.Payment).WithMany(p => p.TournamentSepayWebhooks)
+                .HasForeignKey(d => d.PaymentId)
+                .HasConstraintName("FK_TournamentSepayWebhooks_Payments");
         });
 
         modelBuilder.Entity<TournamentPairRequest>(entity =>

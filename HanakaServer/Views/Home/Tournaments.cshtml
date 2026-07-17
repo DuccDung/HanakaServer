@@ -188,12 +188,13 @@
                             <th>Số đội</th>
                             <th>Giới hạn đơn</th>
                             <th>Giới hạn đôi</th>
+                            <th>Phí đăng ký</th>
                             <th style="width: 250px;">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody id="tournamentsBody">
                         <tr>
-                            <td colspan="10" class="text-center text-muted">Đang tải...</td>
+                            <td colspan="11" class="text-center text-muted">Đang tải...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -341,17 +342,27 @@
                     </div>
 
                     <div class="form-row">
-                        <div class="form-group col-md-6">
+                        <div class="form-group col-md-4">
                             <label>Địa điểm</label>
                             <input id="locationText" class="form-control" placeholder="Sân pickleball ..." />
                         </div>
-                        <div class="form-group col-md-3">
+                        <div class="form-group col-md-2">
                             <label>Giới hạn đơn</label>
                             <input id="singleLimit" type="number" step="0.01" class="form-control" value="0" />
                         </div>
-                        <div class="form-group col-md-3">
+                        <div class="form-group col-md-2">
                             <label>Giới hạn đôi</label>
                             <input id="doubleLimit" type="number" step="0.01" class="form-control" value="0" />
+                        </div>
+                        <div class="form-group col-md-3">
+                            <label>Phí đăng ký</label>
+                            <input id="registrationFeeAmount" type="number" step="1000" min="0" class="form-control" value="0" />
+                        </div>
+                        <div class="form-group col-md-1">
+                            <label>Tiền</label>
+                            <select id="registrationFeeCurrency" class="form-control">
+                                <option value="VND" selected>VND</option>
+                            </select>
                         </div>
                     </div>
 
@@ -819,6 +830,8 @@
 
             const singleLimit = (t.singleLimit ?? 0);
             const doubleLimit = (t.doubleLimit ?? 0);
+            const registrationFeeAmount = Number(t.registrationFeeAmount ?? 0);
+            const registrationFeeCurrency = t.registrationFeeCurrency || "VND";
             const tournamentTypeLabel = getTournamentTypeLabel(t.gameType, t.genderCategory);
             const tournamentTypeCode = getTournamentTypeCode(t.gameType, t.genderCategory);
 
@@ -843,6 +856,7 @@
                     <td>${t.expectedTeams ?? 0}</td>
                     <td>${Number(singleLimit).toFixed(2)}</td>
                     <td>${Number(doubleLimit).toFixed(2)}</td>
+                    <td>${registrationFeeAmount.toLocaleString("vi-VN")} ${escapeHtml(registrationFeeCurrency)}</td>
                     <td>
                         <div class="d-flex flex-wrap" style="gap:6px">
                             <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${t.tournamentId})" type="button" title="Chỉnh sửa">
@@ -946,7 +960,7 @@
 
             clearPageError();
             const body = document.getElementById("tournamentsBody");
-            body.innerHTML = `<tr><td colspan="10" class="text-center text-muted">Đang tải...</td></tr>`;
+            body.innerHTML = `<tr><td colspan="11" class="text-center text-muted">Đang tải...</td></tr>`;
 
             try {
                 const res = await axios.get(API_BASE, { params: getTournamentListParams() });
@@ -967,14 +981,14 @@
                 }
 
                 if (!items.length) {
-                    body.innerHTML = `<tr><td colspan="10" class="text-center text-muted">Không có giải đấu</td></tr>`;
+                    body.innerHTML = `<tr><td colspan="11" class="text-center text-muted">Không có giải đấu</td></tr>`;
                 } else {
                     body.innerHTML = items.map(rowHtml).join("");
                 }
 
                 renderTournamentPaging();
             } catch (e) {
-                body.innerHTML = `<tr><td colspan="10" class="text-center text-danger">Tải dữ liệu thất bại</td></tr>`;
+                body.innerHTML = `<tr><td colspan="11" class="text-center text-danger">Tải dữ liệu thất bại</td></tr>`;
                 showPageError(e?.response?.data?.message || e?.message || "Tải dữ liệu thất bại.");
                 renderTournamentPaging();
             } finally {
@@ -1068,6 +1082,9 @@
             if (t.doubleLimit !== undefined && t.doubleLimit !== null)
                 document.getElementById("doubleLimit").value = t.doubleLimit;
 
+            document.getElementById("registrationFeeAmount").value = t.registrationFeeAmount ?? 0;
+            document.getElementById("registrationFeeCurrency").value = t.registrationFeeCurrency || "VND";
+
             document.getElementById("tournament_content").value = t.content || "";
             document.getElementById("organizer").value = t.organizer || "";
             document.getElementById("creatorName").value = t.creatorName || "";
@@ -1114,7 +1131,7 @@
 
         function prependRow(t) {
             const body = document.getElementById("tournamentsBody");
-            const empty = body.querySelector("tr td[colspan='10']");
+            const empty = body.querySelector("tr td[colspan='11']");
             if (empty) body.innerHTML = "";
             body.insertAdjacentHTML("afterbegin", rowHtml(t));
         }
@@ -1143,6 +1160,8 @@
             fd.append("areaText", document.getElementById("areaText").value || "");
             fd.append("singleLimit", document.getElementById("singleLimit").value || "0");
             fd.append("doubleLimit", document.getElementById("doubleLimit").value || "0");
+            fd.append("registrationFeeAmount", document.getElementById("registrationFeeAmount").value || "0");
+            fd.append("registrationFeeCurrency", document.getElementById("registrationFeeCurrency").value || "VND");
             fd.append("content", document.getElementById("tournament_content").value || "");
             fd.append("tournamentRule", normalizeHtml(tournamentRuleQuill ? tournamentRuleQuill.root.innerHTML : ""));
 

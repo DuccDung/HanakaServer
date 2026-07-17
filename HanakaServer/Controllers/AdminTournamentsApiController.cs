@@ -58,6 +58,12 @@ namespace HanakaServer.Controllers
             return string.IsNullOrWhiteSpace(s) ? fallback : s.Trim().ToUpperInvariant();
         }
 
+        private static string NormalizeCurrency(string? currency)
+        {
+            var value = TrimToNull(currency)?.ToUpperInvariant();
+            return string.IsNullOrWhiteSpace(value) ? "VND" : value;
+        }
+
         private IQueryable<HanakaServer.Models.Tournament> ActiveTournamentsQuery(bool asNoTracking = false)
         {
             var query = asNoTracking
@@ -120,6 +126,8 @@ namespace HanakaServer.Controllers
                 CreatedAt = t.CreatedAt,
                 SingleLimit = t.SingleLimit,
                 DoubleLimit = t.DoubleLimit,
+                RegistrationFeeAmount = t.RegistrationFeeAmount,
+                RegistrationFeeCurrency = t.RegistrationFeeCurrency,
 
                 FormatText = t.FormatText,
                 PlayoffType = t.PlayoffType,
@@ -173,6 +181,8 @@ namespace HanakaServer.Controllers
                     CreatedAt = t.CreatedAt,
                     SingleLimit = t.SingleLimit,
                     DoubleLimit = t.DoubleLimit,
+                    RegistrationFeeAmount = t.RegistrationFeeAmount,
+                    RegistrationFeeCurrency = t.RegistrationFeeCurrency,
                     ZaloLink = t.ZaloLink,
 
                     Organizer = t.Organizer,
@@ -254,6 +264,8 @@ namespace HanakaServer.Controllers
                 AreaText = TrimToNull(req.AreaText),
                 SingleLimit = req.SingleLimit ?? 0,
                 DoubleLimit = req.DoubleLimit ?? 0,
+                RegistrationFeeAmount = Math.Max(0, req.RegistrationFeeAmount ?? 0),
+                RegistrationFeeCurrency = NormalizeCurrency(req.RegistrationFeeCurrency),
                 Content = req.Content,
                 TournamentRule = req.TournamentRule,
                 ZaloLink = TrimToNull(req.ZaloLink),
@@ -322,6 +334,8 @@ namespace HanakaServer.Controllers
 
             if (req.SingleLimit.HasValue) t.SingleLimit = req.SingleLimit.Value;
             if (req.DoubleLimit.HasValue) t.DoubleLimit = req.DoubleLimit.Value;
+            if (req.RegistrationFeeAmount.HasValue) t.RegistrationFeeAmount = Math.Max(0, req.RegistrationFeeAmount.Value);
+            if (req.RegistrationFeeCurrency != null) t.RegistrationFeeCurrency = NormalizeCurrency(req.RegistrationFeeCurrency);
 
             if (req.Content != null) t.Content = req.Content;
             if (req.ZaloLink != null) t.ZaloLink = TrimToNull(req.ZaloLink);
