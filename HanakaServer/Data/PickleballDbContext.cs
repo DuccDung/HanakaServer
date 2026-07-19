@@ -20,6 +20,12 @@ public partial class PickleballDbContext : DbContext
 
     public virtual DbSet<ClubMessage> ClubMessages { get; set; }
 
+    public virtual DbSet<DirectChatRoom> DirectChatRooms { get; set; }
+
+    public virtual DbSet<DirectChatMessage> DirectChatMessages { get; set; }
+
+    public virtual DbSet<DirectChatRoomParticipant> DirectChatRoomParticipants { get; set; }
+
     public virtual DbSet<ModerationReport> ModerationReports { get; set; }
 
     public virtual DbSet<Coach> Coaches { get; set; }
@@ -249,7 +255,7 @@ public partial class PickleballDbContext : DbContext
 
             entity.ToTable(t => t.HasCheckConstraint(
                 "CK_UserBlocks_Source",
-                "[Source] IN ('CHAT', 'PROFILE', 'ADMIN', 'SYSTEM')"));
+                "[Source] IN ('CHAT', 'DIRECT_CHAT', 'PROFILE', 'ADMIN', 'SYSTEM')"));
 
             entity.HasOne(d => d.BlockerUser)
                 .WithMany(p => p.UserBlocksBlockedByMe)
@@ -274,6 +280,18 @@ public partial class PickleballDbContext : DbContext
                 .HasForeignKey(d => d.SourceMessageId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("FK_UserBlocks_SourceMessage");
+
+            entity.HasOne(d => d.SourceDirectRoom)
+                .WithMany(p => p.UserBlocks)
+                .HasForeignKey(d => d.SourceDirectRoomId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_UserBlocks_SourceDirectRoom");
+
+            entity.HasOne(d => d.SourceDirectMessage)
+                .WithMany(p => p.UserBlocks)
+                .HasForeignKey(d => d.SourceDirectMessageId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_UserBlocks_SourceDirectMessage");
 
             entity.HasOne(d => d.Report)
                 .WithMany(p => p.UserBlocks)
@@ -839,6 +857,200 @@ public partial class PickleballDbContext : DbContext
                 .HasForeignKey(d => d.SenderUserId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_ClubMessages_Sender");
+        });
+
+        modelBuilder.Entity<DirectChatRoom>(entity =>
+        {
+            entity.ToTable("DirectChatRooms");
+
+            entity.HasKey(e => e.DirectChatRoomId)
+                .HasName("PK_DirectChatRooms");
+
+            entity.HasIndex(e => new { e.User1Id, e.User2Id })
+                .IsUnique()
+                .HasDatabaseName("UX_DirectChatRooms_UserPair");
+
+            entity.HasIndex(e => new { e.User1Id, e.LastMessageAt, e.UpdatedAt })
+                .HasDatabaseName("IX_DirectChatRooms_User1_LastMessageAt")
+                .IsDescending(false, true, true);
+
+            entity.HasIndex(e => new { e.User2Id, e.LastMessageAt, e.UpdatedAt })
+                .HasDatabaseName("IX_DirectChatRooms_User2_LastMessageAt")
+                .IsDescending(false, true, true);
+
+            entity.Property(e => e.IsActive)
+                .HasDefaultValue(true);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.Property(e => e.LastMessageAt)
+                .HasPrecision(0);
+
+            entity.HasCheckConstraint("CK_DirectChatRooms_NotSelf", "[User1Id] <> [User2Id]");
+
+            entity.HasCheckConstraint("CK_DirectChatRooms_NormalizedPair", "[User1Id] < [User2Id]");
+
+            entity.HasOne(d => d.User1)
+                .WithMany(p => p.DirectChatRoomsAsUser1)
+                .HasForeignKey(d => d.User1Id)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_DirectChatRooms_User1");
+
+            entity.HasOne(d => d.User2)
+                .WithMany(p => p.DirectChatRoomsAsUser2)
+                .HasForeignKey(d => d.User2Id)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_DirectChatRooms_User2");
+
+            entity.HasOne(d => d.LastMessage)
+                .WithMany()
+                .HasForeignKey(d => d.LastMessageId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_DirectChatRooms_LastMessage");
+        });
+
+        modelBuilder.Entity<DirectChatMessage>(entity =>
+        {
+            entity.ToTable("DirectChatMessages");
+
+            entity.HasKey(e => e.DirectChatMessageId)
+                .HasName("PK_DirectChatMessages");
+
+            entity.HasIndex(e => new { e.DirectChatRoomId, e.SentAt, e.DirectChatMessageId })
+                .HasDatabaseName("IX_DirectChatMessages_Room_SentAt")
+                .IsDescending(false, true, true);
+
+            entity.HasIndex(e => new { e.SenderUserId, e.SentAt })
+                .HasDatabaseName("IX_DirectChatMessages_Sender_SentAt")
+                .IsDescending(false, true);
+
+            entity.HasIndex(e => new { e.SenderUserId, e.ClientMessageId })
+                .IsUnique()
+                .HasFilter("[ClientMessageId] IS NOT NULL")
+                .HasDatabaseName("UX_DirectChatMessages_Sender_ClientMessageId");
+
+            entity.Property(e => e.MessageType)
+                .HasMaxLength(30)
+                .IsUnicode(false)
+                .HasDefaultValue("text");
+
+            entity.Property(e => e.MediaUrl)
+                .HasMaxLength(1000);
+
+            entity.Property(e => e.SentAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.Property(e => e.IsRecalled)
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.RecalledAt)
+                .HasPrecision(0);
+
+            entity.Property(e => e.IsDeleted)
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.DeletedAt)
+                .HasPrecision(0);
+
+            entity.HasCheckConstraint("CK_DirectChatMessages_MessageType", "[MessageType] IN ('text', 'image', 'video', 'file', 'system')");
+
+            entity.HasCheckConstraint(
+                "CK_DirectChatMessages_RecallState",
+                "([IsRecalled] = 0 AND [RecalledAt] IS NULL AND [RecalledByUserId] IS NULL) OR ([IsRecalled] = 1 AND [RecalledAt] IS NOT NULL AND [RecalledByUserId] IS NOT NULL)");
+
+            entity.HasOne(d => d.DirectChatRoom)
+                .WithMany(p => p.DirectChatMessages)
+                .HasForeignKey(d => d.DirectChatRoomId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_DirectChatMessages_Room");
+
+            entity.HasOne(d => d.SenderUser)
+                .WithMany(p => p.DirectChatMessages)
+                .HasForeignKey(d => d.SenderUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_DirectChatMessages_Sender");
+
+            entity.HasOne(d => d.ReplyToMessage)
+                .WithMany(p => p.InverseReplyToMessage)
+                .HasForeignKey(d => d.ReplyToMessageId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_DirectChatMessages_ReplyTo");
+
+            entity.HasOne(d => d.RecalledByUser)
+                .WithMany(p => p.RecalledDirectChatMessages)
+                .HasForeignKey(d => d.RecalledByUserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_DirectChatMessages_RecalledBy");
+        });
+
+        modelBuilder.Entity<DirectChatRoomParticipant>(entity =>
+        {
+            entity.ToTable("DirectChatRoomParticipants");
+
+            entity.HasKey(e => new { e.DirectChatRoomId, e.UserId })
+                .HasName("PK_DirectChatRoomParticipants");
+
+            entity.HasIndex(e => new { e.UserId, e.UpdatedAt })
+                .HasDatabaseName("IX_DirectChatRoomParticipants_User_UpdatedAt")
+                .IsDescending(false, true);
+
+            entity.HasIndex(e => e.LastReadMessageId)
+                .HasFilter("[LastReadMessageId] IS NOT NULL")
+                .HasDatabaseName("IX_DirectChatRoomParticipants_LastReadMessage");
+
+            entity.Property(e => e.LastReadAt)
+                .HasPrecision(0);
+
+            entity.Property(e => e.IsArchived)
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.ArchivedAt)
+                .HasPrecision(0);
+
+            entity.Property(e => e.IsMuted)
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.MutedUntil)
+                .HasPrecision(0);
+
+            entity.Property(e => e.IsDeleted)
+                .HasDefaultValue(false);
+
+            entity.Property(e => e.DeletedAt)
+                .HasPrecision(0);
+
+            entity.Property(e => e.CreatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysdatetime())");
+
+            entity.HasOne(d => d.DirectChatRoom)
+                .WithMany(p => p.DirectChatRoomParticipants)
+                .HasForeignKey(d => d.DirectChatRoomId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_DirectChatRoomParticipants_Room");
+
+            entity.HasOne(d => d.User)
+                .WithMany(p => p.DirectChatRoomParticipants)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_DirectChatRoomParticipants_User");
+
+            entity.HasOne(d => d.LastReadMessage)
+                .WithMany(p => p.ReadByParticipants)
+                .HasForeignKey(d => d.LastReadMessageId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_DirectChatRoomParticipants_LastReadMessage");
         });
 
         modelBuilder.Entity<Coach>(entity =>

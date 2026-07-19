@@ -47,7 +47,7 @@ public sealed class TournamentRegistrationPaymentsController : ControllerBase
         string transactionCode,
         CancellationToken cancellationToken)
     {
-        var checkout = await _paymentService.GetCheckoutByTransactionCodeAsync(transactionCode, cancellationToken);
+        var checkout = await _paymentService.GetCheckoutByTransactionCodeAsync(transactionCode, CancellationToken.None);
         if (checkout is null)
         {
             return NotFound(new { message = "Không tìm thấy mã thanh toán." });
@@ -62,7 +62,7 @@ public sealed class TournamentRegistrationPaymentsController : ControllerBase
         string transactionCode,
         CancellationToken cancellationToken)
     {
-        var status = await _paymentService.GetStatusAsync(transactionCode, cancellationToken);
+        var status = await _paymentService.GetStatusAsync(transactionCode, CancellationToken.None);
         if (status is null)
         {
             return NotFound(new { message = "Không tìm thấy mã thanh toán." });

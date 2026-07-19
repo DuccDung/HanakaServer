@@ -135,6 +135,68 @@ namespace HanakaServer.Services
                         await _hub.SendTypingToClubAsync(clubId3, userId, fullName, isTyping);
                     }
                     break;
+
+                case "direct.subscribe":
+                    if (TryReadRoomId(doc.RootElement, out var directRoomId)
+                        && directRoomId > 0)
+                    {
+                        var canJoin = await CanAccessDirectRoomAsync(directRoomId, userId);
+                        if (!canJoin)
+                        {
+                            await SendAsync(ws, new
+                            {
+                                type = "direct.error",
+                                roomId = directRoomId,
+                                directChatRoomId = directRoomId,
+                                message = "Bạn không có quyền vào cuộc trò chuyện này."
+                            }, ct);
+                            return;
+                        }
+
+                        _hub.SubscribeDirectRoom(socketId, directRoomId);
+
+                        await SendAsync(ws, new
+                        {
+                            type = "direct.subscribed",
+                            roomId = directRoomId,
+                            directChatRoomId = directRoomId
+                        }, ct);
+                    }
+                    break;
+
+                case "direct.unsubscribe":
+                    if (TryReadRoomId(doc.RootElement, out var directRoomId2)
+                        && directRoomId2 > 0)
+                    {
+                        _hub.UnsubscribeDirectRoom(socketId, directRoomId2);
+
+                        await SendAsync(ws, new
+                        {
+                            type = "direct.unsubscribed",
+                            roomId = directRoomId2,
+                            directChatRoomId = directRoomId2
+                        }, ct);
+                    }
+                    break;
+
+                case "direct.typing":
+                    if (TryReadRoomId(doc.RootElement, out var directRoomId3)
+                        && directRoomId3 > 0)
+                    {
+                        var canJoin = await CanAccessDirectRoomAsync(directRoomId3, userId);
+                        if (!canJoin) return;
+
+                        var isTyping = false;
+                        if (doc.RootElement.TryGetProperty("isTyping", out var directTypingEl)
+                            && (directTypingEl.ValueKind == JsonValueKind.True || directTypingEl.ValueKind == JsonValueKind.False))
+                        {
+                            isTyping = directTypingEl.GetBoolean();
+                        }
+
+                        var fullName = await GetUserFullNameAsync(userId);
+                        await _hub.SendTypingToDirectRoomAsync(directRoomId3, userId, fullName, isTyping);
+                    }
+                    break;
             }
         }
 
@@ -152,6 +214,20 @@ namespace HanakaServer.Services
                 x.IsActive &&
                 x.User.IsActive &&
                 x.Club.IsActive);
+        }
+
+        private async Task<bool> CanAccessDirectRoomAsync(long roomId, string userId)
+        {
+            if (!long.TryParse(userId, out var uid))
+                return false;
+
+            using var scope = _scopeFactory.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<PickleballDbContext>();
+
+            return await db.DirectChatRooms.AnyAsync(x =>
+                x.DirectChatRoomId == roomId &&
+                x.IsActive &&
+                (x.User1Id == uid || x.User2Id == uid));
         }
 
         private async Task<string> GetUserFullNameAsync(string userId)
@@ -183,6 +259,24 @@ namespace HanakaServer.Services
             }
 
             return sb.ToString();
+        }
+
+        private static bool TryReadRoomId(JsonElement root, out long roomId)
+        {
+            if (root.TryGetProperty("roomId", out var roomEl)
+                && roomEl.TryGetInt64(out roomId))
+            {
+                return true;
+            }
+
+            if (root.TryGetProperty("directChatRoomId", out var directRoomEl)
+                && directRoomEl.TryGetInt64(out roomId))
+            {
+                return true;
+            }
+
+            roomId = 0;
+            return false;
         }
 
         private static Task SendAsync(WebSocket ws, object obj, CancellationToken ct)

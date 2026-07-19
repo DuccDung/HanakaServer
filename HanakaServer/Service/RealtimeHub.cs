@@ -13,6 +13,9 @@ namespace HanakaServer.Services
         // socketId -> subscribed clubIds
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<long, byte>> _socketClubSubscriptions = new();
 
+        // socketId -> subscribed direct chat roomIds
+        private readonly ConcurrentDictionary<string, ConcurrentDictionary<long, byte>> _socketDirectRoomSubscriptions = new();
+
         // socketId -> userId
         private readonly ConcurrentDictionary<string, string> _socketToUser = new();
 
@@ -26,6 +29,7 @@ namespace HanakaServer.Services
             sockets[socketId] = socket;
 
             _socketClubSubscriptions.TryAdd(socketId, new ConcurrentDictionary<long, byte>());
+            _socketDirectRoomSubscriptions.TryAdd(socketId, new ConcurrentDictionary<long, byte>());
             _socketToUser[socketId] = userId;
 
             return socketId;
@@ -44,6 +48,7 @@ namespace HanakaServer.Services
             }
 
             _socketClubSubscriptions.TryRemove(socketId, out _);
+            _socketDirectRoomSubscriptions.TryRemove(socketId, out _);
             await Task.CompletedTask;
         }
 
@@ -62,6 +67,23 @@ namespace HanakaServer.Services
         public bool IsSocketSubscribedToClub(string socketId, long clubId)
         {
             return _socketClubSubscriptions.TryGetValue(socketId, out var set) && set.ContainsKey(clubId);
+        }
+
+        public void SubscribeDirectRoom(string socketId, long roomId)
+        {
+            if (_socketDirectRoomSubscriptions.TryGetValue(socketId, out var set))
+                set[roomId] = 1;
+        }
+
+        public void UnsubscribeDirectRoom(string socketId, long roomId)
+        {
+            if (_socketDirectRoomSubscriptions.TryGetValue(socketId, out var set))
+                set.TryRemove(roomId, out _);
+        }
+
+        public bool IsSocketSubscribedToDirectRoom(string socketId, long roomId)
+        {
+            return _socketDirectRoomSubscriptions.TryGetValue(socketId, out var set) && set.ContainsKey(roomId);
         }
 
         public IEnumerable<string> GetSocketIdsOfUser(string userId)
@@ -113,6 +135,34 @@ namespace HanakaServer.Services
             }
         }
 
+        public async Task BroadcastToDirectRoomAsync(long roomId, object message, string? excludeUserId = null)
+        {
+            var bytes = Serialize(message);
+
+            foreach (var pair in _socketDirectRoomSubscriptions)
+            {
+                var socketId = pair.Key;
+                var roomSet = pair.Value;
+
+                if (!roomSet.ContainsKey(roomId))
+                    continue;
+
+                if (!string.IsNullOrWhiteSpace(excludeUserId)
+                    && _socketToUser.TryGetValue(socketId, out var uid)
+                    && uid == excludeUserId)
+                {
+                    continue;
+                }
+
+                if (_socketToUser.TryGetValue(socketId, out var userId)
+                    && _userSockets.TryGetValue(userId, out var sockets)
+                    && sockets.TryGetValue(socketId, out var ws))
+                {
+                    await SafeSendAsync(ws, bytes);
+                }
+            }
+        }
+
         public Task SendClubMessageCreatedAsync(long clubId, object item, string? excludeUserId = null)
         {
             return BroadcastToClubAsync(clubId, new
@@ -143,6 +193,60 @@ namespace HanakaServer.Services
                 fullName,
                 isTyping
             }, excludeUserId: userId);
+        }
+
+        public Task SendDirectMessageCreatedAsync(long roomId, object item, string? excludeUserId = null)
+        {
+            return BroadcastToDirectRoomAsync(roomId, new
+            {
+                type = "direct.message.created",
+                roomId,
+                directChatRoomId = roomId,
+                item
+            }, excludeUserId);
+        }
+
+        public Task SendDirectMessageRecalledAsync(long roomId, long messageId, object item, string? excludeUserId = null)
+        {
+            return BroadcastToDirectRoomAsync(roomId, new
+            {
+                type = "direct.message.recalled",
+                roomId,
+                directChatRoomId = roomId,
+                messageId,
+                item
+            }, excludeUserId);
+        }
+
+        public Task SendTypingToDirectRoomAsync(long roomId, string userId, string fullName, bool isTyping)
+        {
+            return BroadcastToDirectRoomAsync(roomId, new
+            {
+                type = "direct.typing",
+                roomId,
+                directChatRoomId = roomId,
+                userId,
+                fullName,
+                isTyping
+            }, excludeUserId: userId);
+        }
+
+        public Task SendDirectNotificationToUserAsync(string userId, object payload)
+        {
+            return SendToUserAsync(userId, new
+            {
+                type = "direct.notification",
+                payload
+            });
+        }
+
+        public Task SendDirectBlockChangedAsync(string userId, object payload)
+        {
+            return SendToUserAsync(userId, new
+            {
+                type = "direct.block.changed",
+                payload
+            });
         }
 
         public Task SendNotificationToUserAsync(string userId, object payload)

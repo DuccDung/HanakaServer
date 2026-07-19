@@ -41,6 +41,16 @@ public partial class User
 
     public virtual ICollection<ClubMessage> ClubMessages { get; set; } = new List<ClubMessage>();
 
+    public virtual ICollection<DirectChatRoom> DirectChatRoomsAsUser1 { get; set; } = new List<DirectChatRoom>();
+
+    public virtual ICollection<DirectChatRoom> DirectChatRoomsAsUser2 { get; set; } = new List<DirectChatRoom>();
+
+    public virtual ICollection<DirectChatMessage> DirectChatMessages { get; set; } = new List<DirectChatMessage>();
+
+    public virtual ICollection<DirectChatRoomParticipant> DirectChatRoomParticipants { get; set; } = new List<DirectChatRoomParticipant>();
+
+    public virtual ICollection<DirectChatMessage> RecalledDirectChatMessages { get; set; } = new List<DirectChatMessage>();
+
     public virtual ICollection<Club> Clubs { get; set; } = new List<Club>();
 
     public virtual ICollection<ModerationReport> ModerationReportsReporter { get; set; } = new List<ModerationReport>();

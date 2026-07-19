@@ -14,6 +14,10 @@ public partial class UserBlock
 
     public long? SourceMessageId { get; set; }
 
+    public long? SourceDirectRoomId { get; set; }
+
+    public long? SourceDirectMessageId { get; set; }
+
     public long? ReportId { get; set; }
 
     public string ReasonCode { get; set; } = null!;
@@ -37,4 +41,8 @@ public partial class UserBlock
     public virtual Club? SourceClub { get; set; }
 
     public virtual ClubMessage? SourceMessage { get; set; }
+
+    public virtual DirectChatRoom? SourceDirectRoom { get; set; }
+
+    public virtual DirectChatMessage? SourceDirectMessage { get; set; }
 }

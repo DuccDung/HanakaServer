@@ -1510,12 +1510,17 @@
             board.classList.remove("is-measuring");
 
             if (!layout.rounds.length) {
+                latestLayout = null;
+                scale = DEFAULT_SCALE;
                 board.style.width = "100%";
                 board.style.height = "640px";
+                board.style.minWidth = "100%";
+                board.style.transform = "";
                 surface.style.width = "100%";
                 surface.style.height = "640px";
+                surface.style.minWidth = "100%";
+                surface.style.minHeight = "640px";
                 board.innerHTML = '<div class="public-bracket__loading">Giải đấu này chưa có dữ liệu để dựng sơ đồ.</div>';
-                updateZoomLabel();
                 return;
             }
 

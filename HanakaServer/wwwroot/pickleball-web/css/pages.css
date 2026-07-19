@@ -4466,6 +4466,358 @@ body.has-web-pair-popup {
     box-shadow: none;
 }
 
+.detail-screen--self-rating {
+    background: #F3F4F6;
+}
+
+.detail-screen--self-rating .page-shell {
+    background: #F3F4F6;
+}
+
+.self-rating-page {
+    display: grid;
+    gap: 14px;
+    padding: 14px 0 26px;
+}
+
+.self-rating-profile,
+.self-rating-notice,
+.self-rating-card,
+.self-rating-result {
+    border: 1px solid #E5E7EB;
+    border-radius: 12px;
+    background: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.self-rating-profile {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+}
+
+.self-rating-profile__avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: #DBEAFE;
+    color: #1D4ED8;
+    font-weight: 800;
+}
+
+.self-rating-profile__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.self-rating-profile__content {
+    min-width: 0;
+}
+
+.self-rating-profile__content span,
+.self-rating-profile__content p,
+.self-rating-profile small,
+.self-rating-profile__scores span {
+    color: #6B7280;
+}
+
+.self-rating-profile__content span {
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.self-rating-profile__content h2 {
+    margin: 3px 0 4px;
+    color: #111827;
+    font-size: 1.0625rem;
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+.self-rating-profile__content p,
+.self-rating-profile small {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.35;
+}
+
+.self-rating-profile__scores {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.self-rating-profile__scores div {
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: #F8FAFC;
+    border: 1px solid #EEF2F7;
+}
+
+.self-rating-profile__scores span,
+.self-rating-profile__scores strong {
+    display: block;
+}
+
+.self-rating-profile__scores span {
+    margin-bottom: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.self-rating-profile__scores strong {
+    color: #111827;
+    font-size: 1.0625rem;
+    font-weight: 800;
+}
+
+.self-rating-profile small {
+    grid-column: 1 / -1;
+}
+
+.self-rating-notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border-color: #BFDBFE;
+    background: #EFF6FF;
+}
+
+.self-rating-notice.is-locked {
+    border-color: #A7F3D0;
+    background: #ECFDF5;
+}
+
+.self-rating-notice ion-icon {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    color: #2563EB;
+    font-size: 1.25rem;
+}
+
+.self-rating-notice.is-locked ion-icon {
+    color: #047857;
+}
+
+.self-rating-notice p {
+    margin: 0;
+    color: #1F2937;
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+.self-rating-list {
+    display: grid;
+    gap: 14px;
+}
+
+.self-rating-card {
+    padding: 14px;
+}
+
+.self-rating-card h3 {
+    margin: 0 0 10px;
+    color: #111827;
+    font-size: 0.9375rem;
+    font-weight: 800;
+    line-height: 1.35;
+}
+
+.self-rating-card__desc {
+    display: grid;
+    gap: 7px;
+    margin-bottom: 14px;
+    padding: 10px;
+    border: 1px solid #EEF2F7;
+    border-radius: 10px;
+    background: #F9FAFB;
+}
+
+.self-rating-card__desc p {
+    display: flex;
+    gap: 8px;
+    margin: 0;
+    color: #4B5563;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
+.self-rating-card__desc p::before {
+    content: "";
+    flex: 0 0 auto;
+    width: 5px;
+    height: 5px;
+    margin-top: 7px;
+    border-radius: 50%;
+    background: #93C5FD;
+}
+
+.self-rating-card__columns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.self-rating-column {
+    min-width: 0;
+}
+
+.self-rating-column > strong {
+    display: block;
+    margin-bottom: 10px;
+    color: #1F2937;
+    font-size: 0.875rem;
+    font-weight: 800;
+    text-align: center;
+}
+
+.self-rating-score-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.self-rating-score-chip {
+    height: 42px;
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+    background: #F3F4F6;
+    color: #1E2430;
+    font-size: 0.9375rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.self-rating-score-chip.is-active {
+    border-color: #0D6EFD;
+    background: #DBEAFE;
+    color: #0D6EFD;
+}
+
+.self-rating-score-chip:disabled {
+    cursor: not-allowed;
+    opacity: 0.58;
+}
+
+.self-rating-result {
+    position: sticky;
+    bottom: 0;
+    z-index: 8;
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+}
+
+.self-rating-result h2 {
+    margin: 0;
+    color: #111827;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.self-rating-result__table {
+    display: grid;
+    gap: 8px;
+}
+
+.self-rating-result__head,
+.self-rating-result__row {
+    display: grid;
+    grid-template-columns: minmax(92px, 1fr) repeat(2, minmax(0, 1fr));
+    align-items: center;
+    gap: 10px;
+}
+
+.self-rating-result__head strong {
+    color: #374151;
+    font-size: 0.875rem;
+    font-weight: 700;
+    text-align: center;
+}
+
+.self-rating-result__row span {
+    color: #6B7280;
+    font-size: 0.8125rem;
+    font-weight: 700;
+}
+
+.self-rating-result__row.is-main span {
+    color: #111827;
+    font-size: 0.9375rem;
+    font-weight: 800;
+}
+
+.self-rating-result__row strong {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    padding: 0 10px;
+    border: 1px solid #E5E7EB;
+    border-radius: 10px;
+    background: #F8FAFC;
+    color: #111827;
+    font-size: 0.9375rem;
+    font-weight: 800;
+}
+
+.self-rating-result__row.is-main strong {
+    min-height: 46px;
+    font-size: 1.125rem;
+}
+
+.self-rating-result__actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: 10px;
+}
+
+.self-rating-reset,
+.self-rating-submit {
+    height: 48px;
+    border: 0;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.self-rating-reset {
+    background: #E5E7EB;
+    color: #111827;
+}
+
+.self-rating-submit {
+    background: #0D6EFD;
+    color: #FFFFFF;
+}
+
+.self-rating-reset:disabled,
+.self-rating-submit:disabled {
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+@media (min-width: 480px) {
+    .self-rating-profile {
+        grid-template-columns: auto minmax(0, 1fr) minmax(170px, auto);
+        align-items: center;
+    }
+
+    .self-rating-profile__scores {
+        grid-column: auto;
+    }
+}
+
 .tournament-native-detail {
     background: #FFFFFF;
 }
@@ -4641,55 +4993,72 @@ body.has-web-pair-popup {
 }
 
 .tournament-registration-page__links {
-    padding: 0 12px 10px;
+    padding: 12px;
 }
 
-.tournament-registration-page__link {
+.tournament-registration-page__link,
+.tournament-registration-page__zalo {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    color: var(--primary);
-    font-size: 0.875rem;
-    font-weight: 400;
+    justify-content: center;
+    gap: 8px;
+    min-height: 46px;
+    padding: 0 14px;
+    border-radius: 8px;
+    border: 1px solid #BFE3D0;
+    background: #ECFDF5;
+    color: #047857;
+    font-size: 0.9rem;
+    font-weight: 800;
     text-decoration: none;
 }
 
-.tournament-registration-page__link ion-icon {
+.tournament-registration-page__link ion-icon,
+.tournament-registration-page__zalo ion-icon {
     font-size: 1rem;
 }
 
 .tournament-registration-page__stats {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
-    padding: 0 12px 10px;
+    padding: 0 12px 12px;
 }
 
 .tournament-registration-page__badge {
     display: inline-flex;
     align-items: center;
     justify-content: space-between;
-    min-width: 140px;
-    min-height: 36px;
-    padding: 0 12px;
-    border-radius: 10px;
+    width: 100%;
+    min-width: 0;
+    min-height: 54px;
+    padding: 0 16px;
+    border-radius: 8px;
     color: #1E2430;
     gap: 12px;
+}
+
+.tournament-registration-page__stats.is-single .tournament-registration-page__badge:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
 }
 
 .tournament-registration-page__badge span,
 .tournament-registration-page__badge strong {
     color: inherit;
-    font-size: 0.875rem;
+    font-size: 0.95rem;
     line-height: 1;
 }
 
 .tournament-registration-page__badge span {
-    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 700;
 }
 
 .tournament-registration-page__badge strong {
-    font-weight: 700;
+    flex: 0 0 auto;
+    font-weight: 900;
 }
 
 .tournament-registration-page__badge.is-green {
@@ -4763,6 +5132,10 @@ body.has-web-pair-popup {
     flex: 1.15;
 }
 
+.tournament-registration-page__tablehead.is-single .is-player {
+    flex: 1 1 auto;
+}
+
 .tournament-registration-page__tablehead .is-points {
     width: 52px;
     flex: 0 0 52px;
@@ -4770,14 +5143,19 @@ body.has-web-pair-popup {
 }
 
 .tournament-registration-page__list {
-    background: #FFFFFF;
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+    background: #F1F5F9;
 }
 
 .tournament-registration-page__item {
     display: block;
-    padding: 10px 12px 12px;
-    border-top: 1px solid #EEF2F8;
+    padding: 14px;
+    border: 1px solid #DDE7F0;
+    border-radius: 8px;
     background: #FFFFFF;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
 }
 
 .tournament-registration-page__item-head {
@@ -4812,6 +5190,74 @@ body.has-web-pair-popup {
     align-items: flex-start;
     gap: 0;
     margin-top: 10px;
+}
+
+.tournament-registration-page__grid.is-single {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 74px;
+    gap: 12px;
+    align-items: center;
+}
+
+.tournament-registration-page__grid.is-single .tournament-registration-page__player {
+    display: grid;
+    grid-template-columns: 66px minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    column-gap: 12px;
+    row-gap: 2px;
+    align-items: flex-start;
+    text-align: left;
+}
+
+.tournament-registration-page__grid.is-single .tournament-registration-page__avatar-ring {
+    grid-row: 1 / span 3;
+    grid-column: 1;
+    margin-left: 0;
+}
+
+.tournament-registration-page__grid.is-single .tournament-registration-page__player strong,
+.tournament-registration-page__grid.is-single .tournament-registration-page__player span,
+.tournament-registration-page__grid.is-single .tournament-registration-page__player em {
+    grid-column: 2;
+    margin-top: 0;
+}
+
+.tournament-registration-page__grid.is-single .tournament-registration-page__points {
+    width: 74px;
+    flex: none;
+    padding-top: 0;
+    align-self: center;
+    font-size: 1rem;
+    text-align: right;
+}
+
+.tournament-registration-page__item.is-single .tournament-registration-page__payment-row {
+    justify-content: flex-start;
+    padding-left: 78px;
+}
+
+.tournament-registration-page__item.is-single .tournament-registration-page__pay-button {
+    width: min(306px, 100%);
+}
+
+@media (max-width: 420px) {
+    .tournament-registration-page__grid.is-single {
+        grid-template-columns: minmax(0, 1fr) 54px;
+        gap: 8px;
+    }
+
+    .tournament-registration-page__grid.is-single .tournament-registration-page__player {
+        grid-template-columns: 58px minmax(0, 1fr);
+        column-gap: 10px;
+    }
+
+    .tournament-registration-page__grid.is-single .tournament-registration-page__points {
+        width: 54px;
+    }
+
+    .tournament-registration-page__item.is-single .tournament-registration-page__payment-row {
+        padding-left: 68px;
+    }
 }
 
 .tournament-registration-page__player {
@@ -4939,7 +5385,9 @@ body.has-web-pair-popup {
 .tournament-registration-page__payment-row {
     display: flex;
     justify-content: flex-end;
-    margin-top: 12px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed #DDE7F0;
 }
 
 .tournament-registration-page__payment-badge,
@@ -4975,6 +5423,20 @@ body.has-web-pair-popup {
     cursor: pointer;
 }
 
+.tournament-registration-page__pay-button.is-icon-only,
+.tournament-registration-page__item.is-single .tournament-registration-page__pay-button.is-icon-only {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+    border-radius: 8px;
+}
+
+.tournament-registration-page__pay-button.is-icon-only ion-icon {
+    font-size: 1.125rem;
+}
+
 .tournament-registration-page__pay-button:disabled {
     opacity: 0.72;
     cursor: wait;
@@ -4983,9 +5445,241 @@ body.has-web-pair-popup {
 .tournament-registration-page__empty {
     margin: 0;
     padding: 24px 12px 20px;
+    background: #FFFFFF;
     color: #6B7280;
     font-size: 0.875rem;
     text-align: center;
+}
+
+.tournament-app-registration-info-page {
+    display: grid;
+    gap: 12px;
+    min-height: 100vh;
+    padding: 12px;
+    background: #F6F8FB;
+}
+
+[data-detail-kind="tournament-app-payment-page"] .page-hero,
+[data-detail-kind="tournament-app-payment-page"] .tournament-app-registration-banner {
+    display: none;
+}
+
+.tournament-app-registration-banner {
+    overflow: hidden;
+    min-height: 150px;
+    border: 1px solid #DDE7F0;
+    border-radius: 8px;
+    background: #E5E7EB;
+}
+
+.tournament-app-registration-banner img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    min-height: 150px;
+    object-fit: cover;
+}
+
+.tournament-app-registration-banner.is-empty {
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: #EAF4EF;
+    color: #0F3D2E;
+    font-size: 1rem;
+    font-weight: 800;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.tournament-app-registration-card {
+    padding: 14px;
+    border: 1px solid #DDE7F0;
+    border-radius: 8px;
+    background: #FFFFFF;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.tournament-app-registration-card__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.tournament-app-registration-card__head span,
+.tournament-app-registration-card__head strong {
+    min-width: 0;
+    font-size: 0.8125rem;
+    font-weight: 800;
+    line-height: 1.3;
+}
+
+.tournament-app-registration-card__head span {
+    color: #047857;
+}
+
+.tournament-app-registration-card__head strong {
+    padding: 6px 9px;
+    border-radius: 6px;
+    background: #DCFCE7;
+    color: #065F46;
+    white-space: nowrap;
+}
+
+.tournament-app-registration-card h2,
+.tournament-app-registration-card p {
+    margin: 0;
+}
+
+.tournament-app-registration-card h2 {
+    color: #0F172A;
+    font-size: 1.05rem;
+    font-weight: 900;
+    line-height: 1.35;
+}
+
+.tournament-app-registration-card p {
+    margin-top: 4px;
+    color: #475569;
+    font-size: 0.875rem;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+.tournament-app-registration-meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.tournament-app-registration-meta span {
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    background: #F8FAFC;
+}
+
+.tournament-app-registration-meta small,
+.tournament-app-registration-meta strong {
+    display: block;
+    min-width: 0;
+}
+
+.tournament-app-registration-meta small {
+    color: #64748B;
+    font-size: 0.6875rem;
+    font-weight: 800;
+    line-height: 1.3;
+}
+
+.tournament-app-registration-meta strong {
+    overflow: hidden;
+    margin-top: 4px;
+    color: #0F172A;
+    font-size: 0.875rem;
+    font-weight: 900;
+    line-height: 1.3;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tournament-app-registration-players {
+    display: grid;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.tournament-app-registration-player {
+    display: grid;
+    grid-template-columns: 54px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid #DDE7F0;
+    border-radius: 8px;
+    background: #F8FAFC;
+}
+
+.tournament-app-registration-player__avatar {
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    width: 54px;
+    height: 54px;
+    border: 2px solid #22C55E;
+    border-radius: 999px;
+    background: #E5E7EB;
+    color: #334155;
+    font-size: 1rem;
+    font-weight: 900;
+}
+
+.tournament-app-registration-player__avatar img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.tournament-app-registration-player__body {
+    min-width: 0;
+}
+
+.tournament-app-registration-player__body span,
+.tournament-app-registration-player__body strong,
+.tournament-app-registration-player__body small,
+.tournament-app-registration-player__body em {
+    display: block;
+    min-width: 0;
+}
+
+.tournament-app-registration-player__body span {
+    color: #047857;
+    font-size: 0.75rem;
+    font-weight: 900;
+    line-height: 1.3;
+}
+
+.tournament-app-registration-player__body strong {
+    overflow: hidden;
+    margin-top: 2px;
+    color: #0F172A;
+    font-size: 0.9375rem;
+    font-weight: 900;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tournament-app-registration-player__body small {
+    margin-top: 2px;
+    color: #475569;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.tournament-app-registration-player__body em {
+    margin-top: 4px;
+    color: #F97316;
+    font-size: 0.75rem;
+    font-style: normal;
+    font-weight: 800;
+    line-height: 1.3;
+}
+
+.tournament-app-registration-player__body em.is-verified {
+    color: #047857;
+}
+
+@media (max-width: 420px) {
+    .tournament-app-registration-meta {
+        grid-template-columns: 1fr;
+    }
 }
 
 .tournament-payment-page {
@@ -4993,6 +5687,11 @@ body.has-web-pair-popup {
     gap: 12px;
     padding: 12px;
     background: #F8FAFC;
+}
+
+.tournament-payment-page.is-app-webview {
+    min-height: 100vh;
+    padding: 10px;
 }
 
 .tournament-payment-status {
@@ -5136,10 +5835,68 @@ body.has-web-pair-popup {
     font-weight: 800;
 }
 
+.tournament-payment-page.is-app-webview .tournament-payment-qr.is-paid::after {
+    content: "Đã ghi nhận";
+}
+
 .tournament-payment-qr--empty {
     color: #64748B;
     font-size: 0.875rem;
     font-weight: 700;
+}
+
+.tournament-payment-team-summary {
+    margin: 0 16px 16px;
+    padding: 12px;
+    border: 1px solid #DDEFE6;
+    border-radius: 8px;
+    background: #F0FDF4;
+}
+
+.tournament-payment-team-summary__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.tournament-payment-team-summary__head span,
+.tournament-payment-team-summary__head strong {
+    color: #047857;
+    font-size: 0.75rem;
+    font-weight: 800;
+    line-height: 1.3;
+}
+
+.tournament-payment-team-summary h3,
+.tournament-payment-team-summary p,
+.tournament-payment-team-summary small {
+    margin: 0;
+}
+
+.tournament-payment-team-summary h3 {
+    color: #0F172A;
+    font-size: 0.95rem;
+    font-weight: 900;
+    line-height: 1.35;
+}
+
+.tournament-payment-team-summary p {
+    margin-top: 4px;
+    color: #334155;
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+.tournament-payment-team-summary small {
+    display: block;
+    margin-top: 6px;
+    color: #64748B;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.4;
 }
 
 .tournament-payment-amount {
@@ -5367,6 +6124,12 @@ body.has-web-pair-popup {
 }
 
 .tournament-payment-success-modal a {
+    background: #16A34A;
+    color: #FFFFFF;
+}
+
+.tournament-payment-success-modal button.is-primary {
+    border: 0;
     background: #16A34A;
     color: #FFFFFF;
 }
@@ -6570,9 +7333,9 @@ body.has-web-pair-popup {
 }
 
 .tournament-registration-page__links--split {
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: center;
-    justify-content: space-between;
     gap: 10px;
 }
 
@@ -6582,7 +7345,7 @@ body.has-web-pair-popup {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    min-height: 42px;
+    min-height: 46px;
     padding: 0 14px;
     border: 0;
     border-radius: 8px;
@@ -6592,6 +7355,11 @@ body.has-web-pair-popup {
     font-weight: 700;
     cursor: pointer;
     text-decoration: none;
+}
+
+.tournament-registration-page__links--split .tournament-registration-page__register:only-child {
+    grid-column: 1 / -1;
+    width: min(210px, 100%);
 }
 
 .tournament-registration-page__register ion-icon,

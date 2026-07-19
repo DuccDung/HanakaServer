@@ -798,6 +798,8 @@
                 !state.loading &&
                 !state.avatarUploading &&
                 !state.deleting;
+            var profileLocked = !!state.form.verified;
+            var canUpdateProfile = canInteract && !profileLocked;
 
             refs.verifiedText.textContent = verifiedStatusText();
             if (refs.communityText) {
@@ -824,28 +826,32 @@
                 : "Chọn ngày sinh";
             refs.genderText.textContent = state.form.gender || "Chọn giới tính";
             refs.provinceText.textContent = state.form.province || "Chọn tỉnh/thành";
-            refs.avatarHint.textContent = state.isAuthenticated
-                ? "Chạm để đổi ảnh đại diện"
-                : "Đăng nhập để cập nhật ảnh";
+            refs.avatarHint.textContent = !state.isAuthenticated
+                ? "Đăng nhập để cập nhật ảnh"
+                : profileLocked
+                    ? "Tài khoản đã xác thực, không thể đổi thông tin hồ sơ"
+                    : "Chạm để đổi ảnh đại diện";
 
             renderAvatar();
 
             refs.cameraBadge.classList.toggle("is-loading", state.avatarUploading);
             refs.cameraBadge.innerHTML = state.avatarUploading
                 ? '<ion-icon name="sync-outline"></ion-icon>'
-                : '<ion-icon name="camera"></ion-icon>';
+                : profileLocked
+                    ? '<ion-icon name="lock-closed"></ion-icon>'
+                    : '<ion-icon name="camera"></ion-icon>';
 
-            setDisabled(refs.avatarTrigger, !canInteract);
-            setDisabled(refs.fullName, !canInteract);
-            setDisabled(refs.phone, !canInteract);
-            setDisabled(refs.bio, !canInteract);
-            setDisabled(refs.dateTrigger, !canInteract);
-            setDisabled(refs.dateInput, !canInteract);
-            setDisabled(refs.genderTrigger, !canInteract);
-            setDisabled(refs.provinceTrigger, !canInteract);
+            setDisabled(refs.avatarTrigger, !canUpdateProfile);
+            setDisabled(refs.fullName, !canUpdateProfile);
+            setDisabled(refs.phone, !canUpdateProfile);
+            setDisabled(refs.bio, !canUpdateProfile);
+            setDisabled(refs.dateTrigger, !canUpdateProfile);
+            setDisabled(refs.dateInput, !canUpdateProfile);
+            setDisabled(refs.genderTrigger, !canUpdateProfile);
+            setDisabled(refs.provinceTrigger, !canUpdateProfile);
 
             refs.updateText.textContent = state.loading ? "Đang lưu..." : "Cập nhật thông tin";
-            setDisabled(refs.updateButton, !state.isAuthenticated || state.booting || state.loading);
+            setDisabled(refs.updateButton, !state.isAuthenticated || state.booting || state.loading || profileLocked);
 
             refs.deleteText.textContent = state.deleting ? "Đang xóa tài khoản..." : "Xóa tài khoản";
             setDisabled(refs.deleteButton, !state.isAuthenticated || state.booting || state.deleting);
@@ -993,6 +999,11 @@
                 return;
             }
 
+            if (state.form.verified) {
+                window.alert("Tài khoản đã xác thực nên không thể đổi ảnh đại diện.");
+                return;
+            }
+
             if (!file) {
                 return;
             }
@@ -1030,6 +1041,11 @@
 
         async function updateProfile() {
             if (requireLogin("Vui lòng đăng nhập để cập nhật thông tin tài khoản.", accountLoginUrl())) {
+                return;
+            }
+
+            if (state.form.verified) {
+                window.alert("Tài khoản đã xác thực nên không thể sửa thông tin hồ sơ.");
                 return;
             }
 
@@ -1144,6 +1160,11 @@
                 return;
             }
 
+            if (state.form.verified) {
+                window.alert("Tài khoản đã xác thực nên không thể đổi ảnh đại diện.");
+                return;
+            }
+
             if (!state.avatarUploading && !state.loading && !state.deleting) {
                 refs.avatarInput.click();
             }
@@ -1174,6 +1195,11 @@
                 return;
             }
 
+            if (state.form.verified) {
+                window.alert("Tài khoản đã xác thực nên không thể sửa thông tin hồ sơ.");
+                return;
+            }
+
             openDatePicker();
         });
 
@@ -1185,11 +1211,21 @@
                 return;
             }
 
+            if (state.form.verified) {
+                window.alert("Tài khoản đã xác thực nên không thể sửa thông tin hồ sơ.");
+                return;
+            }
+
             toggleModal(refs.genderModal, true);
         });
 
         refs.provinceTrigger.addEventListener("click", function () {
             if (requireLogin("Vui lòng đăng nhập để cập nhật tỉnh/thành.", accountLoginUrl())) {
+                return;
+            }
+
+            if (state.form.verified) {
+                window.alert("Tài khoản đã xác thực nên không thể sửa thông tin hồ sơ.");
                 return;
             }
 

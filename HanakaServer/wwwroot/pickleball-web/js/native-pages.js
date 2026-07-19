@@ -338,6 +338,13 @@
         return getNotificationType(item) === "PAIR_REQUEST";
     }
 
+    function isPairLifecycleNotificationType(notificationType) {
+        return notificationType === "PAIR_ACCEPTED" ||
+            notificationType === "PAIR_REJECTED" ||
+            notificationType === "PAIR_CANCELED" ||
+            notificationType === "PAIR_EXPIRED";
+    }
+
     function canPresentRealtimePairPopup() {
         return document.visibilityState !== "hidden";
     }
@@ -345,6 +352,8 @@
     function closePairRequestPopup() {
         if (notificationCenter.popupRoot) {
             notificationCenter.popupRoot.hidden = true;
+            notificationCenter.popupRoot.removeAttribute("data-active-notification-id");
+            notificationCenter.popupRoot.removeAttribute("data-active-notification-type");
         }
 
         notificationCenter.activePopupRequestId = 0;
@@ -391,7 +400,7 @@
 
     function renderInfoNotificationPopupContent(item) {
         var notificationType = getNotificationType(item);
-        var isPairResponse = notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED";
+        var isPairResponse = isPairLifecycleNotificationType(notificationType);
         var tournamentId = Number(readNotificationValue(item, ["tournamentId", "TournamentId"]));
         var matchId = Number(readNotificationValue(item, ["matchId", "MatchId"]));
         var actor = item && item.acceptedBy
@@ -462,7 +471,7 @@
                 : "",
             "</div>",
             '<div class="web-pair-popup__actions">',
-            '<a class="is-primary" href="' + escapeHtml(detailHref) + '">' + escapeHtml(detailText) + "</a>",
+            '<a class="is-primary" href="' + escapeHtml(detailHref) + '" data-pair-popup-notification-link="' + escapeHtml(Number(item && (item.notificationId || item.id)) || "") + '">' + escapeHtml(detailText) + "</a>",
             '<button type="button" data-pair-popup-close>Đóng</button>',
             "</div>"
         ].join("");
@@ -470,7 +479,7 @@
 
     function renderInfoNotificationPopupContent(item) {
         var notificationType = getNotificationType(item);
-        var isPairResponse = notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED";
+        var isPairResponse = isPairLifecycleNotificationType(notificationType);
         var tournamentId = Number(readNotificationValue(item, ["tournamentId", "TournamentId"]));
         var matchId = Number(readNotificationValue(item, ["matchId", "MatchId"]));
         var actor = item && item.acceptedBy
@@ -533,7 +542,7 @@
             metaRows,
             "</div>",
             '<div class="web-pair-popup__actions">',
-            '<a class="is-primary" href="' + escapeHtml(detailHref) + '">' + escapeHtml(detailText) + "</a>",
+            '<a class="is-primary" href="' + escapeHtml(detailHref) + '" data-pair-popup-notification-link="' + escapeHtml(Number(item && (item.notificationId || item.id)) || "") + '">' + escapeHtml(detailText) + "</a>",
             '<button type="button" data-pair-popup-close>Đóng</button>',
             "</div>"
         ].join("");
@@ -564,8 +573,31 @@
         ].join("");
 
         root.addEventListener("click", async function (event) {
+            var detailLink = event.target.closest("[data-pair-popup-notification-link]");
+            if (detailLink) {
+                var linkNotificationId = Number(detailLink.getAttribute("data-pair-popup-notification-link"));
+                if (Number.isFinite(linkNotificationId) && linkNotificationId > 0) {
+                    event.preventDefault();
+                    var href = detailLink.getAttribute("href") || "/PickleballWeb/Notifications";
+                    try {
+                        await markUserNotificationRead(linkNotificationId);
+                    } catch (_error) {
+                    }
+                    window.location.href = href;
+                }
+                return;
+            }
+
             var closeTarget = event.target.closest("[data-pair-popup-close]");
             if (closeTarget) {
+                var activeNotificationId = Number(root.getAttribute("data-active-notification-id"));
+                var activeNotificationType = trimToEmpty(root.getAttribute("data-active-notification-type")).toUpperCase();
+                if (activeNotificationId > 0 && activeNotificationType && activeNotificationType !== "PAIR_REQUEST") {
+                    try {
+                        await markUserNotificationRead(activeNotificationId);
+                    } catch (_error) {
+                    }
+                }
                 closePairRequestPopup();
                 return;
             }
@@ -609,6 +641,8 @@
         }
 
         content.innerHTML = renderNotificationPopupContent(item);
+        popup.setAttribute("data-active-notification-id", String(Number(item && (item.notificationId || item.id)) || 0));
+        popup.setAttribute("data-active-notification-type", getNotificationType(item));
         popup.hidden = false;
         notificationCenter.queuedPopupItem = null;
         notificationCenter.activePopupRequestId = isPairRequestNotification(item)
@@ -713,6 +747,14 @@
 
         if (notificationType === "PAIR_REJECTED") {
             return "Ph\u1ea3n h\u1ed3i l\u1eddi m\u1eddi";
+        }
+
+        if (notificationType === "PAIR_CANCELED") {
+            return "L\u1eddi m\u1eddi \u0111\u00e3 h\u1ee7y";
+        }
+
+        if (notificationType === "PAIR_EXPIRED") {
+            return "L\u1eddi m\u1eddi h\u1ebft h\u1ea1n";
         }
 
         return "Th\u00f4ng b\u00e1o m\u1edbi";
@@ -953,7 +995,7 @@
         var tournamentPrizeId = Number((source && (source.tournamentPrizeId || source.TournamentPrizeId)) || (payload && (payload.tournamentPrizeId || payload.TournamentPrizeId)));
         var ratingHistoryId = Number((source && (source.ratingHistoryId || source.RatingHistoryId)) || (payload && (payload.ratingHistoryId || payload.RatingHistoryId)));
         var notificationType = getNotificationType(payload);
-        var isPairResponse = notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED";
+        var isPairResponse = isPairLifecycleNotificationType(notificationType);
 
         if (!notificationType) {
             return null;
@@ -1054,6 +1096,24 @@
         }
     }
 
+    async function markUserNotificationRead(notificationId) {
+        var targetId = Number(notificationId);
+        if (!Number.isFinite(targetId) || targetId <= 0) {
+            return false;
+        }
+
+        await requestJson("/api/notifications/inbox/" + targetId + "/read", {
+            method: "POST"
+        });
+
+        dispatchNotificationCenterChange({
+            notificationId: targetId,
+            action: "read"
+        });
+
+        return true;
+    }
+
     async function syncNotificationCenter(options) {
         if (!notificationCenter.authenticated) {
             setNotificationBellCount(0);
@@ -1067,7 +1127,7 @@
 
         try {
             var results = await Promise.allSettled([
-                fetchJson("/api/notifications/pair-requests"),
+                fetchJson("/api/notifications/pair-requests?includeResponses=true"),
                 fetchJson("/api/notifications/upcoming-matches"),
                 fetchJson("/api/notifications/inbox")
             ]);
@@ -1079,6 +1139,9 @@
             var pairItems = results[0].status === "fulfilled" && Array.isArray(results[0].value && results[0].value.items)
                 ? results[0].value.items
                 : [];
+            var pendingPairTotal = results[0].status === "fulfilled"
+                ? Math.max(0, Number(results[0].value && results[0].value.pendingTotal) || 0)
+                : 0;
             var matchItems = results[1].status === "fulfilled" && Array.isArray(results[1].value && results[1].value.items)
                 ? results[1].value.items
                 : [];
@@ -1092,7 +1155,7 @@
 
             notificationCenter.pendingPairItems = pairItems.slice();
             notificationCenter.knownPairRequestIds = buildPairRequestIdMap(pairItems);
-            setNotificationBellCount(pairItems.length + matchItems.length + unreadNonPairTotal);
+            setNotificationBellCount(pendingPairTotal + matchItems.length + unreadNonPairTotal);
 
             if (notificationCenter.queuedPopupItem && isPairRequestNotification(notificationCenter.queuedPopupItem)) {
                 var queuedId = Number(notificationCenter.queuedPopupItem.pairRequestId);
@@ -1155,7 +1218,7 @@
                     presentRealtimePairPopup(notificationCenter.queuedPopupItem);
                 }
 
-                syncNotificationCenter({ allowPopup: false });
+                syncNotificationCenter({ allowPopup: true });
             }
         };
 
@@ -1201,7 +1264,7 @@
                     });
                 }
 
-                syncNotificationCenter({ allowPopup: false });
+                syncNotificationCenter({ allowPopup: true });
             })
             .catch(function () {
                 notificationCenter.authenticated = false;
@@ -3051,7 +3114,7 @@
         }
 
         return tournamentId > 0
-            ? "/PickleballWeb/Tournament/" + tournamentId + (notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED" ? "/Register" : "/Standings")
+            ? "/PickleballWeb/Tournament/" + tournamentId + (isPairLifecycleNotificationType(notificationType) ? "/Register" : "/Standings")
             : "/PickleballWeb/Notifications";
     }
 
@@ -3063,7 +3126,7 @@
         var createdAtText = formatDateTime(item && item.createdAt) || "Vừa xong";
         var responseNote = normalizeDisplayText(item && item.responseNote);
         var notificationType = getNotificationType(item);
-        var isPairResponse = notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED";
+        var isPairResponse = isPairLifecycleNotificationType(notificationType);
         if (!isPairResponse) {
             actorName = "H\u1ec7 th\u1ed1ng gi\u1ea3i \u0111\u1ea5u";
         }
@@ -3131,7 +3194,7 @@
         var createdAtText = formatDateTime(item && item.createdAt) || "Vừa xong";
         var responseNote = normalizeDisplayText(item && item.responseNote);
         var notificationType = getNotificationType(item);
-        var isPairResponse = notificationType === "PAIR_ACCEPTED" || notificationType === "PAIR_REJECTED";
+        var isPairResponse = isPairLifecycleNotificationType(notificationType);
         if (!isPairResponse) {
             actorName = "Hệ thống giải đấu";
         }

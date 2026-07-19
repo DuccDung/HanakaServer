@@ -108,6 +108,9 @@ namespace HanakaServer.Controllers
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
             if (user == null) return NotFound(new { message = "User not found." });
 
+            if (user.Verified)
+                return BadRequest(new { message = "Tài khoản đã xác thực nên không thể cập nhật thông tin hồ sơ." });
+
             var oldFullName = user.FullName;
             var oldAvatarUrl = user.AvatarUrl;
 
@@ -151,6 +154,12 @@ namespace HanakaServer.Controllers
         {
             var userId = GetUserIdFromToken();
 
+            var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
+            if (user == null) return NotFound(new { message = "User not found." });
+
+            if (user.Verified)
+                return BadRequest(new { message = "Tài khoản đã xác thực nên không thể đổi ảnh đại diện." });
+
             if (file == null || file.Length == 0)
                 return BadRequest(new { message = "File is required." });
 
@@ -171,9 +180,6 @@ namespace HanakaServer.Controllers
             }
 
             var relativeUrl = $"/uploads/avatars/{fileName}";
-
-            var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
-            if (user == null) return NotFound(new { message = "User not found." });
 
             var oldFullName = user.FullName;
             var oldAvatarUrl = user.AvatarUrl;
@@ -381,6 +387,9 @@ namespace HanakaServer.Controllers
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
             if (user == null)
                 return NotFound(new { message = "User not found." });
+
+            if (user.Verified)
+                return BadRequest(new { message = "Tài khoản đã xác thực nên không thể tự cập nhật điểm trình." });
 
             var now = DateTime.UtcNow;
             var single = Math.Round(req.RatingSingle, 1);

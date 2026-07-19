@@ -63,6 +63,8 @@ public sealed class TournamentPairRequestExpiryService : BackgroundService
         if (expired.Count == 0)
             return;
 
+        var notifications = new List<(TournamentPairRequest Request, UserNotification Notification)>();
+
         foreach (var request in expired)
         {
             request.Status = "EXPIRED";
@@ -91,20 +93,27 @@ public sealed class TournamentPairRequestExpiryService : BackgroundService
             };
 
             db.UserNotifications.Add(notification);
+            notifications.Add((request, notification));
         }
 
         await db.SaveChangesAsync(ct);
 
-        foreach (var request in expired)
+        foreach (var item in notifications)
         {
             await _realtimeHub.SendTournamentNotificationToUserAsync(
-                request.RequestedByUserId.ToString(),
+                item.Request.RequestedByUserId.ToString(),
                 new
                 {
                     NotificationType = "PAIR_EXPIRED",
                     Title = "Lời mời ghép đôi đã hết hạn",
-                    request.TournamentId,
-                    request.PairRequestId
+                    item.Notification.NotificationId,
+                    item.Notification.Body,
+                    item.Notification.RefType,
+                    item.Notification.RefId,
+                    item.Notification.CreatedAt,
+                    item.Request.TournamentId,
+                    item.Request.PairRequestId,
+                    Details = JsonSerializer.Deserialize<JsonElement>(item.Notification.PayloadJson ?? "{}")
                 });
         }
     }

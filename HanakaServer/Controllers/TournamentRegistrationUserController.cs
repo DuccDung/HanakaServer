@@ -40,7 +40,6 @@ public class TournamentRegistrationUserController : ControllerBase
     public async Task<IActionResult> GetMyTournamentRegistrationState(long tournamentId, CancellationToken ct)
     {
         var userId = GetUserIdFromToken();
-        await ExpirePendingPairRequestsAsync(tournamentId, ct);
 
         var tournament = await _db.Tournaments
             .AsNoTracking()
@@ -101,9 +100,6 @@ public class TournamentRegistrationUserController : ControllerBase
             })
             .FirstOrDefaultAsync(ct);
 
-        var pendingSent = await LoadPairRequestsAsync(tournamentId, userId, sent: true, ct);
-        var pendingReceived = await LoadPairRequestsAsync(tournamentId, userId, sent: false, ct);
-
         var successCount = await _db.TournamentRegistrations
             .AsNoTracking()
             .CountAsync(x => x.TournamentId == tournamentId && x.Success, ct);
@@ -153,21 +149,17 @@ public class TournamentRegistrationUserController : ControllerBase
             tournament.Status,
             tournament.RegisterDeadline);
 
-        var hasPending = pendingSent.Count > 0 || pendingReceived.Count > 0;
         var canRegister =
             registration == null &&
-            !hasPending &&
             canRegisterResult.CanRegister &&
             (IsDoubleLike(gameType) || capacityLeft > 0);
         var reason = registration != null
             ? "Bạn đã có đăng ký trong giải này."
-            : hasPending
-                ? "Bạn đang có lời mời ghép đôi chờ xử lý."
-                : !canRegisterResult.CanRegister
-                    ? canRegisterResult.Reason
-                    : capacityLeft <= 0 && !IsDoubleLike(gameType)
-                        ? "Giải đã đủ số đội đăng ký."
-                        : "";
+            : !canRegisterResult.CanRegister
+                ? canRegisterResult.Reason
+                : capacityLeft <= 0 && !IsDoubleLike(gameType)
+                    ? "Giải đã đủ số đội đăng ký."
+                    : "";
 
         return Ok(new
         {
@@ -190,8 +182,8 @@ public class TournamentRegistrationUserController : ControllerBase
             },
             me,
             existingRegistration = registration,
-            pendingSent,
-            pendingReceived,
+            pendingSent = Array.Empty<object>(),
+            pendingReceived = Array.Empty<object>(),
             canRegister,
             reason
         });
@@ -763,6 +755,9 @@ public class TournamentRegistrationUserController : ControllerBase
         await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
         var pairRequest = await _db.TournamentPairRequests
+            .Include(x => x.Tournament)
+            .Include(x => x.RequestedByUser)
+            .Include(x => x.RequestedToUser)
             .FirstOrDefaultAsync(x =>
                 x.PairRequestId == pairRequestId &&
                 x.RequestedByUserId == userId &&
@@ -773,8 +768,37 @@ public class TournamentRegistrationUserController : ControllerBase
 
         pairRequest.Status = "CANCELED";
         pairRequest.RespondedAt = DateTime.UtcNow;
+
+        var notification = BuildNotification(
+            pairRequest.RequestedToUserId,
+            "PAIR_CANCELED",
+            "Lời mời ghép đôi đã bị hủy",
+            $"{pairRequest.RequestedByUser.FullName} đã hủy lời mời ghép cặp tại giải {pairRequest.Tournament.Title}.",
+            "PAIR_REQUEST",
+            pairRequest.PairRequestId,
+            new
+            {
+                pairRequest.PairRequestId,
+                pairRequest.TournamentId,
+                tournamentTitle = pairRequest.Tournament.Title,
+                title = pairRequest.Tournament.Title,
+                requestedBy = ToUserBrief(await LoadUserSnapshotAsync(pairRequest.RequestedByUserId, ct) ?? new UserRegistrationSnapshot
+                {
+                    UserId = pairRequest.RequestedByUser.UserId,
+                    FullName = pairRequest.RequestedByUser.FullName,
+                    AvatarUrl = pairRequest.RequestedByUser.AvatarUrl,
+                    AvatarUrlAbsolute = ToAbsoluteUrl(pairRequest.RequestedByUser.AvatarUrl),
+                    Verified = pairRequest.RequestedByUser.Verified,
+                    RatingSingle = pairRequest.RequestedByUser.RatingSingle ?? 0m,
+                    RatingDouble = pairRequest.RequestedByUser.RatingDouble ?? 0m
+                })
+            });
+
+        _db.UserNotifications.Add(notification);
         await _db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
+
+        await SendTournamentNotificationAsync(pairRequest.RequestedToUserId, notification, pairRequest.TournamentId, pairRequest.PairRequestId, ct);
 
         return Ok(new { ok = true, message = "Đã hủy lời mời ghép đôi." });
     }

@@ -1,4 +1,6 @@
 ﻿using HanakaServer.Data;
+using HanakaServer.Models;
+using HanakaServer.Services;
 using Microsoft.AspNetCore.Authorization;
 using HanakaServer.Helpers;
 using Microsoft.AspNetCore.Mvc;
@@ -19,11 +21,13 @@ namespace HanakaServer.Controllers
 
         private readonly PickleballDbContext _db;
         private readonly IConfiguration _config;
+        private readonly RealtimeHub _realtimeHub;
 
-        public NotificationsController(PickleballDbContext db, IConfiguration config)
+        public NotificationsController(PickleballDbContext db, IConfiguration config, RealtimeHub realtimeHub)
         {
             _db = db;
             _config = config;
+            _realtimeHub = realtimeHub;
         }
 
         private long GetUserIdFromToken()
@@ -121,6 +125,104 @@ namespace HanakaServer.Controllers
                 avatarUrl = ReadJsonString(value, "avatarUrl"),
                 verified = ReadJsonBool(value, "verified") ?? false
             };
+        }
+
+        private static bool IsPairResponseNotification(string? notificationType)
+        {
+            return string.Equals(notificationType, "PAIR_ACCEPTED", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(notificationType, "PAIR_REJECTED", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(notificationType, "PAIR_CANCELED", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(notificationType, "PAIR_EXPIRED", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static object MapPairUserNotification(UserNotification notification)
+        {
+            long pairRequestId = notification.RefType == "PAIR_REQUEST" ? notification.RefId ?? 0 : 0;
+            long tournamentId = 0;
+            long registrationId = 0;
+            string? tournamentTitle = null;
+            string? responseNote = null;
+            object? acceptedBy = null;
+            object? requestedBy = null;
+            object? requestedTo = null;
+            JsonElement? details = null;
+
+            if (!string.IsNullOrWhiteSpace(notification.PayloadJson))
+            {
+                try
+                {
+                    using var document = JsonDocument.Parse(notification.PayloadJson);
+                    var root = document.RootElement;
+                    details = root.Clone();
+
+                    pairRequestId = ReadJsonLong(root, "pairRequestId") ?? pairRequestId;
+                    tournamentId = ReadJsonLong(root, "tournamentId") ?? 0;
+                    registrationId = ReadJsonLong(root, "registrationId") ?? 0;
+                    tournamentTitle = ReadJsonString(root, "tournamentTitle") ?? ReadJsonString(root, "title");
+                    responseNote = ReadJsonString(root, "responseNote");
+                    acceptedBy = ReadUserBrief(root, "acceptedBy");
+                    requestedBy = ReadUserBrief(root, "requestedBy");
+                    requestedTo = ReadUserBrief(root, "requestedTo");
+                }
+                catch
+                {
+                }
+            }
+
+            return new
+            {
+                id = notification.NotificationId,
+                notificationId = notification.NotificationId,
+                type = notification.NotificationType,
+                notificationType = notification.NotificationType,
+                title = notification.Title,
+                message = notification.Body,
+                notification.IsRead,
+                notification.ReadAt,
+                notification.CreatedAt,
+                notification.RefType,
+                notification.RefId,
+                pairRequestId,
+                tournamentId,
+                tournamentTitle,
+                registrationId,
+                responseNote,
+                acceptedBy,
+                requestedBy,
+                requestedTo,
+                details
+            };
+        }
+
+        private async Task SendTournamentNotificationAsync(UserNotification notification, long tournamentId, long pairRequestId, CancellationToken ct)
+        {
+            JsonElement? details = null;
+
+            if (!string.IsNullOrWhiteSpace(notification.PayloadJson))
+            {
+                try
+                {
+                    details = JsonSerializer.Deserialize<JsonElement>(notification.PayloadJson);
+                }
+                catch
+                {
+                    details = null;
+                }
+            }
+
+            await _realtimeHub.SendTournamentNotificationToUserAsync(notification.UserId.ToString(), new
+            {
+                notification.NotificationId,
+                notification.NotificationType,
+                notification.Title,
+                notification.Body,
+                notification.RefType,
+                notification.RefId,
+                notification.CreatedAt,
+                TournamentId = tournamentId,
+                PairRequestId = pairRequestId,
+                Details = details
+            });
         }
 
         [HttpGet("inbox")]
@@ -475,7 +577,7 @@ namespace HanakaServer.Controllers
         }
 
         [HttpGet("pair-requests")]
-        public async Task<IActionResult> GetPairRequestNotifications(CancellationToken ct)
+        public async Task<IActionResult> GetPairRequestNotifications(CancellationToken ct, [FromQuery] bool includeResponses = false)
         {
             try
             {
@@ -483,6 +585,9 @@ namespace HanakaServer.Controllers
                 var now = DateTime.UtcNow;
 
                 var expired = await _db.TournamentPairRequests
+                    .Include(x => x.Tournament)
+                    .Include(x => x.RequestedByUser)
+                    .Include(x => x.RequestedToUser)
                     .Where(x =>
                         x.RequestedToUserId == userId &&
                         x.Status == "PENDING" &&
@@ -496,9 +601,55 @@ namespace HanakaServer.Controllers
                     {
                         item.Status = "EXPIRED";
                         item.RespondedAt = now;
+
+                        var notification = new UserNotification
+                        {
+                            UserId = item.RequestedByUserId,
+                            NotificationType = "PAIR_EXPIRED",
+                            Title = "Lời mời ghép đôi đã hết hạn",
+                            Body = $"Lời mời gửi cho {item.RequestedToUser.FullName} tại giải {item.Tournament.Title} đã hết hạn.",
+                            RefType = "PAIR_REQUEST",
+                            RefId = item.PairRequestId,
+                            CreatedAt = now,
+                            PayloadJson = JsonSerializer.Serialize(new
+                            {
+                                item.PairRequestId,
+                                item.TournamentId,
+                                tournamentTitle = item.Tournament.Title,
+                                title = item.Tournament.Title,
+                                requestedTo = new
+                                {
+                                    userId = item.RequestedToUser.UserId,
+                                    fullName = item.RequestedToUser.FullName,
+                                    avatarUrl = ToAbsoluteUrl(item.RequestedToUser.AvatarUrl),
+                                    verified = item.RequestedToUser.Verified
+                                }
+                            }, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+                        };
+
+                        _db.UserNotifications.Add(notification);
                     }
 
                     await _db.SaveChangesAsync(ct);
+
+                    foreach (var item in expired)
+                    {
+                        var notification = await _db.UserNotifications
+                            .AsNoTracking()
+                            .Where(x =>
+                                x.UserId == item.RequestedByUserId &&
+                                x.RefType == "PAIR_REQUEST" &&
+                                x.RefId == item.PairRequestId &&
+                                x.NotificationType == "PAIR_EXPIRED")
+                            .OrderByDescending(x => x.CreatedAt)
+                            .ThenByDescending(x => x.NotificationId)
+                            .FirstOrDefaultAsync(ct);
+
+                        if (notification != null)
+                        {
+                            await SendTournamentNotificationAsync(notification, item.TournamentId, item.PairRequestId, ct);
+                        }
+                    }
                 }
 
                 var pendingRows = await _db.TournamentPairRequests
@@ -515,6 +666,16 @@ namespace HanakaServer.Controllers
                         x.RequestedAt,
                         x.ExpiresAt,
                         x.Status,
+                        NotificationId = _db.UserNotifications
+                            .Where(n =>
+                                n.UserId == userId &&
+                                n.RefType == "PAIR_REQUEST" &&
+                                n.RefId == x.PairRequestId &&
+                                n.NotificationType == "PAIR_REQUEST")
+                            .OrderByDescending(n => n.CreatedAt)
+                            .ThenByDescending(n => n.NotificationId)
+                            .Select(n => (long?)n.NotificationId)
+                            .FirstOrDefault(),
                         RequestedByUserId = x.RequestedByUser.UserId,
                         RequestedByName = x.RequestedByUser.FullName,
                         RequestedByAvatar = x.RequestedByUser.AvatarUrl,
@@ -529,6 +690,8 @@ namespace HanakaServer.Controllers
                     return new
                     {
                         type = "PAIR_REQUEST",
+                        notificationType = "PAIR_REQUEST",
+                        notificationId = x.NotificationId,
                         x.PairRequestId,
                         x.TournamentId,
                         tournamentTitle = x.TournamentTitle,
@@ -549,12 +712,36 @@ namespace HanakaServer.Controllers
                             verified = x.RequestedByVerified
                         }
                     };
-                }).ToList();
+                }).Cast<object>().ToList();
+
+                var responseItems = new List<object>();
+                if (includeResponses)
+                {
+                    var responseNotifications = await _db.UserNotifications
+                        .AsNoTracking()
+                        .Where(x =>
+                            x.UserId == userId &&
+                            !x.IsRead &&
+                            x.RefType == "PAIR_REQUEST" &&
+                            x.NotificationType != "PAIR_REQUEST")
+                        .OrderByDescending(x => x.CreatedAt)
+                        .ThenByDescending(x => x.NotificationId)
+                        .ToListAsync(ct);
+
+                    responseItems = responseNotifications
+                        .Where(x => IsPairResponseNotification(x.NotificationType))
+                        .Select(MapPairUserNotification)
+                        .ToList();
+                }
+
+                var items = pendingItems.Concat(responseItems).ToList();
 
                 return Ok(new
                 {
-                    total = pendingItems.Count,
-                    items = pendingItems
+                    total = items.Count,
+                    pendingTotal = pendingItems.Count,
+                    unreadResponseTotal = responseItems.Count,
+                    items
                 });
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested || HttpContext.RequestAborted.IsCancellationRequested)

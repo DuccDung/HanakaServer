@@ -155,6 +155,20 @@ namespace HanakaServer.Controllers.Web
                 showSearch: false));
         }
 
+        [HttpGet("/PickleballWeb/SelfRating")]
+        public IActionResult SelfRating()
+        {
+            return View("Detail", BuildDetailPage(
+                title: "Tự Chấm Trình",
+                eyebrow: "Tự đánh giá",
+                description: "Tự cập nhật điểm trình đơn và đôi khi tài khoản chưa được xác thực.",
+                pageKind: "self-rating-page",
+                entityId: 0,
+                backHref: "/PickleballWeb/Members",
+                backLabel: "Thành viên",
+                activeTab: "home"));
+        }
+
         [HttpGet("/PickleballWeb/Member/{id:long}")]
         public IActionResult MemberDetail(long id)
         {
@@ -309,13 +323,13 @@ namespace HanakaServer.Controllers.Web
         public IActionResult TournamentRegister(long id)
         {
             return View("Detail", BuildDetailPage(
-                title: "Dang Ki Giai",
-                eyebrow: "Tournament registration",
-                description: "Chon hinh thuc dang ky, gui loi moi ghep cap hoac dang ky cho ghep theo dung the thuc cua giai.",
+                title: "Đăng Ký Giải",
+                eyebrow: "Đăng ký giải",
+                description: "Chọn hình thức đăng ký, gửi lời mời ghép cặp hoặc đăng ký theo đúng thể thức của giải.",
                 pageKind: "tournament-register-page",
                 entityId: id,
                 backHref: $"/PickleballWeb/Tournament/{id}/Registrations",
-                backLabel: "Danh sach",
+                backLabel: "Danh sách",
                 activeTab: "tournaments"));
         }
 
@@ -329,6 +343,22 @@ namespace HanakaServer.Controllers.Web
                 eyebrow: "SePay QR",
                 description: "Quét mã QR hoặc chuyển khoản đúng nội dung để hệ thống tự xác nhận thanh toán.",
                 pageKind: "tournament-payment-page",
+                entityId: id,
+                backHref: $"/PickleballWeb/Tournament/{id}/Registrations",
+                backLabel: "Danh sách",
+                activeTab: "tournaments"));
+        }
+
+        [HttpGet("/PickleballWeb/App/Tournament/{id:long}/Registration/{registrationId:long}/Payment")]
+        public IActionResult TournamentRegistrationAppPayment(long id, long registrationId)
+        {
+            ViewBag.RegistrationId = registrationId;
+
+            return View("Detail", BuildDetailPage(
+                title: "Chi tiết đăng ký",
+                eyebrow: "Thông tin đội",
+                description: "Hiển thị banner giải đấu và thông tin đội đăng ký.",
+                pageKind: "tournament-app-payment-page",
                 entityId: id,
                 backHref: $"/PickleballWeb/Tournament/{id}/Registrations",
                 backLabel: "Danh sách",
@@ -399,13 +429,13 @@ namespace HanakaServer.Controllers.Web
             ViewBag.ReturnUrl = safeReturnUrl;
 
             return View("TournamentBracket", BuildDetailPage(
-                title: "So Do Thi Dau",
-                eyebrow: "Tournament bracket",
-                description: "So do truc quan cac nhanh thi dau, tu dong tao cac vong ao neu lich dau moi co vong dau tien.",
+                title: "Sơ Đồ Thi Đấu",
+                eyebrow: "Sơ đồ thi đấu",
+                description: "Sơ đồ trực quan các nhánh thi đấu, tự động tạo các vòng ảo nếu lịch đấu mới có vòng đầu tiên.",
                 pageKind: "tournament-bracket-page",
                 entityId: id,
                 backHref: safeReturnUrl,
-                backLabel: "Lich thi dau",
+                backLabel: "Lịch thi đấu",
                 activeTab: "tournaments"));
         }
 
