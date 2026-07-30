@@ -203,7 +203,7 @@ namespace HanakaServer.Controllers
         {
             var t = await ActiveTournamentsQuery(asNoTracking: true)
                 .FirstOrDefaultAsync(x => x.TournamentId == id);
-            if (t == null) return NotFound(new { message = "Tournament not found." });
+            if (t == null) return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             return Ok(MapToDto(t));
         }
@@ -214,10 +214,10 @@ namespace HanakaServer.Controllers
         public async Task<IActionResult> Create([FromForm] CreateTournamentRequest req)
         {
             if (string.IsNullOrWhiteSpace(req.Title))
-                return BadRequest(new { message = "Title is required." });
+                return BadRequest(new { message = "Vui lòng nhập tên giải đấu." });
 
             if (string.IsNullOrWhiteSpace(req.GameType))
-                return BadRequest(new { message = "GameType is required." });
+                return BadRequest(new { message = "Vui lòng chọn loại thi đấu." });
 
             var tournamentType = ResolveTournamentType(req.GameType, req.GenderCategory);
             if (!tournamentType.Ok)
@@ -233,7 +233,7 @@ namespace HanakaServer.Controllers
                 var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
                 var ext = Path.GetExtension(req.BannerFile.FileName).ToLowerInvariant();
                 if (!allowed.Contains(ext))
-                    return BadRequest(new { message = "Banner only accepts jpg, jpeg, png, webp." });
+                    return BadRequest(new { message = "Ảnh bìa chỉ chấp nhận định dạng jpg, jpeg, png hoặc webp." });
 
                 var uploadsDir = Path.Combine(_env.WebRootPath ?? "wwwroot", "uploads", "tournaments");
                 Directory.CreateDirectory(uploadsDir);
@@ -296,7 +296,7 @@ namespace HanakaServer.Controllers
         {
             var t = await ActiveTournamentsQuery()
                 .FirstOrDefaultAsync(x => x.TournamentId == id);
-            if (t == null) return NotFound(new { message = "Tournament not found." });
+            if (t == null) return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             if (!string.IsNullOrWhiteSpace(req.Title))
                 t.Title = req.Title.Trim();
@@ -352,7 +352,7 @@ namespace HanakaServer.Controllers
                 var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
                 var ext = Path.GetExtension(req.BannerFile.FileName).ToLowerInvariant();
                 if (!allowed.Contains(ext))
-                    return BadRequest(new { message = "Banner only accepts jpg, jpeg, png, webp." });
+                    return BadRequest(new { message = "Ảnh bìa chỉ chấp nhận định dạng jpg, jpeg, png hoặc webp." });
 
                 var uploadsDir = Path.Combine(_env.WebRootPath ?? "wwwroot", "uploads", "tournaments");
                 Directory.CreateDirectory(uploadsDir);
@@ -386,7 +386,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(x => x.TournamentId == id);
 
             if (t == null)
-                return NotFound(new { message = "Tournament not found." });
+                return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             t.Remove = true;
             await _db.SaveChangesAsync();

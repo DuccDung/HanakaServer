@@ -30,7 +30,7 @@ namespace HanakaServer.Services
                     RatingDouble = x.RatingDouble,
                     RatedByUserId = x.RatedByUserId,
                     RatedByName = x.RatedByUserId == null
-                        ? "He thong"
+                        ? "Hệ thống"
                         : (x.RatedByUser != null ? x.RatedByUser.FullName : null),
                     Note = x.Note,
                     RatedAt = x.RatedAt
@@ -60,7 +60,7 @@ namespace HanakaServer.Services
                     RatingDouble = x.RatingDouble,
                     RatedByUserId = x.RatedByUserId,
                     RatedByName = x.RatedByUserId == null
-                        ? "He thong"
+                        ? "Hệ thống"
                         : (x.RatedByUser != null ? x.RatedByUser.FullName : null),
                     Note = x.Note,
                     RatedAt = x.RatedAt

@@ -197,7 +197,7 @@ namespace HanakaServer.Controllers.Admin
                 return NotFound(new { message = "Không tìm thấy user." });
 
             if (!user.IsActive)
-                return BadRequest(new { message = "User đang bị khóa, không thể gán quyền chấm trình." });
+                return BadRequest(new { message = "Người dùng đang bị khóa, không thể gán quyền chấm trình." });
 
             var role = await EnsureRatingAssessorRoleAsync(ct);
 
@@ -227,7 +227,7 @@ namespace HanakaServer.Controllers.Admin
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.RoleId == role.RoleId, ct);
 
             if (userRole == null)
-                return NotFound(new { message = "User chưa có quyền chấm trình." });
+                return NotFound(new { message = "Người dùng chưa có quyền chấm trình." });
 
             _db.UserRoles.Remove(userRole);
             await _db.SaveChangesAsync(ct);

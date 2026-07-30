@@ -221,6 +221,32 @@
         border-radius: 0;
     }
 
+    .bracket-floating-launcher {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 1064;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 52px;
+        height: 52px;
+        border: 1px solid rgba(14, 165, 233, .46);
+        border-radius: 999px;
+        background: #0f172a;
+        color: #e0f2fe;
+        box-shadow: 0 16px 34px rgba(15, 23, 42, .28), 0 0 0 4px rgba(14, 165, 233, .12);
+    }
+
+        .bracket-floating-launcher:hover {
+            color: #fff;
+            background: #0369a1;
+        }
+
+        .bracket-floating-launcher i {
+            font-size: 1.15rem;
+        }
+
     .match-error-popup {
         position: fixed;
         inset: 0;
@@ -672,7 +698,7 @@
             </a>
 
             <button class="btn btn-sm btn-outline-dark" type="button" id="btnOpenBracketPopup">
-                <i class="fas fa-project-diagram"></i> Popup bracket
+                <i class="fas fa-project-diagram"></i> Mở sơ đồ nhánh đấu
             </button>
 
             <button class="btn btn-sm btn-outline-primary" type="button" id="btnOpenWinnerFilter">
@@ -741,7 +767,7 @@
 <div class="bracket-popup d-none" id="bracketPopup" aria-hidden="true">
     <div class="bracket-popup__header" id="bracketPopupHandle">
         <div class="bracket-popup__title">
-            <i class="fas fa-project-diagram mr-1"></i> Bracket giải đấu
+            <i class="fas fa-project-diagram mr-1"></i> Nhánh đấu của giải
         </div>
         <div class="bracket-popup__controls">
             <button class="btn btn-sm btn-outline-secondary" type="button" id="btnBracketZoomOut" title="Thu nhỏ">
@@ -751,10 +777,16 @@
             <button class="btn btn-sm btn-outline-secondary" type="button" id="btnBracketZoomIn" title="Phóng to">
                 <i class="fas fa-search-plus"></i>
             </button>
-            <button class="btn btn-sm btn-outline-info" type="button" id="btnBracketReload" title="Làm mới bracket">
+            <button class="btn btn-sm btn-outline-info" type="button" id="btnBracketReload" title="Làm mới nhánh đấu">
                 <i class="fas fa-sync-alt"></i>
             </button>
-            <button class="btn btn-sm btn-outline-dark" type="button" id="btnBracketFullscreen" title="Phóng panel">
+            <button class="btn btn-sm btn-outline-success" type="button" id="btnBracketValidateWinner" title="Kiểm tra đội thắng đi tiếp">
+                <i class="fas fa-trophy"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger" type="button" id="btnBracketValidate" title="Kiểm tra đội thua ở vòng cứu thua">
+                <i class="fas fa-life-ring"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-dark" type="button" id="btnBracketFullscreen" title="Phóng to bảng">
                 <i class="fas fa-expand"></i>
             </button>
             <button class="btn btn-sm btn-outline-danger" type="button" id="btnCloseBracketPopup" title="Đóng">
@@ -768,6 +800,7 @@
                  id="bracketPopupViewer"
                  data-admin-tournament-bracket-page
                  data-admin-bracket-defer="true"
+                 data-admin-bracket-editable="true"
                  data-tournament-id="@tournamentId">
                 <section class="admin-tournament-bracket-panel">
                     <div class="admin-tournament-bracket-panel__top">
@@ -790,6 +823,10 @@
         </div>
     </div>
 </div>
+
+<button class="bracket-floating-launcher d-none" type="button" id="btnBracketFloatingLauncher" title="Mở nhánh đấu của giải" aria-label="Mở nhánh đấu của giải">
+    <i class="fas fa-project-diagram"></i>
+</button>
 
 <div class="match-error-popup" id="matchErrorPopup" aria-hidden="true">
     <div class="match-error-popup__backdrop" id="matchErrorPopupBackdrop"></div>
@@ -835,7 +872,7 @@
                         <small class="text-muted" id="winnerSourceHint">Đang dùng toàn bộ đội đăng ký thành công của giải để tạo trận.</small>
                         <div class="d-flex" style="gap:8px">
                             <button class="btn btn-sm btn-outline-dark" type="button" id="btnOpenBracketPopupFromModal">
-                                <i class="fas fa-project-diagram"></i> Bracket
+                                <i class="fas fa-project-diagram"></i> Nhánh đấu
                             </button>
                             <button class="btn btn-sm btn-outline-primary" type="button" id="btnOpenWinnerFilterFromModal">
                                 <i class="fas fa-sitemap"></i> Lọc đội thắng
@@ -1027,9 +1064,9 @@
                     <hr />
 
                     <div class="form-group mb-2">
-                        <label>Gán trọng tài theo UserId <span class="text-danger">*</span></label>
+                        <label>Gán trọng tài theo ID người dùng <span class="text-danger">*</span></label>
                         <div class="input-group">
-                            <input type="number" class="form-control" id="refereeUserIdInput" placeholder="Nhập UserId trọng tài hợp lệ" min="1" />
+                            <input type="number" class="form-control" id="refereeUserIdInput" placeholder="Nhập ID người dùng hợp lệ của trọng tài" min="1" />
                             <div class="input-group-append">
                                 <button class="btn btn-outline-info" type="button" id="btnFindReferee">
                                     <i class="fas fa-search"></i> Tìm
@@ -1278,6 +1315,7 @@
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="~/js/admin-tournament-bracket.js" asp-append-version="true"></script>
+    <script src="~/js/admin-tournament-bracket-editor.js" asp-append-version="true"></script>
     <script>
         (() => {
             const $id = (id) => document.getElementById(id);
@@ -1332,6 +1370,7 @@
             let REOPEN_MATCH_MODAL_AFTER_LOSER_FILTER = false;
             let BRACKET_VIEWER = null;
             let BRACKET_ZOOM = 0.82;
+            let BRACKET_POPUP_NEEDS_RELOAD = false;
 
             const esc = (s) => String(s || "")
                 .replaceAll("&", "&amp;")
@@ -1611,13 +1650,19 @@
 
             function setBracketZoom(value) {
                 BRACKET_ZOOM = clamp(Number(value) || 0.82, 0.55, 1.35);
+                const hasViewerZoom = !!BRACKET_VIEWER?.setZoom;
 
                 const stage = $id("bracketPopupStage");
                 if (stage) {
-                    stage.style.setProperty("--bracket-popup-zoom", String(BRACKET_ZOOM));
-                    stage.style.zoom = String(BRACKET_ZOOM);
-                    stage.style.width = `${100 / BRACKET_ZOOM}%`;
-                    stage.style.height = `${100 / BRACKET_ZOOM}%`;
+                    const stageZoom = hasViewerZoom ? 1 : BRACKET_ZOOM;
+                    stage.style.setProperty("--bracket-popup-zoom", String(stageZoom));
+                    stage.style.zoom = String(stageZoom);
+                    stage.style.width = hasViewerZoom ? "100%" : `${100 / BRACKET_ZOOM}%`;
+                    stage.style.height = hasViewerZoom ? "100%" : `${100 / BRACKET_ZOOM}%`;
+                }
+
+                if (hasViewerZoom) {
+                    BRACKET_VIEWER.setZoom(BRACKET_ZOOM);
                 }
 
                 const label = $id("bracketZoomLabel");
@@ -1625,7 +1670,34 @@
                     label.textContent = `${Math.round(BRACKET_ZOOM * 100)}%`;
                 }
 
-                window.setTimeout(() => BRACKET_VIEWER?.rerender?.(), 80);
+                if (!hasViewerZoom) {
+                    window.setTimeout(() => BRACKET_VIEWER?.rerender?.(), 80);
+                }
+            }
+
+            function isBracketPopupVisible() {
+                const popup = $id("bracketPopup");
+                return !!popup && !popup.classList.contains("d-none");
+            }
+
+            function updateBracketFloatingLauncher() {
+                const launcher = $id("btnBracketFloatingLauncher");
+                if (!launcher) return;
+
+                launcher.classList.toggle("d-none", !BRACKET_VIEWER || isBracketPopupVisible());
+            }
+
+            function openBracketPopupForMatchModal() {
+                if (!BRACKET_VIEWER) {
+                    openBracketPopup(false);
+                    return;
+                }
+
+                if (isBracketPopupVisible()) {
+                    BRACKET_VIEWER.rerender?.();
+                }
+
+                updateBracketFloatingLauncher();
             }
 
             function openBracketPopup(forceReload = false) {
@@ -1635,34 +1707,50 @@
 
                 popup.classList.remove("d-none");
                 popup.setAttribute("aria-hidden", "false");
+                updateBracketFloatingLauncher();
                 setBracketZoom(BRACKET_ZOOM);
 
                 if (!BRACKET_VIEWER) {
                     BRACKET_VIEWER = window.AdminTournamentBracket?.init?.(viewerRoot, {
                         tournamentId: TOURNAMENT_ID,
-                        autoLoad: true
+                        autoLoad: true,
+                        zoom: BRACKET_ZOOM,
+                        maxZoom: 1.35
                     }) || null;
+                    BRACKET_POPUP_NEEDS_RELOAD = false;
+                    setBracketZoom(BRACKET_ZOOM);
+                    updateBracketFloatingLauncher();
                     return;
                 }
 
-                if (forceReload) {
+                if (forceReload || BRACKET_POPUP_NEEDS_RELOAD) {
+                    BRACKET_POPUP_NEEDS_RELOAD = false;
                     BRACKET_VIEWER.reload?.();
                 } else {
                     BRACKET_VIEWER.rerender?.();
                 }
+
+                updateBracketFloatingLauncher();
             }
 
             function closeBracketPopup() {
                 const popup = $id("bracketPopup");
                 if (!popup) return;
 
+                $id("bracketPopupViewer")?._adminTournamentBracketEditor?.close?.();
                 popup.classList.add("d-none");
                 popup.setAttribute("aria-hidden", "true");
+                updateBracketFloatingLauncher();
             }
 
             function reloadBracketPopupIfOpen() {
-                const popup = $id("bracketPopup");
-                if (!popup || popup.classList.contains("d-none")) return;
+                if (!BRACKET_VIEWER) return;
+
+                if (!isBracketPopupVisible()) {
+                    BRACKET_POPUP_NEEDS_RELOAD = true;
+                    updateBracketFloatingLauncher();
+                    return;
+                }
 
                 BRACKET_VIEWER?.reload?.();
             }
@@ -1673,6 +1761,16 @@
 
                 popup.classList.toggle("is-fullscreen");
                 window.setTimeout(() => BRACKET_VIEWER?.rerender?.(), 120);
+            }
+
+            function toggleBracketValidationPanel(mode = "winner") {
+                if (!BRACKET_VIEWER) {
+                    openBracketPopup(false);
+                    window.setTimeout(() => BRACKET_VIEWER?.toggleValidationPanel?.(mode), 120);
+                    return;
+                }
+
+                BRACKET_VIEWER.toggleValidationPanel?.(mode);
             }
 
             function keepBracketPopupInViewport(left, top, width, height) {
@@ -1763,9 +1861,9 @@
 
                 $id("refereeUserId").value = String(u.userId);
                 $id("refereeInfo").innerHTML = `
-                    <div><b>${esc(u.fullName)}</b> (UserId: ${u.userId})</div>
+                    <div><b>${esc(u.fullName)}</b> (ID người dùng: ${u.userId})</div>
                     <div>${esc(u.phone || "—")} • ${esc(u.email || "—")} • ${esc(u.city || "—")}</div>
-                    <div>Hồ sơ trọng tài: ${u.refereeVerified ? "Hợp lệ" : "Chưa xác minh"} • Loại: ${esc(u.refereeType || "REFEREE")} • Hoạt động: ${u.isActive ? "Có" : "Không"}</div>
+                    <div>Hồ sơ trọng tài: ${u.refereeVerified ? "Hợp lệ" : "Chưa xác minh"} • Loại: ${esc(u.refereeType || "Trọng tài")} • Hoạt động: ${u.isActive ? "Có" : "Không"}</div>
                 `;
             }
 
@@ -1774,7 +1872,7 @@
 
                 const userId = Number($id("refereeUserIdInput").value || 0);
                 if (!userId) {
-                    showFormErr("Vui lòng nhập UserId trọng tài.", "formErr");
+                    showFormErr("Vui lòng nhập ID người dùng của trọng tài.", "formErr");
                     return;
                 }
 
@@ -1804,8 +1902,8 @@
                     <div class="team-select-meta">
                         ${esc(label)}: <b>${esc(name)}</b>
                         • Level dùng giải: ${formatDecimal(pickedLevel)}
-                        • Single: ${formatDecimal(singleLevel)}
-                        • Double: ${formatDecimal(doubleLevel)}
+                        • Đơn: ${formatDecimal(singleLevel)}
+                        • Đôi: ${formatDecimal(doubleLevel)}
                         • ${verified ? "Đã xác minh" : "Chưa xác minh"}
                     </div>
                 `;
@@ -2539,7 +2637,7 @@
                     ${buildPlayerMeta("VĐV 1", reg.player1Name, reg.player1Level, reg.player1Verified, reg.player1LevelSingle, reg.player1LevelDouble)}
                     ${buildPlayerMeta("VĐV 2", reg.player2Name, reg.player2Level, reg.player2Verified, reg.player2LevelSingle, reg.player2LevelDouble)}
                     <div class="team-select-meta">Điểm: <b>${formatDecimal(reg.points)}</b> • Thanh toán: ${reg.paid ? "Đã thanh toán" : "Chưa thanh toán"}</div>
-                    <div class="team-select-meta">BT Code: ${esc(reg.btCode || "—")} • Đăng ký: ${fmt(reg.regTime || reg.createdAt)}</div>
+                    <div class="team-select-meta">Mã chuyển khoản: ${esc(reg.btCode || "—")} • Đăng ký: ${fmt(reg.regTime || reg.createdAt)}</div>
                 `;
             }
 
@@ -2779,11 +2877,11 @@
                             ${actionHtml}
                         </div>
 
-                        <div class="team-picker-player">VĐV 1: <b>${esc(reg.player1Name || "—")}</b> • Level giải: ${formatDecimal(reg.player1Level)} • Single: ${formatDecimal(reg.player1LevelSingle)} • Double: ${formatDecimal(reg.player1LevelDouble)}</div>
+                        <div class="team-picker-player">Vận động viên 1: <b>${esc(reg.player1Name || "—")}</b> • Trình áp dụng: ${formatDecimal(reg.player1Level)} • Trình đơn: ${formatDecimal(reg.player1LevelSingle)} • Trình đôi: ${formatDecimal(reg.player1LevelDouble)}</div>
                         ${reg.player2Name
-                            ? `<div class="team-picker-player">VĐV 2: <b>${esc(reg.player2Name)}</b> • Level giải: ${formatDecimal(reg.player2Level)} • Single: ${formatDecimal(reg.player2LevelSingle)} • Double: ${formatDecimal(reg.player2LevelDouble)}</div>`
+                            ? `<div class="team-picker-player">Vận động viên 2: <b>${esc(reg.player2Name)}</b> • Trình áp dụng: ${formatDecimal(reg.player2Level)} • Trình đơn: ${formatDecimal(reg.player2LevelSingle)} • Trình đôi: ${formatDecimal(reg.player2LevelDouble)}</div>`
                             : `<div class="team-picker-player">VĐV 2: <b>Chưa có</b></div>`}
-                        <div class="team-picker-card-meta">Điểm: <b>${formatDecimal(reg.points)}</b> • Thanh toán: ${reg.paid ? "Đã thanh toán" : "Chưa thanh toán"} • BT Code: ${esc(reg.btCode || "—")}</div>
+                        <div class="team-picker-card-meta">Điểm: <b>${formatDecimal(reg.points)}</b> • Thanh toán: ${reg.paid ? "Đã thanh toán" : "Chưa thanh toán"} • Mã chuyển khoản: ${esc(reg.btCode || "—")}</div>
                         <div class="team-picker-card-meta">Đăng ký: ${fmt(reg.regTime || reg.createdAt)} • Trạng thái: ${reg.success ? "Hợp lệ" : "Chưa hợp lệ"}</div>
                         ${selectionIssue
                             ? `<div class="team-picker-card-alert">${esc(selectionIssue.message)}</div>`
@@ -3073,7 +3171,7 @@
 
                 const refereeLine = m.refereeUserId
                     ? `<div class="meta mt-1">
-                            Trọng tài: <b>${esc(m.refereeName || ("User #" + m.refereeUserId))}</b>
+                            Trọng tài: <b>${esc(m.refereeName || ("Người dùng #" + m.refereeUserId))}</b>
                             ${m.refereePhone ? " • " + esc(m.refereePhone) : ""}
                        </div>`
                     : `<div class="meta mt-1">Trọng tài: <span class="text-warning">Chưa gán</span></div>`;
@@ -3122,13 +3220,13 @@
                             <div class="team-block">
                                 <div class="team-code">Mã ĐK: ${esc(team1RegCode)}</div>
                                 <div class="team-name ${t1Winner ? "winner" : ""}">${esc(m.team1Text)}</div>
-                                ${m.team1Resolved ? "" : `<div class="team-code"><span class="badge badge-warning">TBD</span> ${esc(m.team1SourceText || "")}</div>`}
+                                ${m.team1Resolved ? "" : `<div class="team-code"><span class="badge badge-warning">Chưa xác định</span> ${esc(m.team1SourceText || "")}</div>`}
                             </div>
                             <div class="score">${Number(m.scoreTeam1 || 0)} - ${Number(m.scoreTeam2 || 0)}</div>
                             <div class="team-block text-right align-items-end">
                                 <div class="team-code">Mã ĐK: ${esc(team2RegCode)}</div>
                                 <div class="team-name ${t2Winner ? "winner" : ""}">${esc(m.team2Text)}</div>
-                                ${m.team2Resolved ? "" : `<div class="team-code"><span class="badge badge-warning">TBD</span> ${esc(m.team2SourceText || "")}</div>`}
+                                ${m.team2Resolved ? "" : `<div class="team-code"><span class="badge badge-warning">Chưa xác định</span> ${esc(m.team2SourceText || "")}</div>`}
                             </div>
                         </div>
 
@@ -3219,7 +3317,7 @@
             function openCreate() {
                 resetMatchForm();
                 $("#modalMatch").modal("show");
-                openBracketPopup(false);
+                openBracketPopupForMatchModal();
             }
 
             window.openEdit = (matchId) => {
@@ -3261,7 +3359,7 @@
                 }
 
                 $("#modalMatch").modal("show");
-                openBracketPopup(false);
+                openBracketPopupForMatchModal();
             };
 
             window.delMatch = async (matchId) => {
@@ -3453,8 +3551,11 @@
             $id("btnOpenCreate").addEventListener("click", openCreate);
             $id("btnOpenBracketPopup").addEventListener("click", () => openBracketPopup(false));
             $id("btnOpenBracketPopupFromModal").addEventListener("click", () => openBracketPopup(false));
+            $id("btnBracketFloatingLauncher").addEventListener("click", () => openBracketPopup(BRACKET_POPUP_NEEDS_RELOAD));
             $id("btnCloseBracketPopup").addEventListener("click", closeBracketPopup);
             $id("btnBracketReload").addEventListener("click", () => openBracketPopup(true));
+            $id("btnBracketValidateWinner").addEventListener("click", () => toggleBracketValidationPanel("winner"));
+            $id("btnBracketValidate").addEventListener("click", () => toggleBracketValidationPanel("loser"));
             $id("btnBracketZoomOut").addEventListener("click", () => setBracketZoom(BRACKET_ZOOM - 0.1));
             $id("btnBracketZoomIn").addEventListener("click", () => setBracketZoom(BRACKET_ZOOM + 0.1));
             $id("btnBracketFullscreen").addEventListener("click", toggleBracketPopupFullscreen);
@@ -3670,6 +3771,10 @@
 
                 REOPEN_MATCH_MODAL_AFTER_LOSER_FILTER = false;
                 setTimeout(() => $("#modalMatch").modal("show"), 180);
+            });
+
+            $id("bracketPopupViewer").addEventListener("adminbracket:changed", () => {
+                load();
             });
 
             document.addEventListener("DOMContentLoaded", () => {

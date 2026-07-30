@@ -246,7 +246,7 @@ namespace HanakaServer.Controllers
                 })
                 .FirstOrDefaultAsync();
 
-            if (u == null) return NotFound(new { message = "User not found." });
+            if (u == null) return NotFound(new { message = "Không tìm thấy người dùng." });
             return Ok(new
             {
                 userId = u.UserId,
@@ -285,7 +285,7 @@ namespace HanakaServer.Controllers
         public async Task<IActionResult> Update(long id, [FromBody] UpdateUserDto dto)
         {
             var u = await _db.Users.FirstOrDefaultAsync(x => x.UserId == id);
-            if (u == null) return NotFound(new { message = "User not found." });
+            if (u == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             if (!IsValidRating(dto.RatingSingle) || !IsValidRating(dto.RatingDouble))
                 return BadRequest(new { message = "Điểm trình phải nằm trong khoảng 0 đến 5." });
@@ -345,7 +345,7 @@ namespace HanakaServer.Controllers
         public async Task<IActionResult> ToggleActive(long id)
         {
             var u = await _db.Users.FirstOrDefaultAsync(x => x.UserId == id);
-            if (u == null) return NotFound(new { message = "User not found." });
+            if (u == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             u.IsActive = !u.IsActive;
             u.UpdatedAt = DateTime.UtcNow;
@@ -359,7 +359,7 @@ namespace HanakaServer.Controllers
         public async Task<IActionResult> ToggleVerified(long id)
         {
             var u = await _db.Users.FirstOrDefaultAsync(x => x.UserId == id);
-            if (u == null) return NotFound(new { message = "User not found." });
+            if (u == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             u.Verified = !u.Verified;
             u.UpdatedAt = DateTime.UtcNow;
@@ -397,7 +397,7 @@ namespace HanakaServer.Controllers
                     })
                     .FirstOrDefaultAsync();
 
-                if (u == null) return NotFound(new { message = "User not found." });
+                if (u == null) return NotFound(new { message = "Không tìm thấy người dùng." });
                 return Ok(new
                 {
                     u.userId,
@@ -409,7 +409,7 @@ namespace HanakaServer.Controllers
             }
             catch (Exception ex)
             {
-                return BadRequest(new { message = "Get user failed.", detail = ex.Message });
+                return BadRequest(new { message = "Tải thông tin người dùng thất bại.", detail = ex.Message });
             }
         }
 

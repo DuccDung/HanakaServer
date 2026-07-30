@@ -147,7 +147,7 @@ namespace HanakaServer.Controllers.Public
 
             if (item == null)
             {
-                return NotFound(new { message = "Khong tim thay tran giao luu." });
+                return NotFound(new { message = "Không tìm thấy trận giao lưu." });
             }
 
             return Ok(new

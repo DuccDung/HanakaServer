@@ -212,7 +212,7 @@
             label = sourceRank > 0 ? "Hạng " + sourceRank + " bảng" : "Hạng bảng";
             tone = "group-rank";
         } else if (sourceType === "BYE") {
-            badge = "BYE";
+            badge = "Miễn đấu";
             label = "Miễn đấu";
             tone = "bye";
         }

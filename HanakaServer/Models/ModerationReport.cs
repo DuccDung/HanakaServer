@@ -15,6 +15,10 @@ public partial class ModerationReport
 
     public long? MessageId { get; set; }
 
+    public long? DirectChatRoomId { get; set; }
+
+    public long? DirectChatMessageId { get; set; }
+
     public string ReportType { get; set; } = null!;
 
     public string ReasonCode { get; set; } = null!;
@@ -56,6 +60,10 @@ public partial class ModerationReport
     public virtual Club? Club { get; set; }
 
     public virtual ClubMessage? Message { get; set; }
+
+    public virtual DirectChatRoom? DirectChatRoom { get; set; }
+
+    public virtual DirectChatMessage? DirectChatMessage { get; set; }
 
     public virtual User ReporterUser { get; set; } = null!;
 

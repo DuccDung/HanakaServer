@@ -343,14 +343,14 @@
         const media = qs("[data-hero-banner-media]");
         const title = trimToEmpty(item?.title) || "Hanaka Sport";
         const description = trimToEmpty(item?.title)
-            ? "Banner nổi bật đang được lấy trực tiếp từ hệ thống."
-            : "Banner sẽ tự động lấy từ hệ thống và hiển thị tại đây.";
+            ? "Ảnh nổi bật đang được lấy trực tiếp từ hệ thống."
+            : "Ảnh nổi bật sẽ tự động lấy từ hệ thống và hiển thị tại đây.";
 
         setText("[data-hero-banner-title]", title);
         setText("[data-hero-banner-caption]", description);
 
         if (media) {
-            media.innerHTML = mediaMarkup(item?.imageUrl, title, "Banner nổi bật");
+            media.innerHTML = mediaMarkup(item?.imageUrl, title, "Ảnh nổi bật");
         }
     }
 
@@ -366,7 +366,7 @@
             dot.classList.toggle("is-active", index === state.bannerIndex);
         });
 
-        setText("[data-banner-title]", trimToEmpty(current?.title) || "Banner nổi bật");
+        setText("[data-banner-title]", trimToEmpty(current?.title) || "Ảnh nổi bật");
         renderHeroBanner(current);
     }
 
@@ -409,26 +409,26 @@
         if (list.length === 0) {
             track.innerHTML = [
                 '<article class="banner-slide">',
-                '<div class="banner-slide__media media-placeholder"><span>Chưa có banner từ hệ thống</span></div>',
+                '<div class="banner-slide__media media-placeholder"><span>Chưa có ảnh nổi bật từ hệ thống</span></div>',
                 '<div class="banner-slide__overlay">',
                 "<span>Hanaka Sport</span>",
-                "<strong>Banner sẽ hiển thị khi API public trả dữ liệu.</strong>",
+                "<strong>Ảnh nổi bật sẽ hiển thị khi hệ thống trả dữ liệu.</strong>",
                 "</div>",
                 "</article>"
             ].join("");
 
             dots.innerHTML = "";
             renderHeroBanner(null);
-            setText("[data-banner-title]", "Banner nổi bật");
+            setText("[data-banner-title]", "Ảnh nổi bật");
             return;
         }
 
         track.innerHTML = list.map(function (item, index) {
             return [
                 '<article class="banner-slide">',
-                `<div class="banner-slide__media">${mediaMarkup(item.imageUrl, item.title || "Banner Hanaka Sport", "Banner Hanaka Sport")}</div>`,
+                `<div class="banner-slide__media">${mediaMarkup(item.imageUrl, item.title || "Ảnh nổi bật Hanaka Sport", "Ảnh nổi bật Hanaka Sport")}</div>`,
                 '<div class="banner-slide__overlay">',
-                `<span>Banner ${String(index + 1).padStart(2, "0")}</span>`,
+                `<span>Ảnh ${String(index + 1).padStart(2, "0")}</span>`,
                 `<strong>${escapeHtml(trimToEmpty(item.title) || "Hanaka Sport")}</strong>`,
                 "</div>",
                 "</article>"
@@ -436,7 +436,7 @@
         }).join("");
 
         dots.innerHTML = list.map(function (_, index) {
-            return `<button class="dot${index === 0 ? " is-active" : ""}" type="button" aria-label="Chuyển tới banner ${index + 1}" data-dot-index="${index}"></button>`;
+            return `<button class="dot${index === 0 ? " is-active" : ""}" type="button" aria-label="Chuyển tới ảnh nổi bật ${index + 1}" data-dot-index="${index}"></button>`;
         }).join("");
 
         updateBannerView();
@@ -528,7 +528,7 @@
                 `<p>${escapeHtml(area)}</p>`,
                 '<div class="inline-meta">',
                 `<span>${escapeHtml(manager)}</span>`,
-                `<span>${escapeHtml(phone || "Liên hệ tại app")}</span>`,
+                `<span>${escapeHtml(phone || "Liên hệ trong ứng dụng")}</span>`,
                 "</div>",
                 "</div>",
                 "</a>"
@@ -555,7 +555,7 @@
         container.innerHTML = list.map(function (item) {
             const team1Name = trimToEmpty(item.team1Name) || trimToEmpty(item.team1Player1Name) || "Đội 1";
             const team2Name = trimToEmpty(item.team2Name) || trimToEmpty(item.team2Player1Name) || "Đội 2";
-            const status = trimToEmpty(item.roundLabel) || trimToEmpty(item.groupName) || "Match video";
+            const status = trimToEmpty(item.roundLabel) || trimToEmpty(item.groupName) || "Video trận đấu";
             const meta = [formatDateTime(item.startAt || item.createdAt), trimToEmpty(item.courtText)]
                 .filter(Boolean)
                 .join(" · ");
@@ -564,7 +564,7 @@
 
             return [
                 '<article class="data-card video-card">',
-                `<div class="data-card__media">${mediaMarkup(item.tournamentBannerUrl, item.tournamentTitle || "Video Hanaka Sport", "Match video")}</div>`,
+                `<div class="data-card__media">${mediaMarkup(item.tournamentBannerUrl, item.tournamentTitle || "Video Hanaka Sport", "Video trận đấu")}</div>`,
                 '<div class="data-card__body">',
                 '<div class="meta-row">',
                 `<span class="badge">${escapeHtml(status)}</span>`,
@@ -806,7 +806,7 @@
 
             var img = document.createElement("img");
             img.className = "avatar-icon__image";
-            img.alt = trimToEmpty(altText) || "Tai khoan";
+            img.alt = trimToEmpty(altText) || "Tài khoản";
             img.src = src;
             img.addEventListener("error", function () {
                 setAvatarFallback();
@@ -819,13 +819,13 @@
         if (avatarLink) {
             if (isAuthenticated) {
                 avatarLink.href = "/PickleballWeb/Account";
-                avatarLink.setAttribute("aria-label", trimToEmpty(session.user.fullName) || "Tai khoan");
-                avatarLink.title = trimToEmpty(session.user.fullName) || "Tai khoan";
+                avatarLink.setAttribute("aria-label", trimToEmpty(session.user.fullName) || "Tài khoản");
+                avatarLink.title = trimToEmpty(session.user.fullName) || "Tài khoản";
                 setAvatarImage(session.user.avatarUrl, session.user.fullName);
             } else {
                 avatarLink.href = "/PickleballWeb/Login?returnUrl=" + encodeURIComponent("/PickleballWeb/Account");
-                avatarLink.setAttribute("aria-label", "Dang nhap");
-                avatarLink.title = "Dang nhap";
+                avatarLink.setAttribute("aria-label", "Đăng nhập");
+                avatarLink.title = "Đăng nhập";
                 setAvatarFallback();
             }
         }
@@ -833,8 +833,8 @@
         if (notificationLink) {
             notificationLink.hidden = false;
             notificationLink.href = "/PickleballWeb/Notifications";
-            notificationLink.setAttribute("aria-label", "Thong bao");
-            notificationLink.title = "Thong bao";
+            notificationLink.setAttribute("aria-label", "Thông báo");
+            notificationLink.title = "Thông báo";
         }
 
         if (settingsLink) {

@@ -82,7 +82,7 @@ namespace HanakaServer.Controllers
                 })
                 .FirstOrDefaultAsync();
 
-            if (t == null) return NotFound(new { message = "Tournament not found." });
+            if (t == null) return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             t.BannerUrl = ToAbsoluteUrl(t.BannerUrl);
 
@@ -137,7 +137,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (tournament == null)
-                return NotFound(new { message = "Tournament not found." });
+                return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             var baseQ = _db.TournamentRegistrations
                 .AsNoTracking()

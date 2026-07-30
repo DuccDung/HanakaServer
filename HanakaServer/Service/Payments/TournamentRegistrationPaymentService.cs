@@ -42,6 +42,21 @@ public sealed class TournamentRegistrationPaymentService
         long registrationId,
         CancellationToken cancellationToken = default)
     {
+        return await CreateOrReuseCheckoutCoreAsync(userId, registrationId, cancellationToken);
+    }
+
+    public async Task<TournamentPaymentServiceResult> CreateOrReuseAdminCheckoutAsync(
+        long registrationId,
+        CancellationToken cancellationToken = default)
+    {
+        return await CreateOrReuseCheckoutCoreAsync(null, registrationId, cancellationToken);
+    }
+
+    private async Task<TournamentPaymentServiceResult> CreateOrReuseCheckoutCoreAsync(
+        long? userId,
+        long registrationId,
+        CancellationToken cancellationToken = default)
+    {
         var strategy = _db.Database.CreateExecutionStrategy();
 
         return await strategy.ExecuteAsync(async () =>

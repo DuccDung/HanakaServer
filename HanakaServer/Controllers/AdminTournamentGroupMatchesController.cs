@@ -890,11 +890,35 @@ namespace HanakaServer.Controllers
             if (m == null)
                 return NotFound(new { message = "Không tìm thấy trận đấu." });
 
-            var usedAsSource = await _db.TournamentGroupMatches.AsNoTracking()
-                .AnyAsync(x => x.Team1SourceMatchId == matchId || x.Team2SourceMatchId == matchId);
+            var sourceDependencies = await (
+                from target in _db.TournamentGroupMatches.AsNoTracking()
+                where target.Team1SourceMatchId == matchId || target.Team2SourceMatchId == matchId
+                join targetGroup in _db.TournamentRoundGroups.AsNoTracking()
+                    on target.TournamentRoundGroupId equals targetGroup.TournamentRoundGroupId
+                join targetRound in _db.TournamentRoundMaps.AsNoTracking()
+                    on targetGroup.TournamentRoundMapId equals targetRound.TournamentRoundMapId
+                orderby targetRound.SortOrder, target.MatchId
+                select new
+                {
+                    MatchId = target.MatchId,
+                    GroupId = targetGroup.TournamentRoundGroupId,
+                    targetGroup.GroupName,
+                    targetRound.RoundKey,
+                    targetRound.RoundLabel,
+                    Slots = target.Team1SourceMatchId == matchId && target.Team2SourceMatchId == matchId
+                        ? "A, B"
+                        : target.Team1SourceMatchId == matchId ? "A" : "B"
+                })
+                .ToListAsync();
 
-            if (usedAsSource)
-                return BadRequest(new { message = "Trận này đang được dùng làm nguồn cho trận sau." });
+            if (sourceDependencies.Count > 0)
+            {
+                return BadRequest(new
+                {
+                    message = "Trận này đang được dùng làm nguồn cho trận sau. Hãy xóa các trận ở ngọn trước.",
+                    dependencies = sourceDependencies
+                });
+            }
 
             var scoreHistories = await _db.TournamentMatchScoreHistories
                 .Where(x => x.MatchId == matchId)
@@ -1336,14 +1360,14 @@ namespace HanakaServer.Controllers
                 return "Không tìm thấy user trọng tài.";
 
             if (!refereeUser.IsActive)
-                return "User trọng tài đang bị vô hiệu hóa.";
+                return "Người dùng trọng tài đang bị vô hiệu hóa.";
 
             var refereeProfile = await _db.Referees
                 .AsNoTracking()
                 .FirstOrDefaultAsync(x => x.ExternalId == resolvedRefereeUserId.ToString());
 
             if (refereeProfile == null)
-                return "User này chưa có hồ sơ trọng tài.";
+                return "Người dùng này chưa có hồ sơ trọng tài.";
 
             if (!refereeProfile.Verified)
                 return "Hồ sơ trọng tài này chưa được xác minh.";

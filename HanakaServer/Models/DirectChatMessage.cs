@@ -29,6 +29,8 @@ public partial class DirectChatMessage
 
     public long? RecalledByUserId { get; set; }
 
+    public DateTime? EditedAt { get; set; }
+
     public bool IsDeleted { get; set; }
 
     public DateTime? DeletedAt { get; set; }
@@ -44,6 +46,8 @@ public partial class DirectChatMessage
     public virtual User? RecalledByUser { get; set; }
 
     public virtual ICollection<DirectChatRoomParticipant> ReadByParticipants { get; set; } = new List<DirectChatRoomParticipant>();
+
+    public virtual ICollection<ModerationReport> ModerationReports { get; set; } = new List<ModerationReport>();
 
     public virtual ICollection<UserBlock> UserBlocks { get; set; } = new List<UserBlock>();
 }

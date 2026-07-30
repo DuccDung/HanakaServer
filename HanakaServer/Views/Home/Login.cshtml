@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-    <title>Đăng nhập - Hanaka Admin</title>
+    <title>Đăng nhập - Quản trị Hanaka</title>
     <meta name="theme-color" content="#0A66C2" />
     <link rel="icon" type="image/png" href="~/img/logo_admin_hanaka.png" asp-append-version="true" />
     <link rel="shortcut icon" type="image/png" href="~/img/logo_admin_hanaka.png" asp-append-version="true" />
@@ -52,19 +52,19 @@
                                         @Html.AntiForgeryToken()
 
                                         <div class="form-group">
-                                            <input asp-for="Email" class="form-control form-control-user" placeholder="Enter Email Address..." />
+                                            <input asp-for="Email" class="form-control form-control-user" placeholder="Nhập địa chỉ email..." />
                                             <span asp-validation-for="Email" class="text-danger small"></span>
                                         </div>
 
                                         <div class="form-group">
-                                            <input asp-for="Password" class="form-control form-control-user" placeholder="Password" />
+                                            <input asp-for="Password" class="form-control form-control-user" placeholder="Mật khẩu" />
                                             <span asp-validation-for="Password" class="text-danger small"></span>
                                         </div>
 
                                         <div class="form-group">
                                             <div class="custom-control custom-checkbox small">
                                                 <input asp-for="RememberMe" class="custom-control-input" id="customCheck" />
-                                                <label class="custom-control-label" for="customCheck">Remember Me</label>
+                                                <label class="custom-control-label" for="customCheck">Ghi nhớ đăng nhập</label>
                                             </div>
                                         </div>
 
@@ -74,7 +74,7 @@
                                     </form>
 
                                     <hr />
-                                    <span>Sử dụng tài khoản admin để đăng nhập</span>
+                                    <span>Sử dụng tài khoản quản trị viên để đăng nhập</span>
                                 </div>
                             </div>
 

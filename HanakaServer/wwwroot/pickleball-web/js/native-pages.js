@@ -3,6 +3,10 @@
         return (root || document).querySelector(selector);
     }
 
+    function qsa(selector, root) {
+        return Array.prototype.slice.call((root || document).querySelectorAll(selector));
+    }
+
     function trimToEmpty(value) {
         return String(value ?? "").trim();
     }
@@ -565,7 +569,7 @@
         root.innerHTML = [
             '<div class="web-pair-popup__backdrop" data-pair-popup-close></div>',
             '<section class="web-pair-popup__dialog" role="dialog" aria-modal="true" aria-labelledby="web-pair-popup-title">',
-            '<button class="web-pair-popup__close" type="button" aria-label="Dong" data-pair-popup-close>',
+            '<button class="web-pair-popup__close" type="button" aria-label="Đóng" data-pair-popup-close>',
             '<ion-icon name="close-outline"></ion-icon>',
             "</button>",
             '<div data-pair-popup-content></div>',
@@ -1052,7 +1056,7 @@
         }
 
         if (!Number.isFinite(targetId) || targetId <= 0 || (normalizedAction !== "accept" && normalizedAction !== "reject")) {
-            throw new Error("Yeu cau ghep doi khong hop le.");
+            throw new Error("Yêu cầu ghép đôi không hợp lệ.");
         }
 
         var snapshots = controls.map(function (item) {
@@ -1299,6 +1303,7 @@
         listeners: [],
         openHandlers: [],
         subscriptions: {},
+        directSubscriptions: {},
         reconnectDelay: 2500
     };
 
@@ -1342,6 +1347,15 @@
                 sendRealtime({
                     type: "club.subscribe",
                     clubId: Number(clubId)
+                });
+            }
+        });
+
+        Object.keys(realtime.directSubscriptions).forEach(function (roomId) {
+            if (realtime.directSubscriptions[roomId]) {
+                sendRealtime({
+                    type: "direct.subscribe",
+                    roomId: Number(roomId)
                 });
             }
         });
@@ -1444,6 +1458,40 @@
         return sendRealtime({
             type: "club.typing",
             clubId: id,
+            isTyping: !!isTyping
+        });
+    }
+
+    function subscribeDirectRealtime(roomId) {
+        var id = Number(roomId);
+        if (!Number.isFinite(id) || id <= 0) {
+            return false;
+        }
+
+        realtime.directSubscriptions[String(id)] = true;
+        connectRealtime();
+        return sendRealtime({ type: "direct.subscribe", roomId: id });
+    }
+
+    function unsubscribeDirectRealtime(roomId) {
+        var id = Number(roomId);
+        if (!Number.isFinite(id) || id <= 0) {
+            return false;
+        }
+
+        delete realtime.directSubscriptions[String(id)];
+        return sendRealtime({ type: "direct.unsubscribe", roomId: id });
+    }
+
+    function sendDirectTypingRealtime(roomId, isTyping) {
+        var id = Number(roomId);
+        if (!Number.isFinite(id) || id <= 0) {
+            return false;
+        }
+
+        return sendRealtime({
+            type: "direct.typing",
+            roomId: id,
             isTyping: !!isTyping
         });
     }
@@ -1625,7 +1673,7 @@
     function formatUpdatedTime(value) {
         var date = parseDate(value);
         if (!date) {
-            return "Chua cap nhat";
+            return "Chưa cập nhật";
         }
 
         return new Intl.DateTimeFormat("vi-VN", {
@@ -1816,7 +1864,7 @@
     function renderClubCard(item) {
         var coverUrl = trimToEmpty(item.coverUrl);
         var membersCount = Number(item.membersCount || 0);
-        var areaText = trimToEmpty(item.areaText) || "Chua co khu vuc";
+        var areaText = trimToEmpty(item.areaText) || "Chưa có khu vực";
         var ratingAvg = Number(item.ratingAvg || 0);
 
         return [
@@ -1826,11 +1874,11 @@
                 : '<div class="native-club-card__cover native-club-card__cover--fallback"><ion-icon name="image-outline"></ion-icon></div>',
             '<div class="native-club-card__body">',
             '<h2 class="native-club-card__title">' + escapeHtml(trimToEmpty(item.clubName) || "CLB Hanaka") + (membersCount > 0 ? " (" + membersCount + " tv)" : "") + "</h2>",
-            '<div class="native-club-card__rating"><span>' + ratingAvg.toFixed(1) + "</span><span class=\"native-club-card__stars\">" + ratingStars(ratingAvg) + '</span><span>(' + escapeHtml(item.reviewsCount || 0) + ' Danh gia)</span></div>',
-            '<p class="native-club-card__meta">Khu vuc: ' + escapeHtml(areaText) + "</p>",
+            '<div class="native-club-card__rating"><span>' + ratingAvg.toFixed(1) + "</span><span class=\"native-club-card__stars\">" + ratingStars(ratingAvg) + '</span><span>(' + escapeHtml(item.reviewsCount || 0) + ' Đánh giá)</span></div>',
+            '<p class="native-club-card__meta">Khu vực: ' + escapeHtml(areaText) + "</p>",
             '<div class="native-club-card__stats">',
-            '<span>Tran: ' + escapeHtml(item.matchesPlayed || 0) + "</span>",
-            '<span>Thang: ' + escapeHtml(item.matchesWin || 0) + "</span>",
+            '<span>Trận: ' + escapeHtml(item.matchesPlayed || 0) + "</span>",
+            '<span>Thắng: ' + escapeHtml(item.matchesWin || 0) + "</span>",
             '<span>Hoa: ' + escapeHtml(item.matchesDraw || 0) + "</span>",
             '<span>Thua: ' + escapeHtml(item.matchesLoss || 0) + "</span>",
             "</div>",
@@ -1857,10 +1905,10 @@
             '<div class="native-table-row__mid">',
             '<div class="native-table-row__namewrap">',
             '<strong>' + escapeHtml(trimToEmpty(item.fullName) || options.emptyName) + "</strong>",
-            mine ? '<span class="' + badgeClass + '">Toi</span>' : "",
+            mine ? '<span class="' + badgeClass + '">Tôi</span>' : "",
             "</div>",
-            '<span class="native-table-row__city">' + escapeHtml(trimToEmpty(item.city) || "Chua cap nhat") + "</span>",
-            '<span class="native-table-row__status ' + (item.verified ? "is-good" : "is-bad") + '">' + (item.verified ? "Da xac thuc" : "Chua xac thuc") + "</span>",
+            '<span class="native-table-row__city">' + escapeHtml(trimToEmpty(item.city) || "Chưa cập nhật") + "</span>",
+            '<span class="native-table-row__status ' + (item.verified ? "is-good" : "is-bad") + '">' + (item.verified ? "Đã xác thực" : "Chưa xác thực") + "</span>",
             "</div>",
             '<div class="native-table-row__scores">',
             '<span class="native-table-row__scorebox">' + escapeHtml(formatScore(options.singleValue(item))) + "</span>",
@@ -1889,10 +1937,10 @@
             "</a>",
             '<div class="native-court-card__body">',
             '<div class="native-court-card__left">',
-            '<h2>' + escapeHtml(trimToEmpty(item.courtName) || "San Hanaka") + "</h2>",
-            '<p>Khu vuc: <strong>' + escapeHtml(trimToEmpty(item.areaText) || "Chua cap nhat") + "</strong></p>",
-            '<p>Quan ly: <strong>' + escapeHtml(trimToEmpty(item.managerName) || "Chua cap nhat") + "</strong></p>",
-            '<p>Dien thoai: <strong>' + escapeHtml(trimToEmpty(item.phone) || "Chua cap nhat") + "</strong></p>",
+            '<h2>' + escapeHtml(trimToEmpty(item.courtName) || "Sân Hanaka") + "</h2>",
+            '<p>Khu vực: <strong>' + escapeHtml(trimToEmpty(item.areaText) || "Chưa cập nhật") + "</strong></p>",
+            '<p>Quản lý: <strong>' + escapeHtml(trimToEmpty(item.managerName) || "Chưa cập nhật") + "</strong></p>",
+            '<p>Điện thoại: <strong>' + escapeHtml(trimToEmpty(item.phone) || "Chưa cập nhật") + "</strong></p>",
             "</div>",
             '<div class="native-court-card__actions">',
             '<a class="native-court-card__action" href="' + escapeHtml(buildSafeHref(item.phone ? "tel:" + item.phone : "#", "#")) + '"><ion-icon name="call"></ion-icon></a>',
@@ -1907,18 +1955,18 @@
         var normalized = trimToEmpty(status).toUpperCase();
 
         if (normalized === "OPEN") {
-            return { text: "Dang mo dang ky", className: "is-open" };
+            return { text: "Đang mở đăng ký", className: "is-open" };
         }
 
         if (normalized === "CLOSED") {
-            return { text: "Da dong dang ky", className: "is-closed" };
+            return { text: "Đã đóng đăng ký", className: "is-closed" };
         }
 
         if (normalized === "FINISHED") {
-            return { text: "Da ket thuc", className: "is-finished" };
+            return { text: "Đã kết thúc", className: "is-finished" };
         }
 
-        return { text: normalized || "Khong xac dinh", className: "is-draft" };
+        return { text: normalized || "Không xác định", className: "is-draft" };
     }
 
     function renderTournamentCard(item) {
@@ -1930,17 +1978,17 @@
         return [
             '<article class="native-tournament-card">',
             bannerUrl
-                ? '<img class="native-tournament-card__banner" src="' + escapeHtml(bannerUrl) + '" alt="' + escapeHtml(item.title || "Giai dau") + '" loading="lazy">'
+                ? '<img class="native-tournament-card__banner" src="' + escapeHtml(bannerUrl) + '" alt="' + escapeHtml(item.title || "Giải đấu") + '" loading="lazy">'
                 : '<div class="native-tournament-card__banner native-tournament-card__banner--fallback"><ion-icon name="image-outline"></ion-icon></div>',
             '<a class="native-tournament-card__body" href="/PickleballWeb/Tournament/' + escapeHtml(item.tournamentId) + '">',
-            '<h2>' + escapeHtml(trimToEmpty(item.title) || "Giai dau Hanaka") + "</h2>",
-            '<p>Ngay: <strong>' + escapeHtml(formatDateTime(item.startTime) || "-") + "</strong></p>",
-            '<p>Han dang ky: <strong>' + escapeHtml(formatDateTime(item.registerDeadline) || "-") + "</strong></p>",
-            '<div class="native-tournament-card__split"><p>The thuc: <strong>' + escapeHtml(trimToEmpty(item.formatText) || "-") + "</strong></p><p>Giai: <strong>" + escapeHtml(gameTypeLabel) + "</strong></p></div>",
-            '<div class="native-tournament-card__split"><p>Gioi han trinh don toi da: <strong>' + escapeHtml(singleLimit) + "</strong></p><p>Cap toi da: <strong>" + escapeHtml(doubleLimit) + "</strong></p></div>",
-            '<p>Khu vuc: <strong>' + escapeHtml(trimToEmpty(item.areaText) || "-") + "</strong></p>",
-            '<div class="native-tournament-card__split"><p>So doi du kien: <strong>' + escapeHtml(item.expectedTeams ?? 0) + "</strong></p><p>So tran thi dau: <strong>" + escapeHtml(item.matchesCount ?? 0) + "</strong></p></div>",
-            '<p>Tinh trang: <strong>' + escapeHtml(trimToEmpty(item.stateText) || trimToEmpty(item.statusText) || trimToEmpty(item.status) || "-") + "</strong></p>",
+            '<h2>' + escapeHtml(trimToEmpty(item.title) || "Giải đấu Hanaka") + "</h2>",
+            '<p>Ngày: <strong>' + escapeHtml(formatDateTime(item.startTime) || "-") + "</strong></p>",
+            '<p>Hạn đăng ký: <strong>' + escapeHtml(formatDateTime(item.registerDeadline) || "-") + "</strong></p>",
+            '<div class="native-tournament-card__split"><p>Thể thức: <strong>' + escapeHtml(trimToEmpty(item.formatText) || "-") + "</strong></p><p>Giải: <strong>" + escapeHtml(gameTypeLabel) + "</strong></p></div>",
+            '<div class="native-tournament-card__split"><p>Giới hạn trình đơn tối đa: <strong>' + escapeHtml(singleLimit) + "</strong></p><p>Cặp tối đa: <strong>" + escapeHtml(doubleLimit) + "</strong></p></div>",
+            '<p>Khu vực: <strong>' + escapeHtml(trimToEmpty(item.areaText) || "-") + "</strong></p>",
+            '<div class="native-tournament-card__split"><p>Số đội dự kiến: <strong>' + escapeHtml(item.expectedTeams ?? 0) + "</strong></p><p>Số trận thi đấu: <strong>" + escapeHtml(item.matchesCount ?? 0) + "</strong></p></div>",
+            '<p>Tình trạng: <strong>' + escapeHtml(trimToEmpty(item.stateText) || trimToEmpty(item.statusText) || trimToEmpty(item.status) || "-") + "</strong></p>",
             "</a>",
             "</article>"
         ].join("");
@@ -1957,18 +2005,18 @@
                 : '<div class="native-exchange-card__cover native-exchange-card__cover--fallback"><ion-icon name="image-outline"></ion-icon></div>',
             "</a>",
             '<div class="native-exchange-card__body">',
-            '<div class="native-exchange-card__badge"><ion-icon name="flash-outline"></ion-icon><span>Dang khieu chien</span></div>',
-            '<h2>' + escapeHtml(trimToEmpty(item.clubName) || "Cau lac bo") + "</h2>",
-            '<p><ion-icon name="location-outline"></ion-icon><span>' + escapeHtml(trimToEmpty(item.areaText) || "Chua co khu vuc") + "</span></p>",
-            '<p><ion-icon name="people-outline"></ion-icon><span>' + escapeHtml(item.membersCount || 0) + ' thanh vien</span></p>',
-            '<p><ion-icon name="time-outline"></ion-icon><span>Cap nhat: ' + escapeHtml(formatUpdatedTime(item.challengeUpdatedAt || item.updatedAt || item.createdAt)) + "</span></p>",
+            '<div class="native-exchange-card__badge"><ion-icon name="flash-outline"></ion-icon><span>Đang khiêu chiến</span></div>',
+            '<h2>' + escapeHtml(trimToEmpty(item.clubName) || "Câu lạc bộ") + "</h2>",
+            '<p><ion-icon name="location-outline"></ion-icon><span>' + escapeHtml(trimToEmpty(item.areaText) || "Chưa có khu vực") + "</span></p>",
+            '<p><ion-icon name="people-outline"></ion-icon><span>' + escapeHtml(item.membersCount || 0) + ' thành viên</span></p>',
+            '<p><ion-icon name="time-outline"></ion-icon><span>Cập nhật: ' + escapeHtml(formatUpdatedTime(item.challengeUpdatedAt || item.updatedAt || item.createdAt)) + "</span></p>",
             '<div class="native-exchange-card__stats">',
-            '<div><strong>' + escapeHtml(item.matchesPlayed || 0) + '</strong><span>Tran</span></div>',
-            '<div><strong>' + escapeHtml(item.matchesWin || 0) + '</strong><span>Thang</span></div>',
+            '<div><strong>' + escapeHtml(item.matchesPlayed || 0) + '</strong><span>Trận</span></div>',
+            '<div><strong>' + escapeHtml(item.matchesWin || 0) + '</strong><span>Thắng</span></div>',
             '<div><strong>' + escapeHtml(item.matchesDraw || 0) + '</strong><span>Hoa</span></div>',
             '<div><strong>' + escapeHtml(item.matchesLoss || 0) + '</strong><span>Thua</span></div>',
             "</div>",
-            '<a class="native-exchange-card__detail" href="/PickleballWeb/Club/' + escapeHtml(item.clubId) + '">Xem chi tiet</a>',
+            '<a class="native-exchange-card__detail" href="/PickleballWeb/Club/' + escapeHtml(item.clubId) + '">Xem chi tiết</a>',
             "</div>",
             "</article>"
         ].join("");
@@ -1982,28 +2030,28 @@
         return [
             '<article class="native-match-card">',
             bannerUrl
-                ? '<img class="native-match-card__banner" src="' + escapeHtml(bannerUrl) + '" alt="' + escapeHtml(item.title || "Giai dau") + '" loading="lazy">'
-                : '<div class="native-match-card__banner native-match-card__banner--fallback"><ion-icon name="image-outline"></ion-icon><span>Khong co banner</span></div>',
+                ? '<img class="native-match-card__banner" src="' + escapeHtml(bannerUrl) + '" alt="' + escapeHtml(item.title || "Giải đấu") + '" loading="lazy">'
+                : '<div class="native-match-card__banner native-match-card__banner--fallback"><ion-icon name="image-outline"></ion-icon><span>Không có banner</span></div>',
             '<a class="native-match-card__body" href="/PickleballWeb/Tournament/' + escapeHtml(item.tournamentId) + '">',
             '<div class="native-match-card__top">',
             '<div class="native-match-card__headcopy">',
-            '<h2>' + escapeHtml(trimToEmpty(item.title) || "Giai dau Hanaka") + "</h2>",
-            '<span>' + escapeHtml(trimToEmpty(item.gameType) || "-") + ' • ' + escapeHtml(trimToEmpty(item.formatText) || "Chua co the thuc") + "</span>",
+            '<h2>' + escapeHtml(trimToEmpty(item.title) || "Giải đấu Hanaka") + "</h2>",
+            '<span>' + escapeHtml(trimToEmpty(item.gameType) || "-") + ' • ' + escapeHtml(trimToEmpty(item.formatText) || "Chưa có thể thức") + "</span>",
             "</div>",
             '<span class="native-match-card__status ' + escapeHtml(statusInfo.className) + '">' + escapeHtml(trimToEmpty(item.statusText) || statusInfo.text) + "</span>",
             "</div>",
-            '<p><ion-icon name="calendar-outline"></ion-icon><span>' + escapeHtml(formatDateTime(item.startTime) || "Chua co lich") + "</span></p>",
+            '<p><ion-icon name="calendar-outline"></ion-icon><span>' + escapeHtml(formatDateTime(item.startTime) || "Chưa có lịch") + "</span></p>",
             item.registerDeadline
-                ? '<p><ion-icon name="time-outline"></ion-icon><span>Han dang ky: ' + escapeHtml(formatDateTime(item.registerDeadline)) + "</span></p>"
+                ? '<p><ion-icon name="time-outline"></ion-icon><span>Hạn đăng ký: ' + escapeHtml(formatDateTime(item.registerDeadline)) + "</span></p>"
                 : "",
             location
                 ? '<p><ion-icon name="location-outline"></ion-icon><span>' + escapeHtml(location) + "</span></p>"
                 : "",
             '<div class="native-match-card__grid">',
-            '<div><small>So doi du kien</small><strong>' + escapeHtml(item.expectedTeams ?? 0) + "</strong></div>",
-            '<div><small>Da dang ky</small><strong>' + escapeHtml(item.registeredCount ?? 0) + "</strong></div>",
-            '<div><small>Da ghep cap</small><strong>' + escapeHtml(item.pairedCount ?? 0) + "</strong></div>",
-            '<div><small>So tran</small><strong>' + escapeHtml(item.matchesCount ?? 0) + "</strong></div>",
+            '<div><small>Số đội dự kiến</small><strong>' + escapeHtml(item.expectedTeams ?? 0) + "</strong></div>",
+            '<div><small>Đã đăng ký</small><strong>' + escapeHtml(item.registeredCount ?? 0) + "</strong></div>",
+            '<div><small>Đã ghép cặp</small><strong>' + escapeHtml(item.pairedCount ?? 0) + "</strong></div>",
+            '<div><small>Số trận</small><strong>' + escapeHtml(item.matchesCount ?? 0) + "</strong></div>",
             "</div>",
             (trimToEmpty(item.organizer) || trimToEmpty(item.creatorName))
                 ? '<span class="native-match-card__foot">' + escapeHtml([trimToEmpty(item.organizer), trimToEmpty(item.creatorName)].filter(Boolean).join(" • ")) + "</span>"
@@ -2020,8 +2068,8 @@
                 type === "zalo" ? "Zalo" :
                     type === "facebook" ? "Facebook" :
                         type === "website" ? "Website" :
-                            type === "phone" ? "Dien thoai" :
-                                type === "email" ? "Email" : "Lien ket"
+                            type === "phone" ? "Điện thoại" :
+                                type === "email" ? "Email" : "Liên kết"
         );
 
         var url = normalizeExternalHref(item.link || item.url);
@@ -2057,10 +2105,10 @@
     function initGuidePage(root) {
         var refs = getCommonRefs(root);
 
-        setHeaderTitle(root, "Huong dan su dung, gioi thieu APP");
+        setHeaderTitle(root, "Hướng dẫn sử dụng, giới thiệu ứng dụng");
         setHeaderAction(root, null);
         setHeaderExtra(root, "");
-        renderEmptyState(refs, "Chua co du lieu lien he");
+        renderEmptyState(refs, "Chưa có dữ liệu liên hệ");
 
         (async function () {
             try {
@@ -2069,7 +2117,7 @@
 
                 refs.list.innerHTML = [
                     '<section class="native-guide-section">',
-                    '<h2>Thong tin Hanaka Sport</h2>',
+                    '<h2>Thông tin Hanaka Sport</h2>',
                     '<div class="native-guide-list">',
                     items.length > 0
                         ? items.map(renderGuideItem).join("")
@@ -2089,7 +2137,7 @@
                 toggleCommonState(refs, {
                     loading: false,
                     itemsLength: 0,
-                    error: "Khong tai duoc thong tin huong dan.",
+                    error: "Không tải được thông tin hướng dẫn.",
                     hasMore: false
                 });
             }
@@ -2120,19 +2168,19 @@
                     return;
                 }
 
-                showAppOnlyAlert("Chức năng tạo câu lạc bộ hiện đang thực hiện trên app.");
+                showAppOnlyAlert("Chức năng tạo câu lạc bộ hiện được thực hiện trong ứng dụng.");
             }
         });
         setHeaderExtra(root, [
             '<form class="native-inline-search" data-native-search-form>',
             '<label class="native-inline-search__box">',
-            '<input type="search" placeholder="Tim kiem CLB..." autocomplete="off" data-native-search-input>',
-            '<button type="submit" aria-label="Tim kiem"><ion-icon name="search"></ion-icon></button>',
+            '<input type="search" placeholder="Tìm kiếm CLB..." autocomplete="off" data-native-search-input>',
+            '<button type="submit" aria-label="Tìm kiếm"><ion-icon name="search"></ion-icon></button>',
             "</label>",
             "</form>",
-            '<div class="native-inline-filter"><ion-icon name="location-outline"></ion-icon><span data-native-filter-text>Tat ca cau lac bo</span></div>'
+            '<div class="native-inline-filter"><ion-icon name="location-outline"></ion-icon><span data-native-filter-text>Tất cả câu lạc bộ</span></div>'
         ].join(""));
-        renderEmptyState(refs, "Khong co cau lac bo nao");
+        renderEmptyState(refs, "Không có câu lạc bộ nào");
 
         var form = qs("[data-native-search-form]", root);
         var input = qs("[data-native-search-input]", root);
@@ -2162,7 +2210,7 @@
                 }));
             }).join("");
             if (filterText) {
-                filterText.textContent = state.query ? ("Tu khoa: " + state.query) : "Tat ca cau lac bo";
+                filterText.textContent = state.query ? ("Từ khóa: " + state.query) : "Tất cả câu lạc bộ";
             }
 
             toggleCommonState(refs, {
@@ -2324,7 +2372,7 @@
                     state.page += 1;
                 }
             } catch (error) {
-                state.error = "Khong tai duoc danh sach cau lac bo.";
+                state.error = "Không tải được danh sách câu lạc bộ.";
                 if (reset) {
                     state.items = [];
                     state.total = 0;
@@ -2382,14 +2430,14 @@
         setHeaderExtra(root, [
             '<div class="native-inline-search native-inline-search--compact">',
             '<label class="native-inline-search__box">',
-            '<input type="search" placeholder="Tim kiem..." autocomplete="off" data-native-search-input>',
+            '<input type="search" placeholder="Tìm kiếm..." autocomplete="off" data-native-search-input>',
             '<ion-icon name="search"></ion-icon>',
             "</label>",
             "</div>",
             '<div class="native-table-head">',
             '<div class="native-table-head__stt">STT</div>',
             '<div class="native-table-head__member">' + escapeHtml(options.memberLabel) + '</div>',
-            '<div class="native-table-head__scores"><span>Diem don</span><span>Diem doi</span></div>',
+            '<div class="native-table-head__scores"><span>Điểm đơn</span><span>Điểm đôi</span></div>',
             "</div>"
         ].join(""));
         renderEmptyState(refs, options.emptyText);
@@ -2495,12 +2543,12 @@
         setHeaderExtra(root, [
             '<div class="native-inline-search native-inline-search--compact">',
             '<label class="native-inline-search__box">',
-            '<input type="search" placeholder="Tim kiem..." autocomplete="off" data-native-search-input>',
+            '<input type="search" placeholder="Tìm kiếm..." autocomplete="off" data-native-search-input>',
             '<ion-icon name="search"></ion-icon>',
             "</label>",
             "</div>"
         ].join(""));
-        renderEmptyState(refs, "Khong co san nao");
+        renderEmptyState(refs, "Không có sân nào");
 
         var input = qs("[data-native-search-input]", root);
 
@@ -2545,7 +2593,7 @@
                     state.page += 1;
                 }
             } catch (error) {
-                state.error = "Khong tai duoc danh sach san.";
+                state.error = "Không tải được danh sách sân.";
                 if (reset) {
                     state.items = [];
                     state.total = 0;
@@ -2601,17 +2649,17 @@
         setHeaderExtra(root, [
             '<div class="native-inline-search native-inline-search--compact">',
             '<label class="native-inline-search__box">',
-            '<input type="search" placeholder="Tim kiem..." autocomplete="off" data-native-search-input>',
+            '<input type="search" placeholder="Tìm kiếm..." autocomplete="off" data-native-search-input>',
             '<ion-icon name="search"></ion-icon>',
             "</label>",
             "</div>",
-            '<div class="native-inline-filter"><span data-native-filter-text>Tat ca giai dau</span></div>',
+            '<div class="native-inline-filter"><span data-native-filter-text>Tất cả giải đấu</span></div>',
             '<div class="native-tabs">',
-            '<button class="native-tabs__item is-active" type="button" data-native-tab="ongoing">Dang</button>',
+            '<button class="native-tabs__item is-active" type="button" data-native-tab="ongoing">Đang</button>',
             '<button class="native-tabs__item" type="button" data-native-tab="finished">Ket thuc</button>',
             "</div>"
         ].join(""));
-        renderEmptyState(refs, "Khong co giai dau nao");
+        renderEmptyState(refs, "Không có giải đấu nào");
 
         var input = qs("[data-native-search-input]", root);
         var tabs = root.querySelectorAll("[data-native-tab]");
@@ -2681,7 +2729,7 @@
                     state.page += 1;
                 }
             } catch (error) {
-                state.error = "Khong tai duoc danh sach giai dau.";
+                state.error = "Không tải được danh sách giải đấu.";
                 if (reset) {
                     state.items = [];
                     state.total = 0;
@@ -2741,13 +2789,13 @@
         setHeaderExtra(root, [
             '<form class="native-inline-search" data-native-search-form>',
             '<label class="native-inline-search__box">',
-            '<input type="search" placeholder="Tim CLB dang khieu chien..." autocomplete="off" data-native-search-input>',
-            '<button type="submit" aria-label="Tim kiem"><ion-icon name="search"></ion-icon></button>',
+            '<input type="search" placeholder="Tìm CLB Đang khiêu chiến..." autocomplete="off" data-native-search-input>',
+            '<button type="submit" aria-label="Tìm kiếm"><ion-icon name="search"></ion-icon></button>',
             "</label>",
             "</form>",
-            '<div class="native-inline-filter native-inline-filter--success"><ion-icon name="flash-outline"></ion-icon><span data-native-filter-text>Dang hien thi CLB bat khieu chien</span></div>'
+            '<div class="native-inline-filter native-inline-filter--success"><ion-icon name="flash-outline"></ion-icon><span data-native-filter-text>Đang hiển thị CLB bật khiêu chiến</span></div>'
         ].join(""));
-        renderEmptyState(refs, "Khong co CLB nao dang khieu chien");
+        renderEmptyState(refs, "Không có CLB nào đang khiêu chiến");
 
         var form = qs("[data-native-search-form]", root);
         var input = qs("[data-native-search-input]", root);
@@ -2758,7 +2806,7 @@
             refs.list.innerHTML = state.items.map(renderChallengeClubCard).join("");
 
             if (filterText) {
-                filterText.textContent = state.query ? ("Tu khoa: " + state.query) : "Dang hien thi CLB bat khieu chien";
+                filterText.textContent = state.query ? ("Từ khóa: " + state.query) : "Đang hiển thị CLB bật khiêu chiến";
             }
 
             toggleCommonState(refs, {
@@ -2798,7 +2846,7 @@
                     state.page += 1;
                 }
             } catch (error) {
-                state.error = "Khong tai duoc danh sach CLB dang khieu chien.";
+                state.error = "Không tải được danh sách CLB đang khiêu chiến.";
                 if (reset) {
                     state.items = [];
                     state.total = 0;
@@ -2848,26 +2896,26 @@
             error: ""
         };
 
-        setHeaderTitle(root, "Danh sach giai dau");
+        setHeaderTitle(root, "Danh sách giải đấu");
         setHeaderAction(root, null);
         setHeaderExtra(root, [
             '<div class="native-match-filter">',
-            '<h2>Tim kiem & loc</h2>',
+            '<h2>Tìm kiếm & lọc</h2>',
             '<label class="native-inline-search__box native-inline-search__box--match">',
-            '<input type="search" placeholder="Tim ten giai, dia diem, nguoi to chuc..." autocomplete="off" data-match-query-input>',
+            '<input type="search" placeholder="Tìm tên giải, địa điểm, người tổ chức..." autocomplete="off" data-match-query-input>',
             '<ion-icon name="search"></ion-icon>',
             '</label>',
             '<div class="native-match-filter__dates">',
-            '<label class="native-match-filter__date"><ion-icon name="calendar-clear-outline"></ion-icon><span data-match-from-label>Tu ngay</span><input type="date" data-match-from-input></label>',
-            '<label class="native-match-filter__date"><ion-icon name="calendar-clear-outline"></ion-icon><span data-match-to-label>Den ngay</span><input type="date" data-match-to-input></label>',
+            '<label class="native-match-filter__date"><ion-icon name="calendar-clear-outline"></ion-icon><span data-match-from-label>Từ ngày</span><input type="date" data-match-from-input></label>',
+            '<label class="native-match-filter__date"><ion-icon name="calendar-clear-outline"></ion-icon><span data-match-to-label>Đến ngày</span><input type="date" data-match-to-input></label>',
             '</div>',
             '<div class="native-match-filter__actions">',
             '<button class="native-match-filter__clear" type="button" data-match-clear><ion-icon name="refresh-outline"></ion-icon><span>Dat lai</span></button>',
-            '<button class="native-match-filter__apply" type="button" data-match-apply><ion-icon name="funnel-outline"></ion-icon><span>Loc du lieu</span></button>',
+            '<button class="native-match-filter__apply" type="button" data-match-apply><ion-icon name="funnel-outline"></ion-icon><span>Lọc dữ liệu</span></button>',
             '</div>',
             '</div>'
         ].join(""));
-        renderEmptyState(refs, "Khong co giai dau");
+        renderEmptyState(refs, "Không có giải đấu");
 
         var queryInput = qs("[data-match-query-input]", root);
         var fromInput = qs("[data-match-from-input]", root);
@@ -2879,11 +2927,11 @@
 
         function syncDateLabels() {
             if (fromLabel) {
-                fromLabel.textContent = state.formFrom ? formatDateOnly(state.formFrom) : "Tu ngay";
+                fromLabel.textContent = state.formFrom ? formatDateOnly(state.formFrom) : "Từ ngày";
             }
 
             if (toLabel) {
-                toLabel.textContent = state.formTo ? formatDateOnly(state.formTo) : "Den ngay";
+                toLabel.textContent = state.formTo ? formatDateOnly(state.formTo) : "Đến ngày";
             }
         }
 
@@ -2957,7 +3005,7 @@
                 state.page = Number(payload && payload.page) || nextPage;
                 state.hasNextPage = !!(payload && payload.hasNextPage);
             } catch (error) {
-                state.error = "Khong tai duoc danh sach giai dau.";
+                state.error = "Không tải được danh sách giải đấu.";
                 if (reset) {
                     state.items = [];
                     state.page = 1;
@@ -3020,7 +3068,7 @@
         if (applyButton) {
             applyButton.onclick = function () {
                 if (state.formFrom && state.formTo && parseDate(state.formFrom) > parseDate(state.formTo)) {
-                    window.alert("Ngay bat dau phai nho hon hoac bang ngay ket thuc.");
+                    window.alert("Ngày bắt đầu phải nhỏ hơn hoặc bằng ngày kết thúc.");
                     return;
                 }
 
@@ -3053,7 +3101,7 @@
             return player1;
         }
 
-        return "Chua xac dinh doi thu";
+        return "Chưa xác định đối thủ";
     }
 
     function renderNotificationCard(item) {
@@ -3071,17 +3119,17 @@
     }
 
     function renderMatchNotificationCard(item) {
-        var startAtText = trimToEmpty(item && item.match && item.match.startAtText) || "Chua cap nhat";
-        var addressText = trimToEmpty(item && item.match && item.match.addressText) || "Chua cap nhat";
-        var courtText = trimToEmpty(item && item.match && item.match.courtText) || "Chua cap nhat";
+        var startAtText = trimToEmpty(item && item.match && item.match.startAtText) || "Chưa cập nhật";
+        var addressText = trimToEmpty(item && item.match && item.match.addressText) || "Chưa cập nhật";
+        var courtText = trimToEmpty(item && item.match && item.match.courtText) || "Chưa cập nhật";
 
         return [
             '<article class="native-notification-card native-notification-card--match">',
             '<h2 class="native-notification-card__title">' + escapeHtml(normalizeDisplayText(item && item.title) || "Hanaka Sport - Thông báo") + "</h2>",
             '<p class="native-notification-card__line">' + escapeHtml(normalizeDisplayText(item && item.message) || "Thông báo sẽ được cập nhật tại đây.") + "</p>",
-            '<p class="native-notification-card__line"><strong>Doi thu:</strong> ' + escapeHtml(buildNotificationOpponentText(item)) + "</p>",
-            '<p class="native-notification-card__line"><strong>Thoi gian:</strong> ' + escapeHtml(startAtText) + "</p>",
-            '<p class="native-notification-card__line"><strong>Dia diem:</strong> ' + escapeHtml(addressText) + "</p>",
+            '<p class="native-notification-card__line"><strong>Đối thủ:</strong> ' + escapeHtml(buildNotificationOpponentText(item)) + "</p>",
+            '<p class="native-notification-card__line"><strong>Thời gian:</strong> ' + escapeHtml(startAtText) + "</p>",
+            '<p class="native-notification-card__line"><strong>Địa điểm:</strong> ' + escapeHtml(addressText) + "</p>",
             '<p class="native-notification-card__line"><strong>San:</strong> ' + escapeHtml(courtText) + "</p>",
             '<p class="native-notification-card__time">' + escapeHtml(startAtText) + "</p>",
             "</article>"
@@ -3292,7 +3340,7 @@
             '<article class="native-auth-prompt">',
             '<span class="native-auth-prompt__icon"><ion-icon name="notifications-outline"></ion-icon></span>',
             "<strong>Đăng nhập để xem thông báo</strong>",
-            "<p>Trang này sẽ hiển thị các trận đấu sắp tới của tài khoản giống trong bản app.</p>",
+            "<p>Trang này sẽ hiển thị các trận đấu sắp tới của tài khoản giống trong ứng dụng.</p>",
             '<a class="native-auth-prompt__button" href="' + escapeHtml(loginHref) + '">Đăng nhập</a>',
             "</article>"
         ].join("");
@@ -3308,7 +3356,7 @@
             '<a class="native-settings-row' + (danger ? " native-settings-row--danger" : "") + '" href="' + escapeHtml(href) + '"' + attrs + ">",
             '<span class="native-settings-row__left">',
             '<ion-icon class="native-settings-row__icon" name="' + escapeHtml(options && options.icon || "chevron-forward-outline") + '"></ion-icon>',
-            '<span class="native-settings-row__label">' + escapeHtml(options && options.label || "Tuy chon") + "</span>",
+            '<span class="native-settings-row__label">' + escapeHtml(options && options.label || "Tùy chọn") + "</span>",
             "</span>",
             '<ion-icon class="native-settings-row__chevron" name="chevron-forward"></ion-icon>',
             "</a>"
@@ -3318,28 +3366,28 @@
     function renderSettingsPage() {
         return [
             '<section class="native-settings-section">',
-            '<h2 class="native-settings-section__title">Tai khoan</h2>',
+            '<h2 class="native-settings-section__title">Tài khoản</h2>',
             renderSettingsRow({
-                label: "Quan ly tai khoan",
+                label: "Quản lý tài khoản",
                 icon: "person-circle-outline",
                 href: "/PickleballWeb/Account"
             }),
             renderSettingsRow({
-                label: "Doi mat khau",
+                label: "Đổi mật khẩu",
                 icon: "key-outline",
                 href: "/PickleballWeb/ChangePassword"
             }),
             renderSettingsRow({
-                label: "Xoa tai khoan",
+                label: "Xóa tài khoản",
                 icon: "trash-outline",
                 href: "/PickleballWeb/Account",
                 danger: true
             }),
-            '<p class="native-settings-note">Flow xoa tai khoan tren web duoc dat ben trong man Tai khoan de giong cach van hanh hien tai cua he thong.</p>',
+            '<p class="native-settings-note">Luồng xóa tài khoản trên web được đặt bên trong màn Tài khoản để giống cách vận hành hiện tại của hệ thống.</p>',
             "</section>",
             '<div class="native-settings-divider"></div>',
             '<section class="native-settings-section">',
-            '<h2 class="native-settings-section__title">An toan cong dong</h2>',
+            '<h2 class="native-settings-section__title">An toàn cộng đồng</h2>',
             renderSettingsRow({
                 label: "Dieu khoan, moderation va block list",
                 icon: "shield-checkmark-outline",
@@ -3350,11 +3398,11 @@
                 icon: "document-text-outline",
                 href: "https://hanakasport.click/policy/index"
             }),
-            '<p class="native-settings-note">Chat CLB da bat bo loc noi dung, co che bao cao vi pham, chan nguoi dung va cam ket xu ly moderation trong vong 24 gio.</p>',
+            '<p class="native-settings-note">Trò chuyện CLB có bộ lọc nội dung, cơ chế báo cáo vi phạm, chặn người dùng và cam kết xử lý kiểm duyệt trong vòng 24 giờ.</p>',
             "</section>",
             '<div class="native-settings-divider"></div>',
             '<section class="native-settings-section">',
-            '<h2 class="native-settings-section__title">Thong tin ung dung</h2>',
+            '<h2 class="native-settings-section__title">Thông tin ứng dụng</h2>',
             '<p class="native-settings-version">Phien ban: 1.0.0</p>',
             "</section>"
         ].join("");
@@ -3960,9 +4008,9 @@
         return [
             '<article class="native-auth-prompt native-auth-prompt--panel">',
             '<span class="native-auth-prompt__icon"><ion-icon name="' + escapeHtml(icon) + '"></ion-icon></span>',
-            "<strong>" + escapeHtml(trimToEmpty(options && options.title) || "Dang nhap de tiep tuc") + "</strong>",
-            "<p>" + escapeHtml(trimToEmpty(options && options.body) || "Vui long dang nhap de xem noi dung nay.") + "</p>",
-            '<a class="native-auth-prompt__button" href="' + escapeHtml(loginHref) + '">Dang nhap</a>',
+            "<strong>" + escapeHtml(trimToEmpty(options && options.title) || "Đăng nhập để tiếp tục") + "</strong>",
+            "<p>" + escapeHtml(trimToEmpty(options && options.body) || "Vui lòng đăng nhập để xem nội dung này.") + "</p>",
+            '<a class="native-auth-prompt__button" href="' + escapeHtml(loginHref) + '">Đăng nhập</a>',
             "</article>"
         ].join("");
     }
@@ -3975,7 +4023,7 @@
         var parts = [];
 
         if (team1 || team2) {
-            parts.push((team1 || "Doi 1") + " vs " + (team2 || "Doi 2"));
+            parts.push((team1 || "Đội 1") + " gặp " + (team2 || "Đội 2"));
         }
 
         if (roundLabel) {
@@ -4055,9 +4103,9 @@
         var bannerUrl = normalizeMediaUrl(item && item.tournamentBannerUrl);
         var tournamentTitle = trimToEmpty(item && item.tournamentTitle) || "Hanaka Sport";
         var title = buildMatchVideoTitle(item) || tournamentTitle;
-        var team1Player1 = trimToEmpty(item && item.team1Player1Name) || trimToEmpty(item && item.team1Name) || "Doi 1";
+        var team1Player1 = trimToEmpty(item && item.team1Player1Name) || trimToEmpty(item && item.team1Name) || "Đội 1";
         var team1Player2 = trimToEmpty(item && item.team1Player2Name);
-        var team2Player1 = trimToEmpty(item && item.team2Player1Name) || trimToEmpty(item && item.team2Name) || "Doi 2";
+        var team2Player1 = trimToEmpty(item && item.team2Player1Name) || trimToEmpty(item && item.team2Name) || "Đội 2";
         var team2Player2 = trimToEmpty(item && item.team2Player2Name);
         var team1Class = "native-video-card__team " + (team1Player2 ? "has-two-players" : "has-one-player");
         var team2Class = "native-video-card__team " + (team2Player2 ? "has-two-players" : "has-one-player");
@@ -4068,9 +4116,9 @@
             return [
                 '<div class="native-video-card__player">',
                 avatarUrl
-                    ? '<span class="native-video-card__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(name || "Player") + '" loading="lazy"></span>'
+                    ? '<span class="native-video-card__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(name || "Vận động viên") + '" loading="lazy"></span>'
                     : '<span class="native-video-card__avatar native-video-card__avatar--fallback"><ion-icon name="person-outline"></ion-icon></span>',
-                '<span class="native-video-card__player-name" title="' + escapeHtml(name || "Player") + '">' + escapeHtml(name || "Player") + "</span>",
+                '<span class="native-video-card__player-name" title="' + escapeHtml(name || "Vận động viên") + '">' + escapeHtml(name || "Vận động viên") + "</span>",
                 "</div>"
             ].join("");
         }
@@ -4082,7 +4130,7 @@
                 : '<div class="native-video-card__banner native-video-card__banner--fallback"><ion-icon name="image-outline"></ion-icon></div>',
             '<div class="native-video-card__body">',
             '<div class="native-video-card__meta">',
-            '<span>' + escapeHtml(formatDateTime(item && item.startAt) || "Chua co lich") + "</span>",
+            '<span>' + escapeHtml(formatDateTime(item && item.startAt) || "Chưa có lịch") + "</span>",
             trimToEmpty(item && item.roundLabel) ? '<span>• ' + escapeHtml(item.roundLabel) + "</span>" : "",
             "</div>",
             '<h2 class="native-video-card__title">' + escapeHtml(title) + "</h2>",
@@ -4104,7 +4152,7 @@
             "</div>",
             '<div class="native-video-card__foot ' + (trimToEmpty(item && item.videoUrl) ? "is-live" : "is-muted") + '">',
             '<ion-icon name="play-circle-outline"></ion-icon>',
-            '<span>' + (trimToEmpty(item && item.videoUrl) ? "Xem video" : "Chua co video") + "</span>",
+            '<span>' + (trimToEmpty(item && item.videoUrl) ? "Xem video" : "Chưa có video") + "</span>",
             "</div>",
             "</div>",
             "</a>"
@@ -4130,17 +4178,17 @@
         setHeaderExtra(root, [
             '<div class="native-video-toolbar">',
             '<label class="native-inline-search__box native-inline-search__box--video">',
-            '<input type="search" placeholder="Tim video, VDV, bang dau..." autocomplete="off" data-video-query-input>',
+            '<input type="search" placeholder="Tìm video, VĐV, bảng đấu..." autocomplete="off" data-video-query-input>',
             '<ion-icon name="search"></ion-icon>',
             "</label>",
             '<div class="native-tabs native-tabs--video">',
-            '<button class="native-tabs__item is-active" type="button" data-video-tab="all">Tat ca</button>',
+            '<button class="native-tabs__item is-active" type="button" data-video-tab="all">Tất cả</button>',
             '<button class="native-tabs__item" type="button" data-video-tab="suggested">De xuat</button>',
             '<button class="native-tabs__item" type="button" data-video-tab="live">Hom nay</button>',
             "</div>",
             "</div>"
         ].join(""));
-        renderEmptyState(refs, "Khong co video tran dau phu hop.");
+        renderEmptyState(refs, "Không có video trận đấu phù hợp.");
 
         function filteredItems() {
             var query = normalizeSearchText(state.query);
@@ -4234,7 +4282,7 @@
                 state.page = Number(payload && payload.page) || nextPage;
                 state.hasMore = !!(payload && payload.hasMore);
             } catch (_error) {
-                state.error = "Khong tai duoc danh sach video.";
+                state.error = "Không tải được danh sách video.";
                 if (reset) {
                     state.items = [];
                     state.page = 1;
@@ -4305,11 +4353,11 @@
             '<div class="native-video-player__fallback-overlay"></div>',
             '<div class="native-video-player__fallback-copy">',
             '<ion-icon name="play-circle-outline"></ion-icon>',
-            '<strong>' + escapeHtml(title || "Khong mo duoc video trong web") + "</strong>",
-            "<p>Video nay can mo bang trinh duyet ngoai hoac dich vu video goc.</p>",
+            '<strong>' + escapeHtml(title || "Không mở được video trong web") + "</strong>",
+            "<p>Video này cần mở bằng trình duyệt ngoài hoặc dịch vụ video gốc.</p>",
             videoUrl
                 ? '<a class="native-video-player__external" href="' + escapeHtml(buildSafeHref(videoUrl, "#")) + '" target="_blank" rel="noreferrer">Mo video ben ngoai</a>'
-                : '<button class="native-video-player__external is-disabled" type="button" disabled>Khong co video</button>',
+                : '<button class="native-video-player__external is-disabled" type="button" disabled>Không có video</button>',
             "</div>",
             "</div>"
         ].join("");
@@ -4321,7 +4369,7 @@
 
         function renderPlayer(player) {
             var avatarUrl = normalizeMediaUrl(player && player.avatar);
-            var name = trimToEmpty(player && player.name) || "Thanh vien";
+            var name = trimToEmpty(player && player.name) || "Thành viên";
 
             return [
                 '<div class="native-video-meta__player">',
@@ -4337,8 +4385,8 @@
             '<article class="native-video-meta__team' + (isWinner ? " is-winner" : "") + '">',
             '<div class="native-video-meta__team-head">',
             '<div>',
-            '<h3>' + escapeHtml(trimToEmpty(team && team.displayName) || "Doi thi dau") + "</h3>",
-            '<span>' + escapeHtml(trimToEmpty(team && team.regCode) || "Dang cap nhat") + "</span>",
+            '<h3>' + escapeHtml(trimToEmpty(team && team.displayName) || "Đội thi đấu") + "</h3>",
+            '<span>' + escapeHtml(trimToEmpty(team && team.regCode) || "Đang cập nhật") + "</span>",
             "</div>",
             '<strong>' + escapeHtml(score != null ? score : 0) + "</strong>",
             "</div>",
@@ -4356,12 +4404,12 @@
         var refreshTimer = null;
         var removePublicRealtimeListener = null;
 
-        renderEmptyState(refs, "Khong tim thay video tran dau.");
+        renderEmptyState(refs, "Không tìm thấy video trận đấu.");
 
         async function load() {
             if (!Number.isFinite(matchId) || matchId <= 0) {
                 refs.list.className = "native-page-list native-page-list--video-player";
-                refs.list.innerHTML = renderVideoPlayerFallback("Khong tim thay tran dau", "", "");
+                refs.list.innerHTML = renderVideoPlayerFallback("Không tìm thấy trận đấu", "", "");
                 toggleCommonState(refs, {
                     loading: false,
                     itemsLength: 1,
@@ -4398,14 +4446,14 @@
                 setHeaderAction(root, videoUrl ? {
                     className: "native-page-header__action--video-status",
                     html: '<ion-icon name="open-outline"></ion-icon><span>Mo video</span>',
-                    ariaLabel: "Mo video tran dau",
+                    ariaLabel: "Mở video trận đấu",
                     onClick: function () {
                         window.open(buildSafeHref(videoUrl, "#"), "_blank", "noopener");
                     }
                 } : {
                     className: "native-page-header__action--video-status is-disabled",
-                    html: '<ion-icon name="videocam-off-outline"></ion-icon><span>Khong co video</span>',
-                    ariaLabel: "Tran dau hien tai chua co video",
+                    html: '<ion-icon name="videocam-off-outline"></ion-icon><span>Không có video</span>',
+                    ariaLabel: "Trận đấu hiện tại chưa có video",
                     disabled: true
                 });
                 setHeaderExtra(root, "");
@@ -4426,12 +4474,12 @@
                     '<div class="native-video-meta__chips">',
                     trimToEmpty(round && round.roundLabel) ? '<span>' + escapeHtml(round.roundLabel) + "</span>" : "",
                     trimToEmpty(group && group.groupName) ? '<span>' + escapeHtml(formatVideoGroupLabel(group.groupName)) + "</span>" : "",
-                    match && match.isCompleted ? '<span class="is-completed">Da ket thuc</span>' : '<span class="is-open">Dang dien ra</span>',
+                    match && match.isCompleted ? '<span class="is-completed">Đã kết thúc</span>' : '<span class="is-open">Đang diễn ra</span>',
                     "</div>",
                     '<div class="native-video-meta__info">',
-                    formatDateTime(match && match.startAt) ? '<div><small>Thoi gian</small><strong>' + escapeHtml(formatDateTime(match.startAt)) + "</strong></div>" : "",
+                    formatDateTime(match && match.startAt) ? '<div><small>Thời gian</small><strong>' + escapeHtml(formatDateTime(match.startAt)) + "</strong></div>" : "",
                     trimToEmpty(match && match.courtText) ? '<div><small>San</small><strong>' + escapeHtml(match.courtText) + "</strong></div>" : "",
-                    trimToEmpty(match && match.addressText) ? '<div><small>Dia diem</small><strong>' + escapeHtml(match.addressText) + "</strong></div>" : "",
+                    trimToEmpty(match && match.addressText) ? '<div><small>Địa điểm</small><strong>' + escapeHtml(match.addressText) + "</strong></div>" : "",
                     videoUrl ? '<div><small>Video</small><strong><a href="' + escapeHtml(buildSafeHref(videoUrl, "#")) + '" target="_blank" rel="noreferrer">Mo lien ket goc</a></strong></div>' : "",
                     "</div>",
                     '<div class="native-video-meta__teams">',
@@ -4450,7 +4498,7 @@
                 });
             } catch (_error) {
                 refs.list.className = "native-page-list native-page-list--video-player";
-                refs.list.innerHTML = renderVideoPlayerFallback("Khong tai duoc chi tiet video", "", "");
+                refs.list.innerHTML = renderVideoPlayerFallback("Không tải được chi tiết video", "", "");
                 toggleCommonState(refs, {
                     loading: false,
                     itemsLength: 1,
@@ -4493,7 +4541,7 @@
     function renderChatRoomCard(item) {
         var coverUrl = normalizeMediaUrl(item && item.clubCoverUrl);
         var clubName = trimToEmpty(item && item.clubName) || "CLB Hanaka";
-        var previewText = trimToEmpty(item && item.lastMessagePreview) || "Chua co tin nhan";
+        var previewText = trimToEmpty(item && item.lastMessagePreview) || "Chưa có tin nhắn";
 
         return [
             '<a class="native-chat-room-card" href="/PickleballWeb/Chat/' + escapeHtml(item && item.clubId) + '">',
@@ -4514,6 +4562,84 @@
         ].join("");
     }
 
+    function getAvatarInitials(name) {
+        var parts = trimToEmpty(name)
+            .split(/\s+/)
+            .filter(Boolean)
+            .slice(-2);
+
+        if (!parts.length) {
+            return "HS";
+        }
+
+        return parts.map(function (part) {
+            return part.charAt(0);
+        }).join("").toUpperCase();
+    }
+
+    function renderDirectAvatar(user, className, fallbackIcon) {
+        var avatarUrl = normalizeMediaUrl(user && user.avatarUrl);
+        var fullName = trimToEmpty(user && user.fullName) || "Thành viên";
+        var baseClass = className || "native-chat-room-card__cover";
+
+        if (avatarUrl) {
+            return '<span class="' + escapeHtml(baseClass) + '"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(fullName) + '" loading="lazy"></span>';
+        }
+
+        return '<span class="' + escapeHtml(baseClass + " " + baseClass + "--fallback") + '">' +
+            (fallbackIcon ? '<ion-icon name="' + escapeHtml(fallbackIcon) + '"></ion-icon>' : '<span>' + escapeHtml(getAvatarInitials(fullName)) + "</span>") +
+            "</span>";
+    }
+
+    function renderDirectRoomCard(item) {
+        var roomId = item && (item.roomId || item.directChatRoomId);
+        var otherUser = item && item.otherUser ? item.otherUser : {};
+        var fullName = trimToEmpty(otherUser.fullName || item && item.title) || "Thành viên";
+        var previewText = trimToEmpty(item && item.lastMessagePreview) || "Chưa có tin nhắn";
+        var blocked = !!(item && (item.isBlockedByMe || item.hasBlockedMe));
+        var unread = Number(item && item.unreadCount) || 0;
+
+        return [
+            '<a class="native-chat-room-card native-chat-room-card--direct' + (blocked ? " is-blocked" : "") + '" href="/PickleballWeb/DirectChat/' + escapeHtml(roomId) + '">',
+            renderDirectAvatar(Object.assign({}, otherUser, { fullName: fullName }), "native-chat-room-card__cover", ""),
+            '<span class="native-chat-room-card__body">',
+            '<span class="native-chat-room-card__top">',
+            '<strong>' + escapeHtml(fullName) + "</strong>",
+            '<span>' + escapeHtml(formatRoomTime(item && item.lastMessageAt)) + "</span>",
+            "</span>",
+            '<span class="native-chat-room-card__area">' + escapeHtml(blocked
+                ? (item.isBlockedByMe ? "Bạn đang chặn người này" : "Hiện chưa thể nhắn tin")
+                : (trimToEmpty(otherUser.phone) || trimToEmpty(otherUser.city) || ("ID: " + trimToEmpty(otherUser.userId)))) + "</span>",
+            '<span class="native-chat-room-card__preview-row">',
+            '<span class="native-chat-room-card__preview">' + escapeHtml(trimToEmpty(item && item.lastSenderName) && previewText !== "Chưa có tin nhắn" ? item.lastSenderName + ": " + previewText : previewText) + "</span>",
+            unread > 0 ? '<span class="native-chat-room-card__badge">' + escapeHtml(unread > 99 ? "99+" : unread) + "</span>" : "",
+            "</span>",
+            "</span>",
+            "</a>"
+        ].join("");
+    }
+
+    function renderDirectSearchResult(item, openingUserId) {
+        var userId = item && item.userId;
+        var fullName = trimToEmpty(item && item.fullName) || "Thành viên";
+        var blocked = !!(item && (item.isBlockedByMe || item.hasBlockedMe));
+        var opening = trimToEmpty(openingUserId) && trimToEmpty(openingUserId) === trimToEmpty(userId);
+
+        return [
+            '<button class="native-chat-user-result' + (blocked ? " is-blocked" : "") + '" type="button" data-direct-chat-user-id="' + escapeHtml(userId) + '" ' + (opening ? "disabled" : "") + '>',
+            renderDirectAvatar(item, "native-chat-user-result__avatar", ""),
+            '<span class="native-chat-user-result__body">',
+            '<span class="native-chat-user-result__name">' + escapeHtml(fullName) + (item && item.verified ? ' <ion-icon name="checkmark-circle"></ion-icon>' : "") + "</span>",
+            '<span class="native-chat-user-result__meta">' + escapeHtml(trimToEmpty(item && item.phone) || trimToEmpty(item && item.city) || ("ID: " + trimToEmpty(userId))) + "</span>",
+            '<span class="native-chat-user-result__hint">' + escapeHtml(blocked
+                ? (item.isBlockedByMe ? "Bạn đang chặn người này" : "Người này hiện không nhận tin")
+                : (item && item.existingRoomId ? "Đã có cuộc trò chuyện" : "Bấm để bắt đầu chat")) + "</span>",
+            "</span>",
+            opening ? '<span class="members-app-spinner native-chat-user-result__spinner" aria-hidden="true"></span>' : '<ion-icon name="chevron-forward"></ion-icon>',
+            "</button>"
+        ].join("");
+    }
+
     function initChatListPage(root) {
         var refs = getCommonRefs(root);
         var state = {
@@ -4527,18 +4653,18 @@
         var refreshTimer = null;
         var removeRealtimeListener = null;
 
-        setHeaderTitle(root, "Tin nhan CLB");
+        setHeaderTitle(root, "Tin nhắn CLB");
         setHeaderAction(root, null);
         setHeaderExtra(root, [
             '<div class="native-chat-toolbar">',
             '<label class="native-inline-search__box native-inline-search__box--video">',
-            '<input type="search" placeholder="Tim ten CLB, khu vuc..." autocomplete="off" data-chat-room-query-input>',
+            '<input type="search" placeholder="Tìm tên CLB, khu vực..." autocomplete="off" data-chat-room-query-input>',
             '<ion-icon name="search"></ion-icon>',
             "</label>",
-            '<p class="native-chat-toolbar__note">Chi hien thi cac phong chat CLB ma tai khoan da tham gia.</p>',
+            '<p class="native-chat-toolbar__note">Chỉ hiển thị các phòng chat CLB mà tài khoản đã tham gia.</p>',
             "</div>"
         ].join(""));
-        renderEmptyState(refs, "Ban chua co phong chat CLB nao.");
+        renderEmptyState(refs, "Bạn chưa có phòng chat CLB nào.");
 
         function filteredItems() {
             var query = normalizeSearchText(state.query);
@@ -4564,8 +4690,8 @@
             if (state.authRequired) {
                 refs.list.innerHTML = renderAuthPrompt({
                     icon: "chatbubbles-outline",
-                    title: "Dang nhap de vao chat CLB",
-                    body: "Chi thanh vien CLB da dang nhap moi xem duoc danh sach phong chat.",
+                    title: "Đăng nhập để vào chat CLB",
+                    body: "Chỉ thành viên CLB đã đăng nhập mới xem được danh sách phòng chat.",
                     returnUrl: "/PickleballWeb/Chats"
                 });
             } else {
@@ -4613,7 +4739,7 @@
             } catch (_error) {
                 if (!silent) {
                     state.items = [];
-                    state.error = "Khong tai duoc danh sach phong chat.";
+                    state.error = "Không tải được danh sách phòng chat.";
                 }
             } finally {
                 if (!silent) {
@@ -4658,7 +4784,7 @@
                 await refreshRooms({ silent: true });
             } catch (_error) {
                 state.items = [];
-                state.error = "Khong tai duoc danh sach phong chat.";
+                state.error = "Không tải được danh sách phòng chat.";
             } finally {
                 state.loading = false;
                 render();
@@ -4705,13 +4831,1431 @@
         load();
     }
 
+    function initUnifiedChatListPage(root) {
+        var refs = getCommonRefs(root);
+        var state = {
+            session: null,
+            mode: "direct",
+            directQuery: "",
+            clubQuery: "",
+            loading: false,
+            searchLoading: false,
+            hasSearched: false,
+            error: "",
+            searchError: "",
+            authRequired: false,
+            directRooms: [],
+            clubRooms: [],
+            searchResults: [],
+            openingUserId: ""
+        };
+        var refreshTimer = null;
+        var removeRealtimeListener = null;
+
+        setHeaderTitle(root, "Trò chuyện");
+        setHeaderAction(root, {
+            html: '<ion-icon name="person-add-outline"></ion-icon>',
+            ariaLabel: "Tìm người chat",
+            onClick: function () {
+                state.mode = "direct";
+                syncToolbarMode();
+                render();
+
+                var input = qs("[data-direct-chat-search-input]", root);
+                if (input) {
+                    input.focus();
+                }
+            }
+        });
+        setHeaderExtra(root, [
+            '<div class="native-chat-toolbar native-chat-toolbar--unified">',
+            '<form class="native-chat-search-form" data-direct-chat-search-form>',
+            '<label class="native-inline-search__box native-inline-search__box--video">',
+            '<input type="search" placeholder="Nhập số điện thoại hoặc ID" autocomplete="off" data-direct-chat-search-input>',
+            '<ion-icon name="search"></ion-icon>',
+            "</label>",
+            '<button class="native-chat-search-form__button" type="submit" aria-label="Tìm"><ion-icon name="arrow-forward"></ion-icon></button>',
+            "</form>",
+            '<div class="native-chat-club-tools" data-chat-club-tools hidden>',
+            '<label class="native-inline-search__box native-inline-search__box--video">',
+            '<input type="search" placeholder="Tìm tên CLB, khu vực..." autocomplete="off" data-chat-room-query-input>',
+            '<ion-icon name="search"></ion-icon>',
+            "</label>",
+            '<p class="native-chat-toolbar__note">Chỉ hiển thị các phòng chat CLB mà tài khoản đã tham gia.</p>',
+            "</div>",
+            "</div>"
+        ].join(""));
+        renderEmptyState(refs, "Bạn chưa có cuộc trò chuyện nào.");
+
+        function syncToolbarMode() {
+            qsa("[data-chat-mode]", root).forEach(function (button) {
+                var active = trimToEmpty(button.getAttribute("data-chat-mode")) === state.mode;
+                button.classList.toggle("is-active", active);
+                button.setAttribute("aria-selected", active ? "true" : "false");
+            });
+
+            var directForm = qs("[data-direct-chat-search-form]", root);
+            if (directForm) {
+                directForm.hidden = state.mode !== "direct";
+            }
+
+            var clubTools = qs("[data-chat-club-tools]", root);
+            if (clubTools) {
+                clubTools.hidden = state.mode !== "club";
+            }
+        }
+
+        function filteredClubItems() {
+            var query = normalizeSearchText(state.clubQuery);
+
+            if (!query) {
+                return state.clubRooms;
+            }
+
+            return state.clubRooms.filter(function (item) {
+                return normalizeSearchText([
+                    item && item.clubName,
+                    item && item.areaText,
+                    item && item.lastMessagePreview,
+                    item && item.lastSenderName
+                ].filter(Boolean).join(" ")).indexOf(query) >= 0;
+            });
+        }
+
+        function renderDirectSearchSection() {
+            if (!state.hasSearched && !state.searchLoading) {
+                return "";
+            }
+
+            var body = "";
+            if (state.searchLoading) {
+                body = '<div class="native-chat-inline-state"><span class="members-app-spinner" aria-hidden="true"></span><span>Đang tìm thành viên...</span></div>';
+            } else if (state.searchError) {
+                body = '<div class="native-chat-inline-state is-error">' + escapeHtml(state.searchError) + "</div>";
+            } else if (state.searchResults.length) {
+                body = '<div class="native-chat-user-results">' + state.searchResults.map(function (item) {
+                    return renderDirectSearchResult(item, state.openingUserId);
+                }).join("") + "</div>";
+            } else {
+                body = '<div class="native-chat-inline-state">Không tìm thấy thành viên phù hợp.</div>';
+            }
+
+            return [
+                '<section class="native-chat-section">',
+                '<h2>Kết quả tìm kiếm</h2>',
+                body,
+                "</section>"
+            ].join("");
+        }
+
+        function renderDirectContent() {
+            return [
+                renderDirectSearchSection(),
+                '<section class="native-chat-section">',
+                '<h2>Tin nhắn cá nhân</h2>',
+                state.directRooms.length
+                    ? state.directRooms.map(renderDirectRoomCard).join("")
+                    : '<div class="native-chat-inline-state">Chưa có cuộc trò chuyện cá nhân nào.</div>',
+                "</section>"
+            ].join("");
+        }
+
+        function renderClubContent() {
+            var items = filteredClubItems();
+            return [
+                '<section class="native-chat-section">',
+                '<h2>Phòng chat CLB</h2>',
+                items.length
+                    ? items.map(renderChatRoomCard).join("")
+                    : '<div class="native-chat-inline-state">Bạn chưa có phòng chat CLB nào.</div>',
+                "</section>"
+            ].join("");
+        }
+
+        function render() {
+            refs.list.className = "native-page-list native-page-list--chat-rooms native-page-list--chat-unified";
+
+            if (state.authRequired) {
+                refs.list.innerHTML = renderAuthPrompt({
+                    icon: "chatbubbles-outline",
+                    title: "Đăng nhập để trò chuyện",
+                    body: "Bạn cần đăng nhập để tìm thành viên, chat cá nhân và xem phòng chat CLB.",
+                    returnUrl: "/PickleballWeb/Chats"
+                });
+            } else {
+                refs.list.innerHTML = state.mode === "direct"
+                    ? renderDirectContent()
+                    : renderClubContent();
+            }
+
+            toggleCommonState(refs, {
+                loading: state.loading,
+                itemsLength: state.authRequired ? 1 : 1,
+                error: state.error,
+                hasMore: false
+            });
+        }
+
+        function syncDirectSubscriptions() {
+            state.directRooms.forEach(function (item) {
+                var roomId = item && (item.roomId || item.directChatRoomId);
+                if (roomId) {
+                    subscribeDirectRealtime(roomId);
+                }
+            });
+        }
+
+        function syncClubSubscriptions() {
+            state.clubRooms.forEach(function (item) {
+                if (item && item.clubId) {
+                    subscribeClubRealtime(item.clubId);
+                }
+            });
+        }
+
+        async function refreshDirectRooms() {
+            var payload = await requestJson("/api/direct-chats/rooms?page=1&pageSize=50", {
+                method: "GET",
+                headers: { Accept: "application/json" }
+            });
+
+            state.directRooms = Array.isArray(payload && payload.items) ? payload.items : [];
+            syncDirectSubscriptions();
+        }
+
+        async function refreshClubRooms() {
+            var payload = await requestJson("/api/clubs/chat-rooms?page=1&pageSize=50", {
+                method: "GET",
+                headers: { Accept: "application/json" }
+            });
+
+            state.clubRooms = Array.isArray(payload && payload.items) ? payload.items : [];
+            syncClubSubscriptions();
+        }
+
+        async function refreshRooms(options) {
+            var silent = !!(options && options.silent);
+
+            if (state.loading && !silent) {
+                return;
+            }
+
+            if (!silent) {
+                state.loading = true;
+                state.error = "";
+                render();
+            }
+
+            try {
+                await Promise.all([
+                    refreshDirectRooms(),
+                    refreshClubRooms()
+                ]);
+            } catch (_error) {
+                if (!silent) {
+                    state.directRooms = [];
+                    state.clubRooms = [];
+                    state.error = "Không tải được danh sách trò chuyện.";
+                }
+            } finally {
+                if (!silent) {
+                    state.loading = false;
+                }
+                render();
+            }
+        }
+
+        function scheduleRefreshRooms() {
+            window.clearTimeout(refreshTimer);
+            refreshTimer = window.setTimeout(function () {
+                refreshRooms({ silent: true });
+            }, 250);
+        }
+
+        async function searchUsers() {
+            var input = qs("[data-direct-chat-search-input]", root);
+            var keyword = trimToEmpty(input && input.value);
+            var isNumeric = /^\d+$/.test(keyword);
+
+            state.directQuery = keyword;
+            state.hasSearched = true;
+            state.searchError = "";
+            state.searchResults = [];
+
+            if (!keyword || (keyword.length < 2 && !isNumeric)) {
+                state.searchError = "Nhập ít nhất 2 ký tự hoặc nhập đúng ID thành viên.";
+                render();
+                return;
+            }
+
+            state.searchLoading = true;
+            render();
+
+            try {
+                var payload = await requestJson("/api/direct-chats/users/search?keyword=" + encodeURIComponent(keyword) + "&page=1&pageSize=20", {
+                    method: "GET",
+                    headers: { Accept: "application/json" }
+                });
+
+                state.searchResults = Array.isArray(payload && payload.items) ? payload.items : [];
+            } catch (error) {
+                state.searchError = error.message || "Không tìm được thành viên.";
+            } finally {
+                state.searchLoading = false;
+                render();
+            }
+        }
+
+        async function openDirectChat(userId) {
+            var targetId = Number(userId);
+            if (!Number.isFinite(targetId) || targetId <= 0 || state.openingUserId) {
+                return;
+            }
+
+            var item = state.searchResults.find(function (candidate) {
+                return Number(candidate && candidate.userId) === targetId;
+            });
+
+            if (item && (item.isBlockedByMe || item.hasBlockedMe)) {
+                window.alert(item.isBlockedByMe
+                    ? "Bạn đang chặn người này. Hãy bỏ chặn để tiếp tục."
+                    : "Người này hiện không thể nhận tin nhắn từ bạn.");
+                return;
+            }
+
+            if (item && item.existingRoomId) {
+                window.location.href = "/PickleballWeb/DirectChat/" + item.existingRoomId;
+                return;
+            }
+
+            state.openingUserId = String(targetId);
+            render();
+
+            try {
+                var payload = await requestJson("/api/direct-chats/rooms", {
+                    method: "POST",
+                    body: JSON.stringify({ targetUserId: targetId })
+                });
+                var room = payload && payload.item ? payload.item : null;
+                var roomId = room && (room.roomId || room.directChatRoomId);
+
+                if (!roomId) {
+                    throw new Error("Không mở được phòng chat.");
+                }
+
+                window.location.href = "/PickleballWeb/DirectChat/" + roomId;
+            } catch (error) {
+                state.openingUserId = "";
+                window.alert(error.message || "Không mở được phòng chat.");
+                render();
+            }
+        }
+
+        async function load() {
+            if (state.loading) {
+                return;
+            }
+
+            state.loading = true;
+            state.error = "";
+            state.authRequired = false;
+            render();
+
+            try {
+                var session = await requestJson("/api/web-auth/me", {
+                    method: "GET",
+                    headers: { Accept: "application/json" }
+                });
+
+                if (!(session && session.isAuthenticated)) {
+                    state.session = null;
+                    state.directRooms = [];
+                    state.clubRooms = [];
+                    state.authRequired = true;
+                    return;
+                }
+
+                state.session = session;
+                connectRealtime();
+                await refreshRooms({ silent: true });
+            } catch (_error) {
+                state.directRooms = [];
+                state.clubRooms = [];
+                state.error = "Không tải được danh sách trò chuyện.";
+            } finally {
+                state.loading = false;
+                render();
+            }
+        }
+
+        if (refs.retry) {
+            refs.retry.onclick = function () { load(); };
+        }
+
+        qsa("[data-chat-mode]", root).forEach(function (button) {
+            button.addEventListener("click", function () {
+                state.mode = trimToEmpty(button.getAttribute("data-chat-mode")) || "direct";
+                syncToolbarMode();
+                render();
+            });
+        });
+
+        var directForm = qs("[data-direct-chat-search-form]", root);
+        if (directForm) {
+            directForm.addEventListener("submit", function (event) {
+                event.preventDefault();
+                searchUsers();
+            });
+        }
+
+        var directInput = qs("[data-direct-chat-search-input]", root);
+        if (directInput) {
+            directInput.addEventListener("input", function () {
+                state.directQuery = trimToEmpty(directInput.value);
+                state.searchError = "";
+            });
+        }
+
+        var clubQueryInput = qs("[data-chat-room-query-input]", root);
+        if (clubQueryInput) {
+            clubQueryInput.addEventListener("input", function () {
+                state.clubQuery = trimToEmpty(clubQueryInput.value);
+                render();
+            });
+        }
+
+        refs.list.addEventListener("click", function (event) {
+            var userButton = event.target && event.target.closest
+                ? event.target.closest("[data-direct-chat-user-id]")
+                : null;
+
+            if (userButton) {
+                event.preventDefault();
+                openDirectChat(userButton.getAttribute("data-direct-chat-user-id"));
+            }
+        });
+
+        removeRealtimeListener = addRealtimeListener(function (event) {
+            var type = trimToEmpty(event && event.type);
+
+            if (type === "__socket_open__") {
+                syncDirectSubscriptions();
+                syncClubSubscriptions();
+                return;
+            }
+
+            if (
+                type === "direct.notification" ||
+                type === "direct.message.created" ||
+                type === "direct.message.recalled" ||
+                type === "direct.message.updated" ||
+                type === "direct.message.deleted" ||
+                type === "direct.block.changed" ||
+                type === "club.notification" ||
+                type === "club.message.created" ||
+                type === "club.message.deleted"
+            ) {
+                scheduleRefreshRooms();
+            }
+        });
+
+        window.addEventListener("pagehide", function () {
+            window.clearTimeout(refreshTimer);
+            state.directRooms.forEach(function (item) {
+                var roomId = item && (item.roomId || item.directChatRoomId);
+                if (roomId) {
+                    unsubscribeDirectRealtime(roomId);
+                }
+            });
+            state.clubRooms.forEach(function (item) {
+                if (item && item.clubId) {
+                    unsubscribeClubRealtime(item.clubId);
+                }
+            });
+            if (removeRealtimeListener) {
+                removeRealtimeListener();
+                removeRealtimeListener = null;
+            }
+        }, { once: true });
+
+        syncToolbarMode();
+        load();
+    }
+
+    function renderDirectChatRoomHeader(room) {
+        if (!room) {
+            return "";
+        }
+
+        var otherUser = room.otherUser || {};
+        var fullName = trimToEmpty(otherUser.fullName || room.title) || "Thành viên";
+        var meta = trimToEmpty(otherUser.phone) || trimToEmpty(otherUser.city) || ("ID: " + trimToEmpty(otherUser.userId));
+        var status = room.isBlockedByMe
+            ? "Bạn đang chặn"
+            : room.hasBlockedMe
+                ? "Không thể nhắn"
+                : "Chat cá nhân";
+
+        return [
+            '<div class="native-chat-room-head native-chat-room-head--direct">',
+            renderDirectAvatar(Object.assign({}, otherUser, { fullName: fullName }), "native-chat-room-head__cover", ""),
+            '<div class="native-chat-room-head__copy">',
+            '<strong>' + escapeHtml(fullName) + "</strong>",
+            '<span>' + escapeHtml(meta) + "</span>",
+            '<small class="native-chat-room-head__status">' + escapeHtml(status) + "</small>",
+            "</div>",
+            "</div>"
+        ].join("");
+    }
+
+    function renderDirectChatMessage(item, myUserId) {
+        var senderId = trimToEmpty(item && (item.senderUserId || item.sender && item.sender.userId));
+        var isMine = senderId && trimToEmpty(myUserId) && senderId === trimToEmpty(myUserId);
+        var senderName = trimToEmpty(item && item.sender && item.sender.fullName) || "Thành viên";
+        var avatarUrl = normalizeMediaUrl(item && item.sender && item.sender.avatarUrl);
+        var content = trimToEmpty(item && item.content);
+        var mediaUrl = normalizeMediaUrl(item && item.mediaUrl);
+        var messageId = item && (item.messageId || item.directChatMessageId);
+        var recalled = !!(item && item.isRecalled);
+        var edited = !!(item && item.editedAt) && !recalled;
+
+        return [
+            '<div class="native-chat-message native-chat-message--direct' + (isMine ? " is-mine" : "") + '">',
+            isMine
+                ? ""
+                : avatarUrl
+                    ? '<span class="native-chat-message__avatar"><img src="' + escapeHtml(avatarUrl) + '" alt="' + escapeHtml(senderName) + '" loading="lazy"></span>'
+                    : '<span class="native-chat-message__avatar native-chat-message__avatar--fallback"><ion-icon name="person-outline"></ion-icon></span>',
+            '<div class="native-chat-message__stack">',
+            isMine ? "" : '<span class="native-chat-message__sender">' + escapeHtml(senderName) + "</span>",
+            '<div class="native-chat-message__bubble' + (isMine ? " is-mine" : "") + (recalled ? " is-recalled" : "") + '">',
+            !recalled && mediaUrl ? '<img class="native-chat-message__media" src="' + escapeHtml(mediaUrl) + '" alt="Tin nhắn hình ảnh" loading="lazy">' : "",
+            recalled
+                ? '<p class="native-chat-message__text">Tin nhắn đã được thu hồi.</p>'
+                : content
+                    ? '<p class="native-chat-message__text">' + renderTextWithBreaks(content) + "</p>"
+                    : '<p class="native-chat-message__text">[Tin nhắn]</p>',
+            "</div>",
+            '<span class="native-chat-message__meta">',
+            '<span class="native-chat-message__time">' + escapeHtml(formatMessageTime(item && item.sentAt)) + "</span>",
+            edited ? '<span class="native-chat-message__edited">Đã sửa</span>' : "",
+            '<span class="native-chat-message__actions">',
+            isMine && !recalled && trimToEmpty(item && item.messageType).toLowerCase() === "text"
+                ? '<button type="button" data-direct-edit-message-id="' + escapeHtml(messageId) + '"><ion-icon name="create-outline"></ion-icon><span>Sửa</span></button>'
+                : "",
+            isMine && !recalled
+                ? '<button type="button" data-direct-recall-message-id="' + escapeHtml(messageId) + '"><ion-icon name="refresh-circle-outline"></ion-icon><span>Thu hồi</span></button>'
+                : "",
+            isMine && !recalled
+                ? '<button type="button" data-direct-delete-message-id="' + escapeHtml(messageId) + '"><ion-icon name="trash-outline"></ion-icon><span>Xóa</span></button>'
+                : "",
+            !isMine && !recalled
+                ? '<button type="button" data-direct-report-message-id="' + escapeHtml(messageId) + '"><ion-icon name="flag-outline"></ion-icon><span>Báo cáo</span></button>'
+                : "",
+            !isMine && !recalled
+                ? '<button type="button" data-direct-block-user-id="' + escapeHtml(senderId) + '" data-direct-block-message-id="' + escapeHtml(messageId) + '"><ion-icon name="ban-outline"></ion-icon><span>Chặn</span></button>'
+                : "",
+            "</span>",
+            "</span>",
+            "</div>",
+            "</div>"
+        ].join("");
+    }
+
+    function renderDirectBlockBanner(state) {
+        if (!(state && (state.isBlockedByMe || state.hasBlockedMe))) {
+            return "";
+        }
+
+        return [
+            '<article class="native-chat-block-banner">',
+            '<ion-icon name="ban-outline"></ion-icon>',
+            '<div>',
+            '<strong>' + escapeHtml(state.isBlockedByMe ? "Bạn đã chặn người này" : "Người này hiện không thể nhắn tin") + "</strong>",
+            '<p>' + escapeHtml(state.isBlockedByMe
+                ? "Bỏ chặn để tiếp tục gửi và nhận tin nhắn trong phòng chat này."
+                : "Bạn không thể gửi tin nhắn cho đến khi trạng thái chặn được thay đổi.") + "</p>",
+            "</div>",
+            "</article>"
+        ].join("");
+    }
+
+    function initDirectChatRoomPage(root) {
+        var refs = getCommonRefs(root);
+        var roomId = Number(root.getAttribute("data-native-page-id"));
+        var state = {
+            session: null,
+            room: null,
+            items: [],
+            typingUsers: [],
+            loading: false,
+            error: "",
+            authRequired: false,
+            composerText: "",
+            sending: false,
+            isBlockedByMe: false,
+            hasBlockedMe: false,
+            page: 1,
+            pageSize: 30,
+            total: 0,
+            loadingMore: false
+        };
+        var removeRealtimeListener = null;
+        var removeViewportListeners = null;
+        var typingTimer = null;
+        var typingExpiryTimers = {};
+
+        renderEmptyState(refs, "Chưa có tin nhắn trong phòng chat này.");
+
+        function myUserId() {
+            return getSessionUserId(state.session);
+        }
+
+        function otherUser() {
+            return state.room && state.room.otherUser ? state.room.otherUser : {};
+        }
+
+        function otherUserId() {
+            return trimToEmpty(otherUser().userId);
+        }
+
+        function getMessageId(item) {
+            return trimToEmpty(item && (item.messageId || item.directChatMessageId));
+        }
+
+        function upsertMessage(item) {
+            if (!item) {
+                return false;
+            }
+
+            var messageId = getMessageId(item);
+            var replaced = false;
+
+            if (messageId) {
+                state.items = state.items.map(function (existing) {
+                    if (getMessageId(existing) === messageId) {
+                        replaced = true;
+                        return item;
+                    }
+
+                    return existing;
+                });
+
+                if (replaced) {
+                    return false;
+                }
+            }
+
+            state.items = state.items.concat([item]).sort(function (a, b) {
+                var aDate = parseDate(a && a.sentAt);
+                var bDate = parseDate(b && b.sentAt);
+                return (aDate ? aDate.getTime() : 0) - (bDate ? bDate.getTime() : 0);
+            });
+
+            return true;
+        }
+
+        function mergeMessages(items) {
+            var changed = false;
+
+            (Array.isArray(items) ? items : []).forEach(function (item) {
+                if (upsertMessage(item)) {
+                    changed = true;
+                }
+            });
+
+            return changed;
+        }
+
+        function hasMoreMessages() {
+            return state.items.length < state.total;
+        }
+
+        function markMessageRecalled(messageId, item) {
+            var id = trimToEmpty(messageId);
+            if (!id) {
+                return;
+            }
+
+            if (item) {
+                upsertMessage(item);
+                return;
+            }
+
+            state.items = state.items.map(function (existing) {
+                if (getMessageId(existing) !== id) {
+                    return existing;
+                }
+
+                return Object.assign({}, existing, {
+                    content: null,
+                    mediaUrl: null,
+                    isRecalled: true
+                });
+            });
+        }
+
+        function findMessage(messageId) {
+            var id = trimToEmpty(messageId);
+            if (!id) {
+                return null;
+            }
+
+            return state.items.find(function (item) {
+                return getMessageId(item) === id;
+            }) || null;
+        }
+
+        function removeMessage(messageId) {
+            var id = trimToEmpty(messageId);
+            if (!id) {
+                return;
+            }
+
+            state.items = state.items.filter(function (item) {
+                return getMessageId(item) !== id;
+            });
+        }
+
+        function clearTypingUser(userId) {
+            var id = trimToEmpty(userId);
+            if (!id) {
+                return;
+            }
+
+            window.clearTimeout(typingExpiryTimers[id]);
+            delete typingExpiryTimers[id];
+            state.typingUsers = state.typingUsers.filter(function (item) {
+                return trimToEmpty(item && item.userId) !== id;
+            });
+        }
+
+        function setTypingUser(event) {
+            var userId = trimToEmpty(event && event.userId);
+
+            if (!userId || userId === myUserId()) {
+                return;
+            }
+
+            if (!(event && event.isTyping)) {
+                clearTypingUser(userId);
+                render();
+                return;
+            }
+
+            var fullName = trimToEmpty(event && event.fullName) || trimToEmpty(otherUser().fullName) || "Thành viên";
+            var exists = false;
+            state.typingUsers = state.typingUsers.map(function (item) {
+                if (trimToEmpty(item && item.userId) === userId) {
+                    exists = true;
+                    return {
+                        userId: userId,
+                        fullName: fullName
+                    };
+                }
+
+                return item;
+            });
+
+            if (!exists) {
+                state.typingUsers = state.typingUsers.concat([{
+                    userId: userId,
+                    fullName: fullName
+                }]);
+            }
+
+            window.clearTimeout(typingExpiryTimers[userId]);
+            typingExpiryTimers[userId] = window.setTimeout(function () {
+                clearTypingUser(userId);
+                render();
+            }, 2800);
+
+            render();
+        }
+
+        function renderTypingIndicator() {
+            if (!state.typingUsers.length) {
+                return "";
+            }
+
+            var names = state.typingUsers
+                .map(function (item) { return trimToEmpty(item && item.fullName); })
+                .filter(Boolean)
+                .slice(0, 2)
+                .join(", ");
+
+            return [
+                '<div class="native-chat-typing">',
+                '<span class="native-chat-typing__dots"><i></i><i></i><i></i></span>',
+                '<span>' + escapeHtml((names || "Thành viên") + " đang nhập...") + "</span>",
+                "</div>"
+            ].join("");
+        }
+
+        function canSend() {
+            return !state.isBlockedByMe && !state.hasBlockedMe;
+        }
+
+        function syncVisualViewportHeight() {
+            var viewport = window.visualViewport;
+            var height = viewport && viewport.height ? viewport.height : window.innerHeight;
+
+            if (Number.isFinite(height) && height > 0) {
+                root.style.setProperty("--direct-chat-height", Math.round(height) + "px");
+            }
+        }
+
+        function bindVisualViewportHeight() {
+            var viewport = window.visualViewport;
+            var target = viewport || window;
+
+            syncVisualViewportHeight();
+            target.addEventListener("resize", syncVisualViewportHeight);
+            if (viewport) {
+                viewport.addEventListener("scroll", syncVisualViewportHeight);
+            } else {
+                window.addEventListener("orientationchange", syncVisualViewportHeight);
+            }
+
+            return function () {
+                target.removeEventListener("resize", syncVisualViewportHeight);
+                if (viewport) {
+                    viewport.removeEventListener("scroll", syncVisualViewportHeight);
+                } else {
+                    window.removeEventListener("orientationchange", syncVisualViewportHeight);
+                }
+                root.style.removeProperty("--direct-chat-height");
+            };
+        }
+
+        function setComposerFocused(isFocused) {
+            root.classList.toggle("is-composer-focused", !!isFocused);
+            syncVisualViewportHeight();
+            if (isFocused) {
+                window.setTimeout(function () {
+                    scrollChatToBottom(root);
+                }, 80);
+            }
+        }
+
+        function syncHeader() {
+            var name = trimToEmpty(otherUser().fullName || state.room && state.room.title);
+            setHeaderTitle(root, name || "Chat cá nhân");
+            if (state.room) {
+                setHeaderExtra(root, renderDirectChatRoomHeader(Object.assign({}, state.room, {
+                    isBlockedByMe: state.isBlockedByMe,
+                    hasBlockedMe: state.hasBlockedMe
+                })));
+            } else {
+                setHeaderExtra(root, "");
+            }
+
+            if (!state.session || !otherUserId()) {
+                setHeaderAction(root, null);
+                return;
+            }
+
+            setHeaderAction(root, {
+                html: state.isBlockedByMe
+                    ? '<ion-icon name="lock-open-outline"></ion-icon>'
+                    : '<ion-icon name="ban-outline"></ion-icon>',
+                ariaLabel: state.isBlockedByMe ? "Bỏ chặn người dùng" : "Chặn người dùng",
+                onClick: function () {
+                    if (state.isBlockedByMe) {
+                        unblockOtherUser();
+                    } else {
+                        blockOtherUser(null);
+                    }
+                }
+            });
+        }
+
+        function render() {
+            refs.list.className = "native-page-list native-page-list--chat-room";
+
+            if (state.authRequired) {
+                refs.list.innerHTML = renderAuthPrompt({
+                    icon: "chatbubble-ellipses-outline",
+                    title: "Đăng nhập để vào chat cá nhân",
+                    body: "Bạn cần đăng nhập để xem và gửi tin nhắn cá nhân.",
+                    returnUrl: "/PickleballWeb/DirectChat/" + roomId
+                });
+            } else {
+                refs.list.innerHTML = [
+                    '<section class="native-chat-room native-chat-room--direct">',
+                    renderDirectBlockBanner(state),
+                    state.items.length > 0
+                        ? '<div class="native-chat-room__thread" data-direct-chat-thread>' +
+                        (state.loadingMore ? '<div class="native-chat-room__loading-more">Đang tải tin nhắn cũ hơn...</div>' : "") +
+                        state.items.map(function (item) {
+                            return renderDirectChatMessage(item, myUserId());
+                        }).join("") + renderTypingIndicator() + '<div data-chat-room-bottom></div></div>'
+                        : '<div class="native-chat-room__empty">Chưa có tin nhắn nào trong phòng chat này.</div>',
+                    '<form class="native-chat-composer' + (canSend() ? "" : " is-disabled") + '" data-direct-chat-compose-form>',
+                    '<textarea class="native-chat-composer__input" rows="1" placeholder="' + escapeHtml(canSend() ? "Nhập tin nhắn..." : "Hiện chưa thể gửi tin nhắn") + '" data-direct-chat-compose-input ' + (canSend() ? "" : "disabled") + '>' + escapeHtml(state.composerText) + '</textarea>',
+                    '<button class="native-chat-composer__send" type="submit" data-direct-chat-compose-send ' + ((state.sending || !trimToEmpty(state.composerText) || !canSend()) ? "disabled" : "") + '>',
+                    '<ion-icon name="send"></ion-icon>',
+                    "</button>",
+                    "</form>",
+                    "</section>"
+                ].join("");
+
+                bindComposer();
+                bindMessageThread();
+            }
+
+            toggleCommonState(refs, {
+                loading: state.loading,
+                itemsLength: state.authRequired ? 1 : state.items.length + 1,
+                error: state.error,
+                hasMore: false
+            });
+        }
+
+        function bindMessageThread() {
+            var thread = qs("[data-direct-chat-thread]", root);
+            if (!thread) {
+                return;
+            }
+
+            thread.addEventListener("scroll", function () {
+                if (thread.scrollTop <= 48) {
+                    loadOlderMessages();
+                }
+            }, { passive: true });
+        }
+
+        function bindComposer() {
+            var form = qs("[data-direct-chat-compose-form]", root);
+            var input = qs("[data-direct-chat-compose-input]", root);
+            var sendButton = qs("[data-direct-chat-compose-send]", root);
+
+            if (input) {
+                input.value = state.composerText;
+                input.addEventListener("focus", function () {
+                    setComposerFocused(true);
+                });
+                input.addEventListener("blur", function () {
+                    window.setTimeout(function () {
+                        setComposerFocused(false);
+                    }, 80);
+                });
+                input.addEventListener("input", function () {
+                    state.composerText = input.value;
+                    if (sendButton) {
+                        sendButton.disabled = state.sending || !trimToEmpty(state.composerText) || !canSend();
+                    }
+
+                    sendDirectTypingRealtime(roomId, trimToEmpty(state.composerText).length > 0);
+                    window.clearTimeout(typingTimer);
+                    typingTimer = window.setTimeout(function () {
+                        sendDirectTypingRealtime(roomId, false);
+                    }, 1200);
+                });
+            }
+
+            if (form) {
+                form.addEventListener("submit", async function (event) {
+                    event.preventDefault();
+
+                    var content = trimToEmpty(state.composerText);
+                    if (!content || state.sending || !canSend()) {
+                        return;
+                    }
+
+                    state.sending = true;
+                    render();
+
+                    try {
+                        var payload = await requestJson("/api/direct-chats/rooms/" + roomId + "/messages", {
+                            method: "POST",
+                            body: JSON.stringify({
+                                messageType: "text",
+                                content: content
+                            })
+                        });
+                        var saved = payload && payload.item ? payload.item : null;
+                        if (saved) {
+                            upsertMessage(saved);
+                        }
+                        state.composerText = "";
+                        sendDirectTypingRealtime(roomId, false);
+                    } catch (error) {
+                        if (error && error.payload) {
+                            state.isBlockedByMe = !!error.payload.isBlockedByMe;
+                            state.hasBlockedMe = !!error.payload.hasBlockedMe;
+                            syncHeader();
+                        }
+                        window.alert(error.message || "Không gửi được tin nhắn.");
+                    } finally {
+                        state.sending = false;
+                        render();
+                        scrollChatToBottom(root);
+                    }
+                });
+            }
+        }
+
+        async function recallMessage(messageId) {
+            var id = Number(messageId);
+            if (!Number.isFinite(id) || id <= 0) {
+                return;
+            }
+
+            if (!window.confirm("Thu hồi tin nhắn này?")) {
+                return;
+            }
+
+            try {
+                var payload = await requestJson("/api/direct-chats/messages/" + id + "/recall", {
+                    method: "POST"
+                });
+                markMessageRecalled(id, payload && payload.item);
+                render();
+            } catch (error) {
+                window.alert(error.message || "Không thu hồi được tin nhắn.");
+            }
+        }
+
+        async function editMessage(messageId) {
+            var id = Number(messageId);
+            if (!Number.isFinite(id) || id <= 0) {
+                return;
+            }
+
+            var current = findMessage(id);
+            var oldContent = trimToEmpty(current && current.content);
+            var nextContent = window.prompt("Sửa tin nhắn", oldContent);
+            if (nextContent == null) {
+                return;
+            }
+
+            nextContent = trimToEmpty(nextContent);
+            if (!nextContent || nextContent === oldContent) {
+                return;
+            }
+
+            try {
+                var payload = await requestJson("/api/direct-chats/messages/" + id, {
+                    method: "PATCH",
+                    body: JSON.stringify({
+                        content: nextContent
+                    })
+                });
+                if (payload && payload.item) {
+                    upsertMessage(payload.item);
+                }
+                render();
+            } catch (error) {
+                window.alert(error.message || "Không sửa được tin nhắn.");
+            }
+        }
+
+        async function deleteMessage(messageId) {
+            var id = Number(messageId);
+            if (!Number.isFinite(id) || id <= 0) {
+                return;
+            }
+
+            if (!window.confirm("Xóa tin nhắn này?")) {
+                return;
+            }
+
+            try {
+                await requestJson("/api/direct-chats/messages/" + id, {
+                    method: "DELETE"
+                });
+                removeMessage(id);
+                render();
+            } catch (error) {
+                window.alert(error.message || "Không xóa được tin nhắn.");
+            }
+        }
+
+        function normalizeDirectReportReason(value) {
+            var normalized = trimToEmpty(value)
+                .toLowerCase()
+                .replace(/-/g, "_")
+                .replace(/\s+/g, "_");
+
+            if (
+                normalized === "hate_or_harassment" ||
+                normalized === "violent_threat" ||
+                normalized === "sexual_content" ||
+                normalized === "spam_or_scam" ||
+                normalized === "other"
+            ) {
+                return normalized;
+            }
+
+            return "other";
+        }
+
+        async function reportMessage(messageId) {
+            var id = Number(messageId);
+            if (!Number.isFinite(id) || id <= 0) {
+                return;
+            }
+
+            var current = findMessage(id);
+            if (!current) {
+                return;
+            }
+
+            var reason = window.prompt(
+                "Lý do báo cáo: hate_or_harassment, violent_threat, sexual_content, spam_or_scam, other",
+                "other"
+            );
+            if (reason == null) {
+                return;
+            }
+
+            var sender = current.sender || {};
+            var targetId = Number(current.senderUserId || sender.userId || otherUserId());
+            if (!Number.isFinite(targetId) || targetId <= 0) {
+                window.alert("Không xác định được người gửi tin nhắn.");
+                return;
+            }
+
+            try {
+                var payload = await requestJson("/api/moderation/reports", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        kind: "message",
+                        reason: normalizeDirectReportReason(reason),
+                        directChatRoomId: roomId,
+                        directChatMessageId: id,
+                        messageContent: trimToEmpty(current.content),
+                        targetUserId: targetId,
+                        targetUserName: trimToEmpty(sender.fullName) || trimToEmpty(otherUser().fullName) || "Thành viên",
+                        source: "direct_chat_report_web"
+                    })
+                });
+
+                window.alert(payload && payload.developerNotified
+                    ? "Báo cáo đã được gửi tới moderation."
+                    : "Báo cáo đã được ghi nhận.");
+            } catch (error) {
+                window.alert(error.message || "Không gửi được báo cáo.");
+            }
+        }
+
+        async function blockOtherUser(sourceMessageId) {
+            var targetId = Number(otherUserId());
+            if (!Number.isFinite(targetId) || targetId <= 0 || state.isBlockedByMe) {
+                return;
+            }
+
+            if (!window.confirm("Chặn người dùng này?")) {
+                return;
+            }
+
+            try {
+                await requestJson("/api/direct-chats/users/" + targetId + "/block", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        roomId: roomId,
+                        messageId: Number(sourceMessageId) || null,
+                        reason: "other",
+                        notes: "Chặn từ chat cá nhân web."
+                    })
+                });
+                state.isBlockedByMe = true;
+                state.composerText = "";
+                syncHeader();
+                render();
+            } catch (error) {
+                window.alert(error.message || "Không chặn được người dùng.");
+            }
+        }
+
+        async function unblockOtherUser() {
+            var targetId = Number(otherUserId());
+            if (!Number.isFinite(targetId) || targetId <= 0 || !state.isBlockedByMe) {
+                return;
+            }
+
+            try {
+                await requestJson("/api/direct-chats/users/" + targetId + "/block", {
+                    method: "DELETE"
+                });
+                state.isBlockedByMe = false;
+                syncHeader();
+                render();
+            } catch (error) {
+                window.alert(error.message || "Không bỏ chặn được người dùng.");
+            }
+        }
+
+        function applyBlockEvent(event) {
+            var payload = event && event.payload ? event.payload : event;
+            var currentUserId = myUserId();
+            var targetId = otherUserId();
+            var blockerId = trimToEmpty(payload && payload.blockerUserId);
+            var blockedId = trimToEmpty(payload && payload.blockedUserId);
+            var eventRoomId = Number(payload && (payload.roomId || payload.directChatRoomId));
+
+            if (eventRoomId > 0 && eventRoomId !== roomId) {
+                return false;
+            }
+
+            if (!currentUserId || !targetId) {
+                return false;
+            }
+
+            if (blockerId === currentUserId && blockedId === targetId) {
+                state.isBlockedByMe = !!(payload && payload.isBlocked);
+                return true;
+            }
+
+            if (blockerId === targetId && blockedId === currentUserId) {
+                state.hasBlockedMe = !!(payload && payload.isBlocked);
+                return true;
+            }
+
+            return false;
+        }
+
+        async function loadOlderMessages() {
+            if (state.loading || state.loadingMore || !hasMoreMessages()) {
+                return;
+            }
+
+            var thread = qs("[data-direct-chat-thread]", root);
+            var previousHeight = thread ? thread.scrollHeight : 0;
+            var previousTop = thread ? thread.scrollTop : 0;
+            var nextPage = state.page + 1;
+
+            state.loadingMore = true;
+            render();
+
+            try {
+                var payload = await requestJson("/api/direct-chats/rooms/" + roomId + "/messages?page=" + nextPage + "&pageSize=" + state.pageSize, {
+                    method: "GET",
+                    headers: { Accept: "application/json" }
+                });
+
+                state.page = payload && payload.page ? Number(payload.page) || nextPage : nextPage;
+                state.total = payload && payload.total ? Number(payload.total) || state.total : state.total;
+                mergeMessages(payload && payload.items);
+            } catch (_error) {
+                state.error = "Không tải được tin nhắn cũ hơn.";
+            } finally {
+                state.loadingMore = false;
+                render();
+
+                var nextThread = qs("[data-direct-chat-thread]", root);
+                if (nextThread && previousHeight > 0) {
+                    nextThread.scrollTop = Math.max(0, nextThread.scrollHeight - previousHeight + previousTop);
+                }
+            }
+        }
+
+        async function load() {
+            if (state.loading) {
+                return;
+            }
+
+            state.loading = true;
+            state.error = "";
+            state.authRequired = false;
+            render();
+
+            try {
+                var session = await requestJson("/api/web-auth/me", {
+                    method: "GET",
+                    headers: { Accept: "application/json" }
+                });
+
+                if (!(session && session.isAuthenticated)) {
+                    state.session = null;
+                    state.room = null;
+                    state.items = [];
+                    state.page = 1;
+                    state.total = 0;
+                    state.authRequired = true;
+                    syncHeader();
+                    return;
+                }
+
+                state.session = session;
+
+                var payloads = await Promise.all([
+                    requestJson("/api/direct-chats/rooms/" + roomId, {
+                        method: "GET",
+                        headers: { Accept: "application/json" }
+                    }),
+                    requestJson("/api/direct-chats/rooms/" + roomId + "/messages?page=1&pageSize=" + state.pageSize, {
+                        method: "GET",
+                        headers: { Accept: "application/json" }
+                    })
+                ]);
+                var roomPayload = payloads[0];
+                var messagePayload = payloads[1];
+
+                state.room = roomPayload && roomPayload.item ? roomPayload.item : roomPayload;
+                state.items = Array.isArray(messagePayload && messagePayload.items) ? messagePayload.items : [];
+                state.page = messagePayload && messagePayload.page ? Number(messagePayload.page) || 1 : 1;
+                state.total = messagePayload && messagePayload.total ? Number(messagePayload.total) || state.items.length : state.items.length;
+                state.isBlockedByMe = !!((messagePayload && messagePayload.isBlockedByMe) || (state.room && state.room.isBlockedByMe));
+                state.hasBlockedMe = !!((messagePayload && messagePayload.hasBlockedMe) || (state.room && state.room.hasBlockedMe));
+                syncHeader();
+                connectRealtime();
+                subscribeDirectRealtime(roomId);
+            } catch (_error) {
+                state.items = [];
+                state.room = null;
+                state.page = 1;
+                state.total = 0;
+                state.error = "Không tải được phòng chat cá nhân.";
+                syncHeader();
+            } finally {
+                state.loading = false;
+                render();
+            }
+        }
+
+        if (refs.retry) {
+            refs.retry.onclick = function () { load(); };
+        }
+
+        refs.list.addEventListener("click", function (event) {
+            var editButton = event.target && event.target.closest
+                ? event.target.closest("[data-direct-edit-message-id]")
+                : null;
+            if (editButton) {
+                event.preventDefault();
+                editMessage(editButton.getAttribute("data-direct-edit-message-id"));
+                return;
+            }
+
+            var recallButton = event.target && event.target.closest
+                ? event.target.closest("[data-direct-recall-message-id]")
+                : null;
+            if (recallButton) {
+                event.preventDefault();
+                recallMessage(recallButton.getAttribute("data-direct-recall-message-id"));
+                return;
+            }
+
+            var deleteButton = event.target && event.target.closest
+                ? event.target.closest("[data-direct-delete-message-id]")
+                : null;
+            if (deleteButton) {
+                event.preventDefault();
+                deleteMessage(deleteButton.getAttribute("data-direct-delete-message-id"));
+                return;
+            }
+
+            var reportButton = event.target && event.target.closest
+                ? event.target.closest("[data-direct-report-message-id]")
+                : null;
+            if (reportButton) {
+                event.preventDefault();
+                reportMessage(reportButton.getAttribute("data-direct-report-message-id"));
+                return;
+            }
+
+            var blockButton = event.target && event.target.closest
+                ? event.target.closest("[data-direct-block-user-id]")
+                : null;
+            if (blockButton) {
+                event.preventDefault();
+                blockOtherUser(blockButton.getAttribute("data-direct-block-message-id"));
+            }
+        });
+
+        removeRealtimeListener = addRealtimeListener(function (event) {
+            var type = trimToEmpty(event && event.type);
+            var eventRoomId = Number(event && (event.roomId || event.directChatRoomId));
+
+            if (type === "__socket_open__") {
+                if (state.session && !state.authRequired) {
+                    subscribeDirectRealtime(roomId);
+                }
+                return;
+            }
+
+            if (type === "direct.block.changed") {
+                if (applyBlockEvent(event)) {
+                    syncHeader();
+                    render();
+                }
+                return;
+            }
+
+            if (eventRoomId !== roomId) {
+                return;
+            }
+
+            if (type === "direct.message.created") {
+                var item = event && event.item ? event.item : null;
+                var added = upsertMessage(item);
+                clearTypingUser(item && item.senderUserId);
+                render();
+                if (added) {
+                    scrollChatToBottom(root);
+                }
+                return;
+            }
+
+            if (type === "direct.message.recalled") {
+                markMessageRecalled(event && (event.messageId || event.directChatMessageId), event && event.item);
+                render();
+                return;
+            }
+
+            if (type === "direct.message.updated") {
+                if (event && event.item) {
+                    upsertMessage(event.item);
+                    render();
+                }
+                return;
+            }
+
+            if (type === "direct.message.deleted") {
+                removeMessage(event && (event.messageId || event.directChatMessageId));
+                render();
+                return;
+            }
+
+            if (type === "direct.typing") {
+                setTypingUser(event);
+            }
+        });
+
+        window.addEventListener("pagehide", function () {
+            window.clearTimeout(typingTimer);
+            Object.keys(typingExpiryTimers).forEach(function (key) {
+                window.clearTimeout(typingExpiryTimers[key]);
+            });
+            root.classList.remove("is-composer-focused");
+            if (removeViewportListeners) {
+                removeViewportListeners();
+                removeViewportListeners = null;
+            }
+            sendDirectTypingRealtime(roomId, false);
+            unsubscribeDirectRealtime(roomId);
+            if (removeRealtimeListener) {
+                removeRealtimeListener();
+                removeRealtimeListener = null;
+            }
+        }, { once: true });
+
+        setHeaderTitle(root, "Chat cá nhân");
+        setHeaderAction(root, null);
+        setHeaderExtra(root, "");
+        removeViewportListeners = bindVisualViewportHeight();
+        load();
+    }
+
     function renderChatRoomHeader(club) {
         if (!club) {
             return "";
         }
 
         var coverUrl = normalizeMediaUrl(club && (club.coverUrl || club.clubCoverUrl));
-        var clubName = trimToEmpty(club && (club.clubName || club.name)) || "Chat CLB";
+        var clubName = trimToEmpty(club && (club.clubName || club.name)) || "Trò chuyện CLB";
         var areaText = trimToEmpty(club && club.areaText);
 
         return [
@@ -4731,7 +6275,7 @@
     function renderChatMessage(item, myUserId) {
         var senderId = trimToEmpty(item && (item.senderUserId || item.sender && item.sender.userId));
         var isMine = senderId && myUserId && senderId === myUserId;
-        var senderName = trimToEmpty(item && item.sender && item.sender.fullName) || "Thanh vien";
+        var senderName = trimToEmpty(item && item.sender && item.sender.fullName) || "Thành viên";
         var avatarUrl = normalizeMediaUrl(item && item.sender && item.sender.avatarUrl);
         var content = trimToEmpty(item && item.content);
         var mediaUrl = normalizeMediaUrl(item && item.mediaUrl);
@@ -4746,9 +6290,9 @@
             '<div class="native-chat-message__stack">',
             isMine ? "" : '<span class="native-chat-message__sender">' + escapeHtml(senderName) + "</span>",
             '<div class="native-chat-message__bubble' + (isMine ? " is-mine" : "") + '">',
-            mediaUrl ? '<img class="native-chat-message__media" src="' + escapeHtml(mediaUrl) + '" alt="Tin nhan hinh anh" loading="lazy">' : "",
+            mediaUrl ? '<img class="native-chat-message__media" src="' + escapeHtml(mediaUrl) + '" alt="Tin nhắn hình ảnh" loading="lazy">' : "",
             content ? '<p class="native-chat-message__text">' + renderTextWithBreaks(content) + "</p>" : "",
-            !content && !mediaUrl ? '<p class="native-chat-message__text">[Tin nhan]</p>' : "",
+            !content && !mediaUrl ? '<p class="native-chat-message__text">[Tin nhắn]</p>' : "",
             "</div>",
             '<span class="native-chat-message__time">' + escapeHtml(formatMessageTime(item && item.sentAt)) + "</span>",
             "</div>",
@@ -4760,18 +6304,53 @@
         return [
             '<article class="native-auth-prompt native-auth-prompt--panel">',
             '<span class="native-auth-prompt__icon"><ion-icon name="shield-outline"></ion-icon></span>',
-            "<strong>Ban chua co quyen vao phong chat nay</strong>",
-            "<p>He thong chi cho phep thanh vien CLB xem va gui tin nhan trong phong chat.</p>",
-            '<a class="native-auth-prompt__button" href="/PickleballWeb/Club/' + escapeHtml(clubId) + '">Mo trang CLB</a>',
+            "<strong>Bạn chưa có quyền vào phòng chat này</strong>",
+            "<p>Hệ thống chỉ cho phép thành viên CLB xem và gửi tin nhắn trong phòng chat.</p>",
+            '<a class="native-auth-prompt__button" href="/PickleballWeb/Club/' + escapeHtml(clubId) + '">Mở trang CLB</a>',
             "</article>"
         ].join("");
     }
 
     function scrollChatToBottom(root) {
+        var thread = qs(".native-chat-room__thread", root);
         var anchor = qs("[data-chat-room-bottom]", root);
-        if (anchor) {
-            window.requestAnimationFrame(function () {
-                anchor.scrollIntoView({ block: "end" });
+
+        if (!anchor) {
+            return;
+        }
+
+        function applyScroll() {
+            if (thread) {
+                thread.scrollTop = Math.max(0, thread.scrollHeight - thread.clientHeight);
+                return;
+            }
+
+            anchor.scrollIntoView({ block: "end", inline: "nearest" });
+        }
+
+        function scheduleScroll(delay) {
+            window.setTimeout(function () {
+                window.requestAnimationFrame(applyScroll);
+            }, delay);
+        }
+
+        applyScroll();
+        window.requestAnimationFrame(function () {
+            applyScroll();
+            window.requestAnimationFrame(applyScroll);
+        });
+
+        scheduleScroll(80);
+        scheduleScroll(220);
+
+        if (thread) {
+            Array.prototype.forEach.call(thread.querySelectorAll("img"), function (image) {
+                if (image.complete) {
+                    return;
+                }
+
+                image.addEventListener("load", applyScroll, { once: true });
+                image.addEventListener("error", applyScroll, { once: true });
             });
         }
     }
@@ -4795,7 +6374,7 @@
         var typingTimer = null;
         var typingExpiryTimers = {};
 
-        renderEmptyState(refs, "Chua co tin nhan trong phong chat nay.");
+        renderEmptyState(refs, "Chưa có tin nhắn trong phòng chat này.");
 
         function getMessageId(item) {
             return trimToEmpty(item && item.messageId);
@@ -4871,7 +6450,7 @@
                 return;
             }
 
-            var fullName = trimToEmpty(event && event.fullName) || "Thanh vien";
+            var fullName = trimToEmpty(event && event.fullName) || "Thành viên";
             var exists = false;
             state.typingUsers = state.typingUsers.map(function (item) {
                 if (trimToEmpty(item && item.userId) === userId) {
@@ -4915,7 +6494,7 @@
             return [
                 '<div class="native-chat-typing">',
                 '<span class="native-chat-typing__dots"><i></i><i></i><i></i></span>',
-                '<span>' + escapeHtml((names || "Thanh vien") + " dang nhap...") + "</span>",
+                '<span>' + escapeHtml((names || "Thành viên") + " đang nhập...") + "</span>",
                 "</div>"
             ].join("");
         }
@@ -4926,8 +6505,8 @@
             if (state.authRequired) {
                 refs.list.innerHTML = renderAuthPrompt({
                     icon: "chatbubbles-outline",
-                    title: "Dang nhap de vao phong chat",
-                    body: "Ban can dang nhap bang tai khoan da tham gia CLB de xem va gui tin nhan.",
+                    title: "Đăng nhập để vào phòng chat",
+                    body: "Bạn cần đăng nhập bằng tài khoản đã tham gia CLB để xem và gửi tin nhắn.",
                     returnUrl: "/PickleballWeb/Chat/" + clubId
                 });
             } else if (state.accessDenied) {
@@ -4939,11 +6518,11 @@
                         ? '<div class="native-chat-room__thread">' + state.items.map(function (item) {
                             return renderChatMessage(item, getSessionUserId(state.session));
                         }).join("") + renderTypingIndicator() + '<div data-chat-room-bottom></div></div>'
-                        : '<div class="native-chat-room__empty">Chua co tin nhan nao trong phong chat nay.</div>',
+                        : '<div class="native-chat-room__empty">Chưa có tin nhắn nào trong phòng chat này.</div>',
                     '<form class="native-chat-composer" data-chat-compose-form>',
-                    '<textarea class="native-chat-composer__input" rows="1" placeholder="Nhap tin nhan..." data-chat-compose-input>' + escapeHtml(state.composerText) + '</textarea>',
+                    '<textarea class="native-chat-composer__input" rows="1" placeholder="Nhập tin nhắn..." data-chat-compose-input>' + escapeHtml(state.composerText) + '</textarea>',
                     '<button class="native-chat-composer__send" type="submit" data-chat-compose-send ' + ((state.sending || !trimToEmpty(state.composerText)) ? "disabled" : "") + '>',
-                    state.sending ? "Dang gui" : '<ion-icon name="send"></ion-icon>',
+                    '<ion-icon name="send"></ion-icon>',
                     "</button>",
                     "</form>",
                     "</section>"
@@ -4996,7 +6575,7 @@
                             state.composerText = "";
                             sendClubTypingRealtime(clubId, false);
                         } catch (error) {
-                            window.alert(error.message || "Khong gui duoc tin nhan.");
+                            window.alert(error.message || "Không gửi được tin nhắn.");
                         } finally {
                             state.sending = false;
                             render();
@@ -5053,7 +6632,7 @@
 
                 state.club = await clubPromise;
                 state.items = Array.isArray(messagePayload && messagePayload.items) ? messagePayload.items : [];
-                setHeaderTitle(root, trimToEmpty(state.club && state.club.clubName) || "Chat CLB");
+                setHeaderTitle(root, trimToEmpty(state.club && state.club.clubName) || "Trò chuyện CLB");
                 setHeaderExtra(root, renderChatRoomHeader(state.club));
                 connectRealtime();
                 subscribeClubRealtime(clubId);
@@ -5063,7 +6642,7 @@
                     state.accessDenied = true;
                     setHeaderExtra(root, "");
                 } else {
-                    state.error = "Khong tai duoc phong chat.";
+                    state.error = "Không tải được phòng chat.";
                 }
             } finally {
                 state.loading = false;
@@ -5128,7 +6707,7 @@
             }
         }, { once: true });
 
-        setHeaderTitle(root, "Chat CLB");
+        setHeaderTitle(root, "Trò chuyện CLB");
         setHeaderAction(root, null);
         setHeaderExtra(root, "");
         load();
@@ -5153,17 +6732,17 @@
 
         if (kind === "coaches") {
             initCoachLikePage(root, {
-                title: "Huan Luyen Vien",
-                memberLabel: "Huan luyen vien",
+                title: "Huấn Luyện Viên",
+                memberLabel: "Huấn luyện viên",
                 endpoint: "/api/coaches",
                 detailHref: function (item) { return "/PickleballWeb/Coach/" + item.coachId; },
                 singleValue: function (item) { return item.levelSingle; },
                 doubleValue: function (item) { return item.levelDouble; },
-                emptyName: "Huan luyen vien",
-                emptyText: "Khong co huan luyen vien nao",
-                errorText: "Khong tai duoc danh sach huan luyen vien.",
+                emptyName: "Huấn luyện viên",
+                emptyText: "Không có huấn luyện viên nào",
+                errorText: "Không tải được danh sách huấn luyện viên.",
                 allowAdd: true,
-                addMessage: "Vui long dang nhap tren app de tao hoac cap nhat ho so huan luyen vien.",
+                addMessage: "Vui lòng đăng nhập trong ứng dụng để tạo hoặc cập nhật hồ sơ huấn luyện viên.",
                 kind: "coach"
             });
             return;
@@ -5171,17 +6750,17 @@
 
         if (kind === "referees") {
             initCoachLikePage(root, {
-                title: "Trong Tai",
-                memberLabel: "Trong tai",
+                title: "Trọng Tài",
+                memberLabel: "Trọng tài",
                 endpoint: "/api/referees",
                 detailHref: function (item) { return "/PickleballWeb/Referee/" + item.refereeId; },
                 singleValue: function (item) { return item.levelSingle; },
                 doubleValue: function (item) { return item.levelDouble; },
-                emptyName: "Trong tai",
-                emptyText: "Khong co trong tai nao",
-                errorText: "Khong tai duoc danh sach trong tai.",
+                emptyName: "Trọng tài",
+                emptyText: "Không có trọng tài nào",
+                errorText: "Không tải được danh sách trọng tài.",
                 allowAdd: true,
-                addMessage: "Vui long dang nhap tren app de tao hoac cap nhat ho so trong tai.",
+                addMessage: "Vui lòng đăng nhập trong ứng dụng để tạo hoặc cập nhật hồ sơ trọng tài.",
                 kind: "referee"
             });
             return;
@@ -5208,12 +6787,17 @@
         }
 
         if (kind === "chat-list") {
-            initChatListPage(root);
+            initUnifiedChatListPage(root);
             return;
         }
 
         if (kind === "chat-room") {
             initChatRoomPage(root);
+            return;
+        }
+
+        if (kind === "direct-chat-room") {
+            initDirectChatRoomPage(root);
             return;
         }
 

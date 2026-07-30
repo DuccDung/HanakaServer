@@ -1,6 +1,6 @@
 ﻿@{
     Layout = "_AdminLayout";
-    ViewData["Title"] = "Danh Sách Đăng Kí";
+    ViewData["Title"] = "Danh sách đăng ký";
     var tid = (long)(ViewBag.TournamentId ?? 0L);
 }
 
@@ -77,6 +77,50 @@
         min-width: 0;
     }
 
+    .payment-status-btn {
+        width: 34px;
+        height: 34px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+
+    .payment-info-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 10px;
+    }
+
+    .payment-info-row {
+        border: 1px solid #e3e6f0;
+        border-radius: 8px;
+        padding: 10px 12px;
+        background: #fff;
+    }
+
+    .payment-info-row span {
+        display: block;
+        font-size: 12px;
+        color: #858796;
+        margin-bottom: 4px;
+    }
+
+    .payment-info-row b {
+        display: block;
+        color: #3a3b45;
+        overflow-wrap: anywhere;
+    }
+
+    .payment-qr-img {
+        width: 180px;
+        max-width: 100%;
+        border: 1px solid #e3e6f0;
+        border-radius: 8px;
+        background: #fff;
+        padding: 8px;
+    }
+
     @@media (max-width: 991.98px) {
         .card-header-responsive {
             flex-direction: column;
@@ -128,6 +172,10 @@
         .player-form-col {
             width: 100%;
         }
+
+        .payment-info-grid {
+            grid-template-columns: 1fr;
+        }
     }
 
     @@media (max-width: 575.98px) {
@@ -172,17 +220,17 @@
 <div class="container-fluid" id="pageRoot" data-tournament-id="@tid">
     <div class="d-sm-flex align-items-center justify-content-between mb-3 page-title-bar">
         <div>
-            <h1 class="h3 mb-0 text-gray-800">Danh Sách Đăng Kí</h1>
-            <div class="small text-muted" id="tournamentMeta">Tournament #@tid</div>
+            <h1 class="h3 mb-0 text-gray-800">Danh sách đăng ký</h1>
+            <div class="small text-muted" id="tournamentMeta">Giải đấu #@tid</div>
         </div>
 
         <div>
             <div class="d-flex registration-toolbar">
                 <button class="btn btn-sm btn-primary shadow-sm" type="button" id="btnOpenCreate">
-                    <i class="fas fa-plus fa-sm text-white-50"></i> Đăng Kí Cho VDV
+                    <i class="fas fa-plus fa-sm text-white-50"></i> Đăng ký cho vận động viên
                 </button>
                 <a class="btn btn-sm btn-outline-secondary" href="/Home/Tournaments">
-                    <i class="fas fa-arrow-left"></i> Back
+                    <i class="fas fa-arrow-left"></i> Quay lại
                 </a>
             </div>
         </div>
@@ -197,14 +245,14 @@
 
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex align-items-center justify-content-between card-header-responsive">
-            <h6 class="m-0 font-weight-bold text-primary">List</h6>
+            <h6 class="m-0 font-weight-bold text-primary">Danh sách đăng ký</h6>
 
             <div class="registration-filter-toolbar">
                 <div class="filter-keyword">
                     <input id="q" class="form-control form-control-sm w-100" placeholder="Tìm tên / mã ĐK ..." />
                 </div>
                 <div class="filter-action">
-                    <button class="btn btn-sm btn-outline-primary" type="button" id="btnSearch">Search</button>
+                    <button class="btn btn-sm btn-outline-primary" type="button" id="btnSearch">Tìm kiếm</button>
                 </div>
             </div>
         </div>
@@ -217,16 +265,16 @@
                             <th style="width:60px">#</th>
                             <th style="width:160px">Mã ĐK</th>
                             <th style="width:160px">Thời gian</th>
-                            <th>VDV1</th>
-                            <th>VDV2</th>
+                            <th>VĐV 1</th>
+                            <th>VĐV 2</th>
                             <th style="width:90px">Điểm</th>
                             <th style="width:110px">Mã BT</th>
-                            <th style="width:80px">Paid</th>
-                            <th style="width:160px">Actions</th>
+                            <th style="width:80px">Thanh toán</th>
+                            <th style="width:220px">Thao tác</th>
                         </tr>
                     </thead>
                     <tbody id="body">
-                        <tr><td colspan="9" class="text-center text-muted">Loading...</td></tr>
+                        <tr><td colspan="9" class="text-center text-muted">Đang tải...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -240,7 +288,7 @@
         <div class="modal-content">
             <form id="formCreate">
                 <div class="modal-header">
-                    <h5 class="modal-title">Add Registration</h5>
+                    <h5 class="modal-title">Thêm đăng ký</h5>
                     <button class="close" type="button" data-dismiss="modal"><span aria-hidden="true">×</span></button>
                 </div>
 
@@ -249,12 +297,12 @@
 
                     <div class="form-row">
                         <div class="form-group col-md-4">
-                            <label>GameType</label>
+                            <label>Loại thi đấu</label>
                             <select class="form-control" id="gameType">
                                 <option value="SINGLE">ĐẤU ĐƠN</option>
                                 <option value="DOUBLE" selected>ĐẤU ĐÔI</option>
                             </select>
-                            <small class="text-muted">Sẽ tự lock theo Tournament.GameType nếu có.</small>
+                            <small class="text-muted">Loại thi đấu sẽ tự động khóa theo cấu hình của giải.</small>
                         </div>
 
                         <div class="form-group col-md-4">
@@ -276,8 +324,8 @@
 
                     <div class="form-row">
                         <div class="form-group col-md-6">
-                            <label>Mã BT (optional)</label>
-                            <input class="form-control" id="btCode" placeholder="BT..." />
+                            <label>Mã chuyển khoản (tùy chọn)</label>
+                            <input class="form-control" id="btCode" placeholder="Nhập mã chuyển khoản..." />
                         </div>
                     </div>
 
@@ -288,12 +336,12 @@
                         <div class="col-lg-6 mb-3">
                             <div class="player-card">
                                 <div class="d-flex align-items-center justify-content-between mb-2 player-head">
-                                    <h6 class="text-primary font-weight-bold mb-0">VDV 1</h6>
+                                    <h6 class="text-primary font-weight-bold mb-0">VĐV 1</h6>
                                     <div class="d-flex player-head-tools">
-                                        <label class="mb-0 small text-muted">Type</label>
+                                        <label class="mb-0 small text-muted">Loại tài khoản</label>
                                         <select class="form-control form-control-sm" id="p1Type" style="width:120px;">
-                                            <option value="USER" selected>USER</option>
-                                            <option value="GUEST">GUEST</option>
+                                            <option value="USER" selected>Người dùng hệ thống</option>
+                                            <option value="GUEST">Khách</option>
                                         </select>
                                     </div>
                                 </div>
@@ -306,7 +354,7 @@
                                         <div id="p1UserBlock">
                                             <div class="form-row">
                                                 <div class="form-group col-md-7 mb-2">
-                                                    <label class="small text-muted">UserId</label>
+                                                    <label class="small text-muted">ID người dùng</label>
                                                     <input class="form-control" id="p1UserId" placeholder="123" />
                                                 </div>
                                                 <div class="form-group col-md-5 mb-2 d-flex align-items-end">
@@ -316,26 +364,26 @@
                                                 </div>
                                             </div>
 
-                                            <div class="small text-muted" id="p1UserInfo">Chưa check</div>
+                                            <div class="small text-muted" id="p1UserInfo">Chưa kiểm tra</div>
                                         </div>
 
                                         <!-- GUEST block -->
                                         <div id="p1GuestBlock" style="display:none;">
                                             <div class="form-row">
                                                 <div class="form-group col-md-7 mb-2">
-                                                    <label class="small text-muted">Name *</label>
-                                                    <input class="form-control" id="p1GuestName" placeholder="VDV 1 name" />
+                                                    <label class="small text-muted">Họ tên *</label>
+                                                    <input class="form-control" id="p1GuestName" placeholder="Tên vận động viên 1" />
                                                 </div>
                                                 <div class="form-group col-md-5 mb-2">
-                                                    <label class="small text-muted">Level *</label>
+                                                    <label class="small text-muted">Điểm trình *</label>
                                                     <input type="number" step="0.01" class="form-control" id="p1GuestLevel" value="2.50" />
                                                 </div>
                                             </div>
 
                                             <div class="form-group mb-0">
-                                                <label class="small text-muted">Avatar (choose file)</label>
+                                                <label class="small text-muted">Ảnh đại diện (chọn tệp)</label>
                                                 <input type="file" id="p1GuestAvatarFile" accept="image/*" class="form-control" />
-                                                <small class="text-muted">jpg/png/webp • max 10MB</small>
+                                                <small class="text-muted">jpg/png/webp • tối đa 10 MB</small>
                                             </div>
                                         </div>
                                     </div>
@@ -348,12 +396,12 @@
                         <div class="col-lg-6 mb-3" id="p2Wrap">
                             <div class="player-card">
                                 <div class="d-flex align-items-center justify-content-between mb-2 player-head">
-                                    <h6 class="text-primary font-weight-bold mb-0">VDV 2</h6>
+                                    <h6 class="text-primary font-weight-bold mb-0">VĐV 2</h6>
                                     <div class="d-flex player-head-tools">
-                                        <label class="mb-0 small text-muted">Type</label>
+                                        <label class="mb-0 small text-muted">Loại tài khoản</label>
                                         <select class="form-control form-control-sm" id="p2Type" style="width:120px;">
-                                            <option value="USER" selected>USER</option>
-                                            <option value="GUEST">GUEST</option>
+                                            <option value="USER" selected>Người dùng hệ thống</option>
+                                            <option value="GUEST">Khách</option>
                                         </select>
                                     </div>
                                 </div>
@@ -366,7 +414,7 @@
                                         <div id="p2UserBlock">
                                             <div class="form-row">
                                                 <div class="form-group col-md-7 mb-2">
-                                                    <label class="small text-muted">UserId</label>
+                                                    <label class="small text-muted">ID người dùng</label>
                                                     <input class="form-control" id="p2UserId" placeholder="456" />
                                                 </div>
                                                 <div class="form-group col-md-5 mb-2 d-flex align-items-end">
@@ -376,26 +424,26 @@
                                                 </div>
                                             </div>
 
-                                            <div class="small text-muted" id="p2UserInfo">Chưa check</div>
+                                            <div class="small text-muted" id="p2UserInfo">Chưa kiểm tra</div>
                                         </div>
 
                                         <!-- GUEST block -->
                                         <div id="p2GuestBlock" style="display:none;">
                                             <div class="form-row">
                                                 <div class="form-group col-md-7 mb-2">
-                                                    <label class="small text-muted">Name *</label>
-                                                    <input class="form-control" id="p2GuestName" placeholder="VDV 2 name" />
+                                                    <label class="small text-muted">Họ tên *</label>
+                                                    <input class="form-control" id="p2GuestName" placeholder="Tên vận động viên 2" />
                                                 </div>
                                                 <div class="form-group col-md-5 mb-2">
-                                                    <label class="small text-muted">Level *</label>
+                                                    <label class="small text-muted">Điểm trình *</label>
                                                     <input type="number" step="0.01" class="form-control" id="p2GuestLevel" value="2.50" />
                                                 </div>
                                             </div>
 
                                             <div class="form-group mb-0">
-                                                <label class="small text-muted">Avatar (choose file)</label>
+                                                <label class="small text-muted">Ảnh đại diện (chọn tệp)</label>
                                                 <input type="file" id="p2GuestAvatarFile" accept="image/*" class="form-control" />
-                                                <small class="text-muted">jpg/png/webp • max 10MB</small>
+                                                <small class="text-muted">jpg/png/webp • tối đa 10 MB</small>
                                             </div>
                                         </div>
                                     </div>
@@ -409,9 +457,165 @@
                 </div>
 
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Hủy</button>
                     <button class="btn btn-primary" type="submit" id="btnCreateSubmit">
-                        <i class="fas fa-save"></i> Đăng Kí
+                        <i class="fas fa-save"></i> Đăng ký
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Payment Info -->
+<div class="modal fade" id="modalPaymentInfo" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentInfoTitle">Thông tin thanh toán</h5>
+                <button class="close" type="button" data-dismiss="modal"><span aria-hidden="true">×</span></button>
+            </div>
+            <div class="modal-body" id="paymentInfoBody">
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-spinner fa-spin"></i> Đang tải...
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" type="button" data-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Edit Team -->
+<div class="modal fade" id="modalEditTeam" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document">
+        <div class="modal-content">
+            <form id="formEditTeam">
+                <input type="hidden" id="editRegistrationId" />
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editTeamTitle">Sửa đội đấu</h5>
+                    <button class="close" type="button" data-dismiss="modal"><span aria-hidden="true">×</span></button>
+                </div>
+
+                <div class="modal-body">
+                    <div id="editErr" class="alert alert-danger d-none"></div>
+
+                    <div class="row">
+                        <div class="col-lg-6 mb-3">
+                            <div class="player-card">
+                                <div class="d-flex align-items-center justify-content-between mb-2 player-head">
+                                    <h6 class="text-primary font-weight-bold mb-0">VĐV 1</h6>
+                                    <div class="d-flex player-head-tools">
+                                        <label class="mb-0 small text-muted">Loại tài khoản</label>
+                                        <select class="form-control form-control-sm" id="e1Type" style="width:120px;">
+                                            <option value="USER">Người dùng hệ thống</option>
+                                            <option value="GUEST">Khách</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex player-body-wrap">
+                                    <div class="player-avatar-col" id="e1AvatarBox"><div class="avatar-placeholder">?</div></div>
+
+                                    <div class="player-form-col">
+                                        <div id="e1UserBlock">
+                                            <div class="form-row">
+                                                <div class="form-group col-md-7 mb-2">
+                                                    <label class="small text-muted">ID người dùng</label>
+                                                    <input class="form-control" id="e1UserId" placeholder="123" />
+                                                </div>
+                                                <div class="form-group col-md-5 mb-2 d-flex align-items-end">
+                                                    <button class="btn btn-outline-primary btn-block" type="button" id="btnE1Check">
+                                                        <i class="fas fa-check"></i> Check
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="small text-muted" id="e1UserInfo">Chưa kiểm tra</div>
+                                        </div>
+
+                                        <div id="e1GuestBlock" style="display:none;">
+                                            <div class="form-row">
+                                                <div class="form-group col-md-7 mb-2">
+                                                    <label class="small text-muted">Họ tên *</label>
+                                                    <input class="form-control" id="e1GuestName" placeholder="Tên vận động viên 1" />
+                                                </div>
+                                                <div class="form-group col-md-5 mb-2">
+                                                    <label class="small text-muted">Điểm trình *</label>
+                                                    <input type="number" step="0.01" class="form-control" id="e1GuestLevel" value="2.50" />
+                                                </div>
+                                            </div>
+                                            <div class="form-group mb-0">
+                                                <label class="small text-muted">Ảnh đại diện mới (không bắt buộc)</label>
+                                                <input type="file" id="e1GuestAvatarFile" accept="image/*" class="form-control" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-6 mb-3" id="editP2Wrap">
+                            <div class="player-card">
+                                <div class="d-flex align-items-center justify-content-between mb-2 player-head">
+                                    <h6 class="text-primary font-weight-bold mb-0">VĐV 2</h6>
+                                    <div class="d-flex player-head-tools">
+                                        <label class="mb-0 small text-muted">Loại tài khoản</label>
+                                        <select class="form-control form-control-sm" id="e2Type" style="width:120px;">
+                                            <option value="USER">Người dùng hệ thống</option>
+                                            <option value="GUEST">Khách</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="d-flex player-body-wrap">
+                                    <div class="player-avatar-col" id="e2AvatarBox"><div class="avatar-placeholder">?</div></div>
+
+                                    <div class="player-form-col">
+                                        <div id="e2UserBlock">
+                                            <div class="form-row">
+                                                <div class="form-group col-md-7 mb-2">
+                                                    <label class="small text-muted">ID người dùng</label>
+                                                    <input class="form-control" id="e2UserId" placeholder="456" />
+                                                </div>
+                                                <div class="form-group col-md-5 mb-2 d-flex align-items-end">
+                                                    <button class="btn btn-outline-primary btn-block" type="button" id="btnE2Check">
+                                                        <i class="fas fa-check"></i> Check
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div class="small text-muted" id="e2UserInfo">Chưa kiểm tra</div>
+                                        </div>
+
+                                        <div id="e2GuestBlock" style="display:none;">
+                                            <div class="form-row">
+                                                <div class="form-group col-md-7 mb-2">
+                                                    <label class="small text-muted">Họ tên *</label>
+                                                    <input class="form-control" id="e2GuestName" placeholder="Tên vận động viên 2" />
+                                                </div>
+                                                <div class="form-group col-md-5 mb-2">
+                                                    <label class="small text-muted">Điểm trình *</label>
+                                                    <input type="number" step="0.01" class="form-control" id="e2GuestLevel" value="2.50" />
+                                                </div>
+                                            </div>
+                                            <div class="form-group mb-0">
+                                                <label class="small text-muted">Ảnh đại diện mới (không bắt buộc)</label>
+                                                <input type="file" id="e2GuestAvatarFile" accept="image/*" class="form-control" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="small text-muted" id="editTeamNote"></div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit" id="btnEditSubmit">
+                        <i class="fas fa-save"></i> Lưu đội
                     </button>
                 </div>
             </form>
@@ -434,11 +638,11 @@
                     <div class="form-group">
                         <label>Chọn 1 đăng ký đang chờ ghép</label>
                         <select class="form-control" id="pairWith"></select>
-                        <small class="text-muted">Chỉ list WAITING. Sẽ ưu tiên auto-select người mới nhất.</small>
+                        <small class="text-muted">Chỉ hiển thị đăng ký đang chờ ghép và ưu tiên chọn người mới nhất.</small>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+                    <button class="btn btn-secondary" type="button" data-dismiss="modal">Hủy</button>
                     <button class="btn btn-primary" type="submit">
                         <i class="fas fa-link"></i> Pair
                     </button>
@@ -461,6 +665,15 @@
           let CURRENT_TAB = "SUCCESS";
           let CACHE = { items: [], waiting: [] };
           let TOURNAMENT_GAME_TYPE = null; // "SINGLE" | "DOUBLE"
+          let EDITING_REG = null;
+          let ACTIVE_PAYMENT = { registrationId: 0, transactionCode: "", pollUrl: "", paid: false, pollTimer: null };
+          const PAYMENT_RT = {
+            ws: null,
+            reconnectTimer: null,
+            pingTimer: null,
+            manualClose: false,
+            payments: Object.create(null)
+          };
 
           const API_LIST = `/api/admin/tournaments/${TOURNAMENT_ID}/registrations`;
 
@@ -518,8 +731,8 @@
               return `<div class="small text-muted">—</div>`;
             }
 
-            const badge = verified ? `<span class="badge badge-success ml-2">Verified</span>` : ``;
-            const pickLabel = TOURNAMENT_GAME_TYPE === "DOUBLE" ? "Pick Double" : "Pick Single";
+            const badge = verified ? `<span class="badge badge-success ml-2">Đã xác minh</span>` : ``;
+            const pickLabel = TOURNAMENT_GAME_TYPE === "DOUBLE" ? "Trình đôi áp dụng" : "Trình đơn áp dụng";
             const actualPickedLevel = getPickedLevel(singleLevel, doubleLevel, pickedLevel);
 
             const s = formatLevel(singleLevel);
@@ -531,7 +744,7 @@
                 ${avatarHtml(avatar)}
                 <div>
                   <div class="font-weight-bold text-gray-900">${esc(name||"—")}${badge}</div>
-                  <div class="small text-muted">S: ${s} • D: ${d}</div>
+                  <div class="small text-muted">Đơn: ${s} • Đôi: ${d}</div>
                   <div class="small text-muted">${pickLabel}: ${p}</div>
                 </div>
               </div>
@@ -553,9 +766,424 @@
             }
           }
 
+          async function syncLevels(id){
+            try{
+              await axios.post(`/api/admin/registrations/${id}/sync-levels`);
+              await load(CURRENT_TAB);
+            } catch(err){
+              const msg = err?.response?.data?.message || err?.message || "Không thể đồng bộ trình.";
+              alert(msg);
+            }
+          }
+
+          function infoValue(value){
+            const text = String(value ?? "").trim();
+            return text || "—";
+          }
+
+          function paymentInfoRow(label, value, strong){
+            return `
+              <div class="payment-info-row">
+                <span>${esc(label)}</span>
+                <b class="${strong ? "text-primary" : ""}">${esc(infoValue(value))}</b>
+              </div>
+            `;
+          }
+
+          function paymentQrHtml(url){
+            if(!String(url || "").trim()) return "";
+            return `
+              <div class="text-center mb-3">
+                <img class="payment-qr-img" src="${esc(url)}" alt="QR thanh toán" />
+              </div>
+            `;
+          }
+
+          function cashConfirmHtml(data){
+            if(data?.isPaid) return "";
+
+            return `
+              <div class="mt-3">
+                <button class="btn btn-success" type="button" onclick="confirmCashPayment(${Number(data?.registrationId || 0)})">
+                  <i class="fas fa-money-bill-wave"></i> Xác nhận tiền mặt
+                </button>
+                <div class="small text-muted mt-2">Dùng khi khách đã thanh toán trực tiếp bằng tiền mặt.</div>
+              </div>
+            `;
+          }
+
+          function normalizePaymentCode(value){
+            return String(value || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+          }
+
+          function sendPaymentRealtime(payload){
+            if(!PAYMENT_RT.ws || PAYMENT_RT.ws.readyState !== WebSocket.OPEN){
+              connectPaymentRealtime();
+              return false;
+            }
+
+            try{
+              PAYMENT_RT.ws.send(JSON.stringify(payload));
+              return true;
+            } catch(_error){
+              return false;
+            }
+          }
+
+          function flushPaymentSubscriptions(){
+            Object.keys(PAYMENT_RT.payments).forEach(function(code){
+              if(!PAYMENT_RT.payments[code]) return;
+              sendPaymentRealtime({ type: "payment.subscribe", transactionCode: code });
+            });
+          }
+
+          function connectPaymentRealtime(){
+            if(!("WebSocket" in window)) return false;
+            if(PAYMENT_RT.ws && (
+              PAYMENT_RT.ws.readyState === WebSocket.OPEN ||
+              PAYMENT_RT.ws.readyState === WebSocket.CONNECTING
+            )){
+              return true;
+            }
+
+            const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+            PAYMENT_RT.manualClose = false;
+
+            try{
+              PAYMENT_RT.ws = new WebSocket(`${protocol}//${window.location.host}/ws-public`);
+            } catch(_error){
+              return false;
+            }
+
+            PAYMENT_RT.ws.addEventListener("open", function(){
+              flushPaymentSubscriptions();
+              window.clearInterval(PAYMENT_RT.pingTimer);
+              PAYMENT_RT.pingTimer = window.setInterval(function(){
+                sendPaymentRealtime({ type: "ping" });
+              }, 25000);
+            });
+
+            PAYMENT_RT.ws.addEventListener("message", function(event){
+              try{
+                const message = JSON.parse(event.data);
+                if(String(message?.type || "") === "tournament.payment.status.updated"){
+                  handlePaymentStatusUpdated(message.payload || {}, "realtime");
+                }
+              } catch(_error){
+              }
+            });
+
+            PAYMENT_RT.ws.addEventListener("close", function(){
+              window.clearInterval(PAYMENT_RT.pingTimer);
+              PAYMENT_RT.ws = null;
+
+              if(!PAYMENT_RT.manualClose && Object.keys(PAYMENT_RT.payments).length){
+                window.clearTimeout(PAYMENT_RT.reconnectTimer);
+                PAYMENT_RT.reconnectTimer = window.setTimeout(connectPaymentRealtime, 2500);
+              }
+            });
+
+            return true;
+          }
+
+          function subscribePaymentRealtime(transactionCode){
+            const code = normalizePaymentCode(transactionCode);
+            if(!code) return false;
+
+            PAYMENT_RT.payments[code] = true;
+            connectPaymentRealtime();
+            return sendPaymentRealtime({ type: "payment.subscribe", transactionCode: code });
+          }
+
+          function unsubscribePaymentRealtime(transactionCode){
+            const code = normalizePaymentCode(transactionCode);
+            if(!code) return false;
+
+            delete PAYMENT_RT.payments[code];
+            return sendPaymentRealtime({ type: "payment.unsubscribe", transactionCode: code });
+          }
+
+          function cleanupActivePayment(){
+            if(ACTIVE_PAYMENT.pollTimer){
+              window.clearInterval(ACTIVE_PAYMENT.pollTimer);
+              ACTIVE_PAYMENT.pollTimer = null;
+            }
+
+            if(ACTIVE_PAYMENT.transactionCode){
+              unsubscribePaymentRealtime(ACTIVE_PAYMENT.transactionCode);
+            }
+
+            ACTIVE_PAYMENT = { registrationId: 0, transactionCode: "", pollUrl: "", paid: false, pollTimer: null };
+          }
+
+          function setPaymentModalLoading(){
+            const body = $id("paymentInfoBody");
+            if(body){
+              body.innerHTML = `
+                <div class="text-center text-muted py-4">
+                  <i class="fas fa-spinner fa-spin"></i> Đang tải...
+                </div>
+              `;
+            }
+          }
+
+          function renderPaymentInfo(data){
+            const payment = data?.payment || {};
+            const record = data?.paymentRecord || {};
+            const manual = data?.manualPayment || {};
+            const tournament = data?.tournament || {};
+            const team = data?.team || {};
+            const isPaid = !!data?.isPaid;
+
+            const transactionCode = payment.transactionCode || record.transactionCode || "";
+            const isCashPayment = !!data?.isCashPayment || !!record.isCashPayment || normalizePaymentCode(transactionCode).startsWith("MANUAL");
+            const transferContent = payment.transferContent || record.transferContent || transactionCode;
+            const amountText = isPaid
+              ? (record.paidAmountText || manual.paidAmountText || payment.amountText || record.amountText || tournament.feeText)
+              : (payment.amountText || record.amountText || tournament.feeText);
+            const statusTitle = isCashPayment ? "Đã thanh toán tiền mặt" : (payment.statusTitle || manual.statusTitle || record.status || (isPaid ? "Đã thanh toán" : "Chưa thanh toán"));
+            const statusDesc = isCashPayment ? "Admin đã xác nhận khách thanh toán trực tiếp bằng tiền mặt." : (payment.statusDescription || (isPaid ? "Thông tin thanh toán của khách." : "Chuyển khoản đúng số tiền và nội dung để hệ thống tự xác nhận."));
+            const alertClass = isPaid ? "alert-success" : "alert-warning";
+
+            const qrUrl = payment.qrImageUrl || record.qrImageUrl || "";
+            const paidAtText = payment.paidAtText || record.paidAtText || manual.paidAtText;
+
+            const paymentRows = isPaid
+              ? (isCashPayment ? [
+                  paymentInfoRow("Phương thức", "Tiền mặt", true),
+                  paymentInfoRow("Số tiền khách thanh toán", amountText, true),
+                  paymentInfoRow("Thời gian xác nhận", paidAtText, false),
+                  paymentInfoRow("Mã xác nhận", transactionCode, false)
+                ] : [
+                  paymentInfoRow("Số tiền khách thanh toán", amountText, true),
+                  paymentInfoRow("Thời gian thanh toán", paidAtText, false),
+                  paymentInfoRow("Mã Sepay", transactionCode, true),
+                  paymentInfoRow("Mã giao dịch ngân hàng", record.providerTransactionId, false),
+                  paymentInfoRow("Ngân hàng", payment.receiverBankShortName || record.bankCode, false),
+                  paymentInfoRow("Tài khoản nhận", payment.receiverAccountNumber || record.bankAccountNo, false)
+                ]).join("")
+              : [
+                  paymentInfoRow("Số tiền cần thanh toán", amountText, true),
+                  paymentInfoRow("Mã Sepay", transactionCode, true),
+                  paymentInfoRow("Nội dung chuyển khoản", transferContent, true),
+                  paymentInfoRow("Ngân hàng", payment.receiverBankShortName || record.bankCode, false),
+                  paymentInfoRow("Số tài khoản", payment.receiverAccountNumber || record.bankAccountNo, true),
+                  paymentInfoRow("Chủ tài khoản", payment.receiverAccountName || record.bankAccountName, false),
+                  paymentInfoRow("Hết hạn", payment.expiresAt ? new Date(payment.expiresAt).toLocaleString("vi-VN") : record.expiredAtText, false)
+                ].join("");
+
+            return `
+              <div class="alert ${alertClass}">
+                <div class="font-weight-bold">${esc(statusTitle)}</div>
+                <div>${esc(statusDesc)}</div>
+              </div>
+
+              <div class="payment-info-grid mb-3">
+                ${paymentInfoRow("Giải đấu", tournament.title, false)}
+                ${paymentInfoRow("Mã đăng ký", data?.regCode, true)}
+                ${paymentInfoRow("Đội đấu", team.name, true)}
+                ${paymentInfoRow("Điểm đội", team.points !== undefined ? Number(team.points || 0).toFixed(2) : "", false)}
+                ${paymentInfoRow("VDV 1", team.player1Name, false)}
+                ${paymentInfoRow("VDV 2", team.player2Name, false)}
+              </div>
+
+              ${!isPaid ? paymentQrHtml(qrUrl) : ""}
+
+              <div class="payment-info-grid">
+                ${paymentRows}
+              </div>
+
+              ${cashConfirmHtml(data)}
+            `;
+          }
+
+          function updateActivePaymentFromData(data){
+            const payment = data?.payment || {};
+            const record = data?.paymentRecord || {};
+            const transactionCode = payment.transactionCode || record.transactionCode || "";
+            const pollUrl = payment.pollStatusUrl || (transactionCode ? `/api/tournament-registration-payments/${encodeURIComponent(transactionCode)}/status` : "");
+
+            ACTIVE_PAYMENT.registrationId = Number(data?.registrationId || ACTIVE_PAYMENT.registrationId || 0);
+            ACTIVE_PAYMENT.transactionCode = normalizePaymentCode(transactionCode);
+            ACTIVE_PAYMENT.pollUrl = pollUrl;
+            ACTIVE_PAYMENT.paid = !!data?.isPaid || !!payment.isPaid;
+          }
+
+          function startActivePaymentWatch(data){
+            cleanupActivePayment();
+            updateActivePaymentFromData(data);
+
+            if(!ACTIVE_PAYMENT.transactionCode || ACTIVE_PAYMENT.paid){
+              return;
+            }
+
+            subscribePaymentRealtime(ACTIVE_PAYMENT.transactionCode);
+
+            if(ACTIVE_PAYMENT.pollUrl){
+              ACTIVE_PAYMENT.pollTimer = window.setInterval(function(){
+                pollActivePaymentStatus("poll");
+              }, 3000);
+
+              window.setTimeout(function(){
+                pollActivePaymentStatus("initial");
+              }, 900);
+            }
+          }
+
+          async function pollActivePaymentStatus(source){
+            if(!ACTIVE_PAYMENT.pollUrl || ACTIVE_PAYMENT.paid){
+              return;
+            }
+
+            try{
+              const res = await axios.get(ACTIVE_PAYMENT.pollUrl);
+              handlePaymentStatusUpdated(res.data || {}, source || "poll");
+            } catch(_error){
+            }
+          }
+
+          async function refreshPaymentModalAsPaid(status){
+            ACTIVE_PAYMENT.paid = true;
+            if(ACTIVE_PAYMENT.pollTimer){
+              window.clearInterval(ACTIVE_PAYMENT.pollTimer);
+              ACTIVE_PAYMENT.pollTimer = null;
+            }
+
+            const id = ACTIVE_PAYMENT.registrationId;
+            if(!id){
+              return;
+            }
+
+            try{
+              const res = await axios.post(`/api/admin/registrations/${id}/payment-info`);
+              const data = res.data || {};
+              updateActivePaymentFromData(data);
+
+              const title = $id("paymentInfoTitle");
+              const body = $id("paymentInfoBody");
+              if(title){
+                title.textContent = `Thanh toán thành công - ${data.regCode || ""}`;
+              }
+              if(body){
+                body.innerHTML = `
+                  <div class="alert alert-success">
+                    <div class="font-weight-bold">Đã ghi nhận thanh toán thành công</div>
+                    <div>Webhook Sepay đã xác nhận giao dịch cho đội này.</div>
+                  </div>
+                  ${renderPaymentInfo(data)}
+                `;
+              }
+
+              await load(CURRENT_TAB);
+            } catch(_error){
+              const body = $id("paymentInfoBody");
+              if(body){
+                body.insertAdjacentHTML("afterbegin", `
+                  <div class="alert alert-success">
+                    <div class="font-weight-bold">Đã ghi nhận thanh toán thành công</div>
+                    <div>${esc(status?.paidAtText || "")}</div>
+                  </div>
+                `);
+              }
+              await load(CURRENT_TAB);
+            }
+          }
+
+          function handlePaymentStatusUpdated(status, source){
+            const activeCode = normalizePaymentCode(ACTIVE_PAYMENT.transactionCode);
+            const nextCode = normalizePaymentCode(status?.transactionCode);
+            if(activeCode && nextCode && activeCode !== nextCode){
+              return;
+            }
+
+            if(!status?.isPaid || ACTIVE_PAYMENT.paid){
+              return;
+            }
+
+            refreshPaymentModalAsPaid(status);
+          }
+
+          async function confirmCashPayment(id){
+            const registrationId = Number(id || ACTIVE_PAYMENT.registrationId || 0);
+            if(!registrationId){
+              alert("Không xác định được đăng ký cần xác nhận.");
+              return;
+            }
+
+            if(!confirm("Xác nhận đội này đã thanh toán tiền mặt?")){
+              return;
+            }
+
+            const body = $id("paymentInfoBody");
+            try{
+              if(body){
+                body.insertAdjacentHTML("afterbegin", `
+                  <div class="alert alert-info" data-cash-confirm-loading>
+                    <i class="fas fa-spinner fa-spin"></i> Đang xác nhận thanh toán tiền mặt...
+                  </div>
+                `);
+              }
+
+              await axios.post(`/api/admin/registrations/${registrationId}/confirm-cash-payment`);
+
+              cleanupActivePayment();
+              ACTIVE_PAYMENT.registrationId = registrationId;
+              await refreshPaymentModalAsPaid({ isPaid: true });
+            } catch(err){
+              const loading = document.querySelector("[data-cash-confirm-loading]");
+              if(loading) loading.remove();
+
+              const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Không thể xác nhận thanh toán tiền mặt.";
+              if(body){
+                body.insertAdjacentHTML("afterbegin", `<div class="alert alert-danger">${esc(msg)}</div>`);
+              } else {
+                alert(msg);
+              }
+            }
+          }
+
+          async function openPaymentInfo(id){
+            const title = $id("paymentInfoTitle");
+            const body = $id("paymentInfoBody");
+
+            cleanupActivePayment();
+
+            if(title) title.textContent = "Thông tin thanh toán";
+            setPaymentModalLoading();
+
+            $("#modalPaymentInfo").modal("show");
+
+            try{
+              const res = await axios.post(`/api/admin/registrations/${id}/payment-info`);
+              const data = res.data || {};
+              if(title){
+                title.textContent = data.isPaid
+                  ? `Thông tin đã thanh toán - ${data.regCode || ""}`
+                  : `Mã Sepay - ${data.regCode || ""}`;
+              }
+              if(body) body.innerHTML = renderPaymentInfo(data);
+              startActivePaymentWatch(data);
+              if(data.isPaid){
+                await load(CURRENT_TAB);
+              }
+            } catch(err){
+              const msg = err?.response?.data?.message || err?.message || "Không thể tải thông tin thanh toán.";
+              if(body){
+                body.innerHTML = `<div class="alert alert-danger mb-0">${esc(msg)}</div>`;
+              }
+            }
+          }
+
           function paidHtml(reg){
-            const checked = reg.paid ? "checked" : "";
-            return `<input type="checkbox" ${checked} onchange="togglePaid(${reg.registrationId}, this.checked)" />`;
+            const paid = !!reg.paid;
+            const cls = paid ? "btn-success" : "btn-outline-danger";
+            const icon = paid ? "fa-check" : "fa-times";
+            const title = paid ? "Đã thanh toán - xem thông tin" : "Chưa thanh toán - tạo/xem mã Sepay";
+            return `
+              <button class="btn btn-sm ${cls} payment-status-btn" type="button" onclick="openPaymentInfo(${reg.registrationId})" title="${title}">
+                <i class="fas ${icon}"></i>
+              </button>
+            `;
           }
 
           function actionsHtml(reg){
@@ -569,8 +1197,14 @@
                  </button>`;
 
             return `
-              <div class="d-flex" style="gap:6px">
+              <div class="d-flex flex-wrap" style="gap:6px">
                 ${pairBtn}
+                <button class="btn btn-sm btn-outline-info" type="button" onclick="syncLevels(${reg.registrationId})" title="Đồng bộ trình">
+                  <i class="fas fa-sync-alt"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-primary" type="button" onclick="openEditTeam(${reg.registrationId})" title="Sửa đội">
+                  <i class="fas fa-user-edit"></i>
+                </button>
                 <button class="btn btn-sm btn-outline-danger" type="button" onclick="delReg(${reg.registrationId})" title="Xoá">
                   <i class="fas fa-trash"></i>
                 </button>
@@ -633,16 +1267,20 @@
           async function load(tab){
             CURRENT_TAB = tab;
             const body = $id("body");
-            if(body) body.innerHTML = `<tr><td colspan="9" class="text-center text-muted">Loading...</td></tr>`;
+            if(body) body.innerHTML = `<tr><td colspan="9" class="text-center text-muted">Đang tải...</td></tr>`;
 
             const res = await axios.get(API_LIST, { params: { tab } });
             const { tournament, counts, items } = res.data;
 
-            TOURNAMENT_GAME_TYPE = (tournament.gameType || "").toUpperCase();
+            const typeCode = String(tournament.tournamentTypeCode || "").toUpperCase();
+            const rawGameType = String(tournament.gameType || "").toUpperCase();
+            TOURNAMENT_GAME_TYPE = typeCode.startsWith("SINGLE")
+              ? "SINGLE"
+              : (typeCode.startsWith("DOUBLE") ? "DOUBLE" : (rawGameType === "SINGLE" ? "SINGLE" : "DOUBLE"));
 
             const meta = $id("tournamentMeta");
             if(meta){
-              meta.textContent = `${tournament.title} • ${tournament.status} • GameType: ${tournament.gameType}`;
+              meta.textContent = `${tournament.title} • ${tournament.status} • Loại thi đấu: ${tournament.gameType}`;
             }
             setTabButtons(counts);
 
@@ -661,6 +1299,9 @@
 
           window.togglePaid = togglePaid;
           window.delReg = delReg;
+          window.syncLevels = syncLevels;
+          window.openPaymentInfo = openPaymentInfo;
+          window.confirmCashPayment = confirmCashPayment;
 
           function openPair(baseId){
             if(TOURNAMENT_GAME_TYPE !== "DOUBLE"){
@@ -679,7 +1320,7 @@
             const options = waiting.map(x => {
               const s = (x.player1LevelSingle ?? x.player1Level ?? 0).toFixed(2);
               const d = (x.player1LevelDouble ?? x.player1Level ?? 0).toFixed(2);
-              return `<option value="${x.registrationId}">${x.regCode} — ${esc(x.player1Name)} (S:${s} D:${d})</option>`;
+              return `<option value="${x.registrationId}">${x.regCode} — ${esc(x.player1Name)} (Đơn: ${s}, Đôi: ${d})</option>`;
             });
             sel.innerHTML = options.join("");
 
@@ -688,6 +1329,196 @@
             $("#modalPair").modal("show");
           }
           window.openPair = openPair;
+
+          function findRegById(id){
+            return (CACHE.items || []).concat(CACHE.waiting || [])
+              .find(x => Number(x.registrationId) === Number(id)) || null;
+          }
+
+          function showEditErr(msg){
+            const box = $id("editErr");
+            if(!box) return;
+            box.textContent = msg || "Error";
+            box.classList.remove("d-none");
+          }
+
+          function clearEditErr(){
+            const box = $id("editErr");
+            if(!box) return;
+            box.textContent = "";
+            box.classList.add("d-none");
+          }
+
+          function setEditAvatarBox(pn, url){
+            const box = $id(`e${pn}AvatarBox`);
+            if(!box) return;
+            box.innerHTML = url ? `<img class="avatar-preview" src="${esc(url)}" />` : `<div class="avatar-placeholder">?</div>`;
+          }
+
+          function applyEditPlayerTypeUI(pn){
+            const type = $id(`e${pn}Type`)?.value || "USER";
+            const userBlock = $id(`e${pn}UserBlock`);
+            const guestBlock = $id(`e${pn}GuestBlock`);
+            const info = $id(`e${pn}UserInfo`);
+
+            if(type === "USER"){
+              if(userBlock) userBlock.style.display = "block";
+              if(guestBlock) guestBlock.style.display = "none";
+              if(info && !String(info.textContent || "").trim()) info.textContent = "Chưa kiểm tra";
+
+              const gn = $id(`e${pn}GuestName`); if(gn) gn.value = "";
+              const gl = $id(`e${pn}GuestLevel`); if(gl) gl.value = "2.50";
+              const gf = $id(`e${pn}GuestAvatarFile`); if(gf) gf.value = "";
+            } else {
+              if(userBlock) userBlock.style.display = "none";
+              if(guestBlock) guestBlock.style.display = "block";
+
+              const ui = $id(`e${pn}UserId`); if(ui) ui.value = "";
+              if(info) info.textContent = "Chế độ khách";
+            }
+          }
+
+          function fillEditPlayer(pn, reg, isPlayer2){
+            const userId = isPlayer2 ? reg.player2UserId : reg.player1UserId;
+            const name = isPlayer2 ? reg.player2Name : reg.player1Name;
+            const avatar = isPlayer2 ? reg.player2Avatar : reg.player1Avatar;
+            const pickedLevel = isPlayer2 ? reg.player2Level : reg.player1Level;
+            const singleLevel = isPlayer2 ? reg.player2LevelSingle : reg.player1LevelSingle;
+            const doubleLevel = isPlayer2 ? reg.player2LevelDouble : reg.player1LevelDouble;
+
+            const type = userId ? "USER" : "GUEST";
+            const typeEl = $id(`e${pn}Type`);
+            if(typeEl) typeEl.value = type;
+
+            if(type === "USER"){
+              const idEl = $id(`e${pn}UserId`);
+              if(idEl) idEl.value = userId || "";
+              const info = $id(`e${pn}UserInfo`);
+              if(info){
+                info.textContent = `${name || ""} • Trình đơn: ${formatLevel(singleLevel)} • Trình đôi: ${formatLevel(doubleLevel)} • ID người dùng: ${userId}`;
+              }
+            } else {
+              const nameEl = $id(`e${pn}GuestName`);
+              const levelEl = $id(`e${pn}GuestLevel`);
+              if(nameEl) nameEl.value = name || "";
+              if(levelEl) levelEl.value = Number(pickedLevel || 0).toFixed(2);
+            }
+
+            const fileEl = $id(`e${pn}GuestAvatarFile`);
+            if(fileEl) fileEl.value = "";
+            setEditAvatarBox(pn, avatar || null);
+            applyEditPlayerTypeUI(pn);
+            setEditAvatarBox(pn, avatar || null);
+          }
+
+          function openEditTeam(id){
+            const reg = findRegById(id);
+            if(!reg){
+              alert("Không tìm thấy đăng ký trong dữ liệu hiện tại.");
+              return;
+            }
+
+            EDITING_REG = reg;
+            clearEditErr();
+            $id("formEditTeam")?.reset();
+            $id("editRegistrationId").value = String(reg.registrationId);
+
+            const title = $id("editTeamTitle");
+            if(title) title.textContent = `Sửa đội ${reg.regCode || ""}`;
+
+            fillEditPlayer(1, reg, false);
+
+            const hideP2 = TOURNAMENT_GAME_TYPE !== "DOUBLE" || !!reg.waitingPair;
+            const p2Wrap = $id("editP2Wrap");
+            if(p2Wrap) p2Wrap.style.display = hideP2 ? "none" : "block";
+
+            if(!hideP2){
+              fillEditPlayer(2, reg, true);
+            } else {
+              setEditAvatarBox(2, null);
+            }
+
+            const note = $id("editTeamNote");
+            if(note){
+              note.textContent = hideP2
+                ? "Đăng ký này chỉ sửa VDV 1 vì đang là giải đơn hoặc đội chờ ghép."
+                : "Lưu đội sẽ cập nhật lại thành viên và tính lại điểm đội.";
+            }
+
+            $("#modalEditTeam").modal("show");
+          }
+          window.openEditTeam = openEditTeam;
+
+          async function checkEditUser(pn){
+            const idRaw = ($id(`e${pn}UserId`)?.value || "").trim();
+            const id = Number(idRaw);
+            if(!id || id <= 0) return showEditErr(`Vận động viên ${pn}: nhập ID người dùng hợp lệ.`);
+
+            try{
+              const res = await axios.get(`/api/admin/users/find/${id}`);
+              const u = res.data;
+
+              const single = Number(u.ratingSingle || 0);
+              const dbl = Number(u.ratingDouble || 0);
+              const pickedLevel = (TOURNAMENT_GAME_TYPE === "DOUBLE") ? dbl : single;
+
+              const info = $id(`e${pn}UserInfo`);
+              if(info){
+                info.textContent =
+                  `${u.fullName} • Trình đơn: ${single.toFixed(2)} • Trình đôi: ${dbl.toFixed(2)} • Trình áp dụng: ${pickedLevel.toFixed(2)} • ID người dùng: ${u.userId}`;
+              }
+              setEditAvatarBox(pn, u.avatarUrl || null);
+            } catch(err){
+              const msg = err?.response?.data?.message || err?.message || "Kiểm tra người dùng thất bại.";
+              showEditErr(`VDV ${pn}: ${msg}`);
+            }
+          }
+
+          function previewEditGuestAvatar(pn){
+            const input = $id(`e${pn}GuestAvatarFile`);
+            const f = input?.files?.[0];
+            if(!f){
+              const avatar = pn === 2 ? EDITING_REG?.player2Avatar : EDITING_REG?.player1Avatar;
+              setEditAvatarBox(pn, avatar || null);
+              return;
+            }
+
+            setEditAvatarBox(pn, URL.createObjectURL(f));
+          }
+
+          function appendEditPlayer(fd, pn, fieldPrefix){
+            const type = $id(`e${pn}Type`)?.value || "USER";
+            if(type === "USER"){
+              const id = ($id(`e${pn}UserId`)?.value || "").trim();
+              if(!id) throw new Error(`Vận động viên ${pn}: chưa nhập ID người dùng.`);
+              fd.append(`${fieldPrefix}UserId`, id);
+              return;
+            }
+
+            const name = ($id(`e${pn}GuestName`)?.value || "").trim();
+            const level = ($id(`e${pn}GuestLevel`)?.value || "").trim();
+            if(!name) throw new Error(`Vận động viên ${pn} (khách): thiếu họ tên.`);
+            if(!level) throw new Error(`Vận động viên ${pn} (khách): thiếu điểm trình.`);
+
+            fd.append(`${fieldPrefix}Name`, name);
+            fd.append(`${fieldPrefix}Level`, level);
+
+            const f = $id(`e${pn}GuestAvatarFile`)?.files?.[0];
+            if(f) fd.append(`${fieldPrefix}AvatarFile`, f);
+          }
+
+          function buildEditFormData(){
+            if(!EDITING_REG) throw new Error("Chưa chọn đội cần sửa.");
+
+            const fd = new FormData();
+            appendEditPlayer(fd, 1, "player1");
+
+            if(TOURNAMENT_GAME_TYPE === "DOUBLE" && !EDITING_REG.waitingPair){
+              appendEditPlayer(fd, 2, "player2");
+            }
+
+            return fd;
+          }
 
           function showCreateErr(msg){
             const box = $id("createErr");
@@ -739,7 +1570,7 @@
             if(type === "USER"){
               if(userBlock) userBlock.style.display = "block";
               if(guestBlock) guestBlock.style.display = "none";
-              if(info) info.textContent = "Chưa check";
+              if(info) info.textContent = "Chưa kiểm tra";
               setAvatarBox(`p${pn}AvatarBox`, null);
 
               const gn = $id(`p${pn}GuestName`); if(gn) gn.value = "";
@@ -751,14 +1582,14 @@
               setAvatarBox(`p${pn}AvatarBox`, null);
 
               const ui = $id(`p${pn}UserId`); if(ui) ui.value = "";
-              if(info) info.textContent = "Guest mode";
+              if(info) info.textContent = "Chế độ khách";
             }
           }
 
           async function checkUser(pn){
             const idRaw = ($id(`p${pn}UserId`)?.value || "").trim();
             const id = Number(idRaw);
-            if(!id || id <= 0) return showCreateErr(`VDV ${pn}: nhập UserId hợp lệ.`);
+            if(!id || id <= 0) return showCreateErr(`Vận động viên ${pn}: nhập ID người dùng hợp lệ.`);
 
             try{
               const res = await axios.get(`/api/admin/users/find/${id}`);
@@ -772,11 +1603,11 @@
               const info = $id(`p${pn}UserInfo`);
               if(info){
                 info.textContent =
-                  `${u.fullName} • Single: ${single.toFixed(2)} • Double: ${dbl.toFixed(2)} • Pick: ${pickedLevel.toFixed(2)} • UserId: ${u.userId}`;
+                  `${u.fullName} • Trình đơn: ${single.toFixed(2)} • Trình đôi: ${dbl.toFixed(2)} • Trình áp dụng: ${pickedLevel.toFixed(2)} • ID người dùng: ${u.userId}`;
               }
               setAvatarBox(`p${pn}AvatarBox`, u.avatarUrl || null);
             } catch(err){
-              const msg = err?.response?.data?.message || err?.message || "Check user failed.";
+              const msg = err?.response?.data?.message || err?.message || "Kiểm tra người dùng thất bại.";
               showCreateErr(`VDV ${pn}: ${msg}`);
             }
           }
@@ -806,13 +1637,13 @@
             const p1Type = $id("p1Type")?.value || "USER";
             if(p1Type === "USER"){
               const id = ($id("p1UserId")?.value || "").trim();
-              if(!id) throw new Error("VDV1: chưa nhập UserId.");
+              if(!id) throw new Error("Vận động viên 1: chưa nhập ID người dùng.");
               fd.append("player1UserId", id);
             } else {
               const name = ($id("p1GuestName")?.value || "").trim();
               const level = ($id("p1GuestLevel")?.value || "").trim();
-              if(!name) throw new Error("VDV1 (guest): thiếu Name.");
-              if(!level) throw new Error("VDV1 (guest): thiếu Level.");
+              if(!name) throw new Error("Vận động viên 1 (khách): thiếu họ tên.");
+              if(!level) throw new Error("Vận động viên 1 (khách): thiếu điểm trình.");
               fd.append("player1Name", name);
               fd.append("player1Level", level);
 
@@ -824,13 +1655,13 @@
               const p2Type = $id("p2Type")?.value || "USER";
               if(p2Type === "USER"){
                 const id = ($id("p2UserId")?.value || "").trim();
-                if(!id) throw new Error("VDV2: chưa nhập UserId.");
+                if(!id) throw new Error("Vận động viên 2: chưa nhập ID người dùng.");
                 fd.append("player2UserId", id);
               } else {
                 const name = ($id("p2GuestName")?.value || "").trim();
                 const level = ($id("p2GuestLevel")?.value || "").trim();
-                if(!name) throw new Error("VDV2 (guest): thiếu Name.");
-                if(!level) throw new Error("VDV2 (guest): thiếu Level.");
+                if(!name) throw new Error("Vận động viên 2 (khách): thiếu họ tên.");
+                if(!level) throw new Error("Vận động viên 2 (khách): thiếu điểm trình.");
                 fd.append("player2Name", name);
                 fd.append("player2Level", level);
 
@@ -850,7 +1681,7 @@
 
             on("tabSuccess","click", () => load("SUCCESS"));
             on("tabWaiting","click", () => load("WAITING"));
-            on("tabCapacity","click", () => alert("Còn chỗ = ExpectedTeams - SuccessCount (team)."));
+            on("tabCapacity","click", () => alert("Số chỗ còn lại = Số đội dự kiến - Số đội đăng ký thành công."));
 
             on("btnSearch","click", () => {
               const key = ($id("q")?.value || "").trim().toLowerCase();
@@ -865,7 +1696,7 @@
 
               body.innerHTML = filtered.length
                 ? filtered.map(rowHtml).join("")
-                : `<tr><td colspan="9" class="text-center text-muted">No results</td></tr>`;
+                : `<tr><td colspan="9" class="text-center text-muted">Không có kết quả</td></tr>`;
             });
 
             on("btnOpenCreate","click", () => {
@@ -898,6 +1729,18 @@
             on("p1GuestAvatarFile","change", () => previewGuestAvatar(1));
             on("p2GuestAvatarFile","change", () => previewGuestAvatar(2));
 
+            on("e1Type","change", () => applyEditPlayerTypeUI(1));
+            on("e2Type","change", () => applyEditPlayerTypeUI(2));
+
+            on("btnE1Check","click", () => checkEditUser(1));
+            on("btnE2Check","click", () => checkEditUser(2));
+
+            on("e1GuestAvatarFile","change", () => previewEditGuestAvatar(1));
+            on("e2GuestAvatarFile","change", () => previewEditGuestAvatar(2));
+
+            $("#modalPaymentInfo").on("hidden.bs.modal", cleanupActivePayment);
+            window.addEventListener("pagehide", cleanupActivePayment);
+
             on("formPair","submit", async (e) => {
               e.preventDefault();
               const baseId = Number($id("pairBaseId")?.value || 0);
@@ -907,11 +1750,38 @@
                 $("#modalPair").modal("hide");
                 await load(CURRENT_TAB);
               } catch(err){
-                const msg = err?.response?.data?.message || err?.message || "Pair failed.";
+                const msg = err?.response?.data?.message || err?.message || "Ghép đôi thất bại.";
                 const box = $id("pairErr");
                 if(box){
                   box.textContent = msg;
                   box.classList.remove("d-none");
+                }
+              }
+            });
+
+            on("formEditTeam","submit", async (e) => {
+              e.preventDefault();
+              clearEditErr();
+
+              const id = Number($id("editRegistrationId")?.value || 0);
+              const btn = $id("btnEditSubmit");
+              if(btn){
+                btn.disabled = true;
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
+              }
+
+              try{
+                const fd = buildEditFormData();
+                await axios.put(`/api/admin/registrations/${id}/players`, fd);
+                $("#modalEditTeam").modal("hide");
+                await load(CURRENT_TAB);
+              } catch(err){
+                const msg = err?.response?.data?.message || err?.message || "Cập nhật đội thất bại.";
+                showEditErr(msg);
+              } finally {
+                if(btn){
+                  btn.disabled = false;
+                  btn.innerHTML = `<i class="fas fa-save"></i> Lưu đội`;
                 }
               }
             });
@@ -936,12 +1806,12 @@
                 window.location.reload();
 
               } catch(err){
-                const msg = err?.response?.data?.message || err?.message || "Create failed.";
+                const msg = err?.response?.data?.message || err?.message || "Tạo đăng ký thất bại.";
                 showCreateErr(msg);
               } finally {
                 if(btn){
                   btn.disabled = false;
-                  btn.innerHTML = `<i class="fas fa-save"></i> Create`;
+                  btn.innerHTML = `<i class="fas fa-save"></i> Đăng ký`;
                 }
               }
             });

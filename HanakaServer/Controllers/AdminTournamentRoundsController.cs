@@ -24,7 +24,7 @@ namespace HanakaServer.Controllers
         {
             var exists = await _db.Tournaments.AsNoTracking()
                 .AnyAsync(x => x.TournamentId == tournamentId);
-            if (!exists) return NotFound(new { message = "Tournament not found." });
+            if (!exists) return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             var items = await _db.TournamentRoundMaps.AsNoTracking()
                 .Where(x => x.TournamentId == tournamentId)
@@ -51,15 +51,15 @@ namespace HanakaServer.Controllers
             var key = (dto.RoundKey ?? "").Trim();
             var label = (dto.RoundLabel ?? "").Trim();
 
-            if (string.IsNullOrWhiteSpace(key)) return BadRequest(new { message = "RoundKey is required." });
+            if (string.IsNullOrWhiteSpace(key)) return BadRequest(new { message = "Vui lòng nhập mã vòng đấu." });
             if (string.IsNullOrWhiteSpace(label)) label = key;
 
             var tExists = await _db.Tournaments.AnyAsync(x => x.TournamentId == tournamentId);
-            if (!tExists) return NotFound(new { message = "Tournament not found." });
+            if (!tExists) return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             var exists = await _db.TournamentRoundMaps
                 .AnyAsync(x => x.TournamentId == tournamentId && x.RoundKey == key);
-            if (exists) return BadRequest(new { message = "RoundKey already exists in this tournament." });
+            if (exists) return BadRequest(new { message = "Mã vòng đấu đã tồn tại trong giải này." });
 
             var row = new TournamentRoundMap
             {
@@ -92,20 +92,20 @@ namespace HanakaServer.Controllers
             var row = await _db.TournamentRoundMaps
                 .FirstOrDefaultAsync(x => x.TournamentRoundMapId == id && x.TournamentId == tournamentId);
 
-            if (row == null) return NotFound(new { message = "Round not found." });
+            if (row == null) return NotFound(new { message = "Không tìm thấy vòng đấu." });
 
             if (dto.RoundKey != null)
             {
                 var key = dto.RoundKey.Trim();
                 if (string.IsNullOrWhiteSpace(key))
-                    return BadRequest(new { message = "RoundKey is required." });
+                    return BadRequest(new { message = "Vui lòng nhập mã vòng đấu." });
 
                 var exists = await _db.TournamentRoundMaps
                     .AnyAsync(x => x.TournamentId == tournamentId
                                    && x.RoundKey == key
                                    && x.TournamentRoundMapId != id);
                 if (exists)
-                    return BadRequest(new { message = "RoundKey already exists in this tournament." });
+                    return BadRequest(new { message = "Mã vòng đấu đã tồn tại trong giải này." });
 
                 row.RoundKey = key;
             }
@@ -139,7 +139,7 @@ namespace HanakaServer.Controllers
             var row = await _db.TournamentRoundMaps
                 .FirstOrDefaultAsync(x => x.TournamentRoundMapId == id && x.TournamentId == tournamentId);
 
-            if (row == null) return NotFound(new { message = "Round not found." });
+            if (row == null) return NotFound(new { message = "Không tìm thấy vòng đấu." });
 
             var hasGroups = await _db.TournamentRoundGroups
                 .AsNoTracking()

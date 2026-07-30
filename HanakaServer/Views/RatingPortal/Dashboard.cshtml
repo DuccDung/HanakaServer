@@ -224,7 +224,7 @@
             <div>
                 <div class="page-title">Chấm trình vận động viên</div>
                 <div class="page-subtitle">
-                    Điểm hiện tại và lịch sử đều đọc từ UserRatingHistory. Mỗi lần chấm phải có ghi chú.
+                    Điểm hiện tại và lịch sử đều đọc từ dữ liệu chấm trình. Mỗi lần chấm phải có ghi chú.
                 </div>
             </div>
         </div>
@@ -233,7 +233,7 @@
 
         <section class="search-card">
             <div class="search-row">
-                <input id="keyword" class="form-control" placeholder="Tìm theo tên / email / số điện thoại / UserId" />
+                <input id="keyword" class="form-control" placeholder="Tìm theo tên / email / số điện thoại / ID người dùng" />
                 <button id="btnSearch" class="btn btn-primary" type="button">
                     <i class="fas fa-search"></i> Tìm
                 </button>
@@ -343,7 +343,7 @@
                                     <textarea id="note" class="form-control" rows="4" maxlength="400" required
                                               placeholder="Ví dụ: Chấm trình sau buổi test nội bộ ngày ..."></textarea>
                                     <small class="form-text text-muted">
-                                        Hệ thống sẽ tự thêm "nhân viên Hanaka userid:..." vào ghi chú lưu trong UserRatingHistory.
+                                        Hệ thống sẽ tự thêm ID nhân viên Hanaka vào ghi chú lưu trong lịch sử chấm trình.
                                     </small>
                                 </div>
                             </div>
@@ -450,7 +450,7 @@
                     <td>${avatarHtml(item.avatarUrl, item.fullName)}</td>
                     <td>
                         <div class="font-weight-bold">${esc(item.fullName || "—")}</div>
-                        <div class="small text-muted">UserId: ${esc(item.userId)} • ${esc(item.email || "—")}${item.phone ? " • " + esc(item.phone) : ""}</div>
+                        <div class="small text-muted">ID người dùng: ${esc(item.userId)} • ${esc(item.email || "—")}${item.phone ? " • " + esc(item.phone) : ""}</div>
                     </td>
                     <td>${esc(item.city || "—")}</td>
                     <td><span class="rating-chip">${fmtScore(item.ratingSingle)}</span></td>
@@ -521,7 +521,7 @@
                     <div class="history-score">${fmtScore(item.ratingSingle)} / ${fmtScore(item.ratingDouble)}</div>
                     <div class="history-meta">
                         ${fmtDate(item.ratedAt)}
-                        ${item.ratedByUserId ? " • User chấm #" + esc(item.ratedByUserId) : ""}
+                        ${item.ratedByUserId ? " • Người chấm #" + esc(item.ratedByUserId) : ""}
                     </div>
                     ${item.note ? `<div class="history-note">${esc(item.note)}</div>` : ""}
                 </div>
@@ -542,7 +542,7 @@
                 state.activeUser = user;
 
                 $id("modalTitle").textContent = `Chấm trình: ${user.fullName || "—"}`;
-                $id("modalSub").textContent = `UserId: ${user.userId || "—"} • ${user.email || "—"}${user.phone ? " • " + user.phone : ""}`;
+                $id("modalSub").textContent = `ID người dùng: ${user.userId || "—"} • ${user.email || "—"}${user.phone ? " • " + user.phone : ""}`;
                 $id("modalAvatar").innerHTML = avatarHtml(user.avatarUrl, user.fullName);
                 $id("modalName").textContent = user.fullName || "—";
                 $id("modalInfo").textContent = `${user.city || "—"} • ${user.gender || "—"}`;
@@ -566,7 +566,7 @@
             const note = $id("note").value.trim();
 
             if (!userId) {
-                showFormError("Thiếu UserId vận động viên.");
+                showFormError("Thiếu ID người dùng của vận động viên.");
                 return;
             }
 

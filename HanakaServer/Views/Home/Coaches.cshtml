@@ -178,7 +178,7 @@
             <div class="filter-toolbar">
                 <div class="filter-keyword">
                     <input id="keyword" class="form-control form-control-sm w-100"
-                           placeholder="Tìm theo tên / thành phố / loại / UserId" />
+                           placeholder="Tìm theo tên / thành phố / loại / ID người dùng" />
                 </div>
 
                 <div class="filter-verified">
@@ -206,7 +206,7 @@
                             <th>Huấn luyện viên</th>
                             <th>Thành phố</th>
                             <th>Xác minh coach</th>
-                            <th>Xác minh user</th>
+                            <th>Xác minh người dùng</th>
                             <th>Trình độ (Đơn / Đôi)</th>
                             <th>Loại</th>
                             <th style="width: 170px;">Thao tác</th>
@@ -260,21 +260,21 @@
                 <div class="modal-body">
                     <div id="formError" class="alert alert-danger d-none"></div>
 
-                    <div class="modal-section-title">Liên kết User</div>
+                    <div class="modal-section-title">Liên kết người dùng</div>
 
                     <div class="form-row">
                         <div class="form-group col-md-8">
-                            <label>UserId / ExternalId</label>
+                            <label>ID người dùng / ID ngoài</label>
                             <div class="input-group">
-                                <input id="externalId" class="form-control" placeholder="Nhập UserId" />
+                                <input id="externalId" class="form-control" placeholder="Nhập ID người dùng" />
                                 <div class="input-group-append">
                                     <button id="btnLookupUser" class="btn btn-outline-info" type="button">
-                                        <i class="fas fa-search mr-1"></i> Tải User
+                                        <i class="fas fa-search mr-1"></i> Tải người dùng
                                     </button>
                                 </div>
                             </div>
                             <small class="form-text text-muted">
-                                Dữ liệu chuẩn hoá yêu cầu coach phải liên kết với User có thật. Tên, thành phố, ảnh, điểm trình sẽ lấy từ User.
+                                Dữ liệu chuẩn hóa yêu cầu huấn luyện viên phải liên kết với người dùng có thật. Tên, thành phố, ảnh và điểm trình sẽ lấy từ hồ sơ người dùng.
                             </small>
                         </div>
 
@@ -289,7 +289,7 @@
                             <img id="uAvatar" src="" class="coach-avatar-lg" />
 
                             <div class="flex-grow-1">
-                                <div class="font-weight-bold text-gray-900" id="uName">Chưa chọn user</div>
+                                <div class="font-weight-bold text-gray-900" id="uName">Chưa chọn người dùng</div>
                                 <div class="small text-gray-500" id="uSub">—</div>
                                 <div class="mt-2 user-badge-wrap" id="uBadges"></div>
                             </div>
@@ -332,7 +332,7 @@
                         </div>
 
                         <div class="form-group mb-0">
-                            <div class="small-muted">Giới thiệu cá nhân (User.Bio)</div>
+                            <div class="small-muted">Giới thiệu cá nhân</div>
                             <div id="uBio" class="readonly-box" style="min-height:72px;">—</div>
                         </div>
                     </div>
@@ -367,7 +367,7 @@
                         </div>
 
                         <button id="btnSyncFromUser" class="btn btn-outline-info btn-sm" type="button">
-                            <i class="fas fa-sync mr-1"></i> Đồng bộ từ User
+                            <i class="fas fa-sync mr-1"></i> Đồng bộ từ người dùng
                         </button>
 
                         <button id="btnToggleVerified" class="btn btn-outline-success btn-sm" type="button">
@@ -497,20 +497,20 @@
 
         function badgeUserActive(v) {
             return v
-                ? `<span class="badge badge-info">User đang hoạt động</span>`
-                : `<span class="badge badge-warning">User không hoạt động</span>`;
+                ? `<span class="badge badge-info">Người dùng đang hoạt động</span>`
+                : `<span class="badge badge-warning">Người dùng không hoạt động</span>`;
         }
 
         function badgeLinkStatus(item) {
             if (!item?.hasLinkedUser) {
-                return `<span class="badge badge-danger">Chưa link User</span>`;
+                return `<span class="badge badge-danger">Chưa liên kết người dùng</span>`;
             }
 
             if (!item?.userIsActive) {
-                return `<span class="badge badge-warning">User inactive</span>`;
+                return `<span class="badge badge-warning">Người dùng không hoạt động</span>`;
             }
 
-            return `<span class="badge badge-primary">Đã link User</span>`;
+            return `<span class="badge badge-primary">Đã liên kết người dùng</span>`;
         }
 
         function avatarHtml(url, name) {
@@ -598,7 +598,7 @@
 
         function clearUserPreview() {
             document.getElementById("uAvatar").src = EMPTY_IMG;
-            document.getElementById("uName").textContent = "Chưa chọn user";
+            document.getElementById("uName").textContent = "Chưa chọn người dùng";
             document.getElementById("uSub").textContent = "—";
             document.getElementById("uBadges").innerHTML = "";
             document.getElementById("uEmail").textContent = "—";
@@ -634,12 +634,12 @@
             const badges = [];
 
             badges.push(data?.verified
-                ? `<span class="badge badge-success">User đã xác minh</span>`
-                : `<span class="badge badge-secondary">User chưa xác minh</span>`);
+                ? `<span class="badge badge-success">Người dùng đã xác minh</span>`
+                : `<span class="badge badge-secondary">Người dùng chưa xác minh</span>`);
 
             badges.push(data?.isActive === false
-                ? `<span class="badge badge-warning">User không hoạt động</span>`
-                : `<span class="badge badge-info">User đang hoạt động</span>`);
+                ? `<span class="badge badge-warning">Người dùng không hoạt động</span>`
+                : `<span class="badge badge-info">Người dùng đang hoạt động</span>`);
 
             if (data?.existingCoachId) {
                 const sameCoach = String(editingCoachId || "") === String(data.existingCoachId);
@@ -656,7 +656,7 @@
         function setUserPreviewFromLookup(data) {
             document.getElementById("uAvatar").src = data?.avatarUrl || EMPTY_IMG;
             document.getElementById("uName").textContent = data?.fullName || "—";
-            document.getElementById("uSub").textContent = `${data?.city || "—"} • UserId: ${data?.userId || "—"}`;
+            document.getElementById("uSub").textContent = `${data?.city || "—"} • ID người dùng: ${data?.userId || "—"}`;
             document.getElementById("uBadges").innerHTML = renderPreviewBadges(data, document.getElementById("editingId").value || null);
 
             document.getElementById("uEmail").textContent = data?.email || "—";
@@ -668,17 +668,17 @@
             document.getElementById("uRatingUpdatedAt").textContent = formatDateTime(data?.ratingUpdatedAt);
             document.getElementById("uBio").textContent = data?.bio || "—";
 
-            setLinkWarning(data?.isActive === false ? "User này đang bị vô hiệu hoá. Không thể liên kết làm coach." : "");
+            setLinkWarning(data?.isActive === false ? "Người dùng này đang bị vô hiệu hóa. Không thể liên kết làm huấn luyện viên." : "");
         }
 
         function setUserPreviewFromDetail(data) {
             document.getElementById("uAvatar").src = data?.avatarUrl || EMPTY_IMG;
             document.getElementById("uName").textContent = data?.fullName || "—";
             document.getElementById("uSub").textContent =
-                `${data?.city || "—"} • UserId: ${data?.userId || data?.externalId || "—"}`;
+                `${data?.city || "—"} • ID người dùng: ${data?.userId || data?.externalId || "—"}`;
 
             document.getElementById("uBadges").innerHTML = [
-                badgeVerified(!!data?.userVerified, "User đã xác minh", "User chưa xác minh"),
+                badgeVerified(!!data?.userVerified, "Người dùng đã xác minh", "Người dùng chưa xác minh"),
                 badgeUserActive(!!data?.userIsActive),
                 badgeLinkStatus(data)
             ].join(" ");
@@ -700,7 +700,7 @@
         function rowHtml(u) {
             const infoLine = `
                 <div class="font-weight-bold text-gray-900">${escapeHtml(u.fullName || "—")}</div>
-                <div class="small text-gray-500">UserId / ExternalId: ${escapeHtml(u.externalId || "—")}</div>
+                <div class="small text-gray-500">ID người dùng / ID ngoài: ${escapeHtml(u.externalId || "—")}</div>
                 <div class="small text-gray-500">${escapeHtml(u.email || "—")} ${u.phone ? `• ${escapeHtml(u.phone)}` : ""}</div>
                 <div class="mt-1">${badgeLinkStatus(u)} ${u.linkWarning ? `<span class="badge badge-warning">${escapeHtml(u.linkWarning)}</span>` : ""}</div>
             `;
@@ -855,7 +855,7 @@
             } catch (e) {
                 clearUserPreview();
 
-                const msg = e?.response?.data?.message || e?.message || "Không tải được user.";
+                const msg = e?.response?.data?.message || e?.message || "Không tải được thông tin người dùng.";
                 setLinkWarning(msg);
 
                 if (showError) {
@@ -912,7 +912,7 @@
                 fillModal(res.data);
                 updateRowInTable(res.data);
             } catch (e) {
-                showFormError(e?.response?.data?.message || e?.message || "Đồng bộ từ User thất bại.");
+                showFormError(e?.response?.data?.message || e?.message || "Đồng bộ từ người dùng thất bại.");
             }
         }
 

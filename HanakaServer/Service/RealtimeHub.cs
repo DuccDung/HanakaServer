@@ -218,6 +218,31 @@ namespace HanakaServer.Services
             }, excludeUserId);
         }
 
+        public Task SendDirectMessageUpdatedAsync(long roomId, long messageId, object item, string? excludeUserId = null)
+        {
+            return BroadcastToDirectRoomAsync(roomId, new
+            {
+                type = "direct.message.updated",
+                roomId,
+                directChatRoomId = roomId,
+                messageId,
+                directChatMessageId = messageId,
+                item
+            }, excludeUserId);
+        }
+
+        public Task SendDirectMessageDeletedAsync(long roomId, long messageId, string? excludeUserId = null)
+        {
+            return BroadcastToDirectRoomAsync(roomId, new
+            {
+                type = "direct.message.deleted",
+                roomId,
+                directChatRoomId = roomId,
+                messageId,
+                directChatMessageId = messageId
+            }, excludeUserId);
+        }
+
         public Task SendTypingToDirectRoomAsync(long roomId, string userId, string fullName, bool isTyping)
         {
             return BroadcastToDirectRoomAsync(roomId, new

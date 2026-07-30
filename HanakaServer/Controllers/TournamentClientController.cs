@@ -64,7 +64,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (tournament == null)
-                return NotFound(new { message = "Tournament not found." });
+                return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             ApplyTournamentType(tournament);
 
@@ -330,7 +330,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (match == null)
-                return NotFound(new { message = "Match not found." });
+                return NotFound(new { message = "Không tìm thấy trận đấu." });
 
             var tournament = await _db.Tournaments
                 .AsNoTracking()
@@ -368,7 +368,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (tournament == null)
-                return NotFound(new { message = "Tournament not found." });
+                return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             ApplyTournamentType(tournament);
 
@@ -386,7 +386,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (group == null)
-                return NotFound(new { message = "Group not found." });
+                return NotFound(new { message = "Không tìm thấy bảng đấu." });
 
             var round = await _db.TournamentRoundMaps
                 .AsNoTracking()
@@ -403,7 +403,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (round == null)
-                return NotFound(new { message = "Round not found." });
+                return NotFound(new { message = "Không tìm thấy vòng đấu." });
 
             var registrationIds = new List<long>();
             if (match.Team1RegistrationId.HasValue)
@@ -699,7 +699,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (roundMap == null)
-                return NotFound(new { message = "Round not found." });
+                return NotFound(new { message = "Không tìm thấy vòng đấu." });
 
             var tournament = await _db.Tournaments
                 .AsNoTracking()
@@ -712,7 +712,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (tournament == null)
-                return NotFound(new { message = "Tournament not found." });
+                return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             var groups = await _db.TournamentRoundGroups
                 .AsNoTracking()
@@ -798,7 +798,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (item == null)
-                return NotFound(new { message = "Tournament not found." });
+                return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             return Ok(item);
         }

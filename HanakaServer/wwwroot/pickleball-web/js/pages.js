@@ -694,8 +694,8 @@
             item.verified ? metaChip("Đã xác thực", "shield-checkmark-outline") : "",
             trimToEmpty(item.city) ? metaChip(item.city, "location-outline") : "",
             trimToEmpty(item.gender) ? metaChip(item.gender, "person-outline") : "",
-            item.ratingSingle != null ? metaChip(`Single ${formatDecimal(item.ratingSingle)}`) : "",
-            item.ratingDouble != null ? metaChip(`Double ${formatDecimal(item.ratingDouble)}`) : ""
+            item.ratingSingle != null ? metaChip(`Đơn ${formatDecimal(item.ratingSingle)}`) : "",
+            item.ratingDouble != null ? metaChip(`Đôi ${formatDecimal(item.ratingDouble)}`) : ""
         ].filter(Boolean).join("");
 
         return [
@@ -749,13 +749,13 @@
             avatarMarkup(item.fullName, item.avatarUrl),
             '<div class="identity__copy">',
             `<strong>${escapeHtml(trimToEmpty(item.fullName) || "Huấn luyện viên")}</strong>`,
-            `<span>${escapeHtml(trimToEmpty(item.coachType) || "COACH")}</span>`,
+            `<span>${escapeHtml(trimToEmpty(item.coachType) || "Huấn luyện viên")}</span>`,
             "</div>",
             "</div>",
             `<div class="list-card__meta">${[
                 trimToEmpty(item.city) ? metaChip(item.city, "location-outline") : "",
-                metaChip(`Single ${formatDecimal(item.levelSingle)}`),
-                metaChip(`Double ${formatDecimal(item.levelDouble)}`),
+                metaChip(`Đơn ${formatDecimal(item.levelSingle)}`),
+                metaChip(`Đôi ${formatDecimal(item.levelDouble)}`),
                 item.verified ? metaChip("Đã xác minh", "ribbon-outline") : ""
             ].filter(Boolean).join("")}</div>`,
             "</div>",
@@ -773,13 +773,13 @@
             avatarMarkup(item.fullName, item.avatarUrl),
             '<div class="identity__copy">',
             `<strong>${escapeHtml(trimToEmpty(item.fullName) || "Trọng tài")}</strong>`,
-            `<span>${escapeHtml(trimToEmpty(item.refereeType) || "REFEREE")}</span>`,
+            `<span>${escapeHtml(trimToEmpty(item.refereeType) || "Trọng tài")}</span>`,
             "</div>",
             "</div>",
             `<div class="list-card__meta">${[
                 trimToEmpty(item.city) ? metaChip(item.city, "location-outline") : "",
-                metaChip(`Single ${formatDecimal(item.levelSingle)}`),
-                metaChip(`Double ${formatDecimal(item.levelDouble)}`),
+                metaChip(`Đơn ${formatDecimal(item.levelSingle)}`),
+                metaChip(`Đôi ${formatDecimal(item.levelDouble)}`),
                 item.verified ? metaChip("Đã xác minh", "shield-checkmark-outline") : ""
             ].filter(Boolean).join("")}</div>`,
             "</div>",
@@ -877,7 +877,7 @@
                 ? `<div class="list-card__media"><img src="${escapeHtml(item.tournamentBannerUrl)}" alt="${escapeHtml(matchTitle)}" loading="lazy"></div>`
                 : '<div class="list-card__media"></div>',
             '<div class="list-card__body">',
-            `<span class="list-card__badge">${escapeHtml(trimToEmpty(item.roundLabel) || "Match video")}</span>`,
+            `<span class="list-card__badge">${escapeHtml(trimToEmpty(item.roundLabel) || "Video trận đấu")}</span>`,
             `<h2 class="list-card__title">${escapeHtml(matchTitle)}</h2>`,
             `<p class="list-card__desc">${escapeHtml(`${trimToEmpty(item.team1Name) || "Đội 1"} vs ${trimToEmpty(item.team2Name) || "Đội 2"}`)}</p>`,
             `<div class="stats-grid list-card__stats"><div class="stat-box"><small>Số đội dự kiến</small><strong>${escapeHtml(String(toNumber(item.expectedTeams)))}</strong></div><div class="stat-box"><small>Đã đăng ký</small><strong>${escapeHtml(String(toNumber(item.registeredCount)))}</strong></div><div class="stat-box"><small>Đã ghép cặp</small><strong>${escapeHtml(String(toNumber(item.pairedCount)))}</strong></div><div class="stat-box"><small>Số trận</small><strong>${escapeHtml(String(toNumber(item.matchesCount)))}</strong></div></div>`,
@@ -927,7 +927,7 @@
                 '<div class="detail-row"><strong>4. Xác định điểm</strong><span>Điểm số và thể thức chi tiết có thể khác theo từng giải, cần xem thêm thể lệ riêng.</span></div>',
                 "</div>"
             ].join("")),
-            detailSection("Đi tiếp trong app", [
+            detailSection("Đi tiếp trong ứng dụng", [
                 '<div class="actions-row">',
                 '<a class="action-link" href="/PickleballWeb/Tournaments">Xem thể lệ từng giải</a>',
                 '<a class="action-link action-link--soft" href="/PickleballWeb/Guide">Mở hướng dẫn</a>',
@@ -1681,8 +1681,8 @@
                 detail.phone ? metaChip(detail.phone, "call-outline") : ""
             ].filter(Boolean).join("")}</div>`,
             '<div class="stats-grid">',
-            `<div class="stat-box"><small>Single</small><strong>${formatDecimal(detail.ratingSingle)}</strong></div>`,
-            `<div class="stat-box"><small>Double</small><strong>${formatDecimal(detail.ratingDouble)}</strong></div>`,
+            `<div class="stat-box"><small>Đơn</small><strong>${formatDecimal(detail.ratingSingle)}</strong></div>`,
+            `<div class="stat-box"><small>Đôi</small><strong>${formatDecimal(detail.ratingDouble)}</strong></div>`,
             `<div class="stat-box"><small>Ngày tham gia</small><strong>${escapeHtml(formatDate(detail.createdAt))}</strong></div>`,
             `<div class="stat-box"><small>Rating cập nhật</small><strong>${escapeHtml(formatDate(detail.ratingUpdatedAt))}</strong></div>`,
             "</div>",
@@ -1710,8 +1710,8 @@
                 trimToEmpty(item.phone) ? metaChip(item.phone, "call-outline") : ""
             ].filter(Boolean).join("")}</div>`,
             '<div class="stats-grid">',
-            `<div class="stat-box"><small>Single</small><strong>${formatDecimal(item.levelSingle)}</strong></div>`,
-            `<div class="stat-box"><small>Double</small><strong>${formatDecimal(item.levelDouble)}</strong></div>`,
+            `<div class="stat-box"><small>Đơn</small><strong>${formatDecimal(item.levelSingle)}</strong></div>`,
+            `<div class="stat-box"><small>Đôi</small><strong>${formatDecimal(item.levelDouble)}</strong></div>`,
             `<div class="stat-box"><small>${escapeHtml(areaLabel)}</small><strong>${escapeHtml(trimToEmpty(item.teachingArea || item.workingArea) || "Chưa cập nhật")}</strong></div>`,
             `<div class="stat-box"><small>Rating cập nhật</small><strong>${escapeHtml(formatDate(item.ratingUpdatedAt))}</strong></div>`,
             "</div>",
@@ -1932,7 +1932,7 @@
                 avatarMarkup(owner.fullName, owner.avatarUrl),
                 '<div class="identity__copy">',
                 `<strong>${escapeHtml(owner.fullName)}</strong>`,
-                `<span>${escapeHtml(`Single ${formatDecimal(owner.ratingSingle)} · Double ${formatDecimal(owner.ratingDouble)}`)}</span>`,
+                `<span>${escapeHtml(`Đơn ${formatDecimal(owner.ratingSingle)} · Đôi ${formatDecimal(owner.ratingDouble)}`)}</span>`,
                 "</div>",
                 "</div>"
             ].join("")) : "",
@@ -1943,7 +1943,7 @@
                         return [
                             '<div class="detail-row">',
                             `<strong>${escapeHtml(trimToEmpty(member.fullName) || "Thành viên")}</strong>`,
-                            `<span>${escapeHtml(`${trimToEmpty(member.memberRole) || "MEMBER"} · ${formatDecimal(member.ratingDouble || member.ratingSingle)}`)}</span>`,
+                            `<span>${escapeHtml(`${trimToEmpty(member.memberRole) || "Thành viên"} · ${formatDecimal(member.ratingDouble || member.ratingSingle)}`)}</span>`,
                             "</div>"
                         ].join("");
                     }).join(""),
@@ -2059,7 +2059,7 @@
                 matches.slice(0, 3).forEach(function (match) {
                     rows.push([
                         '<div class="detail-row">',
-                        `<strong>${escapeHtml(`${trimToEmpty(round.roundLabel) || "Round"} · ${trimToEmpty(group.groupName) || "Group"}`)}</strong>`,
+                        `<strong>${escapeHtml(`${trimToEmpty(round.roundLabel) || "Vòng đấu"} · ${trimToEmpty(group.groupName) || "Bảng đấu"}`)}</strong>`,
                         `<span>${escapeHtml(`${trimToEmpty(match.team1?.displayName) || "Đội 1"} ${toNumber(match.scoreTeam1)} - ${toNumber(match.scoreTeam2)} ${trimToEmpty(match.team2?.displayName) || "Đội 2"}`)}</span>`,
                         "</div>"
                     ].join(""));
@@ -2110,7 +2110,7 @@
                 `<div class="stat-box"><small>Đăng ký thành công</small><strong>${toNumber(regs.counts?.success)}</strong></div>`,
                 `<div class="stat-box"><small>Đang chờ ghép cặp</small><strong>${toNumber(regs.counts?.waiting)}</strong></div>`,
                 `<div class="stat-box"><small>Còn chỗ</small><strong>${toNumber(regs.counts?.capacityLeft)}</strong></div>`,
-                `<div class="stat-box"><small>Số round</small><strong>${rounds.length}</strong></div>`,
+                `<div class="stat-box"><small>Số vòng</small><strong>${rounds.length}</strong></div>`,
                 "</div>"
             ].join("")),
             detailSection("Lịch trận", renderTournamentMatches(rounds)),
@@ -2155,7 +2155,7 @@
 
         return [
             '<article class="detail-card">',
-            `<span class="list-card__badge">${escapeHtml(trimToEmpty(round.roundLabel) || "Match center")}</span>`,
+            `<span class="list-card__badge">${escapeHtml(trimToEmpty(round.roundLabel) || "Trung tâm trận đấu")}</span>`,
             `<h2 class="list-card__title">${escapeHtml(trimToEmpty(tournament.title) || "Trận đấu Hanaka")}</h2>`,
             '<div class="scoreboard">',
             '<div class="scoreboard__club">',
@@ -3365,7 +3365,7 @@
             secondPlayer,
             "</div>",
             "</article>",
-            "<!-- QR thanh toan cho app dang duoc an theo yeu cau. Sau nay mo lai/tich hop QR tai vi tri nay. -->",
+            "<!-- Mã QR thanh toán cho ứng dụng đang được ẩn theo yêu cầu. Sau này có thể mở lại hoặc tích hợp mã QR tại vị trí này. -->",
             "</div>"
         ].join("");
     }
@@ -3373,9 +3373,9 @@
     function renderTournamentAppHiddenPaymentDetailsComment() {
         return [
             "<!--",
-            "App WebView: HTML thong tin thanh toan dang duoc comment/an theo yeu cau.",
-            "Cac block bi an: so tien, ngan hang, so tai khoan, chu tai khoan, noi dung chuyen khoan.",
-            "Khi xu ly lai luong QR trong app, mo lai cac block payment amount/payment details o renderTournamentPaymentPage.",
+            "WebView ứng dụng: Nội dung HTML về thông tin thanh toán đang được ẩn theo yêu cầu.",
+            "Các block bị ẩn: số tiền, ngân hàng, số tài khoản, chủ tài khoản, nội dung chuyển khoản.",
+            "Khi xử lý lại luồng mã QR trong ứng dụng, mở lại các khối số tiền và chi tiết thanh toán trong renderTournamentPaymentPage.",
             "-->"
         ].join("\n");
     }
@@ -3420,7 +3420,7 @@
             `<strong>${isAppWebView ? `ID \u0111\u1ed9i #${escapeHtml(String(registrationId || "-"))}` : escapeHtml(transactionCode || "-")}</strong>`,
             "</div>",
             isAppWebView
-                ? "<!-- App WebView: QR dang duoc comment/an theo yeu cau. -->"
+                ? "<!-- WebView ứng dụng: Mã QR đang được ẩn theo yêu cầu. -->"
                 : qrUrl
                     ? `<div class="tournament-payment-qr ${isPaid ? "is-paid" : ""}" data-payment-qr><img src="${escapeHtml(qrUrl)}" alt="QR thanh to\u00e1n" loading="lazy"></div>`
                     : '<div class="tournament-payment-qr tournament-payment-qr--empty" data-payment-qr>Chưa có mã QR</div>',
@@ -3516,7 +3516,7 @@
             '<div>',
             `<span>${escapeHtml(label)}</span>`,
             `<strong>${escapeHtml(name)}</strong>`,
-            `<em>${scoreMode === "single" ? "Single" : "Double"} ${escapeHtml(formatFlexibleNumber(score))}</em>`,
+            `<em>${scoreMode === "single" ? "Đơn" : "Đôi"} ${escapeHtml(formatFlexibleNumber(score))}</em>`,
             "</div>",
             "</div>"
         ].join("");
@@ -4214,7 +4214,7 @@
             '<p>S\u01a1 \u0111\u1ed3 thi \u0111\u1ea5u</p>',
             `<strong>${escapeHtml(trimToEmpty(tournament?.title) || "Hanaka Sport")}</strong>`,
             "</div>",
-            '<span>S\u01a1 \u0111\u1ed3 gi\u1eef nguy\u00ean c\u1ea5u tr\u00fac v\u00f2ng | b\u1ea3ng | tr\u1eadn. Ch\u1ec9 t\u1ea1o nh\u00e1nh \u1ea3o khi admin ch\u01b0a khai b\u00e1o round/group k\u1ebf ti\u1ebfp.</span>',
+            '<span>S\u01a1 \u0111\u1ed3 gi\u1eef nguy\u00ean c\u1ea5u tr\u00fac v\u00f2ng | b\u1ea3ng | tr\u1eadn. Ch\u1ec9 t\u1ea1o nh\u00e1nh \u1ea3o khi qu\u1ea3n tr\u1ecb vi\u00ean ch\u01b0a khai b\u00e1o v\u00f2ng ho\u1eb7c b\u1ea3ng k\u1ebf ti\u1ebfp.</span>',
             "</div>",
             '<div class="tournament-bracket-legend">',
             '<span><i class="is-real"></i>B\u1ea3ng/tr\u1eadn th\u1eadt</span>',
@@ -5780,7 +5780,7 @@
                     ? "\u0110ang ch\u1eb7n nhau"
                     : item.isRegistered
                         ? "\u0110\u00e3 \u0111\u0103ng k\u00fd"
-                        : `Double ${formatFlexibleNumber(item.ratingDouble)}`;
+                        : `Đôi ${formatFlexibleNumber(item.ratingDouble)}`;
 
                 return [
                     `<button class="tournament-register-partner__item" type="button" data-partner-pick="${escapeHtml(item.userId)}" ${disabled ? "disabled" : ""}>`,
@@ -5808,7 +5808,7 @@
                             ? [
                                 '<span>\u0110\u00e3 ch\u1ecdn</span>',
                                 `<strong>${escapeHtml(selectedPartner.fullName)}</strong>`,
-                                `<em>Double ${escapeHtml(formatFlexibleNumber(selectedPartner.ratingDouble))}</em>`
+                                `<em>Đôi ${escapeHtml(formatFlexibleNumber(selectedPartner.ratingDouble))}</em>`
                             ].join("")
                             : "";
                     }

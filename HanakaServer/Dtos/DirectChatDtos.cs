@@ -14,6 +14,16 @@ namespace HanakaServer.Dtos
         public Guid? ClientMessageId { get; set; }
     }
 
+    public class UpdateDirectChatMessageRequestDto
+    {
+        public string? Content { get; set; }
+    }
+
+    public class UpdateDirectChatSearchPrivacyRequestDto
+    {
+        public bool IsHiddenFromChatSearch { get; set; }
+    }
+
     public class DirectChatBlockRequestDto
     {
         public long? RoomId { get; set; }

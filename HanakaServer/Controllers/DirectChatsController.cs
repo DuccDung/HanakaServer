@@ -43,6 +43,57 @@ namespace HanakaServer.Controllers
             _realtimeHub = realtimeHub;
         }
 
+        [HttpGet("settings/search-privacy")]
+        public async Task<IActionResult> GetSearchPrivacy(CancellationToken ct = default)
+        {
+            var userId = GetUserIdFromToken();
+
+            var setting = await _db.Users
+                .AsNoTracking()
+                .Where(x => x.UserId == userId && x.IsActive)
+                .Select(x => new
+                {
+                    x.IsHiddenFromChatSearch
+                })
+                .FirstOrDefaultAsync(ct);
+
+            if (setting == null)
+            {
+                return NotFound(new { message = "Không tìm thấy người dùng." });
+            }
+
+            return Ok(new
+            {
+                setting.IsHiddenFromChatSearch
+            });
+        }
+
+        [HttpPut("settings/search-privacy")]
+        public async Task<IActionResult> UpdateSearchPrivacy(
+            [FromBody] UpdateDirectChatSearchPrivacyRequestDto? req,
+            CancellationToken ct = default)
+        {
+            var userId = GetUserIdFromToken();
+
+            var user = await _db.Users
+                .FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive, ct);
+
+            if (user == null)
+            {
+                return NotFound(new { message = "Không tìm thấy người dùng." });
+            }
+
+            user.IsHiddenFromChatSearch = req?.IsHiddenFromChatSearch == true;
+            user.UpdatedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync(ct);
+
+            return Ok(new
+            {
+                user.IsHiddenFromChatSearch
+            });
+        }
+
         [HttpGet("users/search")]
         public async Task<IActionResult> SearchUsers(
             [FromQuery] string? keyword,
@@ -65,7 +116,10 @@ namespace HanakaServer.Controllers
 
             var q = _db.Users
                 .AsNoTracking()
-                .Where(x => x.IsActive && x.UserId != userId);
+                .Where(x =>
+                    x.IsActive &&
+                    !x.IsHiddenFromChatSearch &&
+                    x.UserId != userId);
 
             q = q.Where(x =>
                 x.FullName.Contains(k) ||
@@ -155,7 +209,12 @@ namespace HanakaServer.Controllers
                 .Include(x => x.User2)
                 .Include(x => x.LastMessage)
                     .ThenInclude(x => x!.SenderUser)
-                .Where(x => x.IsActive && (x.User1Id == userId || x.User2Id == userId));
+                .Where(x =>
+                    x.IsActive &&
+                    (x.User1Id == userId || x.User2Id == userId) &&
+                    !x.DirectChatRoomParticipants.Any(p =>
+                        p.UserId == userId &&
+                        p.IsDeleted));
 
             var total = await q.CountAsync(ct);
 
@@ -231,6 +290,8 @@ namespace HanakaServer.Controllers
             var existingRoom = await LoadRoomWithUsersAsync(pair.User1Id, pair.User2Id, ct);
             if (existingRoom != null)
             {
+                await RestoreParticipantRoomAsync(existingRoom.DirectChatRoomId, userId, ct);
+
                 var blocks = await LoadBlockStatesAsync(userId, new[] { req.TargetUserId }, ct);
                 return Ok(new
                 {
@@ -286,6 +347,86 @@ namespace HanakaServer.Controllers
             {
                 message = "Tạo cuộc trò chuyện thành công.",
                 item = BuildRoomItem(savedRoom!, userId, emptyBlocks, new Dictionary<long, int>())
+            });
+        }
+
+        [HttpDelete("rooms/{roomId:long}")]
+        public async Task<IActionResult> DeleteRoom(long roomId, CancellationToken ct)
+        {
+            var userId = GetUserIdFromToken();
+            var roomExists = await _db.DirectChatRooms
+                .AsNoTracking()
+                .AnyAsync(x =>
+                    x.DirectChatRoomId == roomId &&
+                    x.IsActive &&
+                    (x.User1Id == userId || x.User2Id == userId),
+                    ct);
+
+            if (!roomExists)
+            {
+                return NotFound(new { message = "Không tìm thấy cuộc trò chuyện." });
+            }
+
+            var now = DateTime.UtcNow;
+            var participant = await _db.DirectChatRoomParticipants
+                .FirstOrDefaultAsync(x => x.DirectChatRoomId == roomId && x.UserId == userId, ct);
+
+            if (participant == null)
+            {
+                participant = new DirectChatRoomParticipant
+                {
+                    DirectChatRoomId = roomId,
+                    UserId = userId,
+                    CreatedAt = now
+                };
+                _db.DirectChatRoomParticipants.Add(participant);
+            }
+
+            participant.IsDeleted = true;
+            participant.DeletedAt = now;
+            participant.UpdatedAt = now;
+            await _db.SaveChangesAsync(ct);
+
+            return Ok(new
+            {
+                message = "Đã xóa cuộc trò chuyện khỏi danh sách của bạn.",
+                roomId,
+                directChatRoomId = roomId
+            });
+        }
+
+        [HttpGet("rooms/{roomId:long}")]
+        public async Task<IActionResult> GetRoom(long roomId, CancellationToken ct)
+        {
+            var userId = GetUserIdFromToken();
+            var room = await LoadRoomByIdWithUsersAsync(roomId, ct);
+
+            if (room == null || !IsRoomMember(room, userId))
+            {
+                return NotFound(new { message = "Không tìm thấy cuộc trò chuyện." });
+            }
+
+            var otherUserId = GetOtherUserId(room, userId);
+            var blocks = await LoadBlockStatesAsync(userId, new[] { otherUserId }, ct);
+            var participant = await _db.DirectChatRoomParticipants
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.DirectChatRoomId == roomId && x.UserId == userId, ct);
+            var lastReadMessageId = participant?.LastReadMessageId ?? 0;
+            var unreadCount = await _db.DirectChatMessages
+                .AsNoTracking()
+                .CountAsync(x =>
+                    x.DirectChatRoomId == roomId &&
+                    x.DirectChatMessageId > lastReadMessageId &&
+                    x.SenderUserId != userId &&
+                    !x.IsDeleted,
+                    ct);
+
+            return Ok(new
+            {
+                item = BuildRoomItem(room, userId, blocks, new Dictionary<long, int>
+                {
+                    [roomId] = unreadCount
+                })
             });
         }
 
@@ -388,7 +529,7 @@ namespace HanakaServer.Controllers
             var messageType = NormalizeMessageType(req?.MessageType);
             if (messageType != "text" && messageType != "image")
             {
-                return BadRequest(new { message = "MessageType chỉ hỗ trợ text hoặc image." });
+                return BadRequest(new { message = "Loại tin nhắn chỉ hỗ trợ văn bản hoặc hình ảnh." });
             }
 
             var content = string.IsNullOrWhiteSpace(req?.Content) ? null : req.Content.Trim();
@@ -538,6 +679,116 @@ namespace HanakaServer.Controllers
             });
         }
 
+        [HttpPatch("messages/{messageId:long}")]
+        public async Task<IActionResult> UpdateMessage(
+            long messageId,
+            [FromBody] UpdateDirectChatMessageRequestDto? req,
+            CancellationToken ct)
+        {
+            var userId = GetUserIdFromToken();
+            var message = await _db.DirectChatMessages
+                .Include(x => x.DirectChatRoom)
+                .FirstOrDefaultAsync(x => x.DirectChatMessageId == messageId && !x.IsDeleted, ct);
+
+            if (message == null || !IsRoomMember(message.DirectChatRoom, userId))
+            {
+                return NotFound(new { message = "Tin nh\u1eafn kh\u00f4ng t\u1ed3n t\u1ea1i." });
+            }
+
+            if (message.SenderUserId != userId)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    message = "B\u1ea1n ch\u1ec9 c\u00f3 th\u1ec3 s\u1eeda tin nh\u1eafn c\u1ee7a ch\u00ednh m\u00ecnh."
+                });
+            }
+
+            if (message.IsRecalled)
+            {
+                return BadRequest(new { message = "Tin nh\u1eafn \u0111\u00e3 thu h\u1ed3i kh\u00f4ng th\u1ec3 s\u1eeda." });
+            }
+
+            if (!string.Equals(message.MessageType, "text", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = "Ch\u1ec9 h\u1ed7 tr\u1ee3 s\u1eeda tin nh\u1eafn v\u0103n b\u1ea3n." });
+            }
+
+            var content = string.IsNullOrWhiteSpace(req?.Content) ? null : req.Content.Trim();
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return BadRequest(new { message = "N\u1ed9i dung tin nh\u1eafn kh\u00f4ng \u0111\u01b0\u1ee3c \u0111\u1ec3 tr\u1ed1ng." });
+            }
+
+            if (ContainsObjectionableChatContent(content))
+            {
+                return BadRequest(new { message = "N\u1ed9i dung tin nh\u1eafn vi ph\u1ea1m ti\u00eau chu\u1ea9n c\u1ed9ng \u0111\u1ed3ng." });
+            }
+
+            if (!string.Equals(message.Content, content, StringComparison.Ordinal))
+            {
+                var now = DateTime.UtcNow;
+                message.Content = content;
+                message.EditedAt = now;
+                message.DirectChatRoom.UpdatedAt = now;
+                await _db.SaveChangesAsync(ct);
+            }
+
+            var saved = await LoadMessageByIdAsync(messageId, ct);
+            var item = BuildMessageItem(saved!);
+
+            await _realtimeHub.SendDirectMessageUpdatedAsync(message.DirectChatRoomId, messageId, item);
+
+            return Ok(new
+            {
+                message = "\u0110\u00e3 c\u1eadp nh\u1eadt tin nh\u1eafn.",
+                item
+            });
+        }
+
+        [HttpDelete("messages/{messageId:long}")]
+        public async Task<IActionResult> DeleteMessage(long messageId, CancellationToken ct)
+        {
+            var userId = GetUserIdFromToken();
+            var message = await _db.DirectChatMessages
+                .Include(x => x.DirectChatRoom)
+                .FirstOrDefaultAsync(x => x.DirectChatMessageId == messageId && !x.IsDeleted, ct);
+
+            if (message == null || !IsRoomMember(message.DirectChatRoom, userId))
+            {
+                return NotFound(new { message = "Tin nh\u1eafn kh\u00f4ng t\u1ed3n t\u1ea1i." });
+            }
+
+            if (message.SenderUserId != userId)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new
+                {
+                    message = "B\u1ea1n ch\u1ec9 c\u00f3 th\u1ec3 x\u00f3a tin nh\u1eafn c\u1ee7a ch\u00ednh m\u00ecnh."
+                });
+            }
+
+            var now = DateTime.UtcNow;
+            message.IsDeleted = true;
+            message.DeletedAt = now;
+            message.DirectChatRoom.UpdatedAt = now;
+
+            if (message.DirectChatRoom.LastMessageId == message.DirectChatMessageId)
+            {
+                await RefreshRoomLastMessageAsync(message.DirectChatRoom, message.DirectChatMessageId, ct);
+            }
+
+            await _db.SaveChangesAsync(ct);
+            await _realtimeHub.SendDirectMessageDeletedAsync(message.DirectChatRoomId, messageId);
+
+            return Ok(new
+            {
+                message = "\u0110\u00e3 x\u00f3a tin nh\u1eafn.",
+                messageId,
+                directChatMessageId = messageId,
+                roomId = message.DirectChatRoomId,
+                directChatRoomId = message.DirectChatRoomId
+            });
+        }
+
         [HttpPost("users/{targetUserId:long}/block")]
         public async Task<IActionResult> BlockUser(
             long targetUserId,
@@ -681,7 +932,7 @@ namespace HanakaServer.Controllers
             var uid = User.FindFirstValue("uid") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(uid) || !long.TryParse(uid, out var userId))
             {
-                throw new UnauthorizedAccessException("Invalid token: missing uid.");
+                throw new UnauthorizedAccessException("Token không hợp lệ: thiếu uid.");
             }
 
             return userId;
@@ -738,6 +989,32 @@ namespace HanakaServer.Controllers
             await _db.SaveChangesAsync(ct);
         }
 
+        private async Task RestoreParticipantRoomAsync(long roomId, long userId, CancellationToken ct)
+        {
+            var now = DateTime.UtcNow;
+            var participant = await _db.DirectChatRoomParticipants
+                .FirstOrDefaultAsync(x => x.DirectChatRoomId == roomId && x.UserId == userId, ct);
+
+            if (participant == null)
+            {
+                _db.DirectChatRoomParticipants.Add(new DirectChatRoomParticipant
+                {
+                    DirectChatRoomId = roomId,
+                    UserId = userId,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                });
+            }
+            else if (participant.IsDeleted)
+            {
+                participant.IsDeleted = false;
+                participant.DeletedAt = null;
+                participant.UpdatedAt = now;
+            }
+
+            await _db.SaveChangesAsync(ct);
+        }
+
         private async Task TouchParticipantsAsync(long roomId, IEnumerable<long> userIds, DateTime now, CancellationToken ct)
         {
             var existing = await _db.DirectChatRoomParticipants
@@ -765,6 +1042,27 @@ namespace HanakaServer.Controllers
                 participant.ArchivedAt = null;
                 participant.UpdatedAt = now;
             }
+        }
+
+        private async Task RefreshRoomLastMessageAsync(DirectChatRoom room, long excludedMessageId, CancellationToken ct)
+        {
+            var latest = await _db.DirectChatMessages
+                .AsNoTracking()
+                .Where(x =>
+                    x.DirectChatRoomId == room.DirectChatRoomId &&
+                    x.DirectChatMessageId != excludedMessageId &&
+                    !x.IsDeleted)
+                .OrderByDescending(x => x.SentAt)
+                .ThenByDescending(x => x.DirectChatMessageId)
+                .Select(x => new
+                {
+                    x.DirectChatMessageId,
+                    x.SentAt
+                })
+                .FirstOrDefaultAsync(ct);
+
+            room.LastMessageId = latest?.DirectChatMessageId;
+            room.LastMessageAt = latest?.SentAt;
         }
 
         private async Task<DirectChatRoom?> ResolveRoomForBlockAsync(
@@ -944,6 +1242,7 @@ namespace HanakaServer.Controllers
                 mediaUrl = isRecalled ? null : ToAbsoluteUrl(message.MediaUrl),
                 replyToMessageId = message.ReplyToMessageId,
                 sentAt = message.SentAt,
+                editedAt = message.EditedAt,
                 isRecalled,
                 recalledAt = message.RecalledAt,
                 recalledByUserId = message.RecalledByUserId,
@@ -959,6 +1258,7 @@ namespace HanakaServer.Controllers
                     content = message.ReplyToMessage.IsRecalled ? null : message.ReplyToMessage.Content,
                     messageType = message.ReplyToMessage.MessageType,
                     senderUserId = message.ReplyToMessage.SenderUserId,
+                    editedAt = message.ReplyToMessage.EditedAt,
                     isRecalled = message.ReplyToMessage.IsRecalled
                 }
             };

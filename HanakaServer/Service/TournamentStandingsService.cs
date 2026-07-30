@@ -103,7 +103,7 @@ namespace HanakaServer.Services
                     RegistrationId = registrationId,
                     TeamName = regMap.TryGetValue(registrationId, out var reg)
                         ? reg.TeamName
-                        : $"Doi #{registrationId}"
+                        : $"Đội #{registrationId}"
                 };
             }
 

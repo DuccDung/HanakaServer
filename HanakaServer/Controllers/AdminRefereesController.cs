@@ -236,7 +236,7 @@ namespace HanakaServer.Controllers.Admin
                 return "Không tìm thấy User tương ứng với ExternalId hiện tại.";
 
             if (!linkedUser.IsActive)
-                return "User liên kết đã bị vô hiệu hoá.";
+                return "Người dùng liên kết đã bị vô hiệu hóa.";
 
             return null;
         }
@@ -612,11 +612,11 @@ namespace HanakaServer.Controllers.Admin
                 return NotFound(new { message = "Không tìm thấy user tương ứng." });
 
             if (!user.IsActive)
-                return BadRequest(new { message = "User này đang bị vô hiệu hoá, không thể tạo hồ sơ trọng tài." });
+                return BadRequest(new { message = "Người dùng này đang bị vô hiệu hóa, không thể tạo hồ sơ trọng tài." });
 
             var existedReferee = await _db.Referees.AnyAsync(x => x.ExternalId == user.UserId.ToString());
             if (existedReferee)
-                return BadRequest(new { message = "User này đã có hồ sơ trọng tài." });
+                return BadRequest(new { message = "Người dùng này đã có hồ sơ trọng tài." });
 
             await EnsureInitialRatingHistoryAsync(user.UserId);
             var latestRating = await GetLatestRatingAsync(user.UserId);
@@ -671,11 +671,11 @@ namespace HanakaServer.Controllers.Admin
                 return NotFound(new { message = "Không tìm thấy user tương ứng." });
 
             if (!user.IsActive)
-                return BadRequest(new { message = "User này đang bị vô hiệu hoá, không thể liên kết làm trọng tài." });
+                return BadRequest(new { message = "Người dùng này đang bị vô hiệu hóa, không thể liên kết làm trọng tài." });
 
             var existsExt = await _db.Referees.AnyAsync(x => x.ExternalId == user.UserId.ToString() && x.RefereeId != id);
             if (existsExt)
-                return BadRequest(new { message = "User này đã được liên kết với hồ sơ trọng tài khác." });
+                return BadRequest(new { message = "Người dùng này đã được liên kết với hồ sơ trọng tài khác." });
 
             await EnsureInitialRatingHistoryAsync(user.UserId);
             var latestRating = await GetLatestRatingAsync(user.UserId);
@@ -732,7 +732,7 @@ namespace HanakaServer.Controllers.Admin
                 return NotFound(new { message = "Không tìm thấy user tương ứng." });
 
             if (!user.IsActive)
-                return BadRequest(new { message = "User đang bị vô hiệu hoá, không thể đồng bộ." });
+                return BadRequest(new { message = "Người dùng đang bị vô hiệu hóa, không thể đồng bộ." });
 
             await EnsureInitialRatingHistoryAsync(user.UserId);
             var latestRating = await GetLatestRatingAsync(user.UserId);

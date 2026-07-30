@@ -35,7 +35,7 @@ namespace HanakaServer.Controllers
             var reporterUserId = await TryGetCurrentUserIdAsync();
             if (!reporterUserId.HasValue)
             {
-                return Unauthorized(new { message = "Authentication is required." });
+                return Unauthorized(new { message = "Vui lòng đăng nhập để tiếp tục." });
             }
 
             if (limit < 1) limit = 20;
@@ -54,7 +54,10 @@ namespace HanakaServer.Controllers
                     reasonLabel = x.ReasonLabel,
                     notes = x.Notes,
                     clubId = x.ClubId,
-                    messageId = x.MessageId,
+                    messageId = x.MessageId ?? x.DirectChatMessageId,
+                    clubMessageId = x.MessageId,
+                    directChatRoomId = x.DirectChatRoomId,
+                    directChatMessageId = x.DirectChatMessageId,
                     messageContent = x.MessageContentSnapshot,
                     targetUserId = x.TargetUserId,
                     targetUserName = x.TargetUser != null
@@ -87,7 +90,7 @@ namespace HanakaServer.Controllers
             var blockerUserId = await TryGetCurrentUserIdAsync();
             if (!blockerUserId.HasValue)
             {
-                return Unauthorized(new { message = "Authentication is required." });
+                return Unauthorized(new { message = "Vui lòng đăng nhập để tiếp tục." });
             }
 
             var items = await _db.UserBlocks
@@ -136,7 +139,7 @@ namespace HanakaServer.Controllers
             {
                 if (!isDemoSource)
                 {
-                    return Unauthorized(new { message = "Authentication is required." });
+                    return Unauthorized(new { message = "Vui lòng đăng nhập để tiếp tục." });
                 }
 
                 return Ok(new
@@ -150,22 +153,54 @@ namespace HanakaServer.Controllers
             var reporter = await LoadUserBriefAsync(reporterUserId.Value, ct);
             if (reporter == null || !reporter.IsActive)
             {
-                return NotFound(new { message = "Reporter user was not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng gửi báo cáo." });
             }
 
-            var messageContext = dto.MessageId.HasValue && dto.MessageId.Value > 0
-                ? await LoadMessageContextAsync(dto.MessageId.Value, ct)
+            var reportType = NormalizeReportType(dto.Kind);
+            var requestedDirectMessageId = dto.DirectChatMessageId;
+            if (!requestedDirectMessageId.HasValue && IsDirectReportSource(reportSource) && dto.MessageId.HasValue)
+            {
+                requestedDirectMessageId = dto.MessageId;
+            }
+
+            var messageContext = requestedDirectMessageId.HasValue && requestedDirectMessageId.Value > 0
+                ? await LoadDirectMessageContextAsync(requestedDirectMessageId.Value, reporter.UserId, ct)
                 : null;
 
+            if (requestedDirectMessageId.HasValue && requestedDirectMessageId.Value > 0 && messageContext == null)
+            {
+                return NotFound(new { message = "Direct chat message was not found." });
+            }
+
+            if (messageContext == null && dto.MessageId.HasValue && dto.MessageId.Value > 0 && !IsDirectReportSource(reportSource))
+            {
+                messageContext = await LoadClubMessageContextAsync(dto.MessageId.Value, ct);
+            }
+
+            if (messageContext?.DirectChatMessageId.HasValue == true &&
+                messageContext.DirectChatRoomId.HasValue &&
+                dto.DirectChatRoomId.HasValue &&
+                dto.DirectChatRoomId.Value > 0 &&
+                dto.DirectChatRoomId.Value != messageContext.DirectChatRoomId.Value)
+            {
+                return BadRequest(new { message = "Message does not belong to the selected direct chat room." });
+            }
+
+            if (messageContext?.DirectChatMessageId.HasValue == true &&
+                messageContext.SenderUserId == reporter.UserId)
+            {
+                return BadRequest(new { message = "You cannot report your own message." });
+            }
+
             var targetUserId = dto.TargetUserId;
-            if (!targetUserId.HasValue && messageContext?.SenderUserId > 0)
+            if (reportType == "MESSAGE" && messageContext?.SenderUserId > 0)
             {
                 targetUserId = messageContext.SenderUserId;
             }
 
             if (!targetUserId.HasValue && messageContext == null)
             {
-                return BadRequest(new { message = "A report must reference a user or a message." });
+                return BadRequest(new { message = "Báo cáo phải liên kết với một người dùng hoặc tin nhắn." });
             }
 
             var targetUser = targetUserId.HasValue
@@ -173,7 +208,15 @@ namespace HanakaServer.Controllers
                 : null;
 
             long? clubId = await ResolveExistingClubIdAsync(dto.ClubId, messageContext, ct);
-            long? messageId = messageContext?.MessageId;
+            long? directChatRoomId = await ResolveExistingDirectChatRoomIdAsync(
+                dto.DirectChatRoomId,
+                messageContext,
+                reporter.UserId,
+                ct);
+            long? messageId = messageContext?.DirectChatMessageId.HasValue == true
+                ? null
+                : messageContext?.MessageId;
+            long? directChatMessageId = messageContext?.DirectChatMessageId;
             var messageContent = Clean(dto.MessageContent, 2000) ?? messageContext?.Content;
 
             var reportEntity = new ModerationReport
@@ -182,7 +225,9 @@ namespace HanakaServer.Controllers
                 TargetUserId = targetUser?.UserId,
                 ClubId = clubId,
                 MessageId = messageId,
-                ReportType = NormalizeReportType(dto.Kind),
+                DirectChatRoomId = directChatRoomId,
+                DirectChatMessageId = directChatMessageId,
+                ReportType = reportType,
                 ReasonCode = NormalizeReasonCode(dto.Reason),
                 ReasonLabel = Clean(dto.ReasonLabel, 150) ?? BuildReasonLabel(dto.Reason),
                 Notes = Clean(dto.Notes, 1000),
@@ -228,7 +273,7 @@ namespace HanakaServer.Controllers
             {
                 if (!isDemoSource)
                 {
-                    return Unauthorized(new { message = "Authentication is required." });
+                    return Unauthorized(new { message = "Vui lòng đăng nhập để tiếp tục." });
                 }
 
                 return Ok(new
@@ -262,7 +307,7 @@ namespace HanakaServer.Controllers
 
             if (blockedUserId.Value == blocker.UserId)
             {
-                return BadRequest(new { message = "You cannot block yourself." });
+                return BadRequest(new { message = "Bạn không thể tự chặn chính mình." });
             }
 
             var blockedUser = await LoadUserBriefAsync(blockedUserId.Value, ct);
@@ -270,7 +315,7 @@ namespace HanakaServer.Controllers
             {
                 if (!isDemoSource)
                 {
-                    return NotFound(new { message = "Blocked user was not found." });
+                    return NotFound(new { message = "Không tìm thấy người dùng bị chặn." });
                 }
 
                 var demoReasonCode = NormalizeReasonCode(dto.Reason);
@@ -284,10 +329,10 @@ namespace HanakaServer.Controllers
                     ReportType = "USER",
                     ReasonCode = demoReasonCode,
                     ReasonLabel = BuildReasonLabel(dto.Reason),
-                    Notes = "Demo/review user was blocked in the app and should be reviewed by moderators.",
+                    Notes = "Người dùng thử nghiệm/đánh giá đã bị chặn trong ứng dụng và cần được quản trị viên xem xét.",
                     MessageContentSnapshot = messageContext?.Content,
                     ReporterNameSnapshot = blocker.FullName,
-                    TargetNameSnapshot = Clean(dto.FullName, 150) ?? "Demo user",
+                    TargetNameSnapshot = Clean(dto.FullName, 150) ?? "Người dùng thử nghiệm",
                     Source = "BLOCK_ACTION",
                     Status = "PENDING",
                     DeveloperNotified = true,
@@ -342,7 +387,7 @@ namespace HanakaServer.Controllers
                 ReportType = "USER",
                 ReasonCode = reasonCode,
                 ReasonLabel = BuildReasonLabel(dto.Reason),
-                Notes = "User was blocked in the app and should be reviewed by moderators.",
+                Notes = "Người dùng đã bị chặn trong ứng dụng và cần được quản trị viên xem xét.",
                 MessageContentSnapshot = messageContext?.Content,
                 ReporterNameSnapshot = blocker.FullName,
                 TargetNameSnapshot = blockedUser.FullName,
@@ -389,7 +434,7 @@ namespace HanakaServer.Controllers
             var blockerUserId = await TryGetCurrentUserIdAsync();
             if (!blockerUserId.HasValue)
             {
-                return Unauthorized(new { message = "Authentication is required." });
+                return Unauthorized(new { message = "Vui lòng đăng nhập để tiếp tục." });
             }
 
             var entity = await _db.UserBlocks
@@ -465,6 +510,11 @@ namespace HanakaServer.Controllers
 
         private async Task<MessageContextDto?> LoadMessageContextAsync(long messageId, CancellationToken ct)
         {
+            return await LoadClubMessageContextAsync(messageId, ct);
+        }
+
+        private async Task<MessageContextDto?> LoadClubMessageContextAsync(long messageId, CancellationToken ct)
+        {
             return await _db.ClubMessages
                 .AsNoTracking()
                 .Where(x => x.MessageId == messageId)
@@ -478,6 +528,33 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(ct);
         }
 
+        private async Task<MessageContextDto?> LoadDirectMessageContextAsync(
+            long directChatMessageId,
+            long reporterUserId,
+            CancellationToken ct)
+        {
+            return await _db.DirectChatMessages
+                .AsNoTracking()
+                .Where(x =>
+                    x.DirectChatMessageId == directChatMessageId &&
+                    !x.IsDeleted &&
+                    x.DirectChatRoom.IsActive &&
+                    (x.DirectChatRoom.User1Id == reporterUserId ||
+                     x.DirectChatRoom.User2Id == reporterUserId))
+                .Select(x => new MessageContextDto
+                {
+                    DirectChatMessageId = x.DirectChatMessageId,
+                    DirectChatRoomId = x.DirectChatRoomId,
+                    SenderUserId = x.SenderUserId,
+                    Content = x.IsRecalled
+                        ? null
+                        : x.MessageType == "text"
+                            ? x.Content
+                            : x.MediaUrl
+                })
+                .FirstOrDefaultAsync(ct);
+        }
+
         private async Task<long?> ResolveExistingClubIdAsync(
             long? requestedClubId,
             MessageContextDto? messageContext,
@@ -485,7 +562,7 @@ namespace HanakaServer.Controllers
         {
             if (messageContext?.ClubId > 0)
             {
-                return messageContext.ClubId;
+                return messageContext.ClubId.Value;
             }
 
             if (!requestedClubId.HasValue || requestedClubId.Value <= 0)
@@ -498,6 +575,33 @@ namespace HanakaServer.Controllers
                 .AnyAsync(x => x.ClubId == requestedClubId.Value, ct);
 
             return exists ? requestedClubId.Value : null;
+        }
+
+        private async Task<long?> ResolveExistingDirectChatRoomIdAsync(
+            long? requestedRoomId,
+            MessageContextDto? messageContext,
+            long reporterUserId,
+            CancellationToken ct)
+        {
+            if (messageContext?.DirectChatRoomId > 0)
+            {
+                return messageContext.DirectChatRoomId.Value;
+            }
+
+            if (!requestedRoomId.HasValue || requestedRoomId.Value <= 0)
+            {
+                return null;
+            }
+
+            var exists = await _db.DirectChatRooms
+                .AsNoTracking()
+                .AnyAsync(x =>
+                    x.DirectChatRoomId == requestedRoomId.Value &&
+                    x.IsActive &&
+                    (x.User1Id == reporterUserId || x.User2Id == reporterUserId),
+                    ct);
+
+            return exists ? requestedRoomId.Value : null;
         }
 
         private async Task<object?> BuildPersistedReportItemAsync(long reportId, CancellationToken ct)
@@ -513,7 +617,10 @@ namespace HanakaServer.Controllers
                     reasonLabel = x.ReasonLabel,
                     notes = x.Notes,
                     clubId = x.ClubId,
-                    messageId = x.MessageId,
+                    messageId = x.MessageId ?? x.DirectChatMessageId,
+                    clubMessageId = x.MessageId,
+                    directChatRoomId = x.DirectChatRoomId,
+                    directChatMessageId = x.DirectChatMessageId,
                     messageContent = x.MessageContentSnapshot,
                     targetUserId = x.TargetUserId,
                     targetUserName = x.TargetUser != null
@@ -566,7 +673,10 @@ namespace HanakaServer.Controllers
                 reasonLabel = report.ReasonLabel,
                 notes = report.Notes,
                 clubId = report.ClubId,
-                messageId = report.MessageId,
+                messageId = report.MessageId ?? report.DirectChatMessageId,
+                clubMessageId = report.MessageId,
+                directChatRoomId = report.DirectChatRoomId,
+                directChatMessageId = report.DirectChatMessageId,
                 messageContent = report.MessageContentSnapshot,
                 targetUserId = report.TargetUserId,
                 targetUserName = targetUser?.FullName ?? report.TargetNameSnapshot,
@@ -619,7 +729,10 @@ namespace HanakaServer.Controllers
                 reasonLabel = Clean(dto.ReasonLabel, 150) ?? BuildReasonLabel(dto.Reason),
                 notes = Clean(dto.Notes, 1000),
                 clubId = dto.ClubId ?? messageContext?.ClubId,
-                messageId = dto.MessageId ?? messageContext?.MessageId,
+                messageId = dto.MessageId ?? messageContext?.MessageId ?? dto.DirectChatMessageId ?? messageContext?.DirectChatMessageId,
+                clubMessageId = dto.MessageId ?? messageContext?.MessageId,
+                directChatRoomId = dto.DirectChatRoomId ?? messageContext?.DirectChatRoomId,
+                directChatMessageId = dto.DirectChatMessageId ?? messageContext?.DirectChatMessageId,
                 messageContent = Clean(dto.MessageContent, 2000) ?? messageContext?.Content,
                 targetUserId = dto.TargetUserId ?? targetUser?.UserId ?? messageContext?.SenderUserId,
                 targetUserName = targetUser?.FullName ?? Clean(dto.TargetUserName, 150),
@@ -794,6 +907,13 @@ namespace HanakaServer.Controllers
             return "SYSTEM";
         }
 
+        private static bool IsDirectReportSource(string? source)
+        {
+            var normalized = NormalizeReportSource(source);
+            return normalized.StartsWith("DIRECT_CHAT", StringComparison.Ordinal) ||
+                   normalized.StartsWith("DIRECT", StringComparison.Ordinal);
+        }
+
         private static bool IsDemoSource(string? source)
         {
             return !string.IsNullOrWhiteSpace(source) &&
@@ -831,11 +951,11 @@ namespace HanakaServer.Controllers
         {
             return NormalizeReasonCode(reason) switch
             {
-                "HATE_OR_HARASSMENT" => "Harassment or hate speech",
-                "VIOLENT_THREAT" => "Violent threat",
-                "SEXUAL_CONTENT" => "Sexual or explicit content",
-                "SPAM_OR_SCAM" => "Spam or scam",
-                _ => "Other"
+                "HATE_OR_HARASSMENT" => "Quấy rối hoặc ngôn từ thù ghét",
+                "VIOLENT_THREAT" => "Đe dọa bạo lực",
+                "SEXUAL_CONTENT" => "Nội dung tình dục hoặc nhạy cảm",
+                "SPAM_OR_SCAM" => "Thư rác hoặc lừa đảo",
+                _ => "Khác"
             };
         }
 
@@ -862,43 +982,45 @@ namespace HanakaServer.Controllers
             UserBriefDto reporter,
             UserBriefDto? targetUser)
         {
-            var targetName = targetUser?.FullName ?? report.TargetNameSnapshot ?? "Unknown";
+            var targetName = targetUser?.FullName ?? report.TargetNameSnapshot ?? "Không xác định";
             return $"""
             <!DOCTYPE html>
-            <html lang="en">
+            <html lang="vi">
             <head>
                 <meta charset="UTF-8" />
-                <title>Moderation Report</title>
+                <title>Báo cáo kiểm duyệt</title>
             </head>
             <body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
                 <div style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;padding:24px;">
                     <div style="display:inline-block;background:#dbeafe;color:#1d4ed8;padding:8px 14px;border-radius:999px;font-size:12px;font-weight:700;">
-                        Hanaka Sport Moderation
+                            Kiểm duyệt Hanaka Sport
                     </div>
-                    <h2 style="margin:16px 0 8px;">Community report received</h2>
+                        <h2 style="margin:16px 0 8px;">Đã nhận báo cáo cộng đồng</h2>
                     <p style="margin:0 0 20px;line-height:1.6;">
-                        Report <strong>#{HtmlEncode(report.ReportId.ToString())}</strong> should be reviewed within 24 hours.
+                            Báo cáo <strong>#{HtmlEncode(report.ReportId.ToString())}</strong> cần được xem xét trong vòng 24 giờ.
                     </p>
 
                     <table style="width:100%;border-collapse:collapse;">
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;width:220px;">Created at (UTC)</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"))}</td></tr>
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Source</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.Source)}</td></tr>
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Report type</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.ReportType)}</td></tr>
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Reason</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.ReasonLabel ?? report.ReasonCode)}</td></tr>
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Reporter</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(reporter.FullName)} (ID: {HtmlEncode(reporter.UserId.ToString())}, Email: {HtmlEncode(reporter.Email)})</td></tr>
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Target user</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(targetName)} (ID: {HtmlEncode(report.TargetUserId?.ToString())})</td></tr>
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Club ID</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.ClubId?.ToString())}</td></tr>
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Message ID</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.MessageId?.ToString())}</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;width:220px;">Thời gian tạo (UTC)</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss"))}</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Nguồn</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.Source)}</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Loại báo cáo</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.ReportType)}</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Lý do</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.ReasonLabel ?? report.ReasonCode)}</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Người báo cáo</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(reporter.FullName)} (ID: {HtmlEncode(reporter.UserId.ToString())}, Email: {HtmlEncode(reporter.Email)})</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Người dùng bị báo cáo</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(targetName)} (ID: {HtmlEncode(report.TargetUserId?.ToString())})</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">ID câu lạc bộ</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.ClubId?.ToString())}</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">ID tin nhắn</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.MessageId?.ToString())}</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Direct chat room ID</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.DirectChatRoomId?.ToString())}</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Direct chat message ID</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.DirectChatMessageId?.ToString())}</td></tr>
                     </table>
 
                     <div style="margin-top:20px;">
-                        <div style="font-weight:700;margin-bottom:8px;">Message snapshot</div>
-                        <div style="padding:14px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;line-height:1.6;">{HtmlEncode(report.MessageContentSnapshot ?? "No snapshot attached.")}</div>
+                            <div style="font-weight:700;margin-bottom:8px;">Nội dung tin nhắn</div>
+                            <div style="padding:14px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;line-height:1.6;">{HtmlEncode(report.MessageContentSnapshot ?? "Không có nội dung đính kèm.")}</div>
                     </div>
 
                     <div style="margin-top:20px;">
-                        <div style="font-weight:700;margin-bottom:8px;">Reporter notes</div>
-                        <div style="padding:14px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;line-height:1.6;">{HtmlEncode(report.Notes ?? "No notes.")}</div>
+                            <div style="font-weight:700;margin-bottom:8px;">Ghi chú của người báo cáo</div>
+                            <div style="padding:14px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;line-height:1.6;">{HtmlEncode(report.Notes ?? "Không có ghi chú.")}</div>
                     </div>
                 </div>
             </body>
@@ -914,34 +1036,34 @@ namespace HanakaServer.Controllers
         {
             return $"""
             <!DOCTYPE html>
-            <html lang="en">
+            <html lang="vi">
             <head>
                 <meta charset="UTF-8" />
-                <title>Moderation Block</title>
+                <title>Cảnh báo chặn người dùng</title>
             </head>
             <body style="margin:0;padding:24px;background:#f8fafc;font-family:Arial,sans-serif;color:#0f172a;">
                 <div style="max-width:760px;margin:0 auto;background:#ffffff;border:1px solid #e2e8f0;border-radius:18px;padding:24px;">
                     <div style="display:inline-block;background:#fee2e2;color:#b91c1c;padding:8px 14px;border-radius:999px;font-size:12px;font-weight:700;">
-                        Hanaka Sport Block Alert
+                            Cảnh báo chặn từ Hanaka Sport
                     </div>
-                    <h2 style="margin:16px 0 8px;">User blocked in app</h2>
+                        <h2 style="margin:16px 0 8px;">Người dùng đã bị chặn trong ứng dụng</h2>
                     <p style="margin:0 0 20px;line-height:1.6;">
-                        Block <strong>#{HtmlEncode(block.BlockId.ToString())}</strong> and linked report <strong>#{HtmlEncode(report.ReportId.ToString())}</strong> should be reviewed by moderators.
+                            Lệnh chặn <strong>#{HtmlEncode(block.BlockId.ToString())}</strong> và báo cáo liên quan <strong>#{HtmlEncode(report.ReportId.ToString())}</strong> cần được quản trị viên xem xét.
                     </p>
 
                     <table style="width:100%;border-collapse:collapse;">
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;width:220px;">Blocked at (UTC)</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(block.BlockedAt.ToString("yyyy-MM-dd HH:mm:ss"))}</td></tr>
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Source</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(block.Source)}</td></tr>
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Reason</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.ReasonLabel ?? block.ReasonCode)}</td></tr>
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Blocker</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(blocker.FullName)} (ID: {HtmlEncode(blocker.UserId.ToString())}, Email: {HtmlEncode(blocker.Email)})</td></tr>
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Blocked user</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(blockedUser.FullName)} (ID: {HtmlEncode(blockedUser.UserId.ToString())})</td></tr>
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Club ID</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(block.SourceClubId?.ToString())}</td></tr>
-                        <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Message ID</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(block.SourceMessageId?.ToString())}</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;width:220px;">Thời gian chặn (UTC)</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(block.BlockedAt.ToString("yyyy-MM-dd HH:mm:ss"))}</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Nguồn</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(block.Source)}</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Lý do</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(report.ReasonLabel ?? block.ReasonCode)}</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Người chặn</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(blocker.FullName)} (ID: {HtmlEncode(blocker.UserId.ToString())}, Email: {HtmlEncode(blocker.Email)})</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">Người dùng bị chặn</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(blockedUser.FullName)} (ID: {HtmlEncode(blockedUser.UserId.ToString())})</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">ID câu lạc bộ</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(block.SourceClubId?.ToString())}</td></tr>
+                                <tr><td style="padding:10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:700;">ID tin nhắn</td><td style="padding:10px;border:1px solid #e2e8f0;">{HtmlEncode(block.SourceMessageId?.ToString())}</td></tr>
                     </table>
 
                     <div style="margin-top:20px;">
-                        <div style="font-weight:700;margin-bottom:8px;">Moderator note</div>
-                        <div style="padding:14px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;line-height:1.6;">{HtmlEncode(report.Notes ?? "No note attached.")}</div>
+                            <div style="font-weight:700;margin-bottom:8px;">Ghi chú kiểm duyệt</div>
+                            <div style="padding:14px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0;line-height:1.6;">{HtmlEncode(report.Notes ?? "Không có ghi chú đính kèm.")}</div>
                     </div>
                 </div>
             </body>
@@ -961,6 +1083,12 @@ namespace HanakaServer.Controllers
 
             [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
             public long? MessageId { get; set; }
+
+            [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+            public long? DirectChatRoomId { get; set; }
+
+            [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+            public long? DirectChatMessageId { get; set; }
 
             public string? MessageContent { get; set; }
 
@@ -999,8 +1127,10 @@ namespace HanakaServer.Controllers
 
         private class MessageContextDto
         {
-            public long MessageId { get; set; }
-            public long ClubId { get; set; }
+            public long? MessageId { get; set; }
+            public long? ClubId { get; set; }
+            public long? DirectChatRoomId { get; set; }
+            public long? DirectChatMessageId { get; set; }
             public long SenderUserId { get; set; }
             public string? Content { get; set; }
         }

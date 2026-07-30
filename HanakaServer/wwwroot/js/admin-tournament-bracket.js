@@ -36,6 +36,16 @@
         };
     }
 
+    function clampNumber(value, min, max) {
+        const number = Number(value);
+        const fallback = Number.isFinite(min) ? min : 0;
+        return Math.min(max, Math.max(min, Number.isFinite(number) ? number : fallback));
+    }
+
+    function formatPercent(value) {
+        return Math.round(toNumber(value) * 100) + "%";
+    }
+
     function parseDate(value) {
         if (!value) {
             return null;
@@ -251,7 +261,7 @@
             badge = sourceRank > 0 ? "R" + sourceRank : "R?";
             tone = "group-rank";
         } else if (sourceType === "BYE") {
-            badge = "BYE";
+            badge = "Miễn đấu";
             tone = "bye";
         }
 
@@ -286,7 +296,7 @@
         return details.join(" | ");
     }
 
-    function buildMatchCard(match, matchIndex, groupKey, groupName) {
+    function buildMatchCard(match, matchIndex, groupKey, groupName, roundIndex, roundKey, roundLabel) {
         const winnerId = match?.winnerRegistrationId;
         const isWinnerA = !!winnerId && winnerId === match?.team1RegistrationId;
         const isWinnerB = !!winnerId && winnerId === match?.team2RegistrationId;
@@ -300,6 +310,9 @@
             isCompleted: !!match?.isCompleted,
             hasVideo: !!trimToEmpty(match?.videoUrl),
             title: "#" + (trimToEmpty(match?.matchId) || (groupKey + "-" + (matchIndex + 1))),
+            roundIndex: roundIndex,
+            roundKey: roundKey,
+            roundLabel: roundLabel,
             groupKey: groupKey,
             groupName: groupName,
             metaText: buildMatchMeta(match),
@@ -324,12 +337,13 @@
 
     function buildActualGroup(round, group, roundIndex, groupIndex) {
         const roundKey = buildRoundKey(round, roundIndex);
+        const roundLabel = buildRoundLabel(round, roundIndex);
         const groupName = trimToEmpty(group?.groupName) || ("Bảng " + (groupIndex + 1));
         const groupKey = buildGroupDisplayKey(roundKey, groupName, groupIndex);
         const matches = Array.isArray(group?.matches) ? group.matches : [];
         const completedCount = matches.filter(function (match) { return !!match?.isCompleted; }).length;
         const matchCards = matches.map(function (match, matchIndex) {
-            return buildMatchCard(match, matchIndex, groupKey, groupName);
+            return buildMatchCard(match, matchIndex, groupKey, groupName, roundIndex, roundKey, roundLabel);
         });
 
         return {
@@ -350,6 +364,7 @@
 
         return {
             isSynthetic: false,
+            roundMapId: toNumber(round?.roundMapId) || toNumber(round?.tournamentRoundMapId),
             roundKey: buildRoundKey(round, roundIndex),
             roundLabel: buildRoundLabel(round, roundIndex),
             sortOrder: toNumber(round?.sortOrder),
@@ -753,7 +768,7 @@
         return boardHeight;
     }
 
-    function buildLinePaths(rounds, columnGap) {
+    function buildLinePaths(rounds) {
         const lines = [];
 
         for (let roundIndex = 1; roundIndex < rounds.length; roundIndex += 1) {
@@ -763,7 +778,6 @@
             currentRound.groups.forEach(function (targetGroup) {
                 const targetX = targetGroup.x;
                 const targetY = targetGroup.y + targetGroup.height / 2;
-                const midX = targetX - columnGap / 2;
 
                 (targetGroup.sourceIndexes || []).forEach(function (sourceIndex) {
                     const sourceGroup = previousRound.groups[sourceIndex];
@@ -775,7 +789,7 @@
                     const sourceX = sourceGroup.x + sourceGroup.width;
                     const sourceY = sourceGroup.y + sourceGroup.height / 2;
                     lines.push({
-                        d: "M " + sourceX + " " + sourceY + " H " + midX + " V " + targetY + " H " + targetX,
+                        d: buildConnectorPath({ x: sourceX, y: sourceY }, { x: targetX, y: targetY }),
                         type: "fallback",
                         className: "is-fallback"
                     });
@@ -786,7 +800,14 @@
         return lines;
     }
 
-    function applyHorizontalPanSpace(layout, scroller) {
+    function getVerticalPanSpace(scroller) {
+        const viewportHeight = Math.max(0, toNumber(scroller?.clientHeight));
+        return viewportHeight > 0
+            ? Math.max(720, Math.round(viewportHeight * 1.25))
+            : 720;
+    }
+
+    function applyPanSpace(layout, scroller) {
         if (!layout || !Array.isArray(layout.rounds) || layout.rounds.length === 0) {
             return;
         }
@@ -810,8 +831,10 @@
 
         layout.leftOffset += leftPadding;
         layout.width = baseWidth + leftPadding + rightPadding;
+        layout.verticalPanBottom = getVerticalPanSpace(scroller);
+        layout.height += layout.verticalPanBottom;
         layout.initialScrollLeft = Math.max(0, leftPadding - 48);
-        layout.lines = buildLinePaths(layout.rounds, layout.columnGap);
+        layout.lines = buildLinePaths(layout.rounds);
     }
 
     function buildLayout(payload) {
@@ -839,7 +862,7 @@
             topOffset: topOffset,
             bottomPadding: bottomPadding
         });
-        const lines = buildLinePaths(rounds, columnGap);
+        const lines = buildLinePaths(rounds);
 
         const boardWidth = leftOffset * 2 + rounds.length * columnWidth + Math.max(0, rounds.length - 1) * columnGap + 40;
         const summary = {
@@ -873,7 +896,7 @@
         ].filter(Boolean).join(" ");
 
         return [
-            '<article class="' + escapeHtml(classes) + '" data-match-id="' + escapeHtml(match.matchId || "") + '">',
+            '<article class="' + escapeHtml(classes) + '" data-match-id="' + escapeHtml(match.matchId || "") + '" data-round-index="' + escapeHtml(match.roundIndex ?? "") + '" data-round-key="' + escapeHtml(match.roundKey || "") + '" data-round-label="' + escapeHtml(match.roundLabel || "") + '" tabindex="0" role="button" title="Bấm để làm rõ dây liên kết">',
             '<div class="admin-bracket-match__top">',
             '<div class="admin-bracket-match__title">',
             '<div class="admin-bracket-match__group"><b>' + escapeHtml(match.groupKey || "") + "</b><span>" + escapeHtml(match.groupName || "") + "</span></div>",
@@ -933,7 +956,7 @@
             '<div class="admin-bracket-group__body">',
             displayMatches.length > 0
                 ? displayMatches.map(renderMatch).join("")
-                : '<div class="admin-bracket-group__empty">' + escapeHtml(group.isReal ? "Bảng này chưa có trận đấu." : "Admin chưa tạo bảng hoặc trận cho nhánh này.") + "</div>",
+                : '<div class="admin-bracket-group__empty">' + escapeHtml(group.isReal ? "Bảng này chưa có trận đấu." : "Quản trị viên chưa tạo bảng hoặc trận cho nhánh này.") + "</div>",
             "</div>",
             "</article>"
         ].join("");
@@ -946,7 +969,7 @@
         ].join(" ");
 
         return [
-            '<div class="' + escapeHtml(classes) + '" data-round-title-index="' + escapeHtml(roundIndex) + '" style="left:' + escapeHtml(round.x) + "px;top:" + escapeHtml(headerTop) + "px;width:" + escapeHtml(round.width) + 'px">',
+            '<div class="' + escapeHtml(classes) + '" data-round-title-index="' + escapeHtml(roundIndex) + '" data-round-map-id="' + escapeHtml(round.roundMapId || "") + '" style="left:' + escapeHtml(round.x) + "px;top:" + escapeHtml(headerTop) + "px;width:" + escapeHtml(round.width) + 'px">',
             '<div class="admin-bracket-round-title__text">',
             "<span>" + escapeHtml(round.roundKey) + "</span>",
             "<strong>" + escapeHtml(round.roundLabel) + "</strong>",
@@ -960,9 +983,28 @@
         ].join("");
     }
 
+    function renderLineDataAttributes(line) {
+        if (!line || typeof line === "string") {
+            return "";
+        }
+
+        const attributes = [
+            ["data-source-type", line.sourceType || line.type || ""],
+            ["data-source-match-id", line.sourceMatchId || ""],
+            ["data-source-group-id", line.sourceGroupId || ""],
+            ["data-target-match-id", line.targetMatchId || ""],
+            ["data-target-slot", line.targetSlot || ""]
+        ];
+
+        return attributes
+            .filter(function (entry) { return entry[1] !== ""; })
+            .map(function (entry) { return " " + entry[0] + '="' + escapeHtml(entry[1]) + '"'; })
+            .join("");
+    }
+
     function renderLinePath(line) {
         if (line?.shape === "circle") {
-            return '<circle class="' + escapeHtml(["admin-bracket-line-node", line?.className].filter(Boolean).join(" ")) + '" cx="' + escapeHtml(line.cx) + '" cy="' + escapeHtml(line.cy) + '" r="' + escapeHtml(line.r || 4) + '"></circle>';
+            return '<circle class="' + escapeHtml(["admin-bracket-line-node", line?.className].filter(Boolean).join(" ")) + '" cx="' + escapeHtml(line.cx) + '" cy="' + escapeHtml(line.cy) + '" r="' + escapeHtml(line.r || 4) + '"' + renderLineDataAttributes(line) + '></circle>';
         }
 
         const path = typeof line === "string" ? line : line?.d;
@@ -974,7 +1016,7 @@
             .filter(Boolean)
             .join(" ");
 
-        return '<path class="' + escapeHtml(classes) + '" d="' + escapeHtml(path) + '"></path>';
+        return '<path class="' + escapeHtml(classes) + '" d="' + escapeHtml(path) + '"' + renderLineDataAttributes(line) + '></path>';
     }
 
     function buildBoardHtml(layout) {
@@ -1030,16 +1072,16 @@
         const targetX = Math.round(target.x);
         const targetY = Math.round(target.y);
         const forward = sourceX <= targetX;
-        const distance = Math.max(48, Math.abs(targetX - sourceX));
-        const midX = forward
-            ? sourceX + Math.round(distance / 2)
-            : sourceX + 52;
+        const direction = forward ? 1 : -1;
+        const distance = Math.max(72, Math.abs(targetX - sourceX));
+        const control = clampNumber(Math.round(distance * 0.48), 64, 220);
+        const c1x = sourceX + direction * control;
+        const c2x = targetX - direction * control;
 
-        return "M " + sourceX + " " + sourceY + " H " + midX + " V " + targetY + " H " + targetX;
-    }
-
-    function clampNumber(value, min, max) {
-        return Math.min(max, Math.max(min, value));
+        return "M " + sourceX + " " + sourceY
+            + " C " + c1x + " " + sourceY
+            + " " + c2x + " " + targetY
+            + " " + targetX + " " + targetY;
     }
 
     function getLineClassForSource(sourceType) {
@@ -1082,12 +1124,14 @@
         qsa(".admin-bracket-match__team[data-source-type]", board).forEach(function (targetSlot) {
             const sourceType = normalizeSourceType(targetSlot.dataset.sourceType);
             let sourceElement = null;
+            let sourceMatchId = 0;
+            let sourceGroupId = 0;
 
             if (sourceType === "WINNER_MATCH" || sourceType === "LOSER_MATCH") {
-                const sourceMatchId = toNumber(targetSlot.dataset.sourceMatchId);
+                sourceMatchId = toNumber(targetSlot.dataset.sourceMatchId);
                 sourceElement = matchMap.get(String(sourceMatchId));
             } else if (sourceType === "GROUP_RANK") {
-                const sourceGroupId = toNumber(targetSlot.dataset.sourceGroupId);
+                sourceGroupId = toNumber(targetSlot.dataset.sourceGroupId);
                 sourceElement = groupMap.get(String(sourceGroupId));
             }
 
@@ -1111,7 +1155,12 @@
             targetMap.get(targetKey).dependencies.push({
                 sourceElement: sourceElement,
                 targetSlot: targetSlot,
+                targetMatch: targetMatch,
+                targetMatchId: toNumber(targetMatch.dataset.matchId),
+                targetSlotNumber: toNumber(targetSlot.dataset.slot),
                 sourceType: sourceType,
+                sourceMatchId: sourceMatchId,
+                sourceGroupId: sourceGroupId,
                 className: getLineClassForSource(sourceType)
             });
         });
@@ -1154,81 +1203,20 @@
         const lines = [];
 
         targetEntries.forEach(function (entry) {
-            const dependencies = entry.dependencies;
+            entry.dependencies.forEach(function (dependency) {
+                const sourcePoint = getElementMidpoint(dependency.sourceElement, boardRect, "right", boardScale);
+                const targetPoint = getElementMidpoint(dependency.targetSlot, boardRect, "left", boardScale);
 
-            if (dependencies.length <= 1) {
-                dependencies.forEach(function (dependency) {
-                    lines.push({
-                        d: buildConnectorPath(
-                            getElementMidpoint(dependency.sourceElement, boardRect, "right", boardScale),
-                            getElementMidpoint(dependency.targetSlot, boardRect, "left", boardScale)
-                        ),
-                        type: dependency.sourceType,
-                        className: dependency.className
-                    });
-                });
-                return;
-            }
-
-            const sourcePoints = dependencies
-                .map(function (dependency, index) {
-                    const sourcePoint = getElementMidpoint(dependency.sourceElement, boardRect, "right", boardScale);
-                    const targetPoint = getElementMidpoint(dependency.targetSlot, boardRect, "left", boardScale);
-
-                    return {
-                        x: Math.round(sourcePoint.x),
-                        y: Math.round(sourcePoint.y),
-                        targetY: targetPoint.y,
-                        sourceType: dependency.sourceType,
-                        className: dependency.className,
-                        order: index
-                    };
-                })
-                .sort(function (left, right) {
-                    if (left.y !== right.y) {
-                        return left.y - right.y;
-                    }
-
-                    if (left.targetY !== right.targetY) {
-                        return left.targetY - right.targetY;
-                    }
-
-                    return left.order - right.order;
-                });
-
-            const targetPoint = getElementMidpoint(entry.targetMatch, boardRect, "left", boardScale);
-            const targetX = Math.round(targetPoint.x);
-            const targetY = Math.round(targetPoint.y);
-            const maxSourceX = Math.max.apply(null, sourcePoints.map(function (point) { return point.x; }));
-            const sourceYValues = sourcePoints.map(function (point) { return point.y; });
-            const minY = Math.min.apply(null, sourceYValues);
-            const maxY = Math.max.apply(null, sourceYValues);
-            const junctionY = Math.round((minY + maxY) / 2);
-            const available = targetX - maxSourceX;
-            const trunkX = available > 72
-                ? clampNumber(maxSourceX + Math.round(available * 0.58), maxSourceX + 28, targetX - 34)
-                : Math.max(maxSourceX + 36, targetX - 38);
-            const className = sourcePoints.every(function (point) { return point.className === sourcePoints[0].className; })
-                ? sourcePoints[0].className
-                : "is-mixed-source";
-
-            sourcePoints.forEach(function (point) {
                 lines.push({
-                    d: "M " + point.x + " " + point.y + " H " + trunkX,
-                    type: point.sourceType,
-                    className: className + " is-tree-branch"
+                    d: buildConnectorPath(sourcePoint, targetPoint),
+                    type: dependency.sourceType,
+                    sourceType: dependency.sourceType,
+                    sourceMatchId: dependency.sourceMatchId,
+                    sourceGroupId: dependency.sourceGroupId,
+                    targetMatchId: dependency.targetMatchId,
+                    targetSlot: dependency.targetSlotNumber,
+                    className: dependency.className + " is-direct-link"
                 });
-            });
-
-            lines.push({
-                d: "M " + trunkX + " " + minY + " V " + maxY,
-                type: "TREE_TRUNK",
-                className: className + " is-tree-trunk"
-            });
-            lines.push({
-                d: "M " + trunkX + " " + junctionY + " V " + targetY + " H " + targetX,
-                type: "TREE_OUTPUT",
-                className: className + " is-tree-output"
             });
         });
 
@@ -1240,7 +1228,7 @@
         const dependencyLines = buildDependencyLinePathsFromDom(board);
         const lines = dependencyLines.length > 0
             ? dependencyLines
-            : buildLinePaths(layout.rounds, layout.columnGap);
+            : buildLinePaths(layout.rounds);
 
         layout.lines = lines;
 
@@ -1280,6 +1268,7 @@
 
         stretchDependentGroupHeights(layout.rounds, layout.groupGap);
         layout.height = updateRoundPositions(layout.rounds, layout);
+        layout.height += toNumber(layout.verticalPanBottom);
         board.style.height = layout.height + "px";
 
         layout.rounds.forEach(function (round, roundIndex) {
@@ -1308,6 +1297,489 @@
         updateBoardLines(board, layout);
     }
 
+    function clearBracketFocus(board) {
+        if (!board) {
+            return;
+        }
+
+        board.classList.remove("is-focus-mode");
+        delete board.dataset.focusMatchId;
+
+        qsa(".is-focus-selected, .is-focus-related, .is-focus-stack, .is-focus-slot, .is-focus-link", board)
+            .forEach(function (element) {
+                element.classList.remove(
+                    "is-focus-selected",
+                    "is-focus-related",
+                    "is-focus-stack",
+                    "is-focus-slot",
+                    "is-focus-link"
+                );
+            });
+    }
+
+    function markRelatedMatch(board, matchId, relatedMatchIds) {
+        const normalizedId = toNumber(matchId);
+        if (normalizedId <= 0) {
+            return null;
+        }
+
+        relatedMatchIds.add(String(normalizedId));
+        return qs('.admin-bracket-match[data-match-id="' + normalizedId + '"]', board);
+    }
+
+    function markTargetSlot(board, matchId, slotNumber) {
+        const normalizedMatchId = toNumber(matchId);
+        const normalizedSlotNumber = toNumber(slotNumber);
+
+        if (normalizedMatchId <= 0 || normalizedSlotNumber <= 0) {
+            return;
+        }
+
+        const slot = qs(
+            '.admin-bracket-match[data-match-id="' + normalizedMatchId + '"] .admin-bracket-match__team[data-slot="' + normalizedSlotNumber + '"]',
+            board
+        );
+
+        if (slot) {
+            slot.classList.add("is-focus-slot");
+        }
+    }
+
+    function clearBracketValidation(board) {
+        if (!board) {
+            return;
+        }
+
+        board.classList.remove("is-validation-mode");
+        qsa(".is-validation-warning, .is-validation-winner-missing, .is-validation-loser-missing, .is-validation-team-warning", board)
+            .forEach(function (element) {
+                element.classList.remove(
+                    "is-validation-warning",
+                    "is-validation-winner-missing",
+                    "is-validation-loser-missing",
+                    "is-validation-team-warning"
+                );
+            });
+        qsa(".admin-bracket-validation-badge", board).forEach(function (element) {
+            element.remove();
+        });
+    }
+
+    function getValidationTeamRows(matchElement, type) {
+        const rows = qsa(".admin-bracket-match__team", matchElement);
+        const winnerRows = rows.filter(function (row) {
+            return !!qs(".is-winner", row);
+        });
+
+        if (type === "winner") {
+            return winnerRows.length ? winnerRows : rows;
+        }
+
+        if (!winnerRows.length) {
+            return rows;
+        }
+
+        return rows.filter(function (row) {
+            return !winnerRows.includes(row);
+        });
+    }
+
+    function addValidationBadge(matchElement, text) {
+        const badge = document.createElement("div");
+        badge.className = "admin-bracket-validation-badge";
+        badge.textContent = text;
+        matchElement.appendChild(badge);
+    }
+
+    function normalizeValidationMode(value) {
+        const normalized = trimToEmpty(value).toLowerCase();
+        if (normalized === "loser" || normalized === "all") {
+            return normalized;
+        }
+
+        return "winner";
+    }
+
+    function getValidationModeLabel(mode) {
+        if (mode === "loser") {
+            return "nhánh thua/cứu thua";
+        }
+
+        if (mode === "all") {
+            return "nhánh thắng và nhánh thua";
+        }
+
+        return "nhánh thắng";
+    }
+
+    function collectBracketValidationIssues(board, rescueRoundIndexes, mode) {
+        mode = normalizeValidationMode(mode);
+        const matches = qsa(".admin-bracket-match[data-match-id]", board)
+            .map(function (element) {
+                return {
+                    element: element,
+                    matchId: toNumber(element.dataset.matchId),
+                    roundIndex: toNumber(element.dataset.roundIndex),
+                    roundKey: trimToEmpty(element.dataset.roundKey),
+                    roundLabel: trimToEmpty(element.dataset.roundLabel)
+                };
+            })
+            .filter(function (entry) {
+                return entry.matchId > 0 && entry.roundIndex >= 0;
+            });
+        const roundMatchCounts = new Map();
+        const outgoingByMatchId = new Map();
+        const rescueKeys = new Set(Array.from(rescueRoundIndexes || []).map(String));
+        let maxRoundIndex = -1;
+
+        matches.forEach(function (entry) {
+            const roundKey = String(entry.roundIndex);
+            maxRoundIndex = Math.max(maxRoundIndex, entry.roundIndex);
+            roundMatchCounts.set(roundKey, (roundMatchCounts.get(roundKey) || 0) + 1);
+            outgoingByMatchId.set(String(entry.matchId), { winner: 0, loser: 0 });
+        });
+
+        qsa(".admin-bracket-line[data-source-match-id]", board).forEach(function (line) {
+            const sourceMatchId = toNumber(line.dataset.sourceMatchId);
+            const sourceType = normalizeSourceType(line.dataset.sourceType);
+
+            if (sourceMatchId <= 0 || (sourceType !== "WINNER_MATCH" && sourceType !== "LOSER_MATCH")) {
+                return;
+            }
+
+            const key = String(sourceMatchId);
+            const outgoing = outgoingByMatchId.get(key) || { winner: 0, loser: 0 };
+            if (sourceType === "WINNER_MATCH") {
+                outgoing.winner += 1;
+            } else {
+                outgoing.loser += 1;
+            }
+            outgoingByMatchId.set(key, outgoing);
+        });
+
+        return matches
+            .map(function (entry) {
+                const roundKey = String(entry.roundIndex);
+                const roundMatchCount = roundMatchCounts.get(roundKey) || 0;
+                const shouldContinue = entry.roundIndex < maxRoundIndex || roundMatchCount > 1;
+                const isRescueRound = rescueKeys.has(roundKey);
+                const outgoing = outgoingByMatchId.get(String(entry.matchId)) || { winner: 0, loser: 0 };
+                const missingWinner = (mode === "winner" || mode === "all") && shouldContinue && outgoing.winner <= 0;
+                const missingLoser = (mode === "loser" || mode === "all") && shouldContinue && isRescueRound && outgoing.loser <= 0;
+
+                if (!missingWinner && !missingLoser) {
+                    return null;
+                }
+
+                return {
+                    matchId: entry.matchId,
+                    roundIndex: entry.roundIndex,
+                    roundKey: entry.roundKey,
+                    roundLabel: entry.roundLabel,
+                    element: entry.element,
+                    missingWinner: missingWinner,
+                    missingLoser: missingLoser
+                };
+            })
+            .filter(Boolean);
+    }
+
+    function applyBracketValidation(board, rescueRoundIndexes, mode) {
+        clearBracketValidation(board);
+
+        if (!board) {
+            return [];
+        }
+
+        const issues = collectBracketValidationIssues(board, rescueRoundIndexes, mode);
+        if (!issues.length) {
+            return issues;
+        }
+
+        board.classList.add("is-validation-mode");
+        issues.forEach(function (issue) {
+            const matchElement = issue.element;
+            matchElement.classList.add("is-validation-warning");
+
+            if (issue.missingWinner) {
+                matchElement.classList.add("is-validation-winner-missing");
+                addValidationBadge(matchElement, "Thiếu winner đi tiếp");
+                getValidationTeamRows(matchElement, "winner").forEach(function (row) {
+                    row.classList.add("is-validation-team-warning");
+                });
+            }
+
+            if (issue.missingLoser) {
+                matchElement.classList.add("is-validation-loser-missing");
+                addValidationBadge(matchElement, "Thiếu loser cứu thua");
+                getValidationTeamRows(matchElement, "loser").forEach(function (row) {
+                    row.classList.add("is-validation-team-warning");
+                });
+            }
+        });
+
+        return issues;
+    }
+
+    function applyBracketFocus(board, selectedMatch) {
+        if (!board || !selectedMatch) {
+            return;
+        }
+
+        const selectedMatchId = toNumber(selectedMatch.dataset.matchId);
+        if (selectedMatchId <= 0) {
+            return;
+        }
+
+        if (board.dataset.focusMatchId === String(selectedMatchId)) {
+            clearBracketFocus(board);
+            return;
+        }
+
+        clearBracketFocus(board);
+
+        const relatedMatchIds = new Set();
+        const upstreamTargetIds = new Set();
+        const downstreamSourceIds = new Set();
+        const downstreamSourceGroupIds = new Set();
+        const visibleGroupIds = new Set();
+        const focusLines = new Set();
+        const lineEntries = qsa(".admin-bracket-line", board).map(function (line) {
+            return {
+                element: line,
+                sourceMatchId: toNumber(line.dataset.sourceMatchId),
+                sourceGroupId: toNumber(line.dataset.sourceGroupId),
+                targetMatchId: toNumber(line.dataset.targetMatchId),
+                targetSlot: toNumber(line.dataset.targetSlot)
+            };
+        });
+
+        function getMatchElementById(matchId) {
+            const normalizedMatchId = toNumber(matchId);
+            return normalizedMatchId > 0
+                ? qs('.admin-bracket-match[data-match-id="' + normalizedMatchId + '"]', board)
+                : null;
+        }
+
+        function getMatchGroupId(matchId) {
+            return toNumber(getMatchElementById(matchId)?.closest(".admin-bracket-group")?.dataset.groupId);
+        }
+
+        function addDownstreamSourceGroup(groupId) {
+            const normalizedGroupId = toNumber(groupId);
+            if (normalizedGroupId <= 0) {
+                return false;
+            }
+
+            const key = String(normalizedGroupId);
+            if (downstreamSourceGroupIds.has(key)) {
+                return false;
+            }
+
+            downstreamSourceGroupIds.add(key);
+            return true;
+        }
+
+        function addRelatedMatch(matchId) {
+            const normalizedMatchId = toNumber(matchId);
+            if (normalizedMatchId <= 0) {
+                return false;
+            }
+
+            const key = String(normalizedMatchId);
+            if (relatedMatchIds.has(key)) {
+                return false;
+            }
+
+            relatedMatchIds.add(key);
+            return true;
+        }
+
+        function addUpstreamTarget(matchId) {
+            const normalizedMatchId = toNumber(matchId);
+            if (normalizedMatchId <= 0) {
+                return false;
+            }
+
+            const key = String(normalizedMatchId);
+            const changedMatch = addRelatedMatch(normalizedMatchId);
+            if (upstreamTargetIds.has(key)) {
+                return changedMatch;
+            }
+
+            upstreamTargetIds.add(key);
+            return true;
+        }
+
+        function addDownstreamSource(matchId) {
+            const normalizedMatchId = toNumber(matchId);
+            if (normalizedMatchId <= 0) {
+                return false;
+            }
+
+            const key = String(normalizedMatchId);
+            const changedMatch = addRelatedMatch(normalizedMatchId);
+            const changedGroup = addDownstreamSourceGroup(getMatchGroupId(normalizedMatchId));
+            if (downstreamSourceIds.has(key)) {
+                return changedMatch || changedGroup;
+            }
+
+            downstreamSourceIds.add(key);
+            return true;
+        }
+
+        function addVisibleGroup(groupId, queueUpstreamMatches) {
+            const normalizedGroupId = toNumber(groupId);
+            if (normalizedGroupId <= 0) {
+                return false;
+            }
+
+            const key = String(normalizedGroupId);
+            const wasKnown = visibleGroupIds.has(key);
+            visibleGroupIds.add(key);
+            const changedGroup = addDownstreamSourceGroup(normalizedGroupId);
+            let changedMatch = false;
+
+            const groupElement = qs('.admin-bracket-group[data-group-id="' + normalizedGroupId + '"]', board);
+            if (groupElement) {
+                qsa(".admin-bracket-match[data-match-id]", groupElement).forEach(function (matchElement) {
+                    changedMatch = (queueUpstreamMatches
+                        ? addUpstreamTarget(matchElement.dataset.matchId)
+                        : addRelatedMatch(matchElement.dataset.matchId)) || changedMatch;
+                });
+            }
+
+            return !wasKnown || changedGroup || changedMatch;
+        }
+
+        addUpstreamTarget(selectedMatchId);
+        addDownstreamSource(selectedMatchId);
+
+        let changed = true;
+        while (changed) {
+            changed = false;
+
+            lineEntries.forEach(function (entry) {
+                const isUpstream =
+                    entry.targetMatchId > 0
+                    && upstreamTargetIds.has(String(entry.targetMatchId));
+                const isDownstream =
+                    (entry.sourceMatchId > 0 && downstreamSourceIds.has(String(entry.sourceMatchId)))
+                    || (entry.sourceGroupId > 0 && downstreamSourceGroupIds.has(String(entry.sourceGroupId)));
+
+                if (isUpstream) {
+                    focusLines.add(entry);
+                    changed = addUpstreamTarget(entry.sourceMatchId) || changed;
+
+                    if (entry.sourceGroupId > 0) {
+                        changed = addVisibleGroup(entry.sourceGroupId, true) || changed;
+                    }
+                }
+
+                if (isDownstream) {
+                    focusLines.add(entry);
+                    changed = addDownstreamSource(entry.targetMatchId) || changed;
+
+                    if (entry.sourceGroupId > 0) {
+                        changed = addVisibleGroup(entry.sourceGroupId, false) || changed;
+                    }
+                }
+            });
+        }
+
+        focusLines.forEach(function (entry) {
+            entry.element.classList.add("is-focus-link");
+            markTargetSlot(board, entry.targetMatchId, entry.targetSlot);
+        });
+
+        relatedMatchIds.forEach(function (matchId) {
+            const matchElement = qs('.admin-bracket-match[data-match-id="' + matchId + '"]', board);
+            const groupElement = matchElement?.closest(".admin-bracket-group");
+
+            if (matchElement) {
+                matchElement.classList.add("is-focus-related");
+            }
+
+            if (groupElement) {
+                groupElement.classList.add("is-focus-stack");
+            }
+        });
+
+        visibleGroupIds.forEach(function (groupId) {
+            const groupElement = qs('.admin-bracket-group[data-group-id="' + groupId + '"]', board);
+
+            if (!groupElement) {
+                return;
+            }
+
+            groupElement.classList.add("is-focus-stack", "is-focus-related");
+            qsa(".admin-bracket-match", groupElement).forEach(function (matchElement) {
+                matchElement.classList.add("is-focus-related");
+            });
+        });
+
+        selectedMatch.classList.add("is-focus-selected", "is-focus-related");
+        selectedMatch.closest(".admin-bracket-group")?.classList.add("is-focus-stack");
+        board.dataset.focusMatchId = String(selectedMatchId);
+        board.classList.add("is-focus-mode");
+    }
+
+    function bindBracketFocusInteractions(board, scroller) {
+        if (!board || board.dataset.focusInteractionsReady === "true") {
+            return;
+        }
+
+        board.dataset.focusInteractionsReady = "true";
+
+        board.addEventListener("click", function (event) {
+            const matchElement = event.target.closest?.(".admin-bracket-match[data-match-id]");
+
+            if (!matchElement || !board.contains(matchElement)) {
+                if (board.classList.contains("is-focus-mode")) {
+                    clearBracketFocus(board);
+                }
+                return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            applyBracketFocus(board, matchElement);
+        });
+
+        board.addEventListener("keydown", function (event) {
+            if (event.key !== "Enter" && event.key !== " ") {
+                return;
+            }
+
+            const matchElement = event.target.closest?.(".admin-bracket-match[data-match-id]");
+            if (!matchElement || !board.contains(matchElement)) {
+                return;
+            }
+
+            event.preventDefault();
+            applyBracketFocus(board, matchElement);
+        });
+
+        document.addEventListener("keydown", function (event) {
+            if (event.key === "Escape") {
+                clearBracketFocus(board);
+            }
+        });
+
+        if (scroller) {
+            scroller.addEventListener("click", function (event) {
+                const matchElement = event.target.closest?.(".admin-bracket-match[data-match-id]");
+
+                if (matchElement && board.contains(matchElement)) {
+                    return;
+                }
+
+                clearBracketFocus(board);
+            });
+        }
+
+    }
+
     function initDragScroller(scroller) {
         if (!scroller || scroller.dataset.dragReady === "true") {
             return;
@@ -1327,6 +1799,10 @@
             startLeft = scroller.scrollLeft;
             startTop = scroller.scrollTop;
             scroller.classList.add("is-dragging");
+        }
+
+        function isMatchCardEventTarget(target) {
+            return !!target?.closest?.(".admin-bracket-match, button, a, input, select, textarea");
         }
 
         function movePan(clientX, clientY) {
@@ -1357,6 +1833,10 @@
             }
 
             if (event.button !== undefined && event.button !== 0) {
+                return;
+            }
+
+            if (isMatchCardEventTarget(event.target)) {
                 return;
             }
 
@@ -1396,6 +1876,10 @@
 
         scroller.addEventListener("touchstart", function (event) {
             if (!event.touches || event.touches.length !== 1) {
+                return;
+            }
+
+            if (isMatchCardEventTarget(event.target)) {
                 return;
             }
 
@@ -1448,6 +1932,11 @@
     const loading = qs("[data-bracket-loading]", page);
     const errorBox = qs("[data-bracket-error]", page);
     const scroller = qs("[data-bracket-scroll]", page);
+    const zoomValue = qs("[data-bracket-zoom-value]", page);
+    const zoomOutButton = qs("[data-bracket-zoom-out]", page);
+    const zoomInButton = qs("[data-bracket-zoom-in]", page);
+    const zoomResetButton = qs("[data-bracket-zoom-reset]", page);
+    const validationToggleButtons = qsa("[data-bracket-validation-toggle]", page);
     const summaryRefs = {
         rounds: qs("[data-stat-rounds]", page),
         groups: qs("[data-stat-groups]", page),
@@ -1455,7 +1944,43 @@
         completed: qs("[data-stat-completed]", page)
     };
 
+    const minZoom = clampNumber(options.minZoom || page.dataset.bracketMinZoom || 0.55, 0.2, 2);
+    const maxZoom = clampNumber(options.maxZoom || page.dataset.bracketMaxZoom || 1.6, minZoom, 3);
+    const zoomStep = clampNumber(options.zoomStep || page.dataset.bracketZoomStep || 0.1, 0.05, 0.5);
+    const defaultZoom = clampNumber(options.zoom || page.dataset.bracketZoom || 1, minZoom, maxZoom);
     let latestPayload = null;
+    let latestLayout = null;
+    let bracketZoom = defaultZoom;
+    const validationRescueRoundIndexes = new Set();
+    let validationPanel = null;
+    let validationMode = "winner";
+
+    function updateZoomControls() {
+        if (zoomValue) {
+            zoomValue.textContent = formatPercent(bracketZoom);
+        }
+
+        if (zoomOutButton) {
+            zoomOutButton.disabled = bracketZoom <= minZoom + 0.001;
+        }
+
+        if (zoomInButton) {
+            zoomInButton.disabled = bracketZoom >= maxZoom - 0.001;
+        }
+    }
+
+    function applyBracketZoom(value) {
+        bracketZoom = clampNumber(value, minZoom, maxZoom);
+
+        if (board) {
+            board.style.zoom = String(bracketZoom);
+            board.style.setProperty("--admin-bracket-zoom", String(bracketZoom));
+        }
+
+        updateZoomControls();
+        clearBracketFocus(board);
+        return bracketZoom;
+    }
 
     function setError(message) {
         if (!errorBox) {
@@ -1479,14 +2004,173 @@
         loading.classList.toggle("d-none", !isLoading);
     }
 
-    function render(payload) {
+    function ensureValidationPanel() {
+        if (validationPanel) {
+            return validationPanel;
+        }
+
+        const host = qs(".admin-tournament-bracket-panel", page) || page;
+        validationPanel = document.createElement("div");
+        validationPanel.className = "admin-bracket-validation-panel d-none";
+        validationPanel.setAttribute("data-bracket-validation-panel", "true");
+        validationPanel.innerHTML = [
+            '<div class="admin-bracket-validation-panel__head">',
+            '<strong><i class="fas fa-exclamation-triangle mr-1"></i> Kiểm tra luồng đi tiếp</strong>',
+            '<button type="button" class="admin-bracket-validation-panel__close" data-bracket-validation-close title="Đóng"><i class="fas fa-times"></i></button>',
+            "</div>",
+            '<div class="admin-bracket-validation-panel__note">Chỉ tô đỏ để quản trị viên theo dõi nhánh đấu. Không chặn lưu, không sửa trận, không ghi dữ liệu.</div>',
+            '<div class="admin-bracket-validation-panel__rounds" data-bracket-validation-rounds></div>',
+            '<div class="admin-bracket-validation-panel__actions">',
+            '<button type="button" class="admin-bracket-validation-panel__run" data-bracket-validation-run data-bracket-validation-mode="winner"><i class="fas fa-trophy mr-1"></i> Kiểm tra đội thắng</button>',
+            '<button type="button" class="admin-bracket-validation-panel__run is-loser" data-bracket-validation-run data-bracket-validation-mode="loser"><i class="fas fa-life-ring mr-1"></i> Kiểm tra đội thua</button>',
+            '<button type="button" class="admin-bracket-validation-panel__run" data-bracket-validation-run><i class="fas fa-search mr-1"></i> Kiểm tra nhánh đấu</button>',
+            '<button type="button" class="admin-bracket-validation-panel__clear" data-bracket-validation-clear><i class="fas fa-eraser mr-1"></i> Xóa cảnh báo</button>',
+            "</div>",
+            '<div class="admin-bracket-validation-panel__summary" data-bracket-validation-summary></div>'
+        ].join("");
+
+        const scrollElement = qs("[data-bracket-scroll]", host);
+        if (scrollElement && scrollElement.parentNode === host) {
+            host.insertBefore(validationPanel, scrollElement);
+        } else {
+            host.appendChild(validationPanel);
+        }
+
+        qs("[data-bracket-validation-close]", validationPanel)?.addEventListener("click", function () {
+            validationPanel.classList.add("d-none");
+        });
+        qsa("[data-bracket-validation-run]", validationPanel).forEach(function (button) {
+            button.addEventListener("click", function () {
+                runBracketValidation(button.dataset.bracketValidationMode);
+            });
+        });
+        qs("[data-bracket-validation-clear]", validationPanel)?.addEventListener("click", function () {
+            clearBracketValidation(board);
+            updateValidationSummary([]);
+        });
+        qs("[data-bracket-validation-rounds]", validationPanel)?.addEventListener("change", function (event) {
+            const checkbox = event.target.closest?.("[data-bracket-rescue-round]");
+            if (!checkbox) {
+                return;
+            }
+
+            if (checkbox.checked) {
+                validationRescueRoundIndexes.add(String(checkbox.value));
+            } else {
+                validationRescueRoundIndexes.delete(String(checkbox.value));
+            }
+
+            runBracketValidation(validationMode);
+        });
+
+        return validationPanel;
+    }
+
+    function syncValidationRoundOptions() {
+        const panel = ensureValidationPanel();
+        const roundsBox = qs("[data-bracket-validation-rounds]", panel);
+        const rounds = (latestLayout?.rounds || [])
+            .map(function (round, roundIndex) {
+                return {
+                    roundIndex: roundIndex,
+                    roundKey: trimToEmpty(round?.roundKey),
+                    roundLabel: trimToEmpty(round?.roundLabel),
+                    matchCount: toNumber(round?.matchCount)
+                };
+            })
+            .filter(function (round) {
+                return round.matchCount > 0;
+            });
+
+        if (!roundsBox) {
+            return;
+        }
+
+        if (!rounds.length) {
+            roundsBox.innerHTML = '<div class="admin-bracket-validation-panel__empty">Chưa có vòng đấu có trận để kiểm tra.</div>';
+            return;
+        }
+
+        roundsBox.innerHTML = rounds.map(function (round) {
+            const key = String(round.roundIndex);
+            const checked = validationRescueRoundIndexes.has(key) ? " checked" : "";
+            return [
+                '<label class="admin-bracket-validation-round">',
+                '<input type="checkbox" data-bracket-rescue-round value="' + escapeHtml(key) + '"' + checked + " />",
+                '<span><b>' + escapeHtml(round.roundKey || ("R" + (round.roundIndex + 1))) + "</b> " + escapeHtml(round.roundLabel || ("Vòng " + (round.roundIndex + 1))) + "</span>",
+                '<small>Tích chọn nếu vòng này là vòng cứu thua. Không tích là loại trực tiếp.</small>',
+                "</label>"
+            ].join("");
+        }).join("");
+    }
+
+    function updateValidationSummary(issues, mode) {
+        const panel = ensureValidationPanel();
+        const summary = qs("[data-bracket-validation-summary]", panel);
+        mode = normalizeValidationMode(mode || validationMode);
+        if (!summary) {
+            return;
+        }
+
+        const count = Array.isArray(issues) ? issues.length : 0;
+        if (count === 0) {
+            summary.className = "admin-bracket-validation-panel__summary is-ok";
+            summary.innerHTML = '<i class="fas fa-check-circle mr-1"></i> Chưa phát hiện winner/loser bị đứng yên theo cấu hình hiện tại.';
+            return;
+        }
+
+        const missingWinner = issues.filter(function (issue) { return issue.missingWinner; }).length;
+        const missingLoser = issues.filter(function (issue) { return issue.missingLoser; }).length;
+        summary.className = "admin-bracket-validation-panel__summary is-error";
+        summary.innerHTML = [
+            '<i class="fas fa-exclamation-circle mr-1"></i>',
+            "Có " + count + " trận cần xem lại.",
+            " Thiếu winner đi tiếp: " + missingWinner + ".",
+            " Thiếu loser cứu thua: " + missingLoser + "."
+        ].join("");
+    }
+
+    function runBracketValidation(mode) {
+        validationMode = normalizeValidationMode(mode || validationMode);
+        clearBracketFocus(board);
+        const issues = applyBracketValidation(board, validationRescueRoundIndexes, validationMode);
+        updateValidationSummary(issues, validationMode);
+        return issues;
+    }
+
+    function toggleValidationPanel(mode) {
+        const hasExplicitMode = !!trimToEmpty(mode);
+        validationMode = normalizeValidationMode(mode || validationMode);
+        const panel = ensureValidationPanel();
+        syncValidationRoundOptions();
+        if (hasExplicitMode) {
+            panel.classList.remove("d-none");
+        } else {
+            panel.classList.toggle("d-none");
+        }
+
+        if (!panel.classList.contains("d-none")) {
+            runBracketValidation(validationMode);
+        }
+    }
+
+    function render(payload, renderOptions) {
         if (!board) {
             return;
         }
 
+        renderOptions = renderOptions || {};
+
+        clearBracketFocus(board);
         const layout = buildLayout(payload);
-        applyHorizontalPanSpace(layout, scroller);
+        latestLayout = layout;
+        applyPanSpace(layout, scroller);
         board.classList.remove("is-measuring");
+        applyBracketZoom(bracketZoom);
+        clearBracketValidation(board);
+        if (validationPanel) {
+            syncValidationRoundOptions();
+        }
 
         if (!layout.rounds.length) {
             board.style.width = "100%";
@@ -1499,14 +2183,38 @@
         board.style.height = layout.height + "px";
         board.style.minWidth = layout.width + "px";
         board.classList.add("is-measuring");
+        bindBracketFocusInteractions(board, scroller);
         board.innerHTML = buildBoardHtml(layout);
         window.requestAnimationFrame(function () {
             syncMeasuredLayout(board, layout);
             board.classList.remove("is-measuring");
 
-            if (layout.initialScrollLeft > 0 && scroller) {
+            if (scroller && renderOptions.viewport) {
+                scroller.scrollLeft = toNumber(renderOptions.viewport.left);
+                scroller.scrollTop = toNumber(renderOptions.viewport.top);
+            } else if (layout.initialScrollLeft > 0 && scroller) {
                 scroller.scrollLeft = layout.initialScrollLeft;
             }
+
+            const focusMatchId = toNumber(renderOptions.focusMatchId);
+            if (focusMatchId > 0) {
+                const focusMatch = qs('.admin-bracket-match[data-match-id="' + focusMatchId + '"]', board);
+                if (focusMatch) {
+                    applyBracketFocus(board, focusMatch);
+                }
+            }
+
+            if (validationPanel && !validationPanel.classList.contains("d-none")) {
+                runBracketValidation(validationMode);
+            }
+
+            page.dispatchEvent(new CustomEvent("adminbracket:rendered", {
+                detail: {
+                    payload: latestPayload,
+                    layout: latestLayout,
+                    focusMatchId: focusMatchId || null
+                }
+            }));
         });
 
         if (summaryRefs.rounds) summaryRefs.rounds.textContent = String(layout.summary.rounds);
@@ -1515,18 +2223,26 @@
         if (summaryRefs.completed) summaryRefs.completed.textContent = String(layout.summary.completed);
     }
 
-    async function loadBracket() {
+    async function loadBracket(loadOptions) {
         if (!tournamentId) {
             setError("Thiếu tournamentId để tải sơ đồ.");
             return;
         }
+
+        loadOptions = loadOptions || {};
+        const preservedViewport = loadOptions.preserveViewport && scroller
+            ? { left: scroller.scrollLeft, top: scroller.scrollTop }
+            : null;
 
         setError("");
         setLoading(true);
 
         try {
             latestPayload = await fetchJson("/api/tournaments/" + tournamentId + "/rounds-with-matches");
-            render(latestPayload);
+            render(latestPayload, {
+                viewport: preservedViewport,
+                focusMatchId: loadOptions.focusMatchId
+            });
         } catch (error) {
             setError(error?.message || "Tải sơ đồ thất bại.");
             if (board) {
@@ -1557,13 +2273,52 @@
         });
     }
 
+        if (zoomOutButton) {
+            zoomOutButton.addEventListener("click", function () {
+                applyBracketZoom(bracketZoom - zoomStep);
+            });
+        }
+
+        if (zoomInButton) {
+            zoomInButton.addEventListener("click", function () {
+                applyBracketZoom(bracketZoom + zoomStep);
+            });
+        }
+
+        if (zoomResetButton) {
+            zoomResetButton.addEventListener("click", function () {
+                applyBracketZoom(defaultZoom);
+            });
+        }
+
+        validationToggleButtons.forEach(function (button) {
+            button.addEventListener("click", function () {
+                toggleValidationPanel(button.dataset.bracketValidationMode);
+            });
+        });
+
         initDragScroller(scroller);
         window.addEventListener("resize", rerender);
+        applyBracketZoom(bracketZoom);
 
         const api = {
             load: loadBracket,
             reload: loadBracket,
-            rerender: rerender
+            rerender: rerender,
+            setZoom: applyBracketZoom,
+            zoomIn: function () { return applyBracketZoom(bracketZoom + zoomStep); },
+            zoomOut: function () { return applyBracketZoom(bracketZoom - zoomStep); },
+            resetZoom: function () { return applyBracketZoom(defaultZoom); },
+            getZoom: function () { return bracketZoom; },
+            getPayload: function () { return latestPayload; },
+            getLayout: function () { return latestLayout; },
+            clearFocus: function () { clearBracketFocus(board); },
+            toggleValidationPanel: toggleValidationPanel,
+            runValidation: runBracketValidation,
+            clearValidation: function () {
+                clearBracketValidation(board);
+                updateValidationSummary([]);
+            }
         };
 
         page._adminTournamentBracketViewer = api;

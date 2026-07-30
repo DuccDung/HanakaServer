@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using HanakaServer.Models;
 using Microsoft.EntityFrameworkCore;
@@ -94,6 +94,14 @@ public partial class PickleballDbContext : DbContext
 
             entity.HasIndex(e => e.MessageId)
                 .HasDatabaseName("IX_ModerationReports_MessageId");
+
+            entity.HasIndex(e => e.DirectChatRoomId)
+                .HasFilter("[DirectChatRoomId] IS NOT NULL")
+                .HasDatabaseName("IX_ModerationReports_DirectChatRoomId");
+
+            entity.HasIndex(e => e.DirectChatMessageId)
+                .HasFilter("[DirectChatMessageId] IS NOT NULL")
+                .HasDatabaseName("IX_ModerationReports_DirectChatMessageId");
 
             entity.Property(e => e.ReportType)
                 .HasMaxLength(20)
@@ -195,6 +203,18 @@ public partial class PickleballDbContext : DbContext
                 .HasForeignKey(d => d.MessageId)
                 .OnDelete(DeleteBehavior.Restrict)
                 .HasConstraintName("FK_ModerationReports_Message");
+
+            entity.HasOne(d => d.DirectChatRoom)
+                .WithMany(p => p.ModerationReports)
+                .HasForeignKey(d => d.DirectChatRoomId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_ModerationReports_DirectChatRoom");
+
+            entity.HasOne(d => d.DirectChatMessage)
+                .WithMany(p => p.ModerationReports)
+                .HasForeignKey(d => d.DirectChatMessageId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_ModerationReports_DirectChatMessage");
 
             entity.HasOne(d => d.ReviewedByUser)
                 .WithMany(p => p.ModerationReportsReviewedBy)
@@ -953,6 +973,9 @@ public partial class PickleballDbContext : DbContext
             entity.Property(e => e.RecalledAt)
                 .HasPrecision(0);
 
+            entity.Property(e => e.EditedAt)
+                .HasPrecision(0);
+
             entity.Property(e => e.IsDeleted)
                 .HasDefaultValue(false);
 
@@ -1457,6 +1480,7 @@ public partial class PickleballDbContext : DbContext
             entity.Property(e => e.FullName).HasMaxLength(150);
             entity.Property(e => e.Gender).HasMaxLength(20);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
+            entity.Property(e => e.IsHiddenFromChatSearch).HasDefaultValue(false);
             entity.Property(e => e.PasswordHash).HasMaxLength(500);
             entity.Property(e => e.Phone).HasMaxLength(30);
             entity.Property(e => e.RatingDouble).HasColumnType("decimal(4, 2)");

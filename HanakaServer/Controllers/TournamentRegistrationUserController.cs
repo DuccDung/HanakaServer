@@ -61,11 +61,11 @@ public class TournamentRegistrationUserController : ControllerBase
             .FirstOrDefaultAsync(ct);
 
         if (tournament == null)
-            return NotFound(new { message = "Tournament not found." });
+            return NotFound(new { message = "Không tìm thấy giải đấu." });
 
         var me = await LoadUserSnapshotAsync(userId, ct);
         if (me == null)
-            return NotFound(new { message = "User not found." });
+            return NotFound(new { message = "Không tìm thấy người dùng." });
 
         var registrationRow = await (
             from x in _db.TournamentRegistrations.AsNoTracking()
@@ -204,7 +204,7 @@ public class TournamentRegistrationUserController : ControllerBase
             .AnyAsync(x => x.TournamentId == tournamentId && !x.Remove && x.Status != "DRAFT", ct);
 
         if (!tournamentExists)
-            return NotFound(new { message = "Tournament not found." });
+            return NotFound(new { message = "Không tìm thấy giải đấu." });
 
         var q = _db.Users
             .AsNoTracking()
@@ -270,7 +270,7 @@ public class TournamentRegistrationUserController : ControllerBase
         {
             var tournament = await LoadTournamentForUpdateAsync(tournamentId, ct);
             if (tournament == null)
-                return NotFound(new { message = "Tournament not found." });
+                return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             var gameType = NormalizeGameType(tournament.GameType);
             if (gameType != "SINGLE")
@@ -282,7 +282,7 @@ public class TournamentRegistrationUserController : ControllerBase
 
             var player = await LoadUserSnapshotAsync(userId, ct);
             if (player == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
             if (tournament.SingleLimit > 0 && player.RatingSingle > tournament.SingleLimit)
                 return BadRequest(new { message = "Điểm trình đơn vượt giới hạn của giải." });
@@ -317,7 +317,7 @@ public class TournamentRegistrationUserController : ControllerBase
         {
             var tournament = await LoadTournamentForUpdateAsync(tournamentId, ct);
             if (tournament == null)
-                return NotFound(new { message = "Tournament not found." });
+                return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             var gameType = NormalizeGameType(tournament.GameType);
             if (!IsDoubleLike(gameType))
@@ -329,7 +329,7 @@ public class TournamentRegistrationUserController : ControllerBase
 
             var player = await LoadUserSnapshotAsync(userId, ct);
             if (player == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
             if (tournament.DoubleLimit > 0 && player.RatingDouble > tournament.DoubleLimit)
                 return BadRequest(new { message = "Điểm trình đôi vượt giới hạn của giải." });
@@ -366,7 +366,7 @@ public class TournamentRegistrationUserController : ControllerBase
         {
             var tournament = await LoadTournamentForUpdateAsync(tournamentId, ct);
             if (tournament == null)
-                return NotFound(new { message = "Tournament not found." });
+                return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             var gameType = NormalizeGameType(tournament.GameType);
             if (!IsDoubleLike(gameType))
@@ -376,7 +376,7 @@ public class TournamentRegistrationUserController : ControllerBase
             {
                 var waitingRequester = await LoadUserSnapshotAsync(requestedByUserId, ct);
                 if (waitingRequester == null)
-                    return NotFound(new { message = "User not found." });
+                    return NotFound(new { message = "Không tìm thấy người dùng." });
 
                 var waitingValidation = await ValidateWaitingRegistrationInviteTargetAsync(
                     tournament,
@@ -393,7 +393,7 @@ public class TournamentRegistrationUserController : ControllerBase
                 var requester = waitingRequester;
 
                 if (await IsBlockedBetweenAsync(requestedByUserId, requestedToUserId, ct))
-                    return BadRequest(new { message = "KhÃ´ng thá»ƒ gá»­i lá»i má»i vÃ¬ hai tÃ i khoáº£n Ä‘ang cháº·n nhau." });
+                    return BadRequest(new { message = "Không thể gửi lời mời vì hai tài khoản đang chặn nhau." });
 
                 var waitingHasPendingBetween = await _db.TournamentPairRequests.AnyAsync(x =>
                     x.TournamentId == tournamentId &&
@@ -402,7 +402,7 @@ public class TournamentRegistrationUserController : ControllerBase
                      (x.RequestedByUserId == requestedToUserId && x.RequestedToUserId == requestedByUserId)), ct);
 
                 if (waitingHasPendingBetween)
-                    return BadRequest(new { message = "Hai ngÆ°á»i Ä‘ang cÃ³ lá»i má»i ghÃ©p Ä‘Ã´i chá» xá»­ lÃ½." });
+                    return BadRequest(new { message = "Hai người đang có lời mời ghép đôi chờ xử lý." });
 
                 var hasPendingOnRegistration = await _db.TournamentPairRequests.AnyAsync(x =>
                     x.TournamentId == tournamentId &&
@@ -414,7 +414,7 @@ public class TournamentRegistrationUserController : ControllerBase
 
                 var waitingTotalPoints = waitingRequester.RatingDouble + waitingPartner.RatingDouble;
                 if (tournament.DoubleLimit > 0 && waitingTotalPoints > tournament.DoubleLimit)
-                    return BadRequest(new { message = "Tá»•ng Ä‘iá»ƒm trÃ¬nh Ä‘Ã´i vÆ°á»£t giá»›i háº¡n cá»§a giáº£i." });
+                    return BadRequest(new { message = "Tổng điểm trình đôi vượt giới hạn của giải." });
 
                 var waitingNow = DateTime.UtcNow;
                 var waitingPairRequest = new TournamentPairRequest
@@ -480,7 +480,7 @@ public class TournamentRegistrationUserController : ControllerBase
 
             var requester = await LoadUserSnapshotAsync(requestedByUserId, ct);
             if (requester == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
             var totalPoints = requester.RatingDouble + partner.RatingDouble;
             if (tournament.DoubleLimit > 0 && totalPoints > tournament.DoubleLimit)
@@ -577,7 +577,7 @@ public class TournamentRegistrationUserController : ControllerBase
 
             var tournament = await LoadTournamentForUpdateAsync(pairRequest.TournamentId, ct);
             if (tournament == null)
-                return NotFound(new { message = "Tournament not found." });
+                return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             var gameType = NormalizeGameType(tournament.GameType);
             if (!IsDoubleLike(gameType))
@@ -587,7 +587,7 @@ public class TournamentRegistrationUserController : ControllerBase
             {
                 var waitingRequester = await LoadUserSnapshotAsync(pairRequest.RequestedByUserId, ct);
                 if (waitingRequester == null)
-                    return NotFound(new { message = "KhÃ´ng tÃ¬m tháº¥y ngÆ°á»i chÆ¡i." });
+                    return NotFound(new { message = "Không tìm thấy người chơi." });
 
                 var waitingValidation = await ValidateWaitingRegistrationInviteTargetAsync(
                     tournament,
@@ -603,14 +603,14 @@ public class TournamentRegistrationUserController : ControllerBase
                 var partner = waitingPartner;
 
                 if (waitingReg.Player1UserId != pairRequest.RequestedToUserId)
-                    return BadRequest(new { message = "ÄÄƒng kÃ½ chá» ghÃ©p nÃ y khÃ´ng cÃ²n há»£p lá»‡." });
+                    return BadRequest(new { message = "Đăng ký chờ ghép này không còn hợp lệ." });
 
                 if (await IsBlockedBetweenAsync(pairRequest.RequestedByUserId, pairRequest.RequestedToUserId, ct))
-                    return BadRequest(new { message = "KhÃ´ng thá»ƒ cháº¥p nháº­n vÃ¬ hai tÃ i khoáº£n Ä‘ang cháº·n nhau." });
+                    return BadRequest(new { message = "Không thể chấp nhận vì hai tài khoản đang chặn nhau." });
 
                 var waitingTotalPoints = waitingRequester.RatingDouble + waitingPartner.RatingDouble;
                 if (tournament.DoubleLimit > 0 && waitingTotalPoints > tournament.DoubleLimit)
-                    return BadRequest(new { message = "Tá»•ng Ä‘iá»ƒm trÃ¬nh Ä‘Ã´i vÆ°á»£t giá»›i háº¡n cá»§a giáº£i." });
+                    return BadRequest(new { message = "Tổng điểm trình đôi vượt giới hạn của giải." });
 
                 waitingReg.Player1Name = waitingPartner.FullName;
                 waitingReg.Player1Avatar = waitingPartner.AvatarUrl;
@@ -1014,7 +1014,7 @@ public class TournamentRegistrationUserController : ControllerBase
         // Load proper user snapshot for requestedTo user to get correct rating
         var requestedToSnapshot = await LoadUserSnapshotAsync(pairRequest.RequestedToUserId, ct);
         if (requestedToSnapshot == null)
-            return NotFound(new { message = "User not found." });
+            return NotFound(new { message = "Không tìm thấy người dùng." });
 
         var notification = BuildNotification(
             pairRequest.RequestedByUserId,
@@ -1060,7 +1060,7 @@ public class TournamentRegistrationUserController : ControllerBase
             .CountAsync(ct);
 
         if (tournament.ExpectedTeams - successCount <= 0)
-            return (false, "Giáº£i Ä‘Ã£ Ä‘á»§ sá»‘ Ä‘á»™i Ä‘Äƒng kÃ½.", null, null);
+            return (false, "Giải đã đủ số đội đăng ký.", null, null);
 
         var registration = await _db.TournamentRegistrations
             .FirstOrDefaultAsync(x =>
@@ -1068,16 +1068,16 @@ public class TournamentRegistrationUserController : ControllerBase
                 x.RegistrationId == registrationId, ct);
 
         if (registration == null)
-            return (false, "KhÃ´ng tÃ¬m tháº¥y Ä‘Äƒng kÃ½ chá» ghÃ©p.", null, null);
+            return (false, "Không tìm thấy đăng ký chờ ghép.", null, null);
 
         if (!registration.WaitingPair || registration.Success || registration.Player2UserId.HasValue)
-            return (false, "ÄÄƒng kÃ½ nÃ y khÃ´ng cÃ²n á»Ÿ tráº¡ng thÃ¡i chá» ghÃ©p.", null, null);
+            return (false, "Đăng ký này không còn ở trạng thái chờ ghép.", null, null);
 
         if (!registration.Player1UserId.HasValue)
-            return (false, "KhÃ´ng thá»ƒ gá»­i yÃªu cáº§u cho Ä‘Äƒng kÃ½ khÃ¡ch.", null, null);
+            return (false, "Không thể gửi yêu cầu cho đăng ký khách.", null, null);
 
         if (registration.Player1UserId.Value == requestedByUserId)
-            return (false, "Báº¡n khÃ´ng thá»ƒ tá»± ghÃ©p cáº·p vá»›i chÃ­nh mÃ¬nh.", null, null);
+            return (false, "Bạn không thể tự ghép cặp với chính mình.", null, null);
 
         var requesterHasRegistration = await _db.TournamentRegistrations.AnyAsync(x =>
             x.TournamentId == tournament.TournamentId &&
@@ -1085,11 +1085,11 @@ public class TournamentRegistrationUserController : ControllerBase
              (x.Player2UserId.HasValue && x.Player2UserId.Value == requestedByUserId)), ct);
 
         if (requesterHasRegistration)
-            return (false, "Váº­n Ä‘á»™ng viÃªn Ä‘Ã£ cÃ³ Ä‘Äƒng kÃ½ trong giáº£i nÃ y.", null, null);
+            return (false, "Vận động viên đã có đăng ký trong giải này.", null, null);
 
         var targetUser = await LoadUserSnapshotAsync(registration.Player1UserId.Value, ct);
         if (targetUser == null)
-            return (false, "KhÃ´ng tÃ¬m tháº¥y ngÆ°á»i chÆ¡i Ä‘ang chá» ghÃ©p.", null, null);
+            return (false, "Không tìm thấy người chơi đang chờ ghép.", null, null);
 
         return (true, "", registration, targetUser);
     }
@@ -1401,7 +1401,7 @@ public class TournamentRegistrationUserController : ControllerBase
     {
         var uid = User.FindFirstValue("uid") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(uid) || !long.TryParse(uid, out var userId))
-            throw new UnauthorizedAccessException("Invalid token: missing uid.");
+            throw new UnauthorizedAccessException("Token không hợp lệ: thiếu uid.");
 
         return userId;
     }

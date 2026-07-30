@@ -17,6 +17,234 @@ Trang/luong hien tai dang anh huong:
 - Public/client schedule/standings: `TournamentClientController`, `PublicTournamentsController`
 - Referee score: `RefereeMatchesApiController`
 
+## TASK-01 - Chot Quy Tac Nghiep Vu Tao Tran Tren Bracket Admin
+
+Trang thai: **Da chot mot phan - chua code**.
+
+Muc tieu: thong nhat cac quy tac tao, sua va xoa tran truc tiep tren giao dien bracket admin truoc khi trien khai.
+
+### 1. Vong Duoc Phep Tao Tran
+
+**Da chot:** Admin duoc phep tao tran o tat ca cac vong dau.
+
+Quy tac:
+
+- Khong gioi han tao tran theo loai vong.
+- Admin co the tao tran o vong bang, playoff, tu ket, ban ket, chung ket hoac cac vong duoc cau hinh them.
+- Tran moi phai thuoc dung tournament, round va group dang thao tac tren bracket.
+
+### 2. Ma/ID Tran Dau
+
+**Da chot:** ID tran dau duoc he thong tu dong sinh.
+
+Quy tac:
+
+- Admin khong nhap va khong duoc sua ID tran.
+- Sau khi tao thanh cong, bracket dung ID do de hien thi va tao lien ket nguon giua cac tran.
+- Neu can thu tu hien thi trong cung mot vong, thu tu nay la du lieu rieng, khong dung ID lam thu tu nghiep vu.
+
+### 3. Tao Tran Khi Chua Xac Dinh Van Dong Vien
+
+**Da chot:** Cho phep tao tran khi chua co van dong vien/doi thi dau cu the.
+
+Quy tac:
+
+- Moi slot co the de chua xac dinh va tro den nguon nhu nguoi thang hoac nguoi thua cua tran truoc.
+- Bracket hien mo ta nguon, vi du `Cho thang tran #143` hoac `Cho thua tran #168`.
+- Khi tran nguon ket thuc va xac dinh duoc nguoi thang/nguoi thua, he thong tu dong day van dong vien/doi vao dung slot cua tran moi.
+- Admin khong phai mo tran sau de chon lai van dong vien thu cong.
+- Chi cho phep cham diem khi tran da xac dinh du hai ben thi dau hop le.
+
+### 4. Khoa Sua Tran Da Ket Thuc
+
+**Da chot:** Tran da co ty so va da ket thuc thi khong duoc sua tren bracket admin.
+
+Quy tac:
+
+- Khoa chinh sua hai slot va nguon cua hai slot.
+- Khoa thay doi van dong vien/doi thi dau.
+- Khoa thay doi ket noi winner/loser voi tran nguon.
+- Giao dien bracket chi cho xem thong tin cua tran da ket thuc.
+- Neu can sua ket qua do nhap sai, phai di qua nghiep vu sua/huy ket qua rieng; khong sua truc tiep trong che do thiet ke bracket.
+
+### 5. Xoa Tran Dang La Nguon Cua Tran Sau
+
+**Da chot:** Khong duoc xoa tran neu tran do dang la nguon cua mot hoac nhieu tran phia sau.
+
+Quy tac:
+
+- He thong phai kiem tra ca lien ket `WINNER_MATCH` va `LOSER_MATCH` truoc khi xoa.
+- Neu dang duoc tham chieu, thao tac xoa bi tu choi va hien danh sach cac tran dang phu thuoc.
+- Admin phai xoa lan luot tu tran o ngọn/cuoi nhanh bracket roi moi xoa nguoc ve cac tran nguon.
+- He thong khong tu dong xoa day chuyen va khong tu dong cat lien ket cua tran sau.
+
+Vi du:
+
+```text
+Tran #143 -> Tran #168 -> Tran #255
+```
+
+Thu tu xoa hop le: `#255`, sau do `#168`, cuoi cung `#143`.
+
+### 6. Xu Ly BYE
+
+**Cho chot:** Chua co quy tac nghiep vu cuoi cung cho `BYE`.
+
+Can quyet dinh truoc khi trien khai:
+
+- Tran co mot slot `BYE` co tu dong ket thuc hay khong.
+- Doi con lai co tu dong duoc day len tran sau hay khong.
+- Co tao ban ghi tran cho cap `doi vs BYE` hay bo qua tran do.
+- Bracket hien `BYE` nhu mot slot hay hien doi do di thang vao vong sau.
+
+### 7. Mot Tran Nguon Cap Cho Nhieu Tran Sau
+
+**Cho chot:** Chua xac dinh mot ket qua winner/loser co duoc su dung lam nguon cho nhieu tran dich hay khong.
+
+Can quyet dinh rieng cho tung truong hop:
+
+- Mot `WINNER_MATCH` co duoc noi vao nhieu slot/tran sau hay khong.
+- Mot `LOSER_MATCH` co duoc noi vao nhieu slot/tran sau hay khong.
+- Neu cho phep, can canh bao kha nang mot van dong vien bi xep vao nhieu tran cung nhanh.
+
+### Acceptance Criteria Cho TASK-01
+
+- [x] Da chot vong nao duoc phep tao tran.
+- [x] Da chot cach sinh ID tran.
+- [x] Da chot cho phep tao tran chua co van dong vien.
+- [x] Da chot tu dong day winner/loser vao tran sau.
+- [x] Da chot khoa sua tran da co ty so va ket thuc tren bracket.
+- [x] Da chot khong xoa tran dang lam nguon; phai xoa tu ngọn ve nguon.
+- [ ] Chot nghiep vu `BYE`.
+- [ ] Chot mot winner/loser co duoc cap cho nhieu tran sau hay khong.
+
+## TASK-02 - Trien Khai Tao/Sua Tran Truc Tiep Tren Bracket Admin
+
+Trang thai: **Da hoan thanh MVP va da kiem thu**.
+
+Pham vi MVP:
+
+- Dung bracket hien tai lam man hinh xem va thiet ke tran.
+- Tao/sua bang panel ben phai, khong bat admin quay lai modal danh sach tran.
+- Dung thao tac click trong MVP; chua lam keo tha noi `W/L`.
+- Khong hien `BYE` tren editor cho den khi TASK-01 chot xong nghiep vu `BYE`.
+
+### A. Ha Tang Nghiep Vu Da Co Va Da Doi Chieu
+
+- [x] Model cho phep `Team1RegistrationId` va `Team2RegistrationId` nullable.
+- [x] Model co source type va source id/rank cho ca hai slot.
+- [x] SQL migration cho match slot source da co trong `database/migrations` va `database/updates`.
+- [x] API tao tran chap nhan slot `REGISTRATION`, `WINNER_MATCH`, `LOSER_MATCH`, `GROUP_RANK`.
+- [x] API cho phep tao tran khi source chua resolve ra van dong vien.
+- [x] API tu resolve winner/loser neu tran nguon da ket thuc.
+- [x] Service tu dong day winner/loser vao tran dich sau khi cham diem.
+- [x] API kiem tra source cung tournament, khong tu tham chieu va khong tao cycle.
+- [x] API chan xoa tran dang duoc dung lam source cua tran sau.
+- [x] API public bracket tra group id, match id, source va trang thai resolved cua hai slot.
+
+### B. Che Do Thiet Ke Tren Bracket
+
+- [x] Them nut chuyen `Xem` / `Thiet ke` tren trang bracket admin.
+- [x] Mac dinh bracket o che do `Xem` de tranh thao tac nham.
+- [x] Chi hien nut tao/sua/xoa khi dang o che do `Thiet ke`.
+- [x] Them nut `+` truc quan cho tung group that trong moi vong.
+- [x] Khong cho tao tran vao group/vong ao chua co trong du lieu.
+- [x] Click card tran trong che do `Thiet ke` de mo panel sua.
+- [x] Van giu hanh vi focus duong noi khi bracket o che do `Xem`.
+
+### C. Panel Tao/Sua Tran
+
+- [x] Panel hien dung tournament, vong, group va ID tran.
+- [x] Khi tao moi, ID tran chi hien sau khi server tu dong sinh.
+- [x] Ho tro chon source rieng cho Slot A va Slot B.
+- [x] Ho tro chon doi dang ky truc tiep.
+- [x] Ho tro tim nhanh doi trong giai bang ID doi, ma dang ky hoac ten nguoi choi.
+- [x] Ho tro chon nguoi thang cua tran nguon.
+- [x] Ho tro chon nguoi thua cua tran nguon.
+- [x] Ho tro chon hang N cua bang nguon.
+- [x] Hien mo ta `TBD` neu source chua co ket qua.
+- [x] Ho tro lich, san, dia chi, video va UserId trong tai.
+- [x] Kiem tra UserId trong tai va hien thong tin trong tai hop le.
+- [x] Validate hai slot khong trung doi va cac truong source bat buoc.
+- [x] Hien loi API ngay trong panel, khong dong panel khi luu that bai.
+
+### D. Khoa Tran Da Ket Thuc Va Xoa Tu Ngon
+
+- [x] Card tran da ket thuc hien trang thai khoa trong che do `Thiet ke`.
+- [x] Panel tran da ket thuc chi cho xem, khong cho sua slot hay metadata.
+- [x] Khong hien/khong cho thao tac xoa tren bracket voi tran da ket thuc.
+- [x] Khi xoa tran dang lam source, API tra danh sach tran dich dang phu thuoc.
+- [x] Panel hien thong bao phai xoa cac tran o ngon truoc.
+- [x] Tran chua ket thuc va khong bi tham chieu duoc xoa sau buoc xac nhan.
+
+### E. Dong Bo Sau Thao Tac
+
+- [x] Sau khi tao, bracket reload va focus vao tran vua duoc tao.
+- [x] Sau khi sua, bracket reload va focus vao tran vua duoc sua.
+- [x] Sau khi xoa, bracket reload va giu dung khu vuc dang xem.
+- [x] Giu zoom va vi tri cuon sau khi luu/xoa.
+- [x] Popup bracket tren trang danh sach tran dong bo lai danh sach card sau thay doi.
+- [x] Ve lai duong winner/loser/group-rank theo du lieu moi.
+
+### F. Kiem Thu Va Nghiem Thu
+
+- [x] Build project thanh cong, khong co compile error.
+- [x] Kiem tra syntax JavaScript editor bracket.
+- [x] Test tao tran voi hai doi dang ky.
+- [x] Test nhap ID doi va tu chon dung doi cho ca Slot A/Slot B.
+- [x] Test tao tran `Winner A vs Winner B` khi A/B chua ket thuc.
+- [x] Test tao tran lay loser va hang bang.
+- [x] Test sua tran chua ket thuc.
+- [x] Test khong sua/xoa duoc tran da ket thuc tren bracket.
+- [x] Test chan xoa tran dang lam source va hien tran phu thuoc.
+- [x] Test bracket popup va trang bracket doc lap.
+- [x] Test hien thi o viewport desktop va mobile/tablet.
+
+### Ngoai Pham Vi MVP
+
+- [ ] Keo tha cong `W`/`L` vao Slot A/B.
+- [ ] Undo/redo thao tac noi bracket.
+- [ ] Xu ly tu dong `BYE` sau khi quy tac nghiep vu duoc chot.
+- [ ] Gioi han mot winner/loser chi duoc cap cho mot tran sau neu nghiep vu sau nay yeu cau.
+
+## TASK-03 - Tao Vong Va Bang Truc Tiep Tren Bracket Admin
+
+Trang thai: **Da hoan thanh va da kiem thu**.
+
+### A. Giao Dien Quan Ly Cau Truc
+
+- [x] Them nut `Vong / Bang` trong che do `Thiet ke`.
+- [x] Them panel tao vong va tao bang ngay tren bracket admin.
+- [x] Hien danh sach vong, bang, ID va so tran hien co.
+- [x] Them nut `+` tren tieu de tung vong that de tao bang dung vong.
+- [x] Ho tro desktop, popup bracket va man hinh mobile/tablet.
+
+### B. Tao Vong
+
+- [x] Tu de xuat ma vong, ten vong va thu tu tiep theo.
+- [x] Goi API tao vong va hien loi trung ma vong ngay trong panel.
+- [x] Sau khi tao vong, reload bracket va tu chon vong vua tao.
+
+### C. Tao Bang
+
+- [x] Chon vong dich va nhap ten/thu tu bang.
+- [x] Tu de xuat ten bang tiep theo trong vong.
+- [x] Goi API tao bang va hien bang moi ngay tren bracket.
+- [x] Sau khi tao bang, co the bam `+` de tao tran ngay.
+
+### D. Xoa Cau Truc Rong
+
+- [x] Chi cho xoa bang khi khong con tran va khong duoc dung lam source.
+- [x] Chi cho xoa vong khi khong con bang.
+- [x] Reload bracket va giu vi tri xem sau khi xoa.
+
+### E. Kiem Thu
+
+- [x] Build project khong co compile error.
+- [x] Kiem tra syntax JavaScript bracket/editor.
+- [x] Test tao vong, tao bang va bracket reload dung.
+- [x] Test chan xoa bang/vong con du lieu.
+
 ## 0. Hien Trang Can Nho
 
 Model hien tai `TournamentGroupMatch` chi luu doi that:
@@ -1168,4 +1396,3 @@ Tinh nang duoc coi la xong khi:
 7. Lam propagation group rank.
 8. Sua public/referee/bracket.
 9. Hardening delete/cycle/overwrite.
-

@@ -34,7 +34,7 @@ namespace HanakaServer.Controllers
         {
             var uid = User.FindFirstValue("uid") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(uid) || !long.TryParse(uid, out var userId))
-                throw new UnauthorizedAccessException("Invalid token: missing uid.");
+                throw new UnauthorizedAccessException("Token không hợp lệ: thiếu uid.");
             return userId;
         }
 

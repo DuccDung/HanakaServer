@@ -31,7 +31,7 @@ namespace HanakaServer.Controllers
         {
             var uid = User.FindFirstValue("uid") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(uid) || !long.TryParse(uid, out var userId))
-                throw new UnauthorizedAccessException("Invalid token: missing uid.");
+                throw new UnauthorizedAccessException("Token không hợp lệ: thiếu uid.");
             return userId;
         }
 
@@ -91,7 +91,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
 
             if (user == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
             // Nếu user cũ chưa có history thì tự khởi tạo
             await EnsureInitialRatingHistoryAsync(user);
@@ -106,7 +106,7 @@ namespace HanakaServer.Controllers
             var userId = GetUserIdFromToken();
 
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
-            if (user == null) return NotFound(new { message = "User not found." });
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             if (user.Verified)
                 return BadRequest(new { message = "Tài khoản đã xác thực nên không thể cập nhật thông tin hồ sơ." });
@@ -118,7 +118,7 @@ namespace HanakaServer.Controllers
             {
                 var name = req.FullName.Trim();
                 if (name.Length < 2)
-                    return BadRequest(new { message = "FullName must be at least 2 characters." });
+                    return BadRequest(new { message = "Họ tên phải có ít nhất 2 ký tự." });
 
                 user.FullName = name;
             }
@@ -155,18 +155,18 @@ namespace HanakaServer.Controllers
             var userId = GetUserIdFromToken();
 
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
-            if (user == null) return NotFound(new { message = "User not found." });
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             if (user.Verified)
                 return BadRequest(new { message = "Tài khoản đã xác thực nên không thể đổi ảnh đại diện." });
 
             if (file == null || file.Length == 0)
-                return BadRequest(new { message = "File is required." });
+                return BadRequest(new { message = "Vui lòng chọn tệp." });
 
             var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
             var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
             if (!allowed.Contains(ext))
-                return BadRequest(new { message = "Only jpg, jpeg, png, webp are allowed." });
+                return BadRequest(new { message = "Chỉ chấp nhận định dạng jpg, jpeg, png hoặc webp." });
 
             var uploadsDir = Path.Combine(_env.WebRootPath ?? "wwwroot", "uploads", "avatars");
             Directory.CreateDirectory(uploadsDir);
@@ -212,22 +212,22 @@ namespace HanakaServer.Controllers
             var userId = GetUserIdFromToken();
 
             if (req == null)
-                return BadRequest(new { message = "Invalid request." });
+                return BadRequest(new { message = "Yêu cầu không hợp lệ." });
 
             if (string.IsNullOrWhiteSpace(req.CurrentPassword))
-                return BadRequest(new { message = "CurrentPassword is required." });
+                return BadRequest(new { message = "Vui lòng nhập mật khẩu hiện tại." });
 
             if (string.IsNullOrWhiteSpace(req.NewPassword) || req.NewPassword.Length < 8)
-                return BadRequest(new { message = "NewPassword must be at least 8 characters." });
+                return BadRequest(new { message = "Mật khẩu mới phải có ít nhất 8 ký tự." });
 
             if (req.NewPassword != req.ConfirmPassword)
                 return BadRequest(new { message = "ConfirmPassword does not match." });
 
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
-            if (user == null) return NotFound(new { message = "User not found." });
+            if (user == null) return NotFound(new { message = "Không tìm thấy người dùng." });
 
             if (string.IsNullOrWhiteSpace(user.PasswordHash))
-                return BadRequest(new { message = "User has no password set." });
+                return BadRequest(new { message = "Tài khoản chưa được thiết lập mật khẩu." });
 
             var ok = BCrypt.Net.BCrypt.Verify(req.CurrentPassword, user.PasswordHash);
             if (!ok) return BadRequest(new { message = "Mật khẩu hiện tại không đúng." });
@@ -336,7 +336,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(x => x.UserId == id && x.UserId != 2 && x.IsActive);
 
             if (user == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
             var latestRating = await _db.UserRatingHistories
                 .AsNoTracking()
@@ -376,17 +376,17 @@ namespace HanakaServer.Controllers
             var userId = GetUserIdFromToken();
 
             if (req == null)
-                return BadRequest(new { message = "Invalid request." });
+                return BadRequest(new { message = "Yêu cầu không hợp lệ." });
 
             if (req.RatingSingle < 0 || req.RatingSingle > 5)
-                return BadRequest(new { message = "RatingSingle must be between 0 and 5." });
+                return BadRequest(new { message = "Điểm trình đơn phải từ 0 đến 5." });
 
             if (req.RatingDouble < 0 || req.RatingDouble > 5)
-                return BadRequest(new { message = "RatingDouble must be between 0 and 5." });
+                return BadRequest(new { message = "Điểm trình đôi phải từ 0 đến 5." });
 
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive);
             if (user == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
             if (user.Verified)
                 return BadRequest(new { message = "Tài khoản đã xác thực nên không thể tự cập nhật điểm trình." });
@@ -433,12 +433,12 @@ namespace HanakaServer.Controllers
 
             var user = await _db.Users.FirstOrDefaultAsync(u => u.UserId == userId && u.IsActive, ct);
             if (user == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
             var now = DateTime.UtcNow;
             var oldFullName = user.FullName;
             var oldAvatarUrl = user.AvatarUrl;
-            var deletedDisplayName = $"Deleted Account {user.UserId}";
+            var deletedDisplayName = $"Tài khoản đã xóa {user.UserId}";
             var deletedEmail = BuildDeletedEmailAddress(user.UserId, now);
 
             await using var tx = await _db.Database.BeginTransactionAsync(ct);
@@ -534,7 +534,7 @@ namespace HanakaServer.Controllers
 
             var user = await _db.Users.FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
             if (user == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
             await EnsureInitialRatingHistoryAsync(user);
 
@@ -569,7 +569,7 @@ namespace HanakaServer.Controllers
         {
             var user = await _db.Users.FirstOrDefaultAsync(x => x.UserId == id && x.IsActive);
             if (user == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
             await EnsureInitialRatingHistoryAsync(user);
 
@@ -606,7 +606,7 @@ namespace HanakaServer.Controllers
 
             var user = await _db.Users.FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
             if (user == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
             await EnsureInitialRatingHistoryAsync(user);
 
@@ -768,7 +768,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
 
             if (user == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
             var items = await _db.UserAchievements
                 .AsNoTracking()
@@ -797,7 +797,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(x => x.UserId == id && x.UserId != 2 && x.IsActive);
 
             if (user == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
             var items = await _db.UserAchievements
                 .AsNoTracking()
@@ -985,6 +985,7 @@ namespace HanakaServer.Controllers
                 AvatarUrl = ToAbsoluteUrl(user.AvatarUrl),
                 user.Bio,
                 user.BirthOfDate,
+                user.IsHiddenFromChatSearch,
                 user.CreatedAt,
                 user.UpdatedAt
             };

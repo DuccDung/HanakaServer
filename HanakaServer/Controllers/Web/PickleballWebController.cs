@@ -78,7 +78,7 @@ namespace HanakaServer.Controllers.Web
         {
             return View("Page", BuildPage(
                 title: "Videos",
-                eyebrow: "Match video",
+                eyebrow: "Video trận đấu",
                 description: "Danh sách video trận đấu, phân loại theo tab và cách hiển thị gần với ứng dụng mobile.",
                 pageKind: "videos",
                 icon: "play-circle-outline",
@@ -119,11 +119,27 @@ namespace HanakaServer.Controllers.Web
         public IActionResult ChatRoom(long id)
         {
             return View("Page", BuildPage(
-                title: "Chat CLB",
+                title: "Trò chuyện CLB",
                 eyebrow: "Phòng chat",
                 description: "Màn hình tin nhắn CLB với luồng xem và gửi tin cơ bản trên web.",
                 pageKind: "chat-room",
                 icon: "chatbubbles-outline",
+                showSearch: false,
+                activeTab: "chat",
+                entityId: id,
+                backHref: "/PickleballWeb/Chats",
+                backLabel: "Trò chuyện"));
+        }
+
+        [HttpGet("/PickleballWeb/DirectChat/{id:long}")]
+        public IActionResult DirectChatRoom(long id)
+        {
+            return View("Page", BuildPage(
+                title: "Chat cá nhân",
+                eyebrow: "Phòng chat 1v1",
+                description: "Màn hình tin nhắn cá nhân 1v1 với tìm kiếm thành viên, chặn và thu hồi tin nhắn.",
+                pageKind: "direct-chat-room",
+                icon: "chatbubble-ellipses-outline",
                 showSearch: false,
                 activeTab: "chat",
                 entityId: id,
@@ -340,7 +356,7 @@ namespace HanakaServer.Controllers.Web
 
             return View("Detail", BuildDetailPage(
                 title: "Thanh toán đăng ký",
-                eyebrow: "SePay QR",
+                eyebrow: "Mã QR SePay",
                 description: "Quét mã QR hoặc chuyển khoản đúng nội dung để hệ thống tự xác nhận thanh toán.",
                 pageKind: "tournament-payment-page",
                 entityId: id,
@@ -370,7 +386,7 @@ namespace HanakaServer.Controllers.Web
         {
             return View("Detail", BuildDetailPage(
                 title: "Thể Lệ Giải",
-                eyebrow: "Tournament rule",
+                eyebrow: "Thể lệ giải đấu",
                 description: "Thể lệ công khai, quy định tham gia và hướng dẫn thi đấu của giải.",
                 pageKind: "tournament-rule-page",
                 entityId: id,
@@ -384,7 +400,7 @@ namespace HanakaServer.Controllers.Web
         {
             return View("Detail", BuildDetailPage(
                 title: "Lịch Thi Đấu",
-                eyebrow: "Tournament schedule",
+                eyebrow: "Lịch thi đấu",
                 description: "Theo dõi vòng đấu, bảng đấu, sân thi đấu và diễn biến trận từ giải đấu.",
                 pageKind: "tournament-schedule-page",
                 entityId: id,
@@ -444,7 +460,7 @@ namespace HanakaServer.Controllers.Web
         {
             return View("Detail", BuildDetailPage(
                 title: "Bảng Xếp Hạng",
-                eyebrow: "Tournament standings",
+                eyebrow: "Bảng xếp hạng giải đấu",
                 description: "Theo dõi thứ hạng các đội, điểm số và hiệu số theo từng vòng đấu công khai.",
                 pageKind: "tournament-standings-page",
                 entityId: id,
@@ -482,7 +498,7 @@ namespace HanakaServer.Controllers.Web
         {
             return View("Page", BuildPage(
                 title: "Trận Đấu",
-                eyebrow: "Match video",
+                eyebrow: "Video trận đấu",
                 description: "Theo dõi các trận đấu công khai, video nổi bật, tỉ số và lịch thi đấu mới nhất.",
                 pageKind: "matches",
                 icon: "tennisball-outline",
@@ -494,7 +510,7 @@ namespace HanakaServer.Controllers.Web
         {
             return View("Detail", BuildDetailPage(
                 title: "Chi Tiết Trận Đấu",
-                eyebrow: "Match center",
+                eyebrow: "Trung tâm trận đấu",
                 description: "Xem thông tin trận đấu, đội hình, điểm số và video nếu đã được cập nhật.",
                 pageKind: "match-detail",
                 entityId: id,

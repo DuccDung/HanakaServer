@@ -42,7 +42,7 @@ namespace HanakaServer.Controllers.Api
                 return NotFound(new { message = "Không tìm thấy user." });
 
             if (!user.IsActive)
-                return BadRequest(new { message = "User này đang bị vô hiệu hóa, không thể gán làm trọng tài." });
+                return BadRequest(new { message = "Người dùng này đang bị vô hiệu hóa, không thể gán làm trọng tài." });
 
             var referee = await _db.Referees
                 .AsNoTracking()
@@ -56,7 +56,7 @@ namespace HanakaServer.Controllers.Api
                 .FirstOrDefaultAsync();
 
             if (referee == null)
-                return BadRequest(new { message = "User này chưa có hồ sơ trọng tài." });
+                return BadRequest(new { message = "Người dùng này chưa có hồ sơ trọng tài." });
 
             if (!referee.Verified)
                 return BadRequest(new { message = "Hồ sơ trọng tài này chưa được xác minh." });

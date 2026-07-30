@@ -55,6 +55,19 @@ namespace HanakaServer.Dtos
         public string? BtCode { get; set; }
     }
 
+    public class UpdateRegistrationPlayersForm
+    {
+        public long? Player1UserId { get; set; }
+        public string? Player1Name { get; set; }
+        public decimal? Player1Level { get; set; }
+        public IFormFile? Player1AvatarFile { get; set; }
+
+        public long? Player2UserId { get; set; }
+        public string? Player2Name { get; set; }
+        public decimal? Player2Level { get; set; }
+        public IFormFile? Player2AvatarFile { get; set; }
+    }
+
     public class PairWaitingDto
     {
         public long WithWaitingRegistrationId { get; set; }

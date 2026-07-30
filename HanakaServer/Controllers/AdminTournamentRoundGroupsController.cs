@@ -23,7 +23,7 @@ namespace HanakaServer.Controllers
                 .Select(x => new { x.TournamentRoundMapId, x.TournamentId, x.RoundKey, x.RoundLabel })
                 .FirstOrDefaultAsync();
 
-            if (rm == null) return NotFound(new { message = "RoundMap not found." });
+            if (rm == null) return NotFound(new { message = "Không tìm thấy sơ đồ vòng đấu." });
 
             var items = await _db.TournamentRoundGroups.AsNoTracking()
                 .Where(x => x.TournamentRoundMapId == roundMapId)
@@ -46,16 +46,16 @@ namespace HanakaServer.Controllers
         public async Task<IActionResult> Create(long roundMapId, [FromBody] CreateGroupDto dto)
         {
             var rm = await _db.TournamentRoundMaps.FirstOrDefaultAsync(x => x.TournamentRoundMapId == roundMapId);
-            if (rm == null) return NotFound(new { message = "RoundMap not found." });
+            if (rm == null) return NotFound(new { message = "Không tìm thấy sơ đồ vòng đấu." });
 
             var name = (dto.GroupName ?? "").Trim();
             if (string.IsNullOrWhiteSpace(name))
-                return BadRequest(new { message = "GroupName is required." });
+                return BadRequest(new { message = "Vui lòng nhập tên bảng đấu." });
 
             var exists = await _db.TournamentRoundGroups.AnyAsync(x =>
                 x.TournamentRoundMapId == roundMapId && x.GroupName == name);
 
-            if (exists) return BadRequest(new { message = "GroupName already exists in this round." });
+            if (exists) return BadRequest(new { message = "Tên bảng đã tồn tại trong vòng đấu này." });
 
             var g = new TournamentRoundGroup
             {
@@ -85,18 +85,18 @@ namespace HanakaServer.Controllers
             var g = await _db.TournamentRoundGroups
                 .FirstOrDefaultAsync(x => x.TournamentRoundGroupId == groupId && x.TournamentRoundMapId == roundMapId);
 
-            if (g == null) return NotFound(new { message = "Group not found." });
+            if (g == null) return NotFound(new { message = "Không tìm thấy bảng đấu." });
 
             if (dto.GroupName != null)
             {
                 var name = dto.GroupName.Trim();
                 if (string.IsNullOrWhiteSpace(name))
-                    return BadRequest(new { message = "GroupName cannot be empty." });
+                    return BadRequest(new { message = "Tên bảng đấu không được để trống." });
 
                 var exists = await _db.TournamentRoundGroups.AnyAsync(x =>
                     x.TournamentRoundMapId == roundMapId && x.GroupName == name && x.TournamentRoundGroupId != groupId);
 
-                if (exists) return BadRequest(new { message = "GroupName already exists in this round." });
+                if (exists) return BadRequest(new { message = "Tên bảng đã tồn tại trong vòng đấu này." });
 
                 g.GroupName = name;
             }
@@ -122,7 +122,7 @@ namespace HanakaServer.Controllers
             var g = await _db.TournamentRoundGroups
                 .FirstOrDefaultAsync(x => x.TournamentRoundGroupId == groupId && x.TournamentRoundMapId == roundMapId);
 
-            if (g == null) return NotFound(new { message = "Group not found." });
+            if (g == null) return NotFound(new { message = "Không tìm thấy bảng đấu." });
 
             var hasMatches = await _db.TournamentGroupMatches
                 .AsNoTracking()

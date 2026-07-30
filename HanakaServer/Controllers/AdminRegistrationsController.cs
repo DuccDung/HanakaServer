@@ -1,11 +1,14 @@
 ﻿using HanakaServer.Data;
 using HanakaServer.Dtos;
+using HanakaServer.Dtos.Payments;
 using HanakaServer.Helpers;
 using HanakaServer.Models;
+using HanakaServer.Services.Payments;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
+using System.Globalization;
 
 namespace HanakaServer.Controllers
 {
@@ -16,11 +19,26 @@ namespace HanakaServer.Controllers
     {
         private readonly PickleballDbContext _db;
         private readonly IWebHostEnvironment _env;
+        private readonly TournamentRegistrationPaymentService _paymentService;
+        private static readonly CultureInfo ViCulture = CultureInfo.GetCultureInfo("vi-VN");
 
-        public AdminRegistrationsController(PickleballDbContext db, IWebHostEnvironment env)
+        private sealed class UserPlayerSnapshot
+        {
+            public long UserId { get; init; }
+            public string FullName { get; init; } = "";
+            public string? AvatarUrl { get; init; }
+            public decimal RatingSingle { get; init; }
+            public decimal RatingDouble { get; init; }
+        }
+
+        public AdminRegistrationsController(
+            PickleballDbContext db,
+            IWebHostEnvironment env,
+            TournamentRegistrationPaymentService paymentService)
         {
             _db = db;
             _env = env;
+            _paymentService = paymentService;
         }
 
         // =========================
@@ -38,7 +56,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (tournament == null)
-                return NotFound(new { message = "Tournament not found." });
+                return NotFound(new { message = "Không tìm thấy giải đấu." });
 
             var baseQ = _db.TournamentRegistrations
                 .AsNoTracking()
@@ -176,7 +194,7 @@ namespace HanakaServer.Controllers
                     .FirstOrDefaultAsync(t => t.TournamentId == tournamentId);
 
                 if (tournament == null)
-                    return NotFound(new { message = "Tournament not found." });
+                    return NotFound(new { message = "Không tìm thấy giải đấu." });
 
                 var gameType = ((req.GameType ?? tournament.GameType ?? "DOUBLE").Trim()).ToUpperInvariant();
                 if (gameType != "SINGLE" && gameType != "DOUBLE")
@@ -201,7 +219,7 @@ namespace HanakaServer.Controllers
                 {
                     return BadRequest(new
                     {
-                        message = "Tournament is full. Create as WaitingPair or increase ExpectedTeams."
+                        message = "Giải đấu đã đủ đội. Hãy tạo đăng ký chờ ghép hoặc tăng số đội dự kiến."
                     });
                 }
 
@@ -297,7 +315,7 @@ namespace HanakaServer.Controllers
             catch (Exception ex)
             {
                 await tx.RollbackAsync();
-                return StatusCode(500, new { message = "Create registration failed.", detail = ex.Message });
+                return StatusCode(500, new { message = "Tạo đăng ký thất bại.", detail = ex.Message });
             }
         }
 
@@ -308,7 +326,7 @@ namespace HanakaServer.Controllers
         public async Task<IActionResult> Pair(long registrationId, [FromBody] PairWaitingDto body)
         {
             if (body == null || body.WithWaitingRegistrationId <= 0)
-                return BadRequest(new { message = "WithWaitingRegistrationId is required." });
+                return BadRequest(new { message = "Vui lòng chọn đăng ký đang chờ ghép." });
 
             if (body.WithWaitingRegistrationId == registrationId)
                 return BadRequest(new { message = "Cannot pair with itself." });
@@ -330,7 +348,7 @@ namespace HanakaServer.Controllers
                     return BadRequest(new { message = "Different tournament." });
 
                 if (!a.WaitingPair || !b.WaitingPair)
-                    return BadRequest(new { message = "Both must be waiting registrations." });
+                    return BadRequest(new { message = "Cả hai đăng ký phải ở trạng thái chờ ghép." });
 
                 // a waiting nhưng lỡ có P2 rồi => data bẩn
                 if (!string.IsNullOrWhiteSpace(a.Player2Name) || a.Player2UserId.HasValue)
@@ -352,7 +370,7 @@ namespace HanakaServer.Controllers
 
                 var capacityLeft = Math.Max(0, (tournament?.ExpectedTeams ?? 0) - successCount);
                 if (capacityLeft <= 0)
-                    return BadRequest(new { message = "Tournament is full. Cannot pair into a SUCCESS team." });
+                    return BadRequest(new { message = "Giải đấu đã đủ đội, không thể ghép thành đội hợp lệ." });
 
                 // Merge: a gets b.Player1 as Player2
                 a.Player2UserId = b.Player1UserId;
@@ -382,7 +400,7 @@ namespace HanakaServer.Controllers
             catch (Exception ex)
             {
                 await tx.RollbackAsync();
-                return StatusCode(500, new { message = "Pair failed.", detail = ex.Message });
+                return StatusCode(500, new { message = "Ghép đôi thất bại.", detail = ex.Message });
             }
         }
 
@@ -400,6 +418,351 @@ namespace HanakaServer.Controllers
 
             await _db.SaveChangesAsync();
             return Ok(await ToAdminDtoAsync(reg));
+        }
+
+        [HttpPost("registrations/{id:long}/payment-info")]
+        public async Task<IActionResult> PaymentInfo(long id, CancellationToken cancellationToken)
+        {
+            var reg = await _db.TournamentRegistrations
+                .AsNoTracking()
+                .Include(x => x.Tournament)
+                .FirstOrDefaultAsync(x => x.RegistrationId == id, cancellationToken);
+
+            if (reg == null)
+                return NotFound(new { message = "Registration not found." });
+
+            var latestPayment = await _db.TournamentRegistrationPayments
+                .AsNoTracking()
+                .Where(x => x.RegistrationId == id)
+                .OrderByDescending(x => x.PaidAt.HasValue)
+                .ThenByDescending(x => x.PaidAt)
+                .ThenByDescending(x => x.CreatedAt)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            TournamentPaymentCheckoutResponse? checkout = null;
+            var createdOrReused = false;
+
+            if (latestPayment != null)
+            {
+                checkout = await _paymentService.GetCheckoutByTransactionCodeAsync(
+                    latestPayment.TransactionCode,
+                    cancellationToken);
+            }
+
+            if (!reg.Paid)
+            {
+                var checkoutResult = await _paymentService.CreateOrReuseAdminCheckoutAsync(id, cancellationToken);
+                if (!checkoutResult.Success || checkoutResult.Payment == null)
+                    return StatusCode(checkoutResult.StatusCode, new { message = checkoutResult.Message });
+
+                checkout = checkoutResult.Payment;
+                createdOrReused = true;
+                latestPayment = await _db.TournamentRegistrationPayments
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(x => x.PaymentId == checkout.PaymentId, cancellationToken);
+            }
+
+            var amount = checkout?.Amount
+                ?? latestPayment?.Amount
+                ?? reg.PaymentAmount
+                ?? reg.Tournament.RegistrationFeeAmount;
+            var currency = NormalizeCurrency(checkout?.Currency ?? latestPayment?.Currency ?? reg.Tournament.RegistrationFeeCurrency);
+            var paidAt = checkout?.PaidAt ?? latestPayment?.PaidAt ?? reg.PaidAt;
+            var paidAmount = latestPayment?.PaidAmount ?? reg.PaymentAmount;
+            var isCashPayment = latestPayment != null && IsCashPaymentRecord(latestPayment);
+
+            return Ok(new
+            {
+                registrationId = reg.RegistrationId,
+                regCode = reg.RegCode,
+                isPaid = reg.Paid,
+                isCashPayment,
+                mode = reg.Paid ? "paid" : "checkout",
+                createdOrReused,
+                hasPaymentCode = checkout != null,
+                tournament = new
+                {
+                    reg.TournamentId,
+                    title = reg.Tournament.Title,
+                    feeAmount = reg.Tournament.RegistrationFeeAmount,
+                    feeText = FormatAmount(reg.Tournament.RegistrationFeeAmount, reg.Tournament.RegistrationFeeCurrency),
+                    currency = NormalizeCurrency(reg.Tournament.RegistrationFeeCurrency)
+                },
+                team = new
+                {
+                    name = BuildTeamName(reg),
+                    player1Name = reg.Player1Name,
+                    player2Name = string.IsNullOrWhiteSpace(reg.Player2Name) ? null : reg.Player2Name,
+                    points = reg.Points
+                },
+                payment = checkout,
+                paymentRecord = latestPayment == null
+                    ? null
+                    : new
+                    {
+                        latestPayment.PaymentId,
+                        latestPayment.Provider,
+                        latestPayment.PaymentMethod,
+                        latestPayment.Status,
+                        isCashPayment,
+                        latestPayment.TransactionCode,
+                        latestPayment.ProviderTransactionId,
+                        latestPayment.BankCode,
+                        latestPayment.BankAccountNo,
+                        latestPayment.BankAccountName,
+                        latestPayment.TransferContent,
+                        latestPayment.QrImageUrl,
+                        latestPayment.Amount,
+                        amountText = FormatAmount(latestPayment.Amount, latestPayment.Currency),
+                        latestPayment.PaidAmount,
+                        paidAmountText = paidAmount.HasValue ? FormatAmount(paidAmount.Value, currency) : null,
+                        latestPayment.Currency,
+                        latestPayment.ExpiredAt,
+                        expiredAtText = FormatDateTime(latestPayment.ExpiredAt),
+                        latestPayment.PaidAt,
+                        paidAtText = FormatDateTime(latestPayment.PaidAt),
+                        latestPayment.CreatedAt,
+                        createdAtText = FormatDateTime(latestPayment.CreatedAt),
+                        latestPayment.UpdatedAt,
+                        updatedAtText = FormatDateTime(latestPayment.UpdatedAt)
+                    },
+                manualPayment = checkout == null
+                    ? new
+                    {
+                        status = reg.Paid ? "paid" : "unpaid",
+                        statusTitle = reg.Paid ? "Đã thanh toán" : "Chưa thanh toán",
+                        amount,
+                        amountText = FormatAmount(amount, currency),
+                        paidAmount,
+                        paidAmountText = paidAmount.HasValue ? FormatAmount(paidAmount.Value, currency) : null,
+                        paidAt,
+                        paidAtText = FormatDateTime(paidAt),
+                        currency
+                    }
+                    : null
+            });
+        }
+
+        [HttpPost("registrations/{id:long}/confirm-cash-payment")]
+        public async Task<IActionResult> ConfirmCashPayment(long id, CancellationToken cancellationToken)
+        {
+            await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+            try
+            {
+                var reg = await _db.TournamentRegistrations
+                    .Include(x => x.Tournament)
+                    .FirstOrDefaultAsync(x => x.RegistrationId == id, cancellationToken);
+
+                if (reg == null)
+                    return NotFound(new { message = "Registration not found." });
+
+                if (!reg.Success || reg.WaitingPair)
+                    return BadRequest(new { message = "Chỉ đội đã đăng ký thành công mới được xác nhận thanh toán." });
+
+                if (reg.Paid)
+                    return BadRequest(new { message = "Đăng ký này đã được ghi nhận thanh toán." });
+
+                var now = DateTime.UtcNow;
+                var amount = reg.Tournament.RegistrationFeeAmount > 0
+                    ? reg.Tournament.RegistrationFeeAmount
+                    : 0m;
+                var currency = NormalizeCurrency(reg.Tournament.RegistrationFeeCurrency);
+
+                var payment = new TournamentRegistrationPayment
+                {
+                    RegistrationId = reg.RegistrationId,
+                    TournamentId = reg.TournamentId,
+                    UserId = null,
+                    Provider = "sepay",
+                    PaymentMethod = "bank_transfer",
+                    Status = "paid",
+                    TransactionCode = await GenerateManualPaymentCodeAsync(reg.TournamentId, reg.RegistrationId, cancellationToken),
+                    ProviderTransactionId = null,
+                    BankCode = null,
+                    BankAccountNo = null,
+                    BankAccountName = null,
+                    QrImageUrl = null,
+                    TransferContent = "Thanh toán tiền mặt",
+                    Amount = amount,
+                    PaidAmount = amount,
+                    Currency = currency,
+                    RawResponse = "Admin xác nhận thanh toán tiền mặt.",
+                    ExpiredAt = null,
+                    PaidAt = now,
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+
+                _db.TournamentRegistrationPayments.Add(payment);
+
+                reg.Paid = true;
+                reg.PaidAt = now;
+                reg.PaymentAmount = amount;
+
+                await _db.SaveChangesAsync(cancellationToken);
+                await tx.CommitAsync(cancellationToken);
+
+                return Ok(new
+                {
+                    ok = true,
+                    message = "Đã xác nhận thanh toán tiền mặt.",
+                    registrationId = reg.RegistrationId,
+                    paymentId = payment.PaymentId,
+                    transactionCode = payment.TransactionCode,
+                    paidAt = payment.PaidAt,
+                    paidAtText = FormatDateTime(payment.PaidAt),
+                    amount = payment.PaidAmount,
+                    amountText = FormatAmount(payment.PaidAmount ?? 0m, payment.Currency)
+                });
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync(cancellationToken);
+                return StatusCode(500, new { message = "Xác nhận thanh toán tiền mặt thất bại.", detail = ex.Message });
+            }
+        }
+
+        [HttpPost("registrations/{id:long}/sync-levels")]
+        public async Task<IActionResult> SyncLevels(long id)
+        {
+            try
+            {
+                var reg = await _db.TournamentRegistrations.FirstOrDefaultAsync(x => x.RegistrationId == id);
+                if (reg == null) return NotFound(new { message = "Registration not found." });
+
+                var tournament = await _db.Tournaments.AsNoTracking()
+                    .Where(x => x.TournamentId == reg.TournamentId)
+                    .Select(x => new { x.GameType, x.GenderCategory })
+                    .FirstOrDefaultAsync();
+
+                if (tournament == null)
+                    return NotFound(new { message = "Không tìm thấy giải đấu." });
+
+                var gameType = TournamentTypeHelper.NormalizeGameType(tournament.GameType, tournament.GenderCategory);
+                var hasUserPlayer = false;
+
+                if (reg.Player1UserId.HasValue)
+                {
+                    var p1 = await LoadUserPlayerSnapshotAsync(reg.Player1UserId.Value);
+                    reg.Player1Level = PickRating(gameType, p1);
+                    hasUserPlayer = true;
+                }
+
+                if (gameType == "DOUBLE" && reg.Player2UserId.HasValue)
+                {
+                    var p2 = await LoadUserPlayerSnapshotAsync(reg.Player2UserId.Value);
+                    reg.Player2Level = PickRating(gameType, p2);
+                    hasUserPlayer = true;
+                }
+
+                if (!hasUserPlayer)
+                    return BadRequest(new { message = "Đội này không có thành viên USER để đồng bộ trình." });
+
+                reg.Points = CalcPoints(gameType, reg.Player1Level, HasPlayer2(reg) ? reg.Player2Level : (decimal?)null);
+
+                await _db.SaveChangesAsync();
+                return Ok(await ToAdminDtoAsync(reg));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return BadRequest(new { message = ex.Message });
+            }
+        }
+
+        [HttpPut("registrations/{id:long}/players")]
+        [RequestSizeLimit(20_000_000)]
+        public async Task<IActionResult> UpdatePlayers(long id, [FromForm] UpdateRegistrationPlayersForm req)
+        {
+            await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
+
+            try
+            {
+                var reg = await _db.TournamentRegistrations.FirstOrDefaultAsync(x => x.RegistrationId == id);
+                if (reg == null) return NotFound(new { message = "Registration not found." });
+
+                var tournament = await _db.Tournaments
+                    .Where(x => x.TournamentId == reg.TournamentId)
+                    .Select(x => new { x.GameType, x.GenderCategory })
+                    .FirstOrDefaultAsync();
+
+                if (tournament == null)
+                    return NotFound(new { message = "Không tìm thấy giải đấu." });
+
+                var gameType = TournamentTypeHelper.NormalizeGameType(tournament.GameType, tournament.GenderCategory);
+
+                var p1IsUser = req.Player1UserId.HasValue && req.Player1UserId.Value > 0;
+                if (!p1IsUser && string.IsNullOrWhiteSpace(req.Player1Name))
+                    return BadRequest(new { message = "Player1: require UserId or Name (guest)." });
+
+                if (gameType == "DOUBLE" && !reg.WaitingPair)
+                {
+                    var p2IsUser = req.Player2UserId.HasValue && req.Player2UserId.Value > 0;
+                    if (!p2IsUser && string.IsNullOrWhiteSpace(req.Player2Name))
+                        return BadRequest(new { message = "Player2: require UserId or Name (guest) when DOUBLE đủ cặp." });
+
+                    if (p1IsUser && p2IsUser && req.Player1UserId == req.Player2UserId)
+                        return BadRequest(new { message = "Player1 và Player2 không được là cùng một UserId." });
+                }
+
+                var preserveP1GuestAvatar = !reg.Player1UserId.HasValue ? reg.Player1Avatar : null;
+                var preserveP2GuestAvatar = !reg.Player2UserId.HasValue ? reg.Player2Avatar : null;
+
+                await FillPlayer(
+                    gameType: gameType,
+                    isPlayer1: true,
+                    reg: reg,
+                    userId: req.Player1UserId,
+                    guestName: req.Player1Name,
+                    guestLevel: req.Player1Level,
+                    guestAvatarFile: req.Player1AvatarFile,
+                    existingGuestAvatar: preserveP1GuestAvatar
+                );
+
+                if (gameType == "DOUBLE" && !reg.WaitingPair)
+                {
+                    await FillPlayer(
+                        gameType: gameType,
+                        isPlayer1: false,
+                        reg: reg,
+                        userId: req.Player2UserId,
+                        guestName: req.Player2Name,
+                        guestLevel: req.Player2Level,
+                        guestAvatarFile: req.Player2AvatarFile,
+                        existingGuestAvatar: preserveP2GuestAvatar
+                    );
+                }
+                else
+                {
+                    reg.Player2UserId = null;
+                    reg.Player2Name = null;
+                    reg.Player2Avatar = null;
+                    reg.Player2Level = 0m;
+                    reg.Player2Verified = false;
+                }
+
+                reg.Points = CalcPoints(gameType, reg.Player1Level, HasPlayer2(reg) ? reg.Player2Level : (decimal?)null);
+
+                await _db.SaveChangesAsync();
+                await tx.CommitAsync();
+
+                return Ok(await ToAdminDtoAsync(reg));
+            }
+            catch (InvalidOperationException ex)
+            {
+                await tx.RollbackAsync();
+                return BadRequest(new { message = ex.Message });
+            }
+            catch (DbUpdateException ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, new { message = "Update registration players failed (db).", detail = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync();
+                return StatusCode(500, new { message = "Cập nhật vận động viên đăng ký thất bại.", detail = ex.Message });
+            }
         }
 
         // =========================
@@ -469,6 +832,51 @@ namespace HanakaServer.Controllers
         {
             gameType = (gameType ?? "").ToUpperInvariant();
             return gameType == "DOUBLE" ? (p1 + (p2 ?? 0)) : p1;
+        }
+
+        private static string BuildTeamName(TournamentRegistration registration)
+        {
+            return string.IsNullOrWhiteSpace(registration.Player2Name)
+                ? registration.Player1Name
+                : $"{registration.Player1Name} / {registration.Player2Name}";
+        }
+
+        private static bool IsCashPaymentRecord(TournamentRegistrationPayment payment)
+        {
+            return payment.TransactionCode.StartsWith("MANUAL", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(payment.TransferContent, "Thanh toán tiền mặt", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string NormalizeCurrency(string? currency)
+        {
+            return string.IsNullOrWhiteSpace(currency) ? "VND" : currency.Trim().ToUpperInvariant();
+        }
+
+        private static string FormatAmount(decimal amount, string? currency)
+        {
+            var normalizedCurrency = NormalizeCurrency(currency);
+            return string.Equals(normalizedCurrency, "VND", StringComparison.OrdinalIgnoreCase)
+                ? string.Format(ViCulture, "{0:N0} VND", amount)
+                : string.Format(ViCulture, "{0:N0} {1}", amount, normalizedCurrency);
+        }
+
+        private static string? FormatDateTime(DateTime? value)
+        {
+            return value.HasValue
+                ? value.Value.ToString("HH:mm dd/MM/yyyy", ViCulture)
+                : null;
+        }
+
+        private static bool HasPlayer2(TournamentRegistration reg)
+        {
+            return reg.Player2UserId.HasValue || !string.IsNullOrWhiteSpace(reg.Player2Name);
+        }
+
+        private static decimal PickRating(string gameType, UserPlayerSnapshot player)
+        {
+            return string.Equals(gameType, "DOUBLE", StringComparison.OrdinalIgnoreCase)
+                ? player.RatingDouble
+                : player.RatingSingle;
         }
 
         private static decimal ResolvePickedLevel(
@@ -570,25 +978,13 @@ namespace HanakaServer.Controllers
             long? userId,
             string? guestName,
             decimal? guestLevel,
-            IFormFile? guestAvatarFile)
+            IFormFile? guestAvatarFile,
+            string? existingGuestAvatar = null)
         {
             if (userId.HasValue && userId.Value > 0)
             {
-                var u = await _db.Users
-                    .Where(x => x.UserId == userId.Value && x.IsActive)
-                    .Select(x => new
-                    {
-                        x.UserId,
-                        x.FullName,
-                        x.AvatarUrl,
-                        ratingSingle = x.RatingSingle ?? 0m,
-                        ratingDouble = x.RatingDouble ?? 0m
-                    })
-                    .FirstOrDefaultAsync();
-
-                if (u == null) throw new InvalidOperationException($"UserId {userId.Value} not found.");
-
-                var pickedLevel = (gameType == "DOUBLE") ? u.ratingDouble : u.ratingSingle;
+                var u = await LoadUserPlayerSnapshotAsync(userId.Value);
+                var pickedLevel = PickRating(gameType, u);
 
                 if (isPlayer1)
                 {
@@ -613,13 +1009,15 @@ namespace HanakaServer.Controllers
             // guest
             var name = (guestName ?? "").Trim();
             if (string.IsNullOrWhiteSpace(name))
-                throw new InvalidOperationException("Guest name is required.");
+                throw new InvalidOperationException("Vui lòng nhập tên khách.");
 
             var level = guestLevel ?? 0m;
 
             string? avatarUrl = null;
             if (guestAvatarFile != null && guestAvatarFile.Length > 0)
                 avatarUrl = await SaveAvatarFile(guestAvatarFile);
+            else
+                avatarUrl = existingGuestAvatar;
 
             if (isPlayer1)
             {
@@ -636,6 +1034,63 @@ namespace HanakaServer.Controllers
                 reg.Player2Level = level;
                 reg.Player2Avatar = avatarUrl;
                 reg.Player2Verified = false;
+            }
+        }
+
+        private async Task<UserPlayerSnapshot> LoadUserPlayerSnapshotAsync(long userId)
+        {
+            var user = await _db.Users.AsNoTracking()
+                .Where(x => x.UserId == userId && x.IsActive)
+                .Select(x => new
+                {
+                    x.UserId,
+                    x.FullName,
+                    x.AvatarUrl,
+                    x.RatingSingle,
+                    x.RatingDouble,
+                    LatestRating = _db.UserRatingHistories
+                        .Where(r => r.UserId == x.UserId)
+                        .OrderByDescending(r => r.RatedAt)
+                        .ThenByDescending(r => r.RatingHistoryId)
+                        .Select(r => new
+                        {
+                            r.RatingSingle,
+                            r.RatingDouble
+                        })
+                        .FirstOrDefault()
+                })
+                .FirstOrDefaultAsync();
+
+            if (user == null)
+                throw new InvalidOperationException($"Không tìm thấy ID người dùng {userId}.");
+
+            return new UserPlayerSnapshot
+            {
+                UserId = user.UserId,
+                FullName = user.FullName,
+                AvatarUrl = user.AvatarUrl,
+                RatingSingle = user.LatestRating?.RatingSingle ?? user.RatingSingle ?? 0m,
+                RatingDouble = user.LatestRating?.RatingDouble ?? user.RatingDouble ?? 0m
+            };
+        }
+
+        private async Task<string> GenerateManualPaymentCodeAsync(
+            long tournamentId,
+            long registrationId,
+            CancellationToken cancellationToken)
+        {
+            while (true)
+            {
+                var token = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+                var candidate = $"MANUALT{tournamentId}R{registrationId}{token}";
+                var exists = await _db.TournamentRegistrationPayments
+                    .AsNoTracking()
+                    .AnyAsync(x => x.TransactionCode == candidate, cancellationToken);
+
+                if (!exists)
+                {
+                    return candidate;
+                }
             }
         }
 
@@ -666,13 +1121,23 @@ namespace HanakaServer.Controllers
             {
                 var u1 = await _db.Users.AsNoTracking()
                     .Where(x => x.UserId == r.Player1UserId.Value)
-                    .Select(x => new { x.RatingSingle, x.RatingDouble })
+                    .Select(x => new
+                    {
+                        x.RatingSingle,
+                        x.RatingDouble,
+                        LatestRating = _db.UserRatingHistories
+                            .Where(rh => rh.UserId == x.UserId)
+                            .OrderByDescending(rh => rh.RatedAt)
+                            .ThenByDescending(rh => rh.RatingHistoryId)
+                            .Select(rh => new { rh.RatingSingle, rh.RatingDouble })
+                            .FirstOrDefault()
+                    })
                     .FirstOrDefaultAsync();
 
                 if (u1 != null)
                 {
-                    p1S = u1.RatingSingle ?? 0m;
-                    p1D = u1.RatingDouble ?? 0m;
+                    p1S = u1.LatestRating?.RatingSingle ?? u1.RatingSingle ?? 0m;
+                    p1D = u1.LatestRating?.RatingDouble ?? u1.RatingDouble ?? 0m;
                 }
             }
 
@@ -680,13 +1145,23 @@ namespace HanakaServer.Controllers
             {
                 var u2 = await _db.Users.AsNoTracking()
                     .Where(x => x.UserId == r.Player2UserId.Value)
-                    .Select(x => new { x.RatingSingle, x.RatingDouble })
+                    .Select(x => new
+                    {
+                        x.RatingSingle,
+                        x.RatingDouble,
+                        LatestRating = _db.UserRatingHistories
+                            .Where(rh => rh.UserId == x.UserId)
+                            .OrderByDescending(rh => rh.RatedAt)
+                            .ThenByDescending(rh => rh.RatingHistoryId)
+                            .Select(rh => new { rh.RatingSingle, rh.RatingDouble })
+                            .FirstOrDefault()
+                    })
                     .FirstOrDefaultAsync();
 
                 if (u2 != null)
                 {
-                    p2S = u2.RatingSingle ?? 0m;
-                    p2D = u2.RatingDouble ?? 0m;
+                    p2S = u2.LatestRating?.RatingSingle ?? u2.RatingSingle ?? 0m;
+                    p2D = u2.LatestRating?.RatingDouble ?? u2.RatingDouble ?? 0m;
                 }
             }
 

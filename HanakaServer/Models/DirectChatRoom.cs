@@ -31,5 +31,7 @@ public partial class DirectChatRoom
 
     public virtual ICollection<DirectChatRoomParticipant> DirectChatRoomParticipants { get; set; } = new List<DirectChatRoomParticipant>();
 
+    public virtual ICollection<ModerationReport> ModerationReports { get; set; } = new List<ModerationReport>();
+
     public virtual ICollection<UserBlock> UserBlocks { get; set; } = new List<UserBlock>();
 }

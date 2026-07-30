@@ -37,7 +37,7 @@ namespace HanakaServer.Controllers
         {
             var uid = User.FindFirstValue("uid") ?? User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(uid) || !long.TryParse(uid, out var userId))
-                throw new UnauthorizedAccessException("Invalid token: missing uid.");
+                throw new UnauthorizedAccessException("Token không hợp lệ: thiếu uid.");
             return userId;
         }
 
@@ -189,18 +189,18 @@ namespace HanakaServer.Controllers
             var userId = GetUserIdFromToken();
 
             if (req == null)
-                return BadRequest(new { message = "Invalid request." });
+                return BadRequest(new { message = "Yêu cầu không hợp lệ." });
 
             if (string.IsNullOrWhiteSpace(req.ClubName))
-                return BadRequest(new { message = "ClubName is required." });
+                return BadRequest(new { message = "Vui lòng nhập tên câu lạc bộ." });
 
             var clubName = req.ClubName.Trim();
             if (clubName.Length < 2)
-                return BadRequest(new { message = "ClubName must be at least 2 characters." });
+                return BadRequest(new { message = "Tên câu lạc bộ phải có ít nhất 2 ký tự." });
 
             var owner = await _db.Users.FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
             if (owner == null)
-                return NotFound(new { message = "Owner user not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng chủ câu lạc bộ." });
 
             var areaText = BuildAreaText(req.Province, req.District, req.Address);
 
@@ -272,15 +272,15 @@ namespace HanakaServer.Controllers
 
             var owner = await _db.Users.FirstOrDefaultAsync(x => x.UserId == userId && x.IsActive);
             if (owner == null)
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
 
             if (file == null || file.Length == 0)
-                return BadRequest(new { message = "File is required." });
+                return BadRequest(new { message = "Vui lòng chọn tệp." });
 
             var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
             var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
             if (!allowed.Contains(ext))
-                return BadRequest(new { message = "Only jpg, jpeg, png, webp are allowed." });
+                return BadRequest(new { message = "Chỉ chấp nhận định dạng jpg, jpeg, png hoặc webp." });
 
             var uploadsDir = Path.Combine(_env.WebRootPath ?? "wwwroot", "uploads", "clubs");
             Directory.CreateDirectory(uploadsDir);
@@ -401,7 +401,7 @@ namespace HanakaServer.Controllers
 
             var club = await _db.Clubs.FirstOrDefaultAsync(x => x.ClubId == id && x.IsActive);
             if (club == null)
-                return NotFound(new { message = "Club not found." });
+                return NotFound(new { message = "Không tìm thấy câu lạc bộ." });
 
             var existing = await _db.ClubMembers
                 .FirstOrDefaultAsync(x => x.ClubId == id && x.UserId == userId);
@@ -455,7 +455,7 @@ namespace HanakaServer.Controllers
 
             var clubExists = await _db.Clubs.AnyAsync(x => x.ClubId == id && x.IsActive);
             if (!clubExists)
-                return NotFound(new { message = "Club not found." });
+                return NotFound(new { message = "Không tìm thấy câu lạc bộ." });
 
             var member = await _db.ClubMembers
                 .FirstOrDefaultAsync(x => x.ClubId == id && x.UserId == userId);
@@ -522,7 +522,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (club == null)
-                return NotFound(new { message = "Club not found." });
+                return NotFound(new { message = "Không tìm thấy câu lạc bộ." });
 
             var owner = await _db.ClubMembers
                 .AsNoTracking()
@@ -596,7 +596,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync();
 
             if (club == null)
-                return NotFound(new { message = "Club not found." });
+                return NotFound(new { message = "Không tìm thấy câu lạc bộ." });
 
             var owner = await _db.ClubMembers
                 .AsNoTracking()
@@ -676,7 +676,7 @@ namespace HanakaServer.Controllers
 
             var clubExists = await _db.Clubs.AnyAsync(x => x.ClubId == id && x.IsActive);
             if (!clubExists)
-                return NotFound(new { message = "Club not found." });
+                return NotFound(new { message = "Không tìm thấy câu lạc bộ." });
 
             var q = _db.ClubMembers
                 .AsNoTracking()
@@ -753,7 +753,7 @@ namespace HanakaServer.Controllers
 
             var clubExists = await _db.Clubs.AnyAsync(x => x.ClubId == id && x.IsActive);
             if (!clubExists)
-                return NotFound(new { message = "Club not found." });
+                return NotFound(new { message = "Không tìm thấy câu lạc bộ." });
 
             var isOwner = await IsClubOwner(id, userId);
             if (!isOwner)
@@ -832,10 +832,10 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(x => x.ClubId == id && x.UserId == memberUserId);
 
             if (member == null)
-                return NotFound(new { message = "Member request not found." });
+                return NotFound(new { message = "Không tìm thấy yêu cầu tham gia." });
 
             if (member.IsActive)
-                return BadRequest(new { message = "Member is already active." });
+                return BadRequest(new { message = "Thành viên này đang hoạt động." });
 
             member.IsActive = true;
             member.MemberRole = "MEMBER";
@@ -896,7 +896,7 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(x => x.ClubId == id && x.UserId == memberUserId && x.IsActive);
 
             if (member == null)
-                return NotFound(new { message = "Member not found." });
+                return NotFound(new { message = "Không tìm thấy thành viên." });
 
             if (member.MemberRole == "OWNER")
                 return BadRequest(new { message = "Không thể xóa chủ CLB." });
@@ -922,7 +922,7 @@ namespace HanakaServer.Controllers
 
             var club = await _db.Clubs.FirstOrDefaultAsync(x => x.ClubId == id && x.IsActive);
             if (club == null)
-                return NotFound(new { message = "Club not found." });
+                return NotFound(new { message = "Không tìm thấy câu lạc bộ." });
 
             var isOwner = await IsClubOwner(id, userId);
             if (!isOwner)
@@ -1326,7 +1326,7 @@ namespace HanakaServer.Controllers
 
             var clubExists = await _db.Clubs.AnyAsync(x => x.ClubId == id && x.IsActive);
             if (!clubExists)
-                return NotFound(new { message = "Club not found." });
+                return NotFound(new { message = "Không tìm thấy câu lạc bộ." });
 
             var isMember = await IsActiveClubMember(id, userId);
             if (!isMember)
@@ -1416,7 +1416,7 @@ namespace HanakaServer.Controllers
 
             var club = await _db.Clubs.FirstOrDefaultAsync(x => x.ClubId == id && x.IsActive);
             if (club == null)
-                return NotFound(new { message = "Club not found." });
+                return NotFound(new { message = "Không tìm thấy câu lạc bộ." });
 
             var isMember = await IsActiveClubMember(id, userId);
             if (!isMember)
@@ -1429,7 +1429,7 @@ namespace HanakaServer.Controllers
 
             var messageType = (req.MessageType ?? "TEXT").Trim().ToUpperInvariant();
             if (messageType != "TEXT" && messageType != "IMAGE")
-                return BadRequest(new { message = "MessageType chỉ hỗ trợ TEXT hoặc IMAGE." });
+                return BadRequest(new { message = "Loại tin nhắn chỉ hỗ trợ văn bản hoặc hình ảnh." });
 
             if (messageType == "TEXT" && string.IsNullOrWhiteSpace(req.Content))
                 return BadRequest(new { message = "Nội dung tin nhắn không được để trống." });
@@ -1591,12 +1591,12 @@ namespace HanakaServer.Controllers
             var userId = GetUserIdFromToken();
 
             if (file == null || file.Length == 0)
-                return BadRequest(new { message = "File is required." });
+                return BadRequest(new { message = "Vui lòng chọn tệp." });
 
             var allowed = new[] { ".jpg", ".jpeg", ".png", ".webp" };
             var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
             if (!allowed.Contains(ext))
-                return BadRequest(new { message = "Only jpg, jpeg, png, webp are allowed." });
+                return BadRequest(new { message = "Chỉ chấp nhận định dạng jpg, jpeg, png hoặc webp." });
 
             var uploadsDir = Path.Combine(_env.WebRootPath ?? "wwwroot", "uploads", "club-messages");
             Directory.CreateDirectory(uploadsDir);

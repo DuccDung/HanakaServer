@@ -9,7 +9,7 @@
         <div>
             <h1 class="h3 mb-0 text-gray-800">Thiết lập giải thưởng</h1>
             <div class="small text-muted mt-1">
-                Chọn số lượng giải nhất / nhì / ba, gán đội theo ý admin, lưu nháp hoặc xác nhận.
+                Chọn số lượng giải nhất / nhì / ba, gán đội theo ý quản trị viên, lưu nháp hoặc xác nhận.
             </div>
         </div>
 
@@ -57,7 +57,7 @@
                 </div>
                 <div class="form-group col-md-3 d-flex align-items-end">
                     <button id="btnGenerateSlots" class="btn btn-primary w-100" type="button">
-                        <i class="fas fa-magic"></i> Tạo / cập nhật slot giải thưởng
+                        <i class="fas fa-magic"></i> Tạo / cập nhật vị trí giải thưởng
                     </button>
                 </div>
             </div>
@@ -70,7 +70,7 @@
 
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex align-items-center justify-content-between">
-            <h6 class="m-0 font-weight-bold text-primary">Danh sách slot giải thưởng</h6>
+            <h6 class="m-0 font-weight-bold text-primary">Danh sách vị trí giải thưởng</h6>
             <div id="confirmedBadge"></div>
         </div>
         <div class="card-body">
@@ -100,7 +100,7 @@
     <div class="modal-dialog modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Chọn đội cho slot giải thưởng</h5>
+                <h5 class="modal-title">Chọn đội cho vị trí giải thưởng</h5>
                 <button class="close" type="button" data-dismiss="modal">
                     <span aria-hidden="true">×</span>
                 </button>
@@ -246,15 +246,15 @@
         function teamText(reg) {
             if (!reg) return `<span class="text-muted">Chưa chọn đội</span>`;
 
-            const p1 = `${reg.player1Name || "—"}${reg.player1UserId ? ` (UserId: ${reg.player1UserId})` : ""}`;
+            const p1 = `${reg.player1Name || "—"}${reg.player1UserId ? ` (ID người dùng: ${reg.player1UserId})` : ""}`;
             const p2 = reg.player2Name
-                ? `${reg.player2Name}${reg.player2UserId ? ` (UserId: ${reg.player2UserId})` : ""}`
+                ? `${reg.player2Name}${reg.player2UserId ? ` (ID người dùng: ${reg.player2UserId})` : ""}`
                 : "—";
 
             return `
                 <div><strong>Đội #${reg.registrationId}</strong> - ${escapeHtml(reg.regCode || "—")}</div>
-                <div class="small text-muted">P1: ${escapeHtml(p1)}</div>
-                <div class="small text-muted">P2: ${escapeHtml(p2)}</div>
+                <div class="small text-muted">VĐV 1: ${escapeHtml(p1)}</div>
+                <div class="small text-muted">VĐV 2: ${escapeHtml(p2)}</div>
                 <div class="small text-muted">Points: ${reg.points ?? 0}</div>
             `;
         }
@@ -272,7 +272,7 @@
             const body = document.getElementById("prizeItemsBody");
 
             if (!state.items.length) {
-                body.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Chưa có slot giải thưởng</td></tr>`;
+                body.innerHTML = `<tr><td colspan="5" class="text-center text-muted">Chưa có vị trí giải thưởng</td></tr>`;
                 renderConfirmedBadge();
                 return;
             }
@@ -429,9 +429,9 @@
                 }
 
                       body.innerHTML = items.map(reg => {
-            const p1 = `${reg.player1Name || "—"}${reg.player1UserId ? ` (UserId: ${reg.player1UserId})` : ""}`;
+            const p1 = `${reg.player1Name || "—"}${reg.player1UserId ? ` (ID người dùng: ${reg.player1UserId})` : ""}`;
             const p2 = reg.player2Name
-                ? `${reg.player2Name}${reg.player2UserId ? ` (UserId: ${reg.player2UserId})` : ""}`
+                ? `${reg.player2Name}${reg.player2UserId ? ` (ID người dùng: ${reg.player2UserId})` : ""}`
                 : "—";
 
             return `
@@ -439,8 +439,8 @@
                     <td>${reg.registrationId}</td>
                     <td>${escapeHtml(reg.regCode || "—")}</td>
                     <td>
-                        <div><strong>P1:</strong> ${escapeHtml(p1)}</div>
-                        <div><strong>P2:</strong> ${escapeHtml(p2)}</div>
+                        <div><strong>VĐV 1:</strong> ${escapeHtml(p1)}</div>
+                        <div><strong>VĐV 2:</strong> ${escapeHtml(p2)}</div>
                     </td>
                     <td>${Number(reg.points || 0).toFixed(2)}</td>
                     <td>${reg.paid ? '<span class="badge badge-success">Có</span>' : '<span class="badge badge-secondary">Không</span>'}</td>
@@ -509,7 +509,7 @@
             hideAlert();
 
             if (!state.items.length) {
-                showAlert("warning", "Bạn chưa tạo slot giải thưởng.");
+                showAlert("warning", "Bạn chưa tạo vị trí giải thưởng.");
                 return;
             }
 

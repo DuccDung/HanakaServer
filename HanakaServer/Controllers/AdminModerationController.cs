@@ -62,6 +62,8 @@ namespace HanakaServer.Controllers
                     clubId = x.ClubId,
                     clubName = x.Club != null ? x.Club.ClubName : null,
                     messageId = x.MessageId,
+                    directChatRoomId = x.DirectChatRoomId,
+                    directChatMessageId = x.DirectChatMessageId,
                     messageContent = x.MessageContentSnapshot,
                     reporterUserId = x.ReporterUserId,
                     reporterName = x.ReporterNameSnapshot ?? x.ReporterUser.FullName,
@@ -99,7 +101,7 @@ namespace HanakaServer.Controllers
 
             if (message == null)
             {
-                return NotFound(new { message = "Message not found." });
+                return NotFound(new { message = "Không tìm thấy tin nhắn." });
             }
 
             if (!message.IsDeleted)
@@ -119,6 +121,45 @@ namespace HanakaServer.Controllers
             });
         }
 
+        [HttpPost("direct-messages/{messageId:long}/hide")]
+        public async Task<IActionResult> HideDirectMessage(long messageId)
+        {
+            var message = await _db.DirectChatMessages
+                .Include(x => x.DirectChatRoom)
+                .FirstOrDefaultAsync(x => x.DirectChatMessageId == messageId);
+
+            if (message == null)
+            {
+                return NotFound(new { message = "Direct chat message was not found." });
+            }
+
+            if (!message.IsDeleted)
+            {
+                message.IsDeleted = true;
+                message.DeletedAt = DateTime.UtcNow;
+                message.Content = null;
+                message.MediaUrl = null;
+                message.DirectChatRoom.UpdatedAt = DateTime.UtcNow;
+
+                if (message.DirectChatRoom.LastMessageId == message.DirectChatMessageId)
+                {
+                    await RefreshDirectRoomLastMessageAsync(message.DirectChatRoom, message.DirectChatMessageId);
+                }
+
+                await _db.SaveChangesAsync();
+                await _realtimeHub.SendDirectMessageDeletedAsync(message.DirectChatRoomId, message.DirectChatMessageId);
+            }
+
+            return Ok(new
+            {
+                messageId = message.DirectChatMessageId,
+                directChatMessageId = message.DirectChatMessageId,
+                roomId = message.DirectChatRoomId,
+                directChatRoomId = message.DirectChatRoomId,
+                isDeleted = true
+            });
+        }
+
         [HttpPost("reports/{reportId:long}/resolve")]
         public async Task<IActionResult> ResolveReport(long reportId, [FromBody] ModerationResolveReportDto? dto)
         {
@@ -129,7 +170,7 @@ namespace HanakaServer.Controllers
 
             if (report == null)
             {
-                return NotFound(new { message = "Report not found." });
+                return NotFound(new { message = "Không tìm thấy báo cáo." });
             }
 
             var now = DateTime.UtcNow;
@@ -137,7 +178,10 @@ namespace HanakaServer.Controllers
             var shouldEjectUser = dto.EjectUser ?? true;
             long? hiddenClubId = null;
             long? hiddenMessageId = null;
+            long? hiddenDirectRoomId = null;
+            long? hiddenDirectMessageId = null;
             bool messageHidden = false;
+            bool directMessageHidden = false;
             bool userEjected = false;
             int disabledMemberships = 0;
 
@@ -157,6 +201,35 @@ namespace HanakaServer.Controllers
                         message.Content = null;
                         message.MediaUrl = null;
                         messageHidden = true;
+                    }
+                }
+            }
+
+            if (shouldHideMessage && report.DirectChatMessageId.HasValue)
+            {
+                var message = await _db.DirectChatMessages
+                    .Include(x => x.DirectChatRoom)
+                    .FirstOrDefaultAsync(x => x.DirectChatMessageId == report.DirectChatMessageId.Value);
+
+                if (message != null)
+                {
+                    hiddenDirectRoomId = message.DirectChatRoomId;
+                    hiddenDirectMessageId = message.DirectChatMessageId;
+
+                    if (!message.IsDeleted)
+                    {
+                        message.IsDeleted = true;
+                        message.DeletedAt = now;
+                        message.Content = null;
+                        message.MediaUrl = null;
+                        message.DirectChatRoom.UpdatedAt = now;
+                        messageHidden = true;
+                        directMessageHidden = true;
+
+                        if (message.DirectChatRoom.LastMessageId == message.DirectChatMessageId)
+                        {
+                            await RefreshDirectRoomLastMessageAsync(message.DirectChatRoom, message.DirectChatMessageId);
+                        }
                     }
                 }
             }
@@ -207,6 +280,11 @@ namespace HanakaServer.Controllers
                 await _realtimeHub.SendClubMessageDeletedAsync(hiddenClubId.Value, hiddenMessageId.Value);
             }
 
+            if (directMessageHidden && hiddenDirectRoomId.HasValue && hiddenDirectMessageId.HasValue)
+            {
+                await _realtimeHub.SendDirectMessageDeletedAsync(hiddenDirectRoomId.Value, hiddenDirectMessageId.Value);
+            }
+
             if (userEjected && report.TargetUserId.HasValue)
             {
                 await _realtimeHub.DisconnectUserAsync(report.TargetUserId.Value.ToString(), "moderation_report_resolved");
@@ -217,6 +295,9 @@ namespace HanakaServer.Controllers
                 reportId = report.ReportId,
                 status = report.Status,
                 messageHidden,
+                directMessageHidden,
+                directChatRoomId = hiddenDirectRoomId,
+                directChatMessageId = hiddenDirectMessageId,
                 userEjected,
                 disabledMemberships,
                 resolutionAction = report.ResolutionAction,
@@ -231,7 +312,7 @@ namespace HanakaServer.Controllers
             var user = await _db.Users.FirstOrDefaultAsync(x => x.UserId == userId);
             if (user == null)
             {
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
             }
 
             user.IsActive = false;
@@ -265,7 +346,7 @@ namespace HanakaServer.Controllers
             var user = await _db.Users.FirstOrDefaultAsync(x => x.UserId == userId);
             if (user == null)
             {
-                return NotFound(new { message = "User not found." });
+                return NotFound(new { message = "Không tìm thấy người dùng." });
             }
 
             user.IsActive = true;
@@ -279,6 +360,27 @@ namespace HanakaServer.Controllers
                 isActive = user.IsActive,
                 note = dto?.Note
             });
+        }
+
+        private async Task RefreshDirectRoomLastMessageAsync(HanakaServer.Models.DirectChatRoom room, long excludedMessageId)
+        {
+            var latest = await _db.DirectChatMessages
+                .AsNoTracking()
+                .Where(x =>
+                    x.DirectChatRoomId == room.DirectChatRoomId &&
+                    x.DirectChatMessageId != excludedMessageId &&
+                    !x.IsDeleted)
+                .OrderByDescending(x => x.SentAt)
+                .ThenByDescending(x => x.DirectChatMessageId)
+                .Select(x => new
+                {
+                    x.DirectChatMessageId,
+                    x.SentAt
+                })
+                .FirstOrDefaultAsync();
+
+            room.LastMessageId = latest?.DirectChatMessageId;
+            room.LastMessageAt = latest?.SentAt;
         }
 
         private long? GetCurrentAdminUserId()
@@ -309,12 +411,12 @@ namespace HanakaServer.Controllers
 
             if (messageHidden)
             {
-                actions.Add("message hidden");
+                actions.Add("đã ẩn tin nhắn");
             }
 
             if (userEjected)
             {
-                actions.Add($"user ejected; disabled memberships: {disabledMemberships}");
+                actions.Add($"đã loại người dùng; số tư cách thành viên bị vô hiệu hóa: {disabledMemberships}");
             }
 
             if (!string.IsNullOrWhiteSpace(note))
@@ -323,7 +425,7 @@ namespace HanakaServer.Controllers
             }
 
             return actions.Count == 0
-                ? "Reviewed without additional action."
+                ? "Đã xem xét và không thực hiện thêm hành động."
                 : string.Join("; ", actions);
         }
 

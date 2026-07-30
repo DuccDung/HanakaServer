@@ -77,7 +77,7 @@
         <div class="d-flex align-items-center justify-content-between flex-wrap" style="gap:12px;">
             <h6 class="m-0 font-weight-bold text-primary">Danh sách nhân viên được gán quyền</h6>
             <div class="rating-assessor-filters">
-                <input id="keyword" class="form-control form-control-sm keyword" placeholder="Tìm tên / email / phone / UserId" />
+                <input id="keyword" class="form-control form-control-sm keyword" placeholder="Tìm tên / email / số điện thoại / ID người dùng" />
                 <select id="activeFilter" class="form-control form-control-sm" style="width:170px;">
                     <option value="ALL" selected>Tất cả trạng thái</option>
                     <option value="true">Đang hoạt động</option>
@@ -142,17 +142,17 @@
                     <div id="formError" class="alert alert-danger d-none"></div>
 
                     <div class="form-group">
-                        <label>UserId</label>
+                        <label>ID người dùng</label>
                         <div class="input-group">
-                            <input id="lookupUserId" class="form-control" type="number" min="1" placeholder="Nhập UserId của người dùng" />
+                            <input id="lookupUserId" class="form-control" type="number" min="1" placeholder="Nhập ID người dùng" />
                             <div class="input-group-append">
                                 <button id="btnLookup" class="btn btn-outline-info" type="button">
-                                    <i class="fas fa-search"></i> Tải user
+                                    <i class="fas fa-search"></i> Tải người dùng
                                 </button>
                             </div>
                         </div>
                         <small class="form-text text-muted">
-                            Người dùng đăng ký bình thường trước, admin chỉ gán thêm quyền RATING_ASSESSOR tại đây.
+                            Người dùng đăng ký bình thường trước, quản trị viên chỉ gán thêm quyền chấm trình tại đây.
                         </small>
                     </div>
 
@@ -255,7 +255,7 @@
                     <td>${avatarHtml(item.avatarUrl, item.fullName)}</td>
                     <td>
                         <div class="font-weight-bold text-gray-900">${esc(item.fullName || "—")}</div>
-                        <div class="small text-gray-500">UserId: ${esc(item.userId)} • ${esc(item.email || "—")}${item.phone ? " • " + esc(item.phone) : ""}</div>
+                        <div class="small text-gray-500">ID người dùng: ${esc(item.userId)} • ${esc(item.email || "—")}${item.phone ? " • " + esc(item.phone) : ""}</div>
                     </td>
                     <td>${esc(item.city || "—")}</td>
                     <td>${badgeActive(!!item.isActive)}</td>
@@ -338,7 +338,7 @@
                     ${avatarHtml(user.avatarUrl, user.fullName)}
                     <div class="flex-grow-1">
                         <div class="font-weight-bold">${esc(user.fullName || "—")}</div>
-                        <div class="small text-muted">UserId: ${esc(user.userId)} • ${esc(user.email || "—")}${user.phone ? " • " + esc(user.phone) : ""}</div>
+                        <div class="small text-muted">ID người dùng: ${esc(user.userId)} • ${esc(user.email || "—")}${user.phone ? " • " + esc(user.phone) : ""}</div>
                         <div class="mt-1">
                             ${badgeActive(!locked)}
                             ${already ? `<span class="badge badge-success">Đã có quyền chấm trình</span>` : `<span class="badge badge-secondary">Chưa có quyền chấm trình</span>`}
@@ -357,7 +357,7 @@
             clearFormError();
             const userId = Number($id("lookupUserId").value || 0);
             if (!userId) {
-                showFormError("Vui lòng nhập UserId.");
+                showFormError("Vui lòng nhập ID người dùng.");
                 return;
             }
 
