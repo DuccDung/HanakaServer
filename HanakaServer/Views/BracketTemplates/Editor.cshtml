@@ -1,0 +1,426 @@
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Thiết kế sơ đồ thi đấu";
+    var templateId = (long)ViewBag.TemplateId;
+    var versionId = (long)ViewBag.VersionId;
+}
+
+@section Styles {
+    <link href="~/css/admin-bracket-templates.css" asp-append-version="true" rel="stylesheet" />
+    <link href="~/css/admin-bracket-template-editor.css" asp-append-version="true" rel="stylesheet" />
+}
+
+<main class="bte-page" id="bracketTemplateEditor"
+      data-template-id="@templateId" data-version-id="@versionId">
+    <header class="bte-toolbar">
+        <div class="bte-toolbar__identity">
+            <a class="bte-back" asp-controller="BracketTemplates" asp-action="Index" aria-label="Quay lại thư viện"><i class="fas fa-arrow-left"></i></a>
+            <div>
+                <div class="bte-kicker"><code>@ViewBag.TemplateCode</code><span data-version-label>Đang tải...</span></div>
+                <h1>@ViewBag.TemplateName</h1>
+            </div>
+        </div>
+        <div class="bte-toolbar__status">
+            <span class="bte-save-state" data-save-state><i></i>Đã đồng bộ</span>
+            <button class="btn btn-outline-primary" type="button" data-action="validate"><i class="fas fa-shield-alt mr-2"></i>Kiểm tra</button>
+            <button class="btn btn-primary" type="button" data-action="save"><i class="fas fa-save mr-2"></i>Lưu bản nháp</button>
+            <button class="btn btn-success" type="button" data-action="publish"><i class="fas fa-paper-plane mr-2"></i>Xuất bản</button>
+        </div>
+    </header>
+
+    <div class="alert alert-danger d-none" role="alert" data-editor-error></div>
+    <div class="alert alert-success d-none" role="status" data-editor-success></div>
+
+    <section class="bte-workspace">
+        <aside class="bte-sidebar">
+            <div class="bte-panel d-none" aria-hidden="true">
+                <div class="bte-panel__head">
+                    <div><span class="bte-step">01</span><h2>Cấu hình</h2></div>
+                    <button class="bte-collapse" type="button" data-toggle="collapse" data-target="#templateConfigBody" aria-expanded="true"><i class="fas fa-chevron-up"></i></button>
+                </div>
+                <div class="collapse show bte-panel__body" id="templateConfigBody">
+                    <div class="form-row">
+                        <div class="form-group col-6">
+                            <label for="bteMinimumTeams">Đội tối thiểu</label>
+                            <input class="form-control form-control-sm" id="bteMinimumTeams" type="number" min="2" max="1024" />
+                        </div>
+                        <div class="form-group col-6">
+                            <label for="bteSeedCapacity">Số hạt giống tối đa</label>
+                            <input class="form-control form-control-sm" id="bteSeedCapacity" type="number" min="2" max="1024" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="bteSeedingMethod">Cách xếp hạt giống mặc định</label>
+                        <select class="form-control form-control-sm" id="bteSeedingMethod">
+                            <option value="REGISTRATION_ORDER">Theo thứ tự đăng ký</option>
+                            <option value="RANDOM">Ngẫu nhiên</option>
+                            <option value="MANUAL">Quản trị viên sắp xếp</option>
+                            <option value="RANKING">Theo trình</option>
+                        </select>
+                    </div>
+                    <div class="custom-control custom-switch">
+                        <input class="custom-control-input" id="bteAllowBye" type="checkbox" />
+                        <label class="custom-control-label" for="bteAllowBye">Cho phép miễn đấu (BYE)</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bte-panel bte-validation-panel">
+                <div class="bte-panel__head">
+                    <div><span class="bte-step">01</span><h2>Kiểm tra cấu trúc</h2></div>
+                    <div class="bte-validation-counts"><span class="is-error" data-error-count>0</span><span class="is-warning" data-warning-count>0</span></div>
+                </div>
+                <div class="bte-panel__body">
+                    <div class="bte-validation-empty" data-validation-empty><i class="fas fa-check-circle"></i><span>Chưa phát hiện vấn đề</span></div>
+                    <div class="bte-validation-list" data-validation-list></div>
+                </div>
+            </div>
+        </aside>
+
+        <section class="bte-canvas-panel">
+            <div class="bte-canvas-head">
+                <div>
+                    <span class="bte-eyebrow">SƠ ĐỒ CẤU TRÚC</span>
+                    <h2>Vòng, bảng và nguồn trận đấu</h2>
+                    <p data-graph-summary>0 vòng · 0 bảng · 0 trận</p>
+                    <div class="bte-connector-legend">
+                        <span class="is-winner"><i></i>Đội thắng</span>
+                        <span class="is-loser"><i></i>Đội thua</span>
+                        <span class="is-group"><i></i>Hạng bảng</span>
+                        <small><i class="fas fa-mouse-pointer"></i>Bấm card để chỉ xem dây liên quan; bấm vùng trống để hiện tất cả</small>
+                    </div>
+                </div>
+                <div class="bte-canvas-actions">
+                    <div class="bte-zoom-controls" aria-label="Thu phóng sơ đồ">
+                        <button type="button" data-action="graph-zoom-out" title="Thu nhỏ sơ đồ" aria-label="Thu nhỏ sơ đồ"><i class="fas fa-minus"></i></button>
+                        <button type="button" data-action="graph-zoom-reset" data-graph-zoom-label title="Trở về 100%">100%</button>
+                        <button type="button" data-action="graph-zoom-in" title="Phóng lớn sơ đồ" aria-label="Phóng lớn sơ đồ"><i class="fas fa-plus"></i></button>
+                        <button type="button" data-action="graph-zoom-fit" title="Thu vừa chiều ngang"><i class="fas fa-expand-arrows-alt"></i><span>Vừa màn hình</span></button>
+                    </div>
+                    <button class="btn btn-sm btn-light bte-focus-button" type="button" data-action="toggle-canvas-focus" title="Ẩn bảng cấu hình để mở rộng sơ đồ"><i class="fas fa-expand mr-1"></i><span>Mở rộng</span></button>
+                    <button class="btn btn-sm btn-light" type="button" data-action="reset-all-match-positions" title="Đưa toàn bộ vòng và card trận về vị trí mặc định"><i class="fas fa-crosshairs mr-1"></i><span>Xếp lại sơ đồ</span></button>
+                    <button class="btn btn-sm btn-light" type="button" data-action="bulk-audit" title="Chọn nhiều vòng để kiểm tra đường đi tiếp cùng lúc"><i class="fas fa-tasks mr-1"></i><span>Kiểm tra nhiều vòng</span></button>
+                    <div class="btn-group">
+                        <button class="btn btn-sm btn-light" type="button" data-action="add-round"><i class="fas fa-plus mr-1"></i>Vòng</button>
+                        <button class="btn btn-sm btn-light" type="button" data-action="preview"><i class="far fa-eye mr-1"></i>Xem trước</button>
+                    </div>
+                </div>
+            </div>
+            <div class="bte-canvas-scroll">
+                <div class="bte-canvas-viewport" data-canvas-viewport>
+                    <div class="bte-canvas-stage" data-canvas-stage>
+                        <svg class="bte-connectors" data-connectors aria-hidden="true"></svg>
+                        <div class="bte-empty-canvas" data-empty-canvas>
+                            <i class="fas fa-project-diagram"></i>
+                            <h3>Bản nháp chưa có cấu trúc</h3>
+                            <p>Nhấn “Vòng”, sau đó thêm từng bảng/nhánh và từng trận đấu.</p>
+                        </div>
+                        <div class="bte-rounds" data-rounds></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </section>
+
+    <div class="bte-loading" data-editor-loading aria-live="polite"><span class="spinner-border text-primary"></span><strong>Đang tải cấu trúc...</strong></div>
+</main>
+
+@section Modals {
+    <div class="modal fade bte-match-editor-shell" id="matchEditorModal" tabindex="-1" role="dialog" aria-labelledby="matchEditorTitle" aria-hidden="true" data-backdrop="false">
+        <div class="modal-dialog bte-match-editor-dialog" role="document">
+            <div class="modal-content bte-match-editor-modal">
+                <div class="modal-header" data-drag-handle title="Giữ và kéo để di chuyển cửa sổ">
+                    <div>
+                        <span class="bte-eyebrow">THIẾT KẾ TRẬN ĐẤU</span>
+                        <h2 class="modal-title" id="matchEditorTitle" data-match-editor-title>Tạo trận</h2>
+                        <p data-match-editor-context></p>
+                    </div>
+                    <span class="bte-drag-hint"><i class="fas fa-arrows-alt"></i>Kéo để di chuyển</span>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body" data-match-editor-body></div>
+                <div class="modal-footer">
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="button" data-match-editor-save>
+                        <i class="fas fa-check mr-2"></i>Áp dụng vào bản nháp
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bte-source-picker-dialog d-none" id="sourceMatchPickerDialog" role="dialog" aria-labelledby="sourceMatchPickerTitle">
+        <div class="bte-source-picker-dialog__head" data-drag-handle title="Giữ và kéo để di chuyển cửa sổ">
+            <div>
+                <span class="bte-eyebrow">CHỌN TRẬN NGUỒN</span>
+                <h2 id="sourceMatchPickerTitle">Trận đấu trước đó</h2>
+                <p data-source-match-picker-context></p>
+            </div>
+            <button type="button" data-source-picker-close aria-label="Đóng"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="bte-source-picker-dialog__body">
+            <label class="bte-floating-source-search">
+                <i class="fas fa-search"></i>
+                <input type="search" placeholder="Tìm mã, tên trận, vòng hoặc nhánh..." data-floating-source-search />
+            </label>
+            <div class="bte-source-picker-list" data-source-match-list></div>
+        </div>
+        <div class="bte-source-picker-dialog__foot">
+            <span data-source-match-count>0 trận có thể chọn</span>
+            <small><i class="fas fa-arrows-alt mr-1"></i>Có thể kéo cửa sổ này</small>
+        </div>
+    </div>
+
+    <div class="modal fade" id="bulkMatchModal" tabindex="-1" role="dialog" aria-labelledby="bulkMatchTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content bte-bulk-match-modal">
+                <div class="modal-header">
+                    <div>
+                        <span class="bte-eyebrow">TẠO TRẬN HÀNG LOẠT</span>
+                        <h2 class="modal-title" id="bulkMatchTitle">Tạo nhiều khung trận</h2>
+                        <p data-bulk-match-context></p>
+                    </div>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="bte-bulk-note">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Chức năng này chỉ tạo mã, tên và thứ tự trận. Hướng thắng/thua, hạng bảng và BYE vẫn do admin thiết lập cho từng trận.</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="bteBulkMatchCount">Số trận cần tạo</label>
+                        <input class="form-control" id="bteBulkMatchCount" type="number" min="2" max="64" value="4" data-bulk-match-count />
+                        <div class="invalid-feedback">Số trận phải là số nguyên từ 2 đến 64.</div>
+                    </div>
+                    <label class="bte-bulk-seed-option">
+                        <input type="checkbox" data-bulk-assign-seeds />
+                        <span>
+                            <strong>Gán hạt giống còn trống theo thứ tự</strong>
+                            <small>Nếu không chọn, hai nguồn đội được để trống để admin cấu hình thủ công.</small>
+                        </span>
+                    </label>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="button" data-bulk-match-create>
+                        <i class="fas fa-copy mr-2"></i>Tạo các trận
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="initialTeamNumberingModal" tabindex="-1" role="dialog" aria-labelledby="initialTeamNumberingTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content bte-numbering-modal">
+                <div class="modal-header">
+                    <div>
+                        <span class="bte-eyebrow">ĐÁNH SỐ ĐỘI ĐẦU VÀO</span>
+                        <h2 class="modal-title" id="initialTeamNumberingTitle">Tự đánh số cho vòng đấu</h2>
+                        <p data-initial-team-numbering-context></p>
+                    </div>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="bte-bulk-note bte-numbering-note">
+                        <i class="fas fa-list-ol"></i>
+                        <span>Hệ thống giữ các vị trí hợp lệ đã nhập, ưu tiên giữ vị trí của card BYE, rồi điền các số còn thiếu theo thứ tự trận và Đội 1 → Đội 2.</span>
+                    </div>
+                    <div class="alert alert-danger d-none" role="alert" data-initial-team-numbering-error></div>
+                    <div class="bte-numbering-summary" data-initial-team-numbering-summary></div>
+                    <div class="bte-numbering-preview" data-initial-team-numbering-preview></div>
+                </div>
+                <div class="modal-footer">
+                    <span class="bte-numbering-status mr-auto" data-initial-team-numbering-status></span>
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="button" data-initial-team-numbering-apply>
+                        <i class="fas fa-list-ol mr-2"></i>Xác nhận đánh số
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="byePassModal" tabindex="-1" role="dialog" aria-labelledby="byePassTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
+            <div class="modal-content bte-bye-pass-modal">
+                <div class="modal-header">
+                    <div>
+                        <span class="bte-eyebrow">TẠO SUẤT MIỄN ĐẤU</span>
+                        <h2 class="modal-title" id="byePassTitle">Chọn đội được BYE</h2>
+                        <p data-bye-pass-context></p>
+                    </div>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="bte-bulk-note bte-bye-pass-note">
+                        <i class="fas fa-forward"></i>
+                        <span>Mỗi vị trí được chọn sẽ tạo một card BYE độc lập. Sau đó kéo dây <strong>BYE · Đi tiếp</strong> tới một nguồn đội ở bất kỳ vòng đứng sau nào.</span>
+                    </div>
+                    <div class="alert alert-danger d-none" role="alert" data-bye-pass-error></div>
+                    <label class="bte-bye-pass-search">
+                        <i class="fas fa-search"></i>
+                        <input type="search" placeholder="Tìm vị trí đội ban đầu..." data-bye-pass-search />
+                    </label>
+                    <div class="bte-bye-pass-list" data-bye-pass-list></div>
+                </div>
+                <div class="modal-footer">
+                    <span class="bte-bye-pass-status mr-auto" data-bye-pass-status></span>
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button>
+                    <button class="btn btn-success" type="button" data-bye-pass-create disabled>
+                        <i class="fas fa-forward mr-2"></i>Tạo card BYE
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="quickPairModal" tabindex="-1" role="dialog" aria-labelledby="quickPairTitle" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+            <div class="modal-content bte-quick-pair-modal">
+                <div class="modal-header">
+                    <div>
+                        <span class="bte-eyebrow">GHÉP CẶP NHANH</span>
+                        <h2 class="modal-title" id="quickPairTitle">Chọn nguồn và ghép lần lượt</h2>
+                        <p data-quick-pair-context></p>
+                    </div>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="bte-bulk-note">
+                        <i class="fas fa-random"></i>
+                        <span>Chọn đội thắng hoặc đội thua theo thứ tự mong muốn. Hệ thống ghép nguồn số 1–2, 3–4, 5–6… vào các trận trống; nếu thiếu khung trận sẽ tự tạo thêm.</span>
+                    </div>
+                    <label class="bte-quick-pair-replace-option">
+                        <input type="checkbox" data-quick-pair-replace />
+                        <span><strong>Ghép lại các trận hiện có trong nhánh này</strong><small>Khi bật, nguồn đội của các trận được ghi lại từ trên xuống. Những trận nằm ngoài số cặp đã chọn vẫn được giữ nguyên.</small></span>
+                    </label>
+                    <div class="bte-quick-pair-toolbar">
+                        <label class="bte-quick-pair-search">
+                            <i class="fas fa-search"></i>
+                            <input type="search" placeholder="Tìm mã trận, tên trận, vòng hoặc nhánh..." data-quick-pair-search />
+                        </label>
+                        <button type="button" data-quick-pair-select-all="WINNER_MATCH"><i class="fas fa-trophy"></i>Chọn tất cả đội thắng</button>
+                        <button type="button" data-quick-pair-select-all="LOSER_MATCH"><i class="fas fa-level-down-alt"></i>Chọn tất cả đội thua</button>
+                    </div>
+                    <div class="bte-quick-pair-layout">
+                        <section class="bte-quick-pair-panel">
+                            <div class="bte-quick-pair-panel__head">
+                                <div><span class="bte-step">01</span><strong>Chọn nguồn đội</strong></div>
+                                <small>Nguồn đã dùng sẽ bị khóa</small>
+                            </div>
+                            <div class="bte-quick-pair-source-list" data-quick-pair-source-list></div>
+                        </section>
+                        <section class="bte-quick-pair-panel">
+                            <div class="bte-quick-pair-panel__head">
+                                <div><span class="bte-step">02</span><strong>Thứ tự ghép</strong></div>
+                                <small><b data-quick-pair-selected-count>0</b> nguồn đã chọn</small>
+                            </div>
+                            <div class="bte-quick-pair-selection-list" data-quick-pair-selection-list></div>
+                            <div class="bte-quick-pair-preview" data-quick-pair-preview></div>
+                        </section>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <span class="bte-quick-pair-footer-status" data-quick-pair-footer-status>Chọn ít nhất 2 nguồn đội.</span>
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="button" data-quick-pair-apply disabled>
+                        <i class="fas fa-random mr-2"></i>Ghép các cặp đã chọn
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="bulkAdvanceAuditModal" tabindex="-1" role="dialog" aria-labelledby="bulkAdvanceAuditTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content bte-bulk-audit-modal">
+                <div class="modal-header">
+                    <div>
+                        <span class="bte-eyebrow">KIỂM TRA HÀNG LOẠT</span>
+                        <h2 class="modal-title" id="bulkAdvanceAuditTitle">Chọn các vòng cần kiểm tra</h2>
+                        <p>Kiểm tra đường đi của đội thắng, đội thua hoặc cả hai trong một lần.</p>
+                    </div>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger d-none" role="alert" data-bulk-audit-error></div>
+                    <section class="bte-bulk-audit-section">
+                        <div class="bte-bulk-audit-section__head">
+                            <div><span class="bte-step">01</span><strong>Loại kết quả cần kiểm tra</strong></div>
+                        </div>
+                        <div class="bte-bulk-audit-outcomes">
+                            <label class="bte-bulk-audit-choice is-winner">
+                                <input type="checkbox" value="WINNER_MATCH" data-bulk-audit-source checked />
+                                <i class="fas fa-trophy"></i><span><strong>Đội thắng</strong><small>Phải có trận phía sau dùng nguồn thắng trận</small></span>
+                            </label>
+                            <label class="bte-bulk-audit-choice is-loser">
+                                <input type="checkbox" value="LOSER_MATCH" data-bulk-audit-source />
+                                <i class="fas fa-level-down-alt"></i><span><strong>Đội thua</strong><small>Dùng cho nhánh thua hoặc trận phân hạng</small></span>
+                            </label>
+                        </div>
+                    </section>
+                    <section class="bte-bulk-audit-section">
+                        <div class="bte-bulk-audit-section__head">
+                            <div><span class="bte-step">02</span><strong>Vòng cần kiểm tra</strong></div>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" type="button" data-bulk-audit-select-all>Chọn tất cả</button>
+                                <button class="btn btn-outline-secondary" type="button" data-bulk-audit-clear-all>Bỏ chọn</button>
+                            </div>
+                        </div>
+                        <div class="bte-bulk-audit-rounds" data-bulk-audit-rounds></div>
+                    </section>
+                </div>
+                <div class="modal-footer">
+                    <span class="bte-bulk-audit-status mr-auto" data-bulk-audit-status></span>
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="button" data-bulk-audit-run>
+                        <i class="fas fa-route mr-2"></i>Chạy kiểm tra
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="advanceAuditModal" tabindex="-1" role="dialog" aria-labelledby="advanceAuditTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content bte-advance-audit-modal">
+                <div class="modal-header">
+                    <div>
+                        <span class="bte-eyebrow">KIỂM TRA ĐI TIẾP</span>
+                        <h2 class="modal-title" id="advanceAuditTitle" data-advance-audit-title>Kiểm tra đội chưa đi tiếp</h2>
+                        <p data-advance-audit-context></p>
+                    </div>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="bte-advance-audit-summary" data-advance-audit-summary></div>
+                    <div class="bte-advance-audit-list" data-advance-audit-list></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-outline-secondary mr-auto" type="button" data-advance-audit-clear><i class="fas fa-eraser mr-2"></i>Xóa đánh dấu</button>
+                    <button class="btn btn-primary" type="button" data-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="templatePreviewModal" tabindex="-1" role="dialog" aria-labelledby="templatePreviewTitle" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+            <div class="modal-content bte-preview-modal">
+                <div class="modal-header">
+                    <div><span class="bte-eyebrow">XEM TRƯỚC</span><h2 class="modal-title" id="templatePreviewTitle">Xem trước bằng hạt giống mô phỏng</h2></div>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="bte-preview-summary" data-preview-summary aria-live="polite"></div>
+                    <div class="bte-preview-board" data-preview-board></div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script src="~/js/admin-bracket-template-editor.js" asp-append-version="true"></script>
+}

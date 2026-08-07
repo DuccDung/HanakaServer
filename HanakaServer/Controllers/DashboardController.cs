@@ -40,6 +40,18 @@ namespace HanakaServer.Controllers
                 TotalMatches = await _db.TournamentGroupMatches.CountAsync(x => !x.Tournament.Remove),
                 CompletedMatches = await _db.TournamentGroupMatches.CountAsync(x => !x.Tournament.Remove && x.IsCompleted),
                 UpcomingMatches = await _db.TournamentGroupMatches.CountAsync(x => !x.Tournament.Remove && !x.IsCompleted && x.StartAt != null && x.StartAt >= now),
+                UnassignedBracketMatches = await _db.TournamentGroupMatches.CountAsync(x =>
+                    !x.Tournament.Remove
+                    && x.BracketApplicationId.HasValue
+                    && !x.IsCompleted
+                    && !x.RefereeUserId.HasValue),
+                BracketTemplateCount = await _db.BracketTemplates.CountAsync(x => x.Status != "ARCHIVED"),
+                DraftBracketTemplateCount = await _db.BracketTemplates.CountAsync(x => x.Status == "DRAFT"),
+                PublishedBracketTemplateCount = await _db.BracketTemplates.CountAsync(x => x.Status == "PUBLISHED"),
+                ActiveBracketApplications = await _db.TournamentBracketApplications.CountAsync(x => x.IsActive),
+                SuccessfulBracketApplications = await _db.TournamentBracketApplications.CountAsync(x => x.Status == "APPLIED" || x.Status == "REVERTED"),
+                FailedBracketApplications = await _db.TournamentBracketApplications.CountAsync(x => x.Status == "FAILED"),
+                RevertedBracketApplications = await _db.TournamentBracketApplications.CountAsync(x => x.Status == "REVERTED"),
 
                 TotalRoundMaps = await _db.TournamentRoundMaps.CountAsync(x => !x.Tournament.Remove),
                 TotalRoundGroups = await _db.TournamentRoundGroups.CountAsync(x => !x.TournamentRoundMap.Tournament.Remove),

@@ -8,7 +8,6 @@ using HanakaServer.Models;
 using HanakaServer.Options;
 using HanakaServer.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 
 namespace HanakaServer.Services.Payments;
 
@@ -19,20 +18,20 @@ public sealed class TournamentRegistrationPaymentService
 
     private readonly PickleballDbContext _db;
     private readonly SepayGatewayClient _sepayGatewayClient;
-    private readonly SepayOptions _options;
+    private readonly SepaySettingsProvider _settingsProvider;
     private readonly PublicRealtimeHub _publicRealtimeHub;
     private readonly ILogger<TournamentRegistrationPaymentService> _logger;
 
     public TournamentRegistrationPaymentService(
         PickleballDbContext db,
         SepayGatewayClient sepayGatewayClient,
-        IOptions<SepayOptions> sepayOptions,
+        SepaySettingsProvider settingsProvider,
         PublicRealtimeHub publicRealtimeHub,
         ILogger<TournamentRegistrationPaymentService> logger)
     {
         _db = db;
         _sepayGatewayClient = sepayGatewayClient;
-        _options = sepayOptions.Value;
+        _settingsProvider = settingsProvider;
         _publicRealtimeHub = publicRealtimeHub;
         _logger = logger;
     }
@@ -42,21 +41,31 @@ public sealed class TournamentRegistrationPaymentService
         long registrationId,
         CancellationToken cancellationToken = default)
     {
-        return await CreateOrReuseCheckoutCoreAsync(userId, registrationId, cancellationToken);
+        return await CreateOrReuseCheckoutCoreAsync(userId, registrationId, null, cancellationToken);
     }
 
     public async Task<TournamentPaymentServiceResult> CreateOrReuseAdminCheckoutAsync(
         long registrationId,
         CancellationToken cancellationToken = default)
     {
-        return await CreateOrReuseCheckoutCoreAsync(null, registrationId, cancellationToken);
+        return await CreateOrReuseCheckoutCoreAsync(null, registrationId, null, cancellationToken);
+    }
+
+    public async Task<TournamentPaymentServiceResult> CreateOrReuseAppWebViewCheckoutAsync(
+        long tournamentId,
+        long registrationId,
+        CancellationToken cancellationToken = default)
+    {
+        return await CreateOrReuseCheckoutCoreAsync(null, registrationId, tournamentId, cancellationToken);
     }
 
     private async Task<TournamentPaymentServiceResult> CreateOrReuseCheckoutCoreAsync(
         long? userId,
         long registrationId,
+        long? expectedTournamentId,
         CancellationToken cancellationToken = default)
     {
+        var options = await _settingsProvider.GetAsync(cancellationToken);
         var strategy = _db.Database.CreateExecutionStrategy();
 
         return await strategy.ExecuteAsync(async () =>
@@ -72,6 +81,11 @@ public sealed class TournamentRegistrationPaymentService
             if (registration is null || registration.Tournament.Remove || registration.Tournament.Status == "DRAFT")
             {
                 return TournamentPaymentServiceResult.Fail("Không tìm thấy đăng ký giải đấu.", StatusCodes.Status404NotFound);
+            }
+
+            if (expectedTournamentId.HasValue && registration.TournamentId != expectedTournamentId.Value)
+            {
+                return TournamentPaymentServiceResult.Fail("Đăng ký không thuộc giải đấu này.", StatusCodes.Status404NotFound);
             }
 
             if (!registration.Success || registration.WaitingPair)
@@ -118,11 +132,13 @@ public sealed class TournamentRegistrationPaymentService
             var transactionCode = await GenerateUniqueTransactionCodeAsync(
                 registration.TournamentId,
                 registration.RegistrationId,
+                options,
                 cancellationToken);
             var transferContent = transactionCode;
             var checkout = await _sepayGatewayClient.PrepareCheckoutAsync(
                 feeAmount,
                 transferContent,
+                options,
                 cancellationToken);
 
             if (string.IsNullOrWhiteSpace(checkout.AccountNumber) ||
@@ -134,8 +150,8 @@ public sealed class TournamentRegistrationPaymentService
             }
 
             var currency = NormalizeCurrency(registration.Tournament.RegistrationFeeCurrency);
-            var expiresAt = _options.PaymentExpireMinutes > 0
-                ? now.AddMinutes(_options.PaymentExpireMinutes)
+            var expiresAt = options.PaymentExpireMinutes > 0
+                ? now.AddMinutes(options.PaymentExpireMinutes)
                 : (DateTime?)null;
 
             var payment = new TournamentRegistrationPayment
@@ -219,7 +235,8 @@ public sealed class TournamentRegistrationPaymentService
         string? apiKeyHeader,
         CancellationToken cancellationToken = default)
     {
-        if (!IsWebhookAuthorized(authorizationHeader, apiKeyHeader))
+        var options = await _settingsProvider.GetAsync(cancellationToken);
+        if (!IsWebhookAuthorized(options, authorizationHeader, apiKeyHeader))
         {
             return TournamentPaymentWebhookResult.Unauthorized();
         }
@@ -259,19 +276,22 @@ public sealed class TournamentRegistrationPaymentService
                 return TournamentPaymentWebhookResult.Ignored("Webhook đã ghi nhận, nhưng không phải giao dịch tiền vào.");
             }
 
-            if (!IsReceiverAccountMatch(payload.AccountNumber))
-            {
-                await _db.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
-                return TournamentPaymentWebhookResult.Ignored("Webhook không thuộc tài khoản nhận tiền đã cấu hình.");
-            }
-
             var payment = await FindPaymentForWebhookAsync(payload, cancellationToken);
             if (payment is null)
             {
                 await _db.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
                 return TournamentPaymentWebhookResult.Ignored("Không tìm thấy giao dịch thanh toán phù hợp.");
+            }
+
+            var expectedReceiverAccount = string.IsNullOrWhiteSpace(payment.BankAccountNo)
+                ? options.ReceiverAccountNumber
+                : payment.BankAccountNo;
+            if (!IsReceiverAccountMatch(expectedReceiverAccount, payload.AccountNumber))
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+                return TournamentPaymentWebhookResult.Ignored("Webhook không thuộc tài khoản nhận tiền của giao dịch.");
             }
 
             webhook.PaymentId = payment.PaymentId;
@@ -426,11 +446,12 @@ public sealed class TournamentRegistrationPaymentService
     private async Task<string> GenerateUniqueTransactionCodeAsync(
         long tournamentId,
         long registrationId,
+        SepayOptions options,
         CancellationToken cancellationToken)
     {
-        var prefix = string.IsNullOrWhiteSpace(_options.TransferCodePrefix)
+        var prefix = string.IsNullOrWhiteSpace(options.TransferCodePrefix)
             ? "HNK"
-            : NormalizeToken(_options.TransferCodePrefix) ?? "HNK";
+            : NormalizeToken(options.TransferCodePrefix) ?? "HNK";
 
         while (true)
         {
@@ -511,14 +532,17 @@ public sealed class TournamentRegistrationPaymentService
             checkout.PaidAtText);
     }
 
-    private bool IsWebhookAuthorized(string? authorizationHeader, string? apiKeyHeader)
+    private static bool IsWebhookAuthorized(
+        SepayOptions options,
+        string? authorizationHeader,
+        string? apiKeyHeader)
     {
-        if (string.IsNullOrWhiteSpace(_options.WebhookApiKey))
+        if (string.IsNullOrWhiteSpace(options.WebhookApiKey))
         {
             return true;
         }
 
-        var expected = _options.WebhookApiKey.Trim();
+        var expected = options.WebhookApiKey.Trim();
         if (string.Equals(apiKeyHeader?.Trim(), expected, StringComparison.Ordinal))
         {
             return true;
@@ -535,16 +559,16 @@ public sealed class TournamentRegistrationPaymentService
                string.Equals(normalizedAuthorization, expected, StringComparison.Ordinal);
     }
 
-    private bool IsReceiverAccountMatch(string? accountNumber)
+    private static bool IsReceiverAccountMatch(string? expectedAccountNumber, string? accountNumber)
     {
-        if (string.IsNullOrWhiteSpace(_options.ReceiverAccountNumber) ||
+        if (string.IsNullOrWhiteSpace(expectedAccountNumber) ||
             string.IsNullOrWhiteSpace(accountNumber))
         {
             return true;
         }
 
         return string.Equals(
-            NormalizeAccountNumber(_options.ReceiverAccountNumber),
+            NormalizeAccountNumber(expectedAccountNumber),
             NormalizeAccountNumber(accountNumber),
             StringComparison.OrdinalIgnoreCase);
     }

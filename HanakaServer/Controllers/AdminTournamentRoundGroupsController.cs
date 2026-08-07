@@ -20,7 +20,15 @@ namespace HanakaServer.Controllers
         {
             var rm = await _db.TournamentRoundMaps.AsNoTracking()
                 .Where(x => x.TournamentRoundMapId == roundMapId)
-                .Select(x => new { x.TournamentRoundMapId, x.TournamentId, x.RoundKey, x.RoundLabel })
+                .Select(x => new
+                {
+                    x.TournamentRoundMapId,
+                    x.TournamentId,
+                    x.RoundKey,
+                    x.RoundLabel,
+                    x.BracketApplicationId,
+                    x.TemplateRoundKey
+                })
                 .FirstOrDefaultAsync();
 
             if (rm == null) return NotFound(new { message = "Không tìm thấy sơ đồ vòng đấu." });
@@ -34,6 +42,8 @@ namespace HanakaServer.Controllers
                     x.TournamentRoundMapId,
                     x.GroupName,
                     x.SortOrder,
+                    x.BracketApplicationId,
+                    x.TemplateGroupKey,
                     x.CreatedAt
                 })
                 .ToListAsync();
@@ -47,6 +57,14 @@ namespace HanakaServer.Controllers
         {
             var rm = await _db.TournamentRoundMaps.FirstOrDefaultAsync(x => x.TournamentRoundMapId == roundMapId);
             if (rm == null) return NotFound(new { message = "Không tìm thấy sơ đồ vòng đấu." });
+
+            if (rm.BracketApplicationId.HasValue)
+            {
+                return BadRequest(new
+                {
+                    message = "Không thể thêm bảng vào vòng đấu được sinh từ template. Hãy reset và áp dụng lại bracket."
+                });
+            }
 
             var name = (dto.GroupName ?? "").Trim();
             if (string.IsNullOrWhiteSpace(name))
@@ -87,6 +105,14 @@ namespace HanakaServer.Controllers
 
             if (g == null) return NotFound(new { message = "Không tìm thấy bảng đấu." });
 
+            if (g.BracketApplicationId.HasValue)
+            {
+                return BadRequest(new
+                {
+                    message = "Không thể sửa bảng đấu được sinh từ template. Hãy reset và áp dụng lại bracket."
+                });
+            }
+
             if (dto.GroupName != null)
             {
                 var name = dto.GroupName.Trim();
@@ -123,6 +149,14 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(x => x.TournamentRoundGroupId == groupId && x.TournamentRoundMapId == roundMapId);
 
             if (g == null) return NotFound(new { message = "Không tìm thấy bảng đấu." });
+
+            if (g.BracketApplicationId.HasValue)
+            {
+                return BadRequest(new
+                {
+                    message = "Không thể xóa bảng đấu được sinh từ template. Hãy dùng chức năng reset bracket."
+                });
+            }
 
             var hasMatches = await _db.TournamentGroupMatches
                 .AsNoTracking()

@@ -79,6 +79,7 @@ namespace HanakaServer.Controllers
                     x.TournamentId,
                     x.RoundKey,
                     x.RoundLabel,
+                    x.TemplateRoundType,
                     x.SortOrder,
                     x.CreatedAt
                 })
@@ -96,6 +97,7 @@ namespace HanakaServer.Controllers
                     x.TournamentRoundGroupId,
                     x.TournamentRoundMapId,
                     x.GroupName,
+                    x.TemplateGroupType,
                     x.SortOrder,
                     x.CreatedAt
                 })
@@ -113,6 +115,9 @@ namespace HanakaServer.Controllers
                     x.MatchId,
                     x.TournamentRoundGroupId,
                     x.TournamentId,
+                    x.TemplateMatchLabel,
+                    x.TemplateIsTerminal,
+                    x.TemplateTerminalType,
                     x.Team1RegistrationId,
                     x.Team1SourceType,
                     x.Team1SourceMatchId,
@@ -130,6 +135,7 @@ namespace HanakaServer.Controllers
                     x.ScoreTeam1,
                     x.ScoreTeam2,
                     x.IsCompleted,
+                    x.CompletionReason,
                     x.WinnerRegistrationId,
                     x.CreatedAt,
                     x.UpdatedAt
@@ -195,6 +201,7 @@ namespace HanakaServer.Controllers
                     TournamentRoundGroupId = g.TournamentRoundGroupId,
                     TournamentRoundMapId = g.TournamentRoundMapId,
                     GroupName = g.GroupName,
+                    GroupType = g.TemplateGroupType,
                     SortOrder = g.SortOrder,
                     CreatedAt = g.CreatedAt,
                     Matches = matchesRaw
@@ -218,6 +225,9 @@ namespace HanakaServer.Controllers
                                 MatchId = m.MatchId,
                                 TournamentRoundGroupId = m.TournamentRoundGroupId,
                                 TournamentId = m.TournamentId,
+                                MatchLabel = m.TemplateMatchLabel,
+                                IsTerminal = m.TemplateIsTerminal,
+                                TerminalType = m.TemplateTerminalType,
 
                                 Team1RegistrationId = m.Team1RegistrationId,
                                 Team1 = team1Reg == null
@@ -255,6 +265,7 @@ namespace HanakaServer.Controllers
                                 ScoreTeam1 = m.ScoreTeam1,
                                 ScoreTeam2 = m.ScoreTeam2,
                                 IsCompleted = m.IsCompleted,
+                                CompletionReason = m.CompletionReason,
                                 WinnerRegistrationId = m.WinnerRegistrationId,
                                 WinnerTeam = GetWinnerTeam(m.WinnerRegistrationId, m.Team1RegistrationId, m.Team2RegistrationId),
                                 Winner = winnerReg == null ? null : BuildTeamDto(tournament.GameType, winnerReg),
@@ -274,6 +285,7 @@ namespace HanakaServer.Controllers
                     TournamentId = r.TournamentId,
                     RoundKey = r.RoundKey,
                     RoundLabel = r.RoundLabel,
+                    RoundType = r.TemplateRoundType,
                     SortOrder = r.SortOrder,
                     CreatedAt = r.CreatedAt,
                     Groups = groupDtos
@@ -306,6 +318,9 @@ namespace HanakaServer.Controllers
                     x.MatchId,
                     x.TournamentRoundGroupId,
                     x.TournamentId,
+                    x.TemplateMatchLabel,
+                    x.TemplateIsTerminal,
+                    x.TemplateTerminalType,
                     x.Team1RegistrationId,
                     x.Team1SourceType,
                     x.Team1SourceMatchId,
@@ -323,6 +338,7 @@ namespace HanakaServer.Controllers
                     x.ScoreTeam1,
                     x.ScoreTeam2,
                     x.IsCompleted,
+                    x.CompletionReason,
                     x.WinnerRegistrationId,
                     x.CreatedAt,
                     x.UpdatedAt
@@ -380,6 +396,7 @@ namespace HanakaServer.Controllers
                     x.TournamentRoundGroupId,
                     x.TournamentRoundMapId,
                     x.GroupName,
+                    x.TemplateGroupType,
                     x.SortOrder,
                     x.CreatedAt
                 })
@@ -397,6 +414,7 @@ namespace HanakaServer.Controllers
                     x.TournamentId,
                     x.RoundKey,
                     x.RoundLabel,
+                    x.TemplateRoundType,
                     x.SortOrder,
                     x.CreatedAt
                 })
@@ -476,6 +494,7 @@ namespace HanakaServer.Controllers
                     TournamentId = round.TournamentId,
                     RoundKey = round.RoundKey,
                     RoundLabel = round.RoundLabel,
+                    RoundType = round.TemplateRoundType,
                     SortOrder = round.SortOrder,
                     CreatedAt = round.CreatedAt,
                     Groups = new List<TournamentRoundGroupClientDto>()
@@ -485,6 +504,7 @@ namespace HanakaServer.Controllers
                     TournamentRoundGroupId = group.TournamentRoundGroupId,
                     TournamentRoundMapId = group.TournamentRoundMapId,
                     GroupName = group.GroupName,
+                    GroupType = group.TemplateGroupType,
                     SortOrder = group.SortOrder,
                     CreatedAt = group.CreatedAt,
                     Matches = new List<TournamentMatchClientDto>()
@@ -494,6 +514,9 @@ namespace HanakaServer.Controllers
                     MatchId = match.MatchId,
                     TournamentRoundGroupId = match.TournamentRoundGroupId,
                     TournamentId = match.TournamentId,
+                    MatchLabel = match.TemplateMatchLabel,
+                    IsTerminal = match.TemplateIsTerminal,
+                    TerminalType = match.TemplateTerminalType,
 
                     Team1RegistrationId = match.Team1RegistrationId,
                     Team1 = team1Reg == null
@@ -531,6 +554,7 @@ namespace HanakaServer.Controllers
                     ScoreTeam1 = match.ScoreTeam1,
                     ScoreTeam2 = match.ScoreTeam2,
                     IsCompleted = match.IsCompleted,
+                    CompletionReason = match.CompletionReason,
                     WinnerRegistrationId = match.WinnerRegistrationId,
                     WinnerTeam = GetWinnerTeam(match.WinnerRegistrationId, match.Team1RegistrationId, match.Team2RegistrationId),
                     Winner = winnerReg == null ? null : BuildTeamDto(tournament.GameType, winnerReg),
@@ -866,6 +890,7 @@ namespace HanakaServer.Controllers
         public long TournamentId { get; set; }
         public string RoundKey { get; set; } = null!;
         public string RoundLabel { get; set; } = null!;
+        public string? RoundType { get; set; }
         public int SortOrder { get; set; }
         public DateTime CreatedAt { get; set; }
         public List<TournamentRoundGroupClientDto> Groups { get; set; } = new();
@@ -876,6 +901,7 @@ namespace HanakaServer.Controllers
         public long TournamentRoundGroupId { get; set; }
         public long TournamentRoundMapId { get; set; }
         public string GroupName { get; set; } = null!;
+        public string? GroupType { get; set; }
         public int SortOrder { get; set; }
         public DateTime CreatedAt { get; set; }
         public List<TournamentMatchClientDto> Matches { get; set; } = new();
@@ -886,6 +912,9 @@ namespace HanakaServer.Controllers
         public long MatchId { get; set; }
         public long TournamentRoundGroupId { get; set; }
         public long TournamentId { get; set; }
+        public string? MatchLabel { get; set; }
+        public bool? IsTerminal { get; set; }
+        public string? TerminalType { get; set; }
 
         public long? Team1RegistrationId { get; set; }
         public TournamentTeamDto? Team1 { get; set; }
@@ -916,6 +945,7 @@ namespace HanakaServer.Controllers
         public int ScoreTeam2 { get; set; }
 
         public bool IsCompleted { get; set; }
+        public string? CompletionReason { get; set; }
         public long? WinnerRegistrationId { get; set; }
         public string? WinnerTeam { get; set; }
         public TournamentTeamDto? Winner { get; set; }

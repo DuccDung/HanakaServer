@@ -1,0 +1,232 @@
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Áp dụng Bracket";
+    var tournamentId = (long)ViewBag.TournamentId;
+    var tournamentStartAtValue = ViewBag.TournamentStartTime is DateTime tournamentStartTime
+        ? tournamentStartTime.ToString("yyyy-MM-ddTHH:mm")
+        : "";
+    var tournamentLocation = ViewBag.TournamentLocation as string ?? "";
+}
+
+@section Styles {
+    <link href="~/css/admin-tournament-bracket-setup.css" asp-append-version="true" rel="stylesheet" />
+}
+
+<main class="tbs-page" id="tournamentBracketSetup" data-tournament-id="@tournamentId"
+      data-registration-locked="@(((bool)ViewBag.RegistrationLocked).ToString().ToLowerInvariant())">
+    <header class="tbs-hero">
+        <div class="tbs-hero__title">
+            <a href="/TournamentAdminBracket/Index?tournamentId=@tournamentId" aria-label="Quay lại sơ đồ"><i class="fas fa-arrow-left"></i></a>
+            <div>
+                <span class="tbs-eyebrow">BRACKET TEMPLATE · #@tournamentId</span>
+                <h1>Áp dụng Bracket</h1>
+                <p>@ViewBag.TournamentTitle</p>
+            </div>
+        </div>
+        <div class="tbs-hero__status">
+            <span class="tbs-status-pill" data-application-status><i></i>Đang kiểm tra</span>
+            <span class="tbs-lock-pill" data-lock-status><i class="fas fa-lock-open"></i>Chưa khóa đăng ký</span>
+        </div>
+    </header>
+
+    <div class="alert alert-danger d-none" role="alert" data-setup-error></div>
+    <div class="alert alert-success d-none" role="status" data-setup-success></div>
+
+    <section class="tbs-active-card d-none" data-active-application>
+        <div class="tbs-active-card__icon"><i class="fas fa-check"></i></div>
+        <div class="tbs-active-card__body">
+            <span class="tbs-eyebrow">BRACKET ĐANG HOẠT ĐỘNG</span>
+            <h2 data-active-title></h2>
+            <p data-active-meta></p>
+            <div class="alert alert-warning d-none mt-2 mb-2" data-active-new-registrations role="status"></div>
+            <div class="tbs-active-stats" data-active-stats></div>
+        </div>
+        <div class="tbs-active-card__actions">
+            <a class="btn btn-primary" href="/TournamentAdminBracket/Index?tournamentId=@tournamentId"><i class="fas fa-project-diagram mr-2"></i>Mở bracket</a>
+            <button class="btn btn-outline-primary" type="button" data-action="view-placements"><i class="fas fa-list-ol mr-2"></i>Danh sách đội đấu</button>
+            <button class="btn btn-outline-primary" type="button" data-action="reconcile"><i class="fas fa-sync-alt mr-2"></i>Kiểm tra đường đi</button>
+            <button class="btn btn-outline-danger" type="button" data-action="open-reset"><i class="fas fa-undo mr-2"></i>Reset / Xếp lại</button>
+        </div>
+    </section>
+
+    <section class="tbs-wizard" data-setup-wizard>
+        <nav class="tbs-steps" aria-label="Các bước áp dụng bracket">
+            <button class="is-active" type="button" data-step-nav="1"><span>1</span><strong>Chốt đội</strong><small>Khóa đăng ký</small></button>
+            <i></i><button type="button" data-step-nav="2"><span>2</span><strong>Template</strong><small>Chọn cấu trúc</small></button>
+            <i></i><button type="button" data-step-nav="3"><span>3</span><strong>Xếp đội đấu</strong><small>Phân bổ vị trí</small></button>
+            <i></i><button type="button" data-step-nav="4"><span>4</span><strong>Xác nhận</strong><small>Preview & apply</small></button>
+        </nav>
+
+        <div class="tbs-step-panel" data-step="1">
+            <div class="tbs-section-head">
+                <div><span class="tbs-eyebrow">BƯỚC 01</span><h2>Chốt danh sách đội đủ điều kiện</h2><p>Bracket chỉ dùng snapshot đội tại thời điểm preview. Sau khi khóa, user không thể đăng ký hoặc ghép cặp mới.</p></div>
+                <div class="tbs-count-badge"><strong data-eligible-count>0</strong><span>đội hợp lệ</span></div>
+            </div>
+            <div class="tbs-lock-card">
+                <div class="tbs-lock-card__icon"><i class="fas fa-user-lock"></i></div>
+                <div><h3 data-lock-title>Khóa danh sách đăng ký</h3><p data-lock-description>Kiểm tra danh sách trước khi tiếp tục.</p></div>
+                <button class="btn btn-primary" type="button" data-action="toggle-lock"><i class="fas fa-lock mr-2"></i>Khóa đăng ký</button>
+            </div>
+            <div class="tbs-team-list" data-eligible-list></div>
+            <div class="tbs-step-actions"><span></span><button class="btn btn-primary" type="button" data-action="next" data-next="2">Chọn template<i class="fas fa-arrow-right ml-2"></i></button></div>
+        </div>
+
+        <div class="tbs-step-panel d-none" data-step="2">
+            <div class="tbs-section-head">
+                <div><span class="tbs-eyebrow">BƯỚC 02</span><h2>Chọn template phù hợp</h2><p>Template không phù hợp vẫn được hiển thị kèm nguyên nhân để Admin dễ đối chiếu.</p></div>
+            </div>
+            <div class="tbs-template-grid" data-template-grid></div>
+            <div class="tbs-step-actions"><button class="btn btn-light" type="button" data-action="back" data-next="1"><i class="fas fa-arrow-left mr-2"></i>Quay lại</button><button class="btn btn-primary" type="button" data-action="open-placement-method">Xếp đội đấu<i class="fas fa-arrow-right ml-2"></i></button></div>
+        </div>
+
+        <div class="tbs-step-panel d-none" data-step="3">
+            <div class="tbs-section-head">
+                <div><span class="tbs-eyebrow">BƯỚC 03</span><h2>Danh sách đội đấu đã phân bổ</h2><p>Kết quả bên dưới đã được đóng dấu vào bản xem trước và sẽ được giữ nguyên khi áp dụng bracket.</p></div>
+                <button class="btn btn-outline-primary" type="button" data-action="open-placement-method"><i class="fas fa-exchange-alt mr-2"></i>Chọn lại cách xếp</button>
+            </div>
+            <div class="tbs-seed-toolbar">
+                <span><i class="fas fa-list-ol mr-2"></i><strong data-placement-method-label>Chưa xếp đội</strong> · <span data-placement-summary>0 đội đấu</span></span>
+                <div class="tbs-seed-tools">
+                    <label class="sr-only" for="teamPlacementSearch">Tìm đội trong danh sách đội đấu</label>
+                    <div class="input-group input-group-sm">
+                        <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-search"></i></span></div>
+                        <input class="form-control" id="teamPlacementSearch" type="search" placeholder="Tìm tên, mã đăng ký..." autocomplete="off" />
+                    </div>
+                </div>
+            </div>
+            <div class="tbs-seed-list" data-seed-list></div>
+            <div class="tbs-step-actions"><button class="btn btn-light" type="button" data-action="back" data-next="2"><i class="fas fa-arrow-left mr-2"></i>Quay lại</button><button class="btn btn-primary" type="button" data-action="show-preview">Kiểm tra sơ đồ<i class="fas fa-eye ml-2"></i></button></div>
+        </div>
+
+        <div class="tbs-step-panel d-none" data-step="4">
+            <div class="tbs-section-head">
+                <div><span class="tbs-eyebrow">BƯỚC 04</span><h2>Kiểm tra trước khi áp dụng</h2><p>Đây là dữ liệu sẽ được tạo thật. Giờ bắt đầu, địa chỉ và trọng tài chung sẽ được nhập khi bấm Áp dụng Bracket.</p></div>
+                <div class="tbs-preview-token"><span>Preview checksum</span><code data-preview-hash>—</code></div>
+            </div>
+            <div class="tbs-preview-summary" data-preview-summary></div>
+            <div class="tbs-validation d-none" data-preview-validation></div>
+            <div class="tbs-preview-scroll"><div class="tbs-preview-board" data-preview-board></div></div>
+            <label class="tbs-confirm"><input type="checkbox" id="confirmBracketApply" /><span><strong>Tôi đã kiểm tra danh sách đội đấu và đường đi tiếp.</strong><small>Tôi hiểu thao tác này sẽ sao chép nguyên cấu trúc template vào giải.</small></span></label>
+            <div class="tbs-step-actions"><button class="btn btn-light" type="button" data-action="back" data-next="3"><i class="fas fa-arrow-left mr-2"></i>Xem lại đội đấu</button><button class="btn btn-success btn-lg" type="button" data-action="apply" disabled><i class="fas fa-bolt mr-2"></i>Áp dụng Bracket</button></div>
+        </div>
+    </section>
+
+    <section class="tbs-history">
+        <div class="tbs-section-head"><div><span class="tbs-eyebrow">LIFECYCLE</span><h2>Lịch sử áp dụng</h2></div></div>
+        <div class="table-responsive"><table class="table mb-0"><thead><tr><th>Application</th><th>Template</th><th>Cách xếp đội</th><th>Kết quả</th><th>Thời gian</th></tr></thead><tbody data-history-rows></tbody></table></div>
+    </section>
+
+    <div class="tbs-loading" data-setup-loading aria-live="polite"><span class="spinner-border text-primary"></span><strong>Đang chuẩn bị dữ liệu...</strong></div>
+</main>
+
+@section Modals {
+    <div class="modal fade" id="teamPlacementMethodModal" tabindex="-1" role="dialog" aria-labelledby="teamPlacementMethodTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <form class="modal-content tbs-reset-modal" id="teamPlacementMethodForm">
+                <div class="modal-header"><div><span class="tbs-eyebrow">PHÂN BỔ ĐỘI ĐẤU</span><h2 class="modal-title" id="teamPlacementMethodTitle">Chọn cách xếp đội đấu</h2></div><button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span>&times;</span></button></div>
+                <div class="modal-body">
+                    <p class="tbs-placement-intro">Chọn một phương pháp. Danh sách chỉ được phân bổ sau bước xác nhận tiếp theo.</p>
+                    <div class="tbs-seeding-methods tbs-seeding-methods--modal">
+                        <label><input type="radio" name="placementMethod" value="REGISTRATION_ORDER" /><span><i class="fas fa-sort-numeric-down"></i><strong>Xếp lần lượt</strong><small>Theo đúng thứ tự danh sách đăng ký hợp lệ đang hiển thị.</small></span></label>
+                        <label><input type="radio" name="placementMethod" value="RANDOM" /><span><i class="fas fa-random"></i><strong>Xếp random</strong><small>Xáo toàn bộ đội và giữ mã random để tái tạo kết quả.</small></span></label>
+                    </div>
+                </div>
+                <div class="modal-footer"><button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button></div>
+            </form>
+        </div>
+    </div>
+    <div class="modal fade" id="teamPlacementConfirmModal" tabindex="-1" role="dialog" aria-labelledby="teamPlacementConfirmTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <form class="modal-content tbs-reset-modal" id="teamPlacementConfirmForm">
+                <div class="modal-header"><div><span class="tbs-eyebrow">XÁC NHẬN PHÂN BỔ</span><h2 class="modal-title" id="teamPlacementConfirmTitle">Xác nhận xếp đội đấu</h2></div><button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span>&times;</span></button></div>
+                <div class="modal-body">
+                    <div class="tbs-placement-confirm-grid">
+                        <span>Template<strong data-placement-confirm-template>—</strong></span>
+                        <span>Đội hợp lệ<strong data-placement-confirm-team-count>0</strong></span>
+                        <span>Sức chứa<strong data-placement-confirm-capacity>0</strong></span>
+                        <span>Vị trí BYE<strong data-placement-confirm-bye>0</strong></span>
+                        <span class="is-wide">Phương pháp<strong data-placement-confirm-method>—</strong></span>
+                    </div>
+                    <div class="alert alert-info mt-3 mb-0" data-placement-confirm-note></div>
+                </div>
+                <div class="modal-footer"><button class="btn btn-light" id="backToPlacementMethod" type="button"><i class="fas fa-arrow-left mr-2"></i>Chọn lại</button><button class="btn btn-primary" type="submit"><i class="fas fa-check mr-2"></i>Xác nhận xếp đội đấu</button></div>
+            </form>
+        </div>
+    </div>
+    <div class="modal fade" id="teamPlacementSnapshotModal" tabindex="-1" role="dialog" aria-labelledby="teamPlacementSnapshotTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
+            <div class="modal-content tbs-reset-modal">
+                <div class="modal-header"><div><span class="tbs-eyebrow">APPLICATION SNAPSHOT</span><h2 class="modal-title" id="teamPlacementSnapshotTitle">Danh sách đội đấu đã áp dụng</h2></div><button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span>&times;</span></button></div>
+                <div class="modal-body p-0"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Vị trí</th><th>Đội / cặp</th><th>Mã đăng ký</th><th>Cách xếp</th></tr></thead><tbody data-placement-snapshot-rows></tbody></table></div></div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="applyBracketDetailsModal" tabindex="-1" role="dialog" aria-labelledby="applyBracketDetailsTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
+            <form class="modal-content tbs-reset-modal" id="applyBracketDetailsForm">
+                <div class="modal-header">
+                    <div><span class="tbs-eyebrow">THÔNG TIN CHUNG CỦA TRẬN</span><h2 class="modal-title" id="applyBracketDetailsTitle">Lịch, địa chỉ và trọng tài</h2></div>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span>&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="tbs-apply-summary">
+                        <span>Template<strong data-apply-template>—</strong></span>
+                        <span>Số trận sẽ tạo<strong data-apply-match-count>0</strong></span>
+                    </div>
+                    <div class="alert alert-danger d-none mt-3" role="alert" data-apply-modal-error></div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="applyMatchStartAt">Giờ bắt đầu <span class="text-danger">*</span></label>
+                                <input class="form-control" id="applyMatchStartAt" type="datetime-local" value="@tournamentStartAtValue" required />
+                                <small class="form-text text-muted">Giờ này được gán cho tất cả trận sinh từ template.</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="applyRefereeUserId">ID tài khoản trọng tài <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input class="form-control" id="applyRefereeUserId" type="number" min="1" step="1" inputmode="numeric" placeholder="Ví dụ: 125" required />
+                                    <div class="input-group-append"><button class="btn btn-outline-primary" id="checkApplyReferee" type="button"><i class="fas fa-search mr-1"></i>Kiểm tra ID</button></div>
+                                </div>
+                                <small class="form-text text-muted">Đây là User ID, không phải mã hồ sơ trọng tài.</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tbs-referee-result is-empty" data-apply-referee-result>
+                        <i class="fas fa-user-shield"></i><span>Chưa kiểm tra tài khoản trọng tài.</span>
+                    </div>
+                    <div class="form-group mt-3">
+                        <label for="applyMatchAddress">Địa chỉ thi đấu <span class="text-danger">*</span></label>
+                        <textarea class="form-control" id="applyMatchAddress" rows="3" maxlength="400" required>@tournamentLocation</textarea>
+                        <small class="form-text text-muted">Địa chỉ này được ghi vào tất cả trận; có thể sửa riêng từng trận sau.</small>
+                    </div>
+                    <div class="alert alert-info mb-0">
+                        <strong>Một cấu hình dùng chung:</strong> toàn bộ <span data-apply-shared-match-count>0</span> trận sẽ nhận cùng giờ bắt đầu, địa chỉ và tài khoản trọng tài này.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button>
+                    <button class="btn btn-success" type="submit"><i class="fas fa-bolt mr-2"></i>Xác nhận và tạo trận</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="modal fade" id="resetBracketModal" tabindex="-1" role="dialog" aria-labelledby="resetBracketTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <form class="modal-content tbs-reset-modal" id="resetBracketForm">
+                <div class="modal-header"><div><span class="tbs-eyebrow">RESET / XẾP LẠI</span><h2 class="modal-title" id="resetBracketTitle">Gỡ bracket đang hoạt động</h2></div><button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span>&times;</span></button></div>
+                <div class="modal-body">
+                    <div class="alert alert-warning"><strong>Chỉ thực hiện được khi chưa thi đấu.</strong><br />Hệ thống sẽ xóa đúng vòng, bảng và trận do application này sinh, nhưng giữ lịch sử phân bổ đội đấu.</div>
+                    <div class="form-group"><label for="resetReason">Lý do reset <span class="text-danger">*</span></label><textarea class="form-control" id="resetReason" rows="3" required maxlength="500"></textarea></div>
+                    <div class="form-group"><label for="resetConfirmation">Nhập <strong>RESET</strong> để xác nhận</label><input class="form-control" id="resetConfirmation" autocomplete="off" required /></div>
+                </div>
+                <div class="modal-footer"><button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button><button class="btn btn-danger" type="submit"><i class="fas fa-trash-alt mr-2"></i>Reset bracket</button></div>
+            </form>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script src="~/js/admin-tournament-bracket-setup.js" asp-append-version="true"></script>
+}

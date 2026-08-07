@@ -19,17 +19,20 @@ namespace HanakaServer.Controllers
         private readonly PublicRealtimeHub _publicRealtimeHub;
         private readonly TournamentUserNotificationService _tournamentNotificationService;
         private readonly ITournamentBracketPropagationService _bracketPropagationService;
+        private readonly ILogger<RefereeMatchesApiController> _logger;
 
         public RefereeMatchesApiController(
             PickleballDbContext db,
             PublicRealtimeHub publicRealtimeHub,
             TournamentUserNotificationService tournamentNotificationService,
-            ITournamentBracketPropagationService bracketPropagationService)
+            ITournamentBracketPropagationService bracketPropagationService,
+            ILogger<RefereeMatchesApiController> logger)
         {
             _db = db;
             _publicRealtimeHub = publicRealtimeHub;
             _tournamentNotificationService = tournamentNotificationService;
             _bracketPropagationService = bracketPropagationService;
+            _logger = logger;
         }
 
         private long? GetCurrentUserId()
@@ -188,6 +191,9 @@ namespace HanakaServer.Controllers
             if (m == null)
                 return NotFound(new { message = "Không tìm thấy trận đấu hoặc bạn không phải trọng tài của trận này." });
 
+            if (m.CompletionReason == MatchCompletionReasons.Bye)
+                return BadRequest(new { message = "Trận miễn đấu đã tự động hoàn thành và không cần chấm điểm." });
+
             if (!m.Team1RegistrationId.HasValue || !m.Team2RegistrationId.HasValue)
                 return BadRequest(new { message = "Trận chưa xác định đủ 2 đội nên chưa thể chấm điểm." });
 
@@ -226,6 +232,7 @@ namespace HanakaServer.Controllers
             m.ScoreTeam1 = dto.ScoreTeam1;
             m.ScoreTeam2 = dto.ScoreTeam2;
             m.IsCompleted = dto.IsCompleted;
+            m.CompletionReason = dto.IsCompleted ? MatchCompletionReasons.Normal : null;
             m.WinnerRegistrationId = winnerRegistrationId;
             m.UpdatedAt = DateTime.UtcNow;
 
@@ -280,9 +287,11 @@ namespace HanakaServer.Controllers
 
                     await _bracketPropagationService.PropagateFromGroupAsync(m.TournamentRoundGroupId, HttpContext.RequestAborted);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Bracket propagation must not break a score that is already saved.
+                    _logger.LogError(ex,
+                        "Bracket propagation failed after referee saved match {MatchId}. Run bracket reconcile to retry.",
+                        m.MatchId);
                 }
             }
 

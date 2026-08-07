@@ -90,7 +90,58 @@
         border-radius: 4px;
     }
 
+    .round-delete-modal .modal-header {
+        border-bottom: 0;
+        padding-bottom: .5rem;
+    }
+
+    .round-delete-summary {
+        display: grid;
+        gap: .65rem;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin: 1rem 0;
+    }
+
+    .round-delete-stat {
+        border: 1px solid #e3e6f0;
+        border-radius: .45rem;
+        padding: .75rem;
+        text-align: center;
+    }
+
+        .round-delete-stat strong,
+        .round-delete-stat span {
+            display: block;
+        }
+
+        .round-delete-stat strong {
+            color: #be2617;
+            font-size: 1.15rem;
+        }
+
+        .round-delete-stat span {
+            color: #858796;
+            font-size: .72rem;
+            margin-top: .15rem;
+        }
+
+    .round-delete-confirmation {
+        border: 1px solid #f3c2bd;
+        border-radius: .45rem;
+        background: #fff8f7;
+        padding: .9rem;
+    }
+
+    .round-delete-confirmation code {
+        color: #be2617;
+        font-weight: 800;
+    }
+
     @@media (max-width: 575.98px) {
+        .round-delete-summary {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
         .round-page-title-bar > div:last-child {
             width: 100%;
         }
@@ -136,6 +187,7 @@
 
         <div class="card-body">
             <div id="errBox" class="alert alert-danger d-none"></div>
+            <div id="okBox" class="alert alert-success d-none"></div>
 
             <div class="table-responsive">
                 <table class="table table-bordered round-list-table" width="100%" cellspacing="0">
@@ -210,6 +262,59 @@
     </div>
 </div>
 
+<!-- Modal xác nhận xóa vòng -->
+<div class="modal fade round-delete-modal" id="modalDeleteRound" tabindex="-1" role="dialog" aria-labelledby="deleteRoundTitle" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content">
+            <form id="formDeleteRound">
+                <input type="hidden" id="deletingRoundId" value="" />
+                <div class="modal-header">
+                    <div>
+                        <div class="small font-weight-bold text-danger text-uppercase mb-1">Thao tác không thể hoàn tác</div>
+                        <h5 class="modal-title" id="deleteRoundTitle">Xóa vòng đấu</h5>
+                        <p class="text-muted mb-0" id="deleteRoundDescription">Đang tải thông tin vòng đấu...</p>
+                    </div>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">×</span></button>
+                </div>
+                <div class="modal-body">
+                    <div id="deleteRoundErr" class="alert alert-danger d-none"></div>
+                    <div id="deleteRoundLoading" class="text-center text-muted py-4">
+                        <i class="fas fa-spinner fa-spin mr-2"></i>Đang thống kê dữ liệu sẽ bị xóa...
+                    </div>
+                    <div id="deleteRoundContent" class="d-none">
+                        <div class="alert alert-danger mb-0" role="alert">
+                            Toàn bộ bảng, trận đấu, lịch sử điểm và thông báo trận thuộc vòng này sẽ bị xóa.
+                        </div>
+                        <div class="round-delete-summary">
+                            <div class="round-delete-stat"><strong id="deleteGroupCount">0</strong><span>Bảng / nhánh</span></div>
+                            <div class="round-delete-stat"><strong id="deleteMatchCount">0</strong><span>Trận đấu</span></div>
+                            <div class="round-delete-stat"><strong id="deleteCompletedCount">0</strong><span>Trận hoàn tất</span></div>
+                            <div class="round-delete-stat"><strong id="deleteScheduledCount">0</strong><span>Trận có lịch</span></div>
+                            <div class="round-delete-stat"><strong id="deleteHistoryCount">0</strong><span>Lịch sử điểm</span></div>
+                            <div class="round-delete-stat"><strong id="deleteDependentCount">0</strong><span>Trận ngoài vòng có liên kết</span></div>
+                        </div>
+                        <div id="deleteDependencyWarning" class="alert alert-warning d-none" role="alert"></div>
+                        <div id="deleteTemplateWarning" class="alert alert-warning d-none" role="alert">
+                            Vòng này được sinh từ Bracket Template nên không thể xóa riêng. Hãy dùng chức năng Reset Bracket.
+                        </div>
+                        <div class="round-delete-confirmation">
+                            <label for="deleteRoundConfirmation" class="font-weight-bold mb-1">Nhập <code>XOA</code> để xác nhận</label>
+                            <input class="form-control" id="deleteRoundConfirmation" autocomplete="off" spellcheck="false" placeholder="XOA" />
+                            <small class="text-muted">Phải nhập đúng ba ký tự viết hoa.</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button>
+                    <button class="btn btn-danger" type="submit" id="btnConfirmDeleteRound" disabled>
+                        <i class="fas fa-trash-alt mr-1"></i>Xóa toàn bộ vòng
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>
@@ -218,6 +323,7 @@
           const root = $id("pageRoot");
           const TOURNAMENT_ID = Number(root?.dataset?.tournamentId || 0);
           const API = `/api/admin/tournaments/${TOURNAMENT_ID}/round-maps`;
+          let deleteRoundSummary = null;
 
           const parseDateTimeValue = (value) => {
             if(!value) return null;
@@ -272,6 +378,17 @@
           }
           function hideErr(){
             const box = $id("errBox");
+            box.classList.add("d-none");
+            box.textContent = "";
+          }
+
+          function showOk(msg){
+            const box = $id("okBox");
+            box.textContent = msg || "Thao tác thành công.";
+            box.classList.remove("d-none");
+          }
+          function hideOk(){
+            const box = $id("okBox");
             box.classList.add("d-none");
             box.textContent = "";
           }
@@ -427,16 +544,62 @@
             $("#modalRound").modal("show");
           };
 
-          window.delRound = async (id) => {
-            if(!confirm("Bạn có chắc muốn xóa vòng đấu này không?")) return;
+          function updateDeleteButtonState(){
+            const confirmed = $id("deleteRoundConfirmation").value === "XOA";
+            $id("btnConfirmDeleteRound").disabled = !deleteRoundSummary
+              || deleteRoundSummary.protectedByTemplate
+              || !confirmed;
+          }
+
+          function showDeleteError(message){
+            const box = $id("deleteRoundErr");
+            box.textContent = message || "Không thể tải thông tin vòng đấu.";
+            box.classList.remove("d-none");
+          }
+
+          async function openDeleteRound(id){
+            deleteRoundSummary = null;
+            $id("deletingRoundId").value = String(id || "");
+            $id("deleteRoundConfirmation").value = "";
+            $id("deleteRoundDescription").textContent = "Đang tải thông tin vòng đấu...";
+            $id("deleteRoundErr").classList.add("d-none");
+            $id("deleteRoundLoading").classList.remove("d-none");
+            $id("deleteRoundContent").classList.add("d-none");
+            $id("deleteDependencyWarning").classList.add("d-none");
+            $id("deleteTemplateWarning").classList.add("d-none");
+            updateDeleteButtonState();
+            $("#modalDeleteRound").modal("show");
+
             try{
-              await axios.delete(`${API}/${id}`);
-              await load();
+              const response = await axios.get(`${API}/${id}/delete-summary`);
+              deleteRoundSummary = response.data;
+              const summary = deleteRoundSummary;
+              $id("deleteRoundDescription").textContent = `${summary.roundKey || ""} · ${summary.roundLabel || "Vòng đấu"}`;
+              $id("deleteGroupCount").textContent = Number(summary.groupCount || 0);
+              $id("deleteMatchCount").textContent = Number(summary.matchCount || 0);
+              $id("deleteCompletedCount").textContent = Number(summary.completedMatchCount || 0);
+              $id("deleteScheduledCount").textContent = Number(summary.scheduledMatchCount || 0);
+              $id("deleteHistoryCount").textContent = Number(summary.scoreHistoryCount || 0);
+              $id("deleteDependentCount").textContent = Number(summary.dependentMatchCount || 0);
+
+              const dependencyWarning = $id("deleteDependencyWarning");
+              if(Number(summary.dependentMatchCount || 0) > 0){
+                dependencyWarning.textContent = `${summary.dependentMatchCount} trận ngoài vòng đang dùng ${summary.dependentSlotCount} vị trí nguồn từ vòng này. Khi xóa, các liên kết nguồn đó sẽ được tháo; đội và kết quả hiện có của các trận ngoài vòng vẫn được giữ nguyên.`;
+                dependencyWarning.classList.remove("d-none");
+              }
+              $id("deleteTemplateWarning").classList.toggle("d-none", !summary.protectedByTemplate);
+              $id("deleteRoundConfirmation").disabled = Boolean(summary.protectedByTemplate);
+              $id("deleteRoundLoading").classList.add("d-none");
+              $id("deleteRoundContent").classList.remove("d-none");
+              updateDeleteButtonState();
+              if(!summary.protectedByTemplate){
+                window.setTimeout(() => $id("deleteRoundConfirmation").focus(), 150);
+              }
             }catch(err){
-              const msg = err?.response?.data?.message || err?.message || "Xóa thất bại.";
-              alert(msg);
+              $id("deleteRoundLoading").classList.add("d-none");
+              showDeleteError(err?.response?.data?.message || err?.message || "Không thể tải thông tin vòng đấu.");
             }
-          };
+          }
 
           $id("btnOpenCreate").addEventListener("click", openCreate);
           $id("body").addEventListener("click", (event) => {
@@ -453,7 +616,7 @@
 
             const deleteBtn = event.target.closest(".js-delete-round");
             if(deleteBtn){
-              window.delRound(Number(deleteBtn.dataset.id || 0));
+              openDeleteRound(Number(deleteBtn.dataset.id || 0));
               return;
             }
 
@@ -461,6 +624,48 @@
             if(groupsBtn){
               window.gotoGroups(Number(groupsBtn.dataset.id || 0));
             }
+          });
+
+          $id("deleteRoundConfirmation").addEventListener("input", updateDeleteButtonState);
+          $id("formDeleteRound").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            if(!deleteRoundSummary || deleteRoundSummary.protectedByTemplate) return;
+
+            const confirmation = $id("deleteRoundConfirmation").value;
+            if(confirmation !== "XOA"){
+              showDeleteError("Vui lòng nhập đúng XOA để xác nhận xóa vòng đấu.");
+              return;
+            }
+
+            const id = Number($id("deletingRoundId").value || 0);
+            const button = $id("btnConfirmDeleteRound");
+            button.disabled = true;
+            button.innerHTML = `<i class="fas fa-spinner fa-spin mr-1"></i>Đang xóa...`;
+            $id("deleteRoundErr").classList.add("d-none");
+            hideOk();
+
+            try{
+              const response = await axios.delete(`${API}/${id}`, {
+                data: { confirmation }
+              });
+              const result = response.data || {};
+              $("#modalDeleteRound").modal("hide");
+              showOk(`Đã xóa vòng ${result.deletedRound || "đấu"}: ${Number(result.deletedMatchCount || 0)} trận và ${Number(result.deletedGroupCount || 0)} bảng/nhánh.`);
+              await load();
+            }catch(err){
+              showDeleteError(err?.response?.data?.message || err?.message || "Xóa vòng đấu thất bại.");
+            }finally{
+              button.innerHTML = `<i class="fas fa-trash-alt mr-1"></i>Xóa toàn bộ vòng`;
+              updateDeleteButtonState();
+            }
+          });
+
+          $("#modalDeleteRound").on("hidden.bs.modal", () => {
+            deleteRoundSummary = null;
+            $id("deletingRoundId").value = "";
+            $id("deleteRoundConfirmation").value = "";
+            $id("deleteRoundConfirmation").disabled = false;
+            updateDeleteButtonState();
           });
 
           $id("formRound").addEventListener("submit", async (e) => {

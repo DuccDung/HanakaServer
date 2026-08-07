@@ -2,34 +2,32 @@ using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using HanakaServer.Options;
-using Microsoft.Extensions.Options;
 
 namespace HanakaServer.Services.Payments;
 
 public sealed class SepayGatewayClient
 {
     private readonly HttpClient _httpClient;
-    private readonly SepayOptions _options;
     private readonly ILogger<SepayGatewayClient> _logger;
 
     public SepayGatewayClient(
         HttpClient httpClient,
-        IOptions<SepayOptions> sepayOptions,
         ILogger<SepayGatewayClient> logger)
     {
         _httpClient = httpClient;
-        _options = sepayOptions.Value;
         _logger = logger;
     }
 
     public async Task<SepayCheckoutSnapshot> PrepareCheckoutAsync(
         decimal amount,
         string transferContent,
+        SepayOptions options,
         CancellationToken cancellationToken = default)
     {
-        var receiver = await ResolveReceiverAsync(cancellationToken);
+        var receiver = await ResolveReceiverAsync(options, cancellationToken);
         var roundedAmount = Math.Max(0, decimal.Round(amount, 0, MidpointRounding.AwayFromZero));
         var qrImageUrl = BuildQrImageUrl(
+            options,
             receiver.AccountNumber,
             receiver.BankShortName,
             roundedAmount,
@@ -45,25 +43,27 @@ public sealed class SepayGatewayClient
             receiver.ResolvedByApi);
     }
 
-    private async Task<SepayReceiverSnapshot> ResolveReceiverAsync(CancellationToken cancellationToken)
+    private async Task<SepayReceiverSnapshot> ResolveReceiverAsync(
+        SepayOptions options,
+        CancellationToken cancellationToken)
     {
         var fallback = new SepayReceiverSnapshot(
-            string.IsNullOrWhiteSpace(_options.ReceiverBankName) ? _options.ReceiverBankShortName : _options.ReceiverBankName,
-            _options.ReceiverBankShortName,
-            _options.ReceiverAccountNumber,
-            _options.ReceiverAccountName,
+            string.IsNullOrWhiteSpace(options.ReceiverBankName) ? options.ReceiverBankShortName : options.ReceiverBankName,
+            options.ReceiverBankShortName,
+            options.ReceiverAccountNumber,
+            options.ReceiverAccountName,
             null,
             false);
 
-        if (string.IsNullOrWhiteSpace(_options.ApiToken))
+        if (string.IsNullOrWhiteSpace(options.ApiToken))
         {
             return fallback;
         }
 
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, BuildBankAccountLookupUrl());
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _options.ApiToken.Trim());
+            using var request = new HttpRequestMessage(HttpMethod.Get, BuildBankAccountLookupUrl(options));
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.ApiToken.Trim());
 
             using var response = await _httpClient.SendAsync(request, cancellationToken);
             var rawResponse = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -77,7 +77,7 @@ public sealed class SepayGatewayClient
             }
 
             using var document = JsonDocument.Parse(rawResponse);
-            var receiver = TryParseReceiver(document.RootElement, rawResponse);
+            var receiver = TryParseReceiver(document.RootElement, rawResponse, options);
             return receiver ?? fallback with { ProviderRawResponse = rawResponse };
         }
         catch (Exception exception)
@@ -87,22 +87,25 @@ public sealed class SepayGatewayClient
         }
     }
 
-    private string BuildBankAccountLookupUrl()
+    private static string BuildBankAccountLookupUrl(SepayOptions options)
     {
-        var baseUrl = _options.ApiBaseUrl.TrimEnd('/');
-        if (_options.BankAccountId.HasValue && _options.BankAccountId.Value > 0)
+        var baseUrl = options.ApiBaseUrl.TrimEnd('/');
+        if (options.BankAccountId.HasValue && options.BankAccountId.Value > 0)
         {
-            return $"{baseUrl}/api/v1/bank-accounts/{_options.BankAccountId.Value}";
+            return $"{baseUrl}/api/v1/bank-accounts/{options.BankAccountId.Value}";
         }
 
         return $"{baseUrl}/api/v1/bank-accounts";
     }
 
-    private SepayReceiverSnapshot? TryParseReceiver(JsonElement root, string rawResponse)
+    private static SepayReceiverSnapshot? TryParseReceiver(
+        JsonElement root,
+        string rawResponse,
+        SepayOptions options)
     {
-        if (TrySelectMatchingBankAccount(root, out var bankAccount))
+        if (TrySelectMatchingBankAccount(root, options, out var bankAccount))
         {
-            return MapReceiver(bankAccount, rawResponse);
+            return MapReceiver(bankAccount, rawResponse, options);
         }
 
         if (root.ValueKind == JsonValueKind.Object)
@@ -114,9 +117,9 @@ public sealed class SepayGatewayClient
                     continue;
                 }
 
-                if (TrySelectMatchingBankAccount(nestedElement, out bankAccount))
+                if (TrySelectMatchingBankAccount(nestedElement, options, out bankAccount))
                 {
-                    return MapReceiver(bankAccount, rawResponse);
+                    return MapReceiver(bankAccount, rawResponse, options);
                 }
             }
         }
@@ -124,7 +127,10 @@ public sealed class SepayGatewayClient
         return null;
     }
 
-    private bool TrySelectMatchingBankAccount(JsonElement element, out JsonElement bankAccount)
+    private static bool TrySelectMatchingBankAccount(
+        JsonElement element,
+        SepayOptions options,
+        out JsonElement bankAccount)
     {
         if (element.ValueKind == JsonValueKind.Object && LooksLikeBankAccount(element))
         {
@@ -136,7 +142,7 @@ public sealed class SepayGatewayClient
         {
             foreach (var item in element.EnumerateArray())
             {
-                if (LooksLikeBankAccount(item) && MatchesConfiguredAccount(item))
+                if (LooksLikeBankAccount(item) && MatchesConfiguredAccount(item, options))
                 {
                     bankAccount = item;
                     return true;
@@ -164,7 +170,7 @@ public sealed class SepayGatewayClient
                 TryGetPropertyValue(element, "accountNumber") is not null);
     }
 
-    private bool MatchesConfiguredAccount(JsonElement element)
+    private static bool MatchesConfiguredAccount(JsonElement element, SepayOptions options)
     {
         var accountNumber = TryGetPropertyValue(element, "account_number") ??
                             TryGetPropertyValue(element, "accountNumber");
@@ -173,33 +179,36 @@ public sealed class SepayGatewayClient
                             TryGetPropertyValue(element, "short_name") ??
                             TryGetPropertyValue(element, "shortName");
 
-        var matchesAccount = string.IsNullOrWhiteSpace(_options.ReceiverAccountNumber) ||
-                             string.Equals(accountNumber, _options.ReceiverAccountNumber, StringComparison.OrdinalIgnoreCase);
-        var matchesBank = string.IsNullOrWhiteSpace(_options.ReceiverBankShortName) ||
+        var matchesAccount = string.IsNullOrWhiteSpace(options.ReceiverAccountNumber) ||
+                             string.Equals(accountNumber, options.ReceiverAccountNumber, StringComparison.OrdinalIgnoreCase);
+        var matchesBank = string.IsNullOrWhiteSpace(options.ReceiverBankShortName) ||
                           string.Equals(
                               NormalizeBankAlias(bankShortName),
-                              NormalizeBankAlias(_options.ReceiverBankShortName),
+                              NormalizeBankAlias(options.ReceiverBankShortName),
                               StringComparison.OrdinalIgnoreCase);
 
         return matchesAccount && matchesBank;
     }
 
-    private SepayReceiverSnapshot MapReceiver(JsonElement element, string rawResponse)
+    private static SepayReceiverSnapshot MapReceiver(
+        JsonElement element,
+        string rawResponse,
+        SepayOptions options)
     {
         var bankShortName = TryGetPropertyValue(element, "bank_short_name") ??
                             TryGetPropertyValue(element, "bankShortName") ??
                             TryGetPropertyValue(element, "short_name") ??
                             TryGetPropertyValue(element, "shortName") ??
-                            _options.ReceiverBankShortName;
+                            options.ReceiverBankShortName;
         var bankName = TryGetPropertyValue(element, "bank_name") ??
                        TryGetPropertyValue(element, "bankName") ??
                        bankShortName;
         var accountNumber = TryGetPropertyValue(element, "account_number") ??
                             TryGetPropertyValue(element, "accountNumber") ??
-                            _options.ReceiverAccountNumber;
+                            options.ReceiverAccountNumber;
         var accountName = TryGetPropertyValue(element, "account_name") ??
                           TryGetPropertyValue(element, "accountName") ??
-                          _options.ReceiverAccountName;
+                          options.ReceiverAccountName;
 
         return new SepayReceiverSnapshot(
             bankName,
@@ -210,13 +219,14 @@ public sealed class SepayGatewayClient
             true);
     }
 
-    private string BuildQrImageUrl(
+    private static string BuildQrImageUrl(
+        SepayOptions options,
         string accountNumber,
         string bankShortName,
         decimal amount,
         string transferContent)
     {
-        var baseUrl = _options.QrBaseUrl.TrimEnd('/');
+        var baseUrl = options.QrBaseUrl.TrimEnd('/');
         var amountText = amount.ToString("0", CultureInfo.InvariantCulture);
 
         return $"{baseUrl}/img?acc={Uri.EscapeDataString(accountNumber)}&bank={Uri.EscapeDataString(bankShortName)}&amount={Uri.EscapeDataString(amountText)}&des={Uri.EscapeDataString(transferContent)}";

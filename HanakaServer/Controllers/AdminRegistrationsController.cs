@@ -31,6 +31,28 @@ namespace HanakaServer.Controllers
             public decimal RatingDouble { get; init; }
         }
 
+        private sealed class RegistrationDeletePreparationResult
+        {
+            public bool CanDelete { get; init; }
+            public int StatusCode { get; init; }
+            public string Message { get; init; } = string.Empty;
+            public int MatchTeamRefCount { get; init; }
+            public int MatchWinnerRefCount { get; init; }
+            public int ScoreHistoryWinnerRefCount { get; init; }
+            public int PrizeRefCount { get; init; }
+            public int DeletedPaymentCount { get; init; }
+            public int DetachedWebhookCount { get; init; }
+            public int DetachedPairRequestCount { get; init; }
+        }
+
+        private static readonly HashSet<string> DeletablePaymentStatuses = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "pending",
+            "expired",
+            "failed",
+            "cancelled"
+        };
+
         public AdminRegistrationsController(
             PickleballDbContext db,
             IWebHostEnvironment env,
@@ -372,6 +394,16 @@ namespace HanakaServer.Controllers
                 if (capacityLeft <= 0)
                     return BadRequest(new { message = "Giải đấu đã đủ đội, không thể ghép thành đội hợp lệ." });
 
+                var deletePreparation = await PrepareRegistrationForHardDeleteAsync(b, HttpContext.RequestAborted);
+                if (!deletePreparation.CanDelete)
+                {
+                    await tx.RollbackAsync();
+                    return StatusCode(deletePreparation.StatusCode, new
+                    {
+                        message = $"Không thể ghép vì đăng ký chờ được chọn không thể xóa: {deletePreparation.Message}"
+                    });
+                }
+
                 // Merge: a gets b.Player1 as Player2
                 a.Player2UserId = b.Player1UserId;
                 a.Player2Name = b.Player1Name;
@@ -392,15 +424,18 @@ namespace HanakaServer.Controllers
 
                 return Ok(await ToAdminDtoAsync(a));
             }
-            catch (DbUpdateException ex)
+            catch (DbUpdateException)
             {
                 await tx.RollbackAsync();
-                return StatusCode(500, new { message = "Pair failed (db).", detail = ex.Message });
+                return Conflict(new
+                {
+                    message = "Không thể ghép đội vì dữ liệu liên quan vừa thay đổi. Vui lòng tải lại trang và thử lại."
+                });
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 await tx.RollbackAsync();
-                return StatusCode(500, new { message = "Ghép đôi thất bại.", detail = ex.Message });
+                return StatusCode(500, new { message = "Ghép đôi thất bại. Không có dữ liệu nào bị thay đổi." });
             }
         }
 
@@ -623,6 +658,76 @@ namespace HanakaServer.Controllers
             }
         }
 
+        [HttpPost("registrations/{id:long}/cancel-payment-confirmation")]
+        public async Task<IActionResult> CancelPaymentConfirmation(long id, CancellationToken cancellationToken)
+        {
+            await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+            try
+            {
+                var reg = await _db.TournamentRegistrations
+                    .FirstOrDefaultAsync(x => x.RegistrationId == id, cancellationToken);
+
+                if (reg == null)
+                    return NotFound(new { message = "Registration not found." });
+
+                if (!reg.Paid)
+                    return BadRequest(new { message = "Đăng ký này đang ở trạng thái chưa thanh toán." });
+
+                var paidPayments = await _db.TournamentRegistrationPayments
+                    .Where(x => x.RegistrationId == id && x.Status == "paid")
+                    .OrderByDescending(x => x.PaidAt)
+                    .ThenByDescending(x => x.CreatedAt)
+                    .ToListAsync(cancellationToken);
+
+                var confirmedSepayPayment = paidPayments.FirstOrDefault(x => !IsCashPaymentRecord(x));
+                if (confirmedSepayPayment != null)
+                {
+                    await tx.RollbackAsync(cancellationToken);
+                    return Conflict(new
+                    {
+                        message = "Giao dịch đã được Sepay xác nhận. Không thể dùng chức năng hủy xác nhận nội bộ."
+                    });
+                }
+
+                var now = DateTime.UtcNow;
+                var adminName = string.IsNullOrWhiteSpace(User.Identity?.Name)
+                    ? "Admin"
+                    : User.Identity.Name.Trim();
+
+                foreach (var payment in paidPayments.Where(IsCashPaymentRecord))
+                {
+                    payment.Status = "cancelled";
+                    payment.UpdatedAt = now;
+
+                    var cancellationAudit = $"Admin {adminName} hủy xác nhận thanh toán nội bộ lúc {now:O}.";
+                    payment.RawResponse = string.IsNullOrWhiteSpace(payment.RawResponse)
+                        ? cancellationAudit
+                        : $"{payment.RawResponse}{Environment.NewLine}{cancellationAudit}";
+                }
+
+                reg.Paid = false;
+                reg.PaidAt = null;
+                reg.PaymentAmount = null;
+
+                await _db.SaveChangesAsync(cancellationToken);
+                await tx.CommitAsync(cancellationToken);
+
+                return Ok(new
+                {
+                    ok = true,
+                    message = "Đã hủy xác nhận thanh toán.",
+                    registrationId = reg.RegistrationId,
+                    cancelledCashPayments = paidPayments.Count(IsCashPaymentRecord)
+                });
+            }
+            catch (Exception ex)
+            {
+                await tx.RollbackAsync(cancellationToken);
+                return StatusCode(500, new { message = "Hủy xác nhận thanh toán thất bại.", detail = ex.Message });
+            }
+        }
+
         [HttpPost("registrations/{id:long}/sync-levels")]
         public async Task<IActionResult> SyncLevels(long id)
         {
@@ -769,65 +874,227 @@ namespace HanakaServer.Controllers
         // DELETE
         // =========================
         [HttpDelete("registrations/{id:long}")]
-        public async Task<IActionResult> Delete(long id)
+        public async Task<IActionResult> Delete(long id, CancellationToken cancellationToken)
         {
-            var reg = await _db.TournamentRegistrations.FirstOrDefaultAsync(x => x.RegistrationId == id);
-            if (reg == null) return NotFound(new { message = "Registration not found." });
+            await using var tx = await _db.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable,
+                cancellationToken);
 
-            var matchTeamRefCount = await _db.TournamentGroupMatches
-                .CountAsync(x => x.Team1RegistrationId == id || x.Team2RegistrationId == id);
-
-            var matchWinnerRefCount = await _db.TournamentGroupMatches
-                .CountAsync(x => x.WinnerRegistrationId == id);
-
-            var scoreHistoryWinnerRefCount = await _db.TournamentMatchScoreHistories
-                .CountAsync(x => x.WinnerRegistrationId == id);
-
-            var prizeRefCount = await _db.TournamentPrizes
-                .CountAsync(x => x.RegistrationId == id);
-
-            if (matchTeamRefCount > 0 || matchWinnerRefCount > 0 || scoreHistoryWinnerRefCount > 0 || prizeRefCount > 0)
+            try
             {
-                return BadRequest(new
+                var reg = await _db.TournamentRegistrations
+                    .FirstOrDefaultAsync(x => x.RegistrationId == id, cancellationToken);
+
+                if (reg == null)
                 {
-                    message = BuildDeleteBlockedMessage(
-                        matchTeamRefCount,
-                        matchWinnerRefCount,
-                        scoreHistoryWinnerRefCount,
-                        prizeRefCount),
-                    details = new
+                    await tx.RollbackAsync(cancellationToken);
+                    return NotFound(new { message = "Registration not found." });
+                }
+
+                var preparation = await PrepareRegistrationForHardDeleteAsync(reg, cancellationToken);
+                if (!preparation.CanDelete)
+                {
+                    await tx.RollbackAsync(cancellationToken);
+                    return StatusCode(preparation.StatusCode, new
                     {
-                        matchTeamRefCount,
-                        matchWinnerRefCount,
-                        scoreHistoryWinnerRefCount,
-                        prizeRefCount
-                    }
+                        message = preparation.Message,
+                        details = new
+                        {
+                            preparation.MatchTeamRefCount,
+                            preparation.MatchWinnerRefCount,
+                            preparation.ScoreHistoryWinnerRefCount,
+                            preparation.PrizeRefCount
+                        }
+                    });
+                }
+
+                _db.TournamentRegistrations.Remove(reg);
+                await _db.SaveChangesAsync(cancellationToken);
+                await tx.CommitAsync(cancellationToken);
+
+                return Ok(new
+                {
+                    ok = true,
+                    message = "Đã xóa đăng ký an toàn.",
+                    preparation.DeletedPaymentCount,
+                    preparation.DetachedWebhookCount,
+                    preparation.DetachedPairRequestCount
                 });
             }
-
-            var pairRequests = await _db.TournamentPairRequests
-                .Where(x => x.RegistrationId == id)
-                .ToListAsync();
-
-            await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable);
-
-            foreach (var pairRequest in pairRequests)
-                pairRequest.RegistrationId = null;
-
-            _db.TournamentRegistrations.Remove(reg);
-            await _db.SaveChangesAsync();
-            await tx.CommitAsync();
-
-            return Ok(new
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                ok = true,
-                detachedPairRequestCount = pairRequests.Count
-            });
+                await tx.RollbackAsync(CancellationToken.None);
+                throw;
+            }
+            catch (DbUpdateException)
+            {
+                await tx.RollbackAsync(cancellationToken);
+                return Conflict(new
+                {
+                    message = "Không thể xóa đăng ký vì dữ liệu liên quan vừa thay đổi. Vui lòng tải lại trang và thử lại."
+                });
+            }
+            catch (Exception)
+            {
+                await tx.RollbackAsync(cancellationToken);
+                return StatusCode(500, new
+                {
+                    message = "Xóa đăng ký thất bại. Không có dữ liệu nào bị xóa."
+                });
+            }
         }
 
         // =========================
         // HELPERS
         // =========================
+        private async Task<RegistrationDeletePreparationResult> PrepareRegistrationForHardDeleteAsync(
+            TournamentRegistration registration,
+            CancellationToken cancellationToken)
+        {
+            var registrationId = registration.RegistrationId;
+
+            if (registration.Paid)
+            {
+                return new RegistrationDeletePreparationResult
+                {
+                    CanDelete = false,
+                    StatusCode = StatusCodes.Status409Conflict,
+                    Message = "Đăng ký đang được đánh dấu đã thanh toán. Hãy hủy xác nhận thanh toán trước khi xóa đội."
+                };
+            }
+
+            var matchTeamRefCount = await _db.TournamentGroupMatches
+                .CountAsync(
+                    x => x.Team1RegistrationId == registrationId || x.Team2RegistrationId == registrationId,
+                    cancellationToken);
+
+            var matchWinnerRefCount = await _db.TournamentGroupMatches
+                .CountAsync(x => x.WinnerRegistrationId == registrationId, cancellationToken);
+
+            var scoreHistoryWinnerRefCount = await _db.TournamentMatchScoreHistories
+                .CountAsync(x => x.WinnerRegistrationId == registrationId, cancellationToken);
+
+            var prizeRefCount = await _db.TournamentPrizes
+                .CountAsync(x => x.RegistrationId == registrationId, cancellationToken);
+
+            if (matchTeamRefCount > 0 ||
+                matchWinnerRefCount > 0 ||
+                scoreHistoryWinnerRefCount > 0 ||
+                prizeRefCount > 0)
+            {
+                return new RegistrationDeletePreparationResult
+                {
+                    CanDelete = false,
+                    StatusCode = StatusCodes.Status409Conflict,
+                    Message = BuildDeleteBlockedMessage(
+                        matchTeamRefCount,
+                        matchWinnerRefCount,
+                        scoreHistoryWinnerRefCount,
+                        prizeRefCount),
+                    MatchTeamRefCount = matchTeamRefCount,
+                    MatchWinnerRefCount = matchWinnerRefCount,
+                    ScoreHistoryWinnerRefCount = scoreHistoryWinnerRefCount,
+                    PrizeRefCount = prizeRefCount
+                };
+            }
+
+            var payments = await _db.TournamentRegistrationPayments
+                .Include(x => x.TournamentSepayWebhooks)
+                .Where(x => x.RegistrationId == registrationId)
+                .OrderBy(x => x.PaymentId)
+                .ToListAsync(cancellationToken);
+
+            foreach (var payment in payments)
+            {
+                var status = (payment.Status ?? string.Empty).Trim();
+                var isCancelledCashPayment =
+                    IsCashPaymentRecord(payment) &&
+                    string.Equals(status, "cancelled", StringComparison.OrdinalIgnoreCase);
+                var hasProcessedWebhook = payment.TournamentSepayWebhooks.Any(
+                    webhook => webhook.IsProcessed || webhook.ProcessedAt.HasValue);
+                var hasConfirmedPaymentData =
+                    string.Equals(status, "paid", StringComparison.OrdinalIgnoreCase) ||
+                    payment.PaidAt.HasValue ||
+                    (payment.PaidAmount.HasValue && payment.PaidAmount.Value > 0) ||
+                    !string.IsNullOrWhiteSpace(payment.ProviderTransactionId);
+
+                if (hasProcessedWebhook)
+                {
+                    return new RegistrationDeletePreparationResult
+                    {
+                        CanDelete = false,
+                        StatusCode = StatusCodes.Status409Conflict,
+                        Message = "Đăng ký đã có webhook thanh toán được xử lý. Không thể xóa để bảo toàn dữ liệu đối soát."
+                    };
+                }
+
+                if (string.Equals(status, "processing", StringComparison.OrdinalIgnoreCase))
+                {
+                    return new RegistrationDeletePreparationResult
+                    {
+                        CanDelete = false,
+                        StatusCode = StatusCodes.Status409Conflict,
+                        Message = "Giao dịch thanh toán đang được xử lý. Vui lòng chờ hoàn tất rồi thử lại."
+                    };
+                }
+
+                if (hasConfirmedPaymentData && !isCancelledCashPayment)
+                {
+                    return new RegistrationDeletePreparationResult
+                    {
+                        CanDelete = false,
+                        StatusCode = StatusCodes.Status409Conflict,
+                        Message = "Đăng ký đã có dữ liệu thanh toán thực tế. Không thể xóa để bảo toàn dữ liệu đối soát."
+                    };
+                }
+
+                if (!DeletablePaymentStatuses.Contains(status))
+                {
+                    return new RegistrationDeletePreparationResult
+                    {
+                        CanDelete = false,
+                        StatusCode = StatusCodes.Status409Conflict,
+                        Message = $"Giao dịch đang ở trạng thái '{status}'. Trạng thái này không được phép xóa tự động."
+                    };
+                }
+            }
+
+            var webhooksToDetach = payments
+                .SelectMany(x => x.TournamentSepayWebhooks)
+                .ToList();
+
+            foreach (var webhook in webhooksToDetach)
+            {
+                webhook.PaymentId = null;
+                webhook.Payment = null;
+            }
+
+            if (payments.Count > 0)
+            {
+                _db.TournamentRegistrationPayments.RemoveRange(payments);
+            }
+
+            var pairRequests = await _db.TournamentPairRequests
+                .Where(x => x.RegistrationId == registrationId)
+                .ToListAsync(cancellationToken);
+
+            foreach (var pairRequest in pairRequests)
+            {
+                pairRequest.RegistrationId = null;
+                pairRequest.Registration = null;
+            }
+
+            return new RegistrationDeletePreparationResult
+            {
+                CanDelete = true,
+                StatusCode = StatusCodes.Status200OK,
+                Message = "Đăng ký có thể được xóa an toàn.",
+                DeletedPaymentCount = payments.Count,
+                DetachedWebhookCount = webhooksToDetach.Count,
+                DetachedPairRequestCount = pairRequests.Count
+            };
+        }
+
         private static decimal CalcPoints(string gameType, decimal p1, decimal? p2)
         {
             gameType = (gameType ?? "").ToUpperInvariant();

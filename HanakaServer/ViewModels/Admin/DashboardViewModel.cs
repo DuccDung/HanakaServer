@@ -22,6 +22,14 @@ namespace HanakaServer.ViewModels.Admin
         public int TotalMatches { get; set; }
         public int CompletedMatches { get; set; }
         public int UpcomingMatches { get; set; }
+        public int UnassignedBracketMatches { get; set; }
+        public int BracketTemplateCount { get; set; }
+        public int DraftBracketTemplateCount { get; set; }
+        public int PublishedBracketTemplateCount { get; set; }
+        public int ActiveBracketApplications { get; set; }
+        public int SuccessfulBracketApplications { get; set; }
+        public int FailedBracketApplications { get; set; }
+        public int RevertedBracketApplications { get; set; }
 
         public int TotalRoundMaps { get; set; }
         public int TotalRoundGroups { get; set; }

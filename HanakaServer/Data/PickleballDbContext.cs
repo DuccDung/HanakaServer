@@ -46,6 +46,8 @@ public partial class PickleballDbContext : DbContext
 
     public virtual DbSet<TournamentSepayWebhook> TournamentSepayWebhooks { get; set; }
 
+    public virtual DbSet<SepaySetting> SepaySettings { get; set; }
+
     public virtual DbSet<TournamentPairRequest> TournamentPairRequests { get; set; }
 
     public virtual DbSet<TournamentRound> TournamentRounds { get; set; }
@@ -1267,6 +1269,28 @@ public partial class PickleballDbContext : DbContext
                 .HasForeignKey(d => d.TournamentId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_Reg_Tournament");
+        });
+
+        modelBuilder.Entity<SepaySetting>(entity =>
+        {
+            entity.ToTable("SepaySettings");
+
+            entity.HasKey(e => e.SepaySettingId).HasName("PK_SepaySettings");
+
+            entity.Property(e => e.SepaySettingId).ValueGeneratedNever();
+            entity.Property(e => e.ApiBaseUrl).HasMaxLength(500);
+            entity.Property(e => e.ApiToken).HasMaxLength(2000);
+            entity.Property(e => e.QrBaseUrl).HasMaxLength(500);
+            entity.Property(e => e.ReceiverBankShortName).HasMaxLength(50);
+            entity.Property(e => e.ReceiverBankName).HasMaxLength(100);
+            entity.Property(e => e.ReceiverAccountNumber).HasMaxLength(50);
+            entity.Property(e => e.ReceiverAccountName).HasMaxLength(255);
+            entity.Property(e => e.WebhookApiKey).HasMaxLength(500);
+            entity.Property(e => e.TransferCodePrefix).HasMaxLength(20);
+            entity.Property(e => e.UpdatedAt)
+                .HasPrecision(0)
+                .HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.UpdatedBy).HasMaxLength(255);
         });
 
         modelBuilder.Entity<TournamentRegistrationPayment>(entity =>

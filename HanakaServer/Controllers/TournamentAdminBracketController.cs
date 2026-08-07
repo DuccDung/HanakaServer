@@ -44,6 +44,22 @@ namespace HanakaServer.Controllers
             ViewBag.ExpectedTeams = tournament.ExpectedTeams;
             ViewBag.StartTime = tournament.StartTime;
             ViewBag.RegisterDeadline = tournament.RegisterDeadline;
+            var application = await _db.TournamentBracketApplications.AsNoTracking()
+                .Where(x => x.TournamentId == tournamentId && x.IsActive)
+                .Select(x => new
+                {
+                    x.TournamentBracketApplicationId,
+                    x.BracketTemplate.TemplateName,
+                    x.BracketTemplate.TemplateCode,
+                    x.BracketTemplateVersion.VersionNumber,
+                    x.AppliedAt
+                })
+                .FirstOrDefaultAsync();
+            ViewBag.BracketApplicationId = application?.TournamentBracketApplicationId;
+            ViewBag.BracketTemplateName = application?.TemplateName;
+            ViewBag.BracketTemplateCode = application?.TemplateCode;
+            ViewBag.BracketVersionNumber = application?.VersionNumber;
+            ViewBag.BracketAppliedAt = application?.AppliedAt;
             ViewBag.ReturnUrl = Url.IsLocalUrl(returnUrl)
                 ? returnUrl
                 : "/Home/Tournaments";

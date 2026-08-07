@@ -3229,25 +3229,63 @@
         const route = resolveTournamentPaymentRoute();
         const tournamentId = route.tournamentId || toNumber(id);
         const registrationId = toNumber(route.registrationId);
+        const transactionCode = route.transactionCode;
 
         if (!tournamentId || !registrationId) {
             throw new Error("registration-missing");
         }
 
+        const paymentRequest = transactionCode
+            ? requestJson(`/api/tournament-registration-payments/${encodeURIComponent(transactionCode)}`, {
+                method: "GET"
+            })
+            : requestJson(`/api/tournament-registration-payments/registrations/${registrationId}/app-webview-checkout?tournamentId=${encodeURIComponent(tournamentId)}`, {
+                method: "POST"
+            });
         const results = await Promise.allSettled([
+            paymentRequest,
             fetchJson(`/api/public/tournaments/${tournamentId}`),
             fetchJson(`/api/public/tournaments/${tournamentId}/registrations`)
         ]);
 
-        if (results[1].status !== "fulfilled") {
+        const payment = results[0].status === "fulfilled" ? results[0].value : null;
+        if (payment &&
+            (toNumber(payment?.tournamentId) !== tournamentId ||
+                toNumber(payment?.registrationId) !== registrationId)) {
+            throw new Error("payment-registration-mismatch");
+        }
+
+        if (results[2].status !== "fulfilled" && !payment) {
             throw new Error("tournament-app-registration");
         }
 
-        const registrations = results[1].value;
+        const registrations = results[2].status === "fulfilled"
+            ? results[2].value
+            : {
+                tournament: {
+                    tournamentId: tournamentId,
+                    title: payment?.tournamentTitle
+                }
+            };
         const items = buildTournamentRegistrationPageItems(registrations);
         const registration = items.find(function (item) {
             return toNumber(item?.registrationId) === registrationId;
-        }) || null;
+        }) || (payment
+            ? {
+                registrationId: registrationId,
+                regCode: "-",
+                regTime: "-",
+                paid: !!payment?.isPaid,
+                points: 0,
+                scoreMode: trimToEmpty(payment?.player2Name) ? "double" : "single",
+                player1: {
+                    name: trimToEmpty(payment?.player1Name) || trimToEmpty(payment?.teamName) || "-"
+                },
+                player2: trimToEmpty(payment?.player2Name)
+                    ? { name: payment.player2Name }
+                    : null
+            }
+            : null);
 
         if (!registration) {
             throw new Error("registration-not-found");
@@ -3255,12 +3293,19 @@
 
         return {
             appWebView: true,
-            detail: results[0].status === "fulfilled" ? results[0].value : null,
+            detail: results[1].status === "fulfilled"
+                ? results[1].value
+                : { title: payment?.tournamentTitle },
             registrations: registrations,
             registration: registration,
+            payment: payment,
+            paymentError: results[0].status === "rejected"
+                ? trimToEmpty(results[0].reason?.message) || "Không thể tạo thông tin thanh toán."
+                : "",
             route: Object.assign({}, route, {
                 tournamentId: tournamentId,
                 registrationId: registrationId,
+                transactionCode: trimToEmpty(payment?.transactionCode || transactionCode),
                 appWebView: true
             })
         };
@@ -3342,6 +3387,30 @@
         const teamName = playerNames.length ? playerNames.join(" / ") : "\u0110\u1ed9i \u0111\u0103ng k\u00fd";
         const scoreMode = trimToEmpty(item.scoreMode) || resolveTournamentRegistrationScoreMode(data?.registrations);
         const secondPlayer = scoreMode === "single" || item.player2?.isWaitingSlot ? "" : renderTournamentAppRegistrationPlayer(item.player2, "V\u0110V 2", item.pickLabel);
+        const payment = data?.payment || (item?.paid
+            ? {
+                registrationId: registrationId,
+                tournamentId: route.tournamentId,
+                tournamentTitle: title,
+                teamName: teamName,
+                player1Name: item?.player1?.name,
+                player2Name: item?.player2?.name,
+                isPaid: true,
+                statusTitle: "\u0110\u00e3 thanh to\u00e1n",
+                statusDescription: "\u0110\u0103ng k\u00fd n\u00e0y \u0111\u00e3 \u0111\u01b0\u1ee3c ghi nh\u1eadn thanh to\u00e1n."
+            }
+            : null);
+        const paymentMarkup = payment
+            ? renderTournamentPaymentPage(Object.assign({}, data, { payment: payment }))
+            : [
+                '<section class="tournament-app-payment-unavailable">',
+                '<ion-icon name="information-circle-outline"></ion-icon>',
+                '<div>',
+                '<strong>Ch\u01b0a c\u00f3 th\u00f4ng tin thanh to\u00e1n</strong>',
+                `<p>${escapeHtml(trimToEmpty(data?.paymentError) || "\u0110\u0103ng k\u00fd n\u00e0y ch\u01b0a \u0111\u1ee7 \u0111i\u1ec1u ki\u1ec7n thanh to\u00e1n.")}</p>`,
+                "</div>",
+                "</section>"
+            ].join("");
 
         return [
             '<div class="tournament-app-registration-info-page">',
@@ -3365,19 +3434,9 @@
             secondPlayer,
             "</div>",
             "</article>",
-            "<!-- Mã QR thanh toán cho ứng dụng đang được ẩn theo yêu cầu. Sau này có thể mở lại hoặc tích hợp mã QR tại vị trí này. -->",
+            paymentMarkup,
             "</div>"
         ].join("");
-    }
-
-    function renderTournamentAppHiddenPaymentDetailsComment() {
-        return [
-            "<!--",
-            "WebView ứng dụng: Nội dung HTML về thông tin thanh toán đang được ẩn theo yêu cầu.",
-            "Các block bị ẩn: số tiền, ngân hàng, số tài khoản, chủ tài khoản, nội dung chuyển khoản.",
-            "Khi xử lý lại luồng mã QR trong ứng dụng, mở lại các khối số tiền và chi tiết thanh toán trong renderTournamentPaymentPage.",
-            "-->"
-        ].join("\n");
     }
 
     function renderTournamentPaymentPage(data) {
@@ -3392,9 +3451,6 @@
         const listUrl = buildSafeHref(payment?.registrationListUrl || `/PickleballWeb/Tournament/${route.tournamentId}/Registrations`, "#");
         const qrUrl = trimToEmpty(payment?.qrImageUrl);
         const registrationId = toNumber(payment?.registrationId || route.registrationId);
-        const appHiddenPaymentDetailsComment = isAppWebView
-            ? renderTournamentAppHiddenPaymentDetailsComment()
-            : "";
         const statusTitle = isAppWebView
             ? (isPaid ? "\u0110\u00e3 ghi nh\u1eadn" : isExpired ? "M\u00e3 \u0111\u00e3 h\u1ebft h\u1ea1n" : "\u0110ang ch\u1edd x\u00e1c nh\u1eadn")
             : (payment?.statusTitle || (isPaid ? "\u0110\u00e3 thanh to\u00e1n" : "\u0110ang ch\u1edd thanh to\u00e1n"));
@@ -3416,40 +3472,30 @@
             '<section class="tournament-payment-layout">',
             '<article class="tournament-payment-card tournament-payment-card--qr">',
             '<div class="tournament-payment-card__head">',
-            `<span>${isAppWebView ? "Th\u00f4ng tin \u0111\u1ed9i" : "M\u00e3 QR thanh to\u00e1n"}</span>`,
-            `<strong>${isAppWebView ? `ID \u0111\u1ed9i #${escapeHtml(String(registrationId || "-"))}` : escapeHtml(transactionCode || "-")}</strong>`,
+            '<span>M\u00e3 QR thanh to\u00e1n</span>',
+            `<strong>${escapeHtml(transactionCode || "-")}</strong>`,
             "</div>",
-            isAppWebView
-                ? "<!-- WebView ứng dụng: Mã QR đang được ẩn theo yêu cầu. -->"
-                : qrUrl
-                    ? `<div class="tournament-payment-qr ${isPaid ? "is-paid" : ""}" data-payment-qr><img src="${escapeHtml(qrUrl)}" alt="QR thanh to\u00e1n" loading="lazy"></div>`
-                    : '<div class="tournament-payment-qr tournament-payment-qr--empty" data-payment-qr>Chưa có mã QR</div>',
-            renderTournamentPaymentTeamSummary(payment, route),
-            isAppWebView
-                ? appHiddenPaymentDetailsComment
-                : [
-                    '<div class="tournament-payment-amount">',
-                    '<span>S\u1ed1 ti\u1ec1n</span>',
-                    `<strong>${escapeHtml(amountText)}</strong>`,
-                    "</div>"
-                ].join(""),
+            qrUrl
+                ? `<div class="tournament-payment-qr ${isPaid ? "is-paid" : ""}" data-payment-qr><img src="${escapeHtml(qrUrl)}" alt="QR thanh to\u00e1n" loading="lazy"></div>`
+                : '<div class="tournament-payment-qr tournament-payment-qr--empty" data-payment-qr>Ch\u01b0a c\u00f3 m\u00e3 QR</div>',
+            isAppWebView ? "" : renderTournamentPaymentTeamSummary(payment, route),
+            '<div class="tournament-payment-amount">',
+            '<span>S\u1ed1 ti\u1ec1n</span>',
+            `<strong>${escapeHtml(amountText)}</strong>`,
+            "</div>",
             "</article>",
-            isAppWebView
-                ? appHiddenPaymentDetailsComment
-                : [
-                    '<article class="tournament-payment-card tournament-payment-card--details">',
-                    '<div class="tournament-payment-card__head">',
-                    '<span>Th\u00f4ng tin chuy\u1ec3n kho\u1ea3n</span>',
-                    `<strong>ID \u0111\u1ed9i #${escapeHtml(String(registrationId))}</strong>`,
-                    "</div>",
-                    renderTournamentPaymentInfoRow("Gi\u1ea3i \u0111\u1ea5u", payment?.tournamentTitle, "", false),
-                    renderTournamentPaymentInfoRow("\u0110\u1ed9i \u0111\u1ea5u", payment?.teamName, "", true),
-                    renderTournamentPaymentInfoRow("Ng\u00e2n h\u00e0ng", payment?.receiverBankShortName || payment?.receiverBankName, "", false),
-                    renderTournamentPaymentInfoRow("S\u1ed1 t\u00e0i kho\u1ea3n", payment?.receiverAccountNumber, payment?.receiverAccountNumber, true),
-                    renderTournamentPaymentInfoRow("Ch\u1ee7 t\u00e0i kho\u1ea3n", payment?.receiverAccountName, "", false),
-                    renderTournamentPaymentInfoRow("N\u1ed9i dung", payment?.transferContent || transactionCode, payment?.transferContent || transactionCode, true),
-                    "</article>"
-                ].join(""),
+            '<article class="tournament-payment-card tournament-payment-card--details">',
+            '<div class="tournament-payment-card__head">',
+            '<span>Th\u00f4ng tin chuy\u1ec3n kho\u1ea3n</span>',
+            `<strong>ID \u0111\u1ed9i #${escapeHtml(String(registrationId))}</strong>`,
+            "</div>",
+            renderTournamentPaymentInfoRow("Gi\u1ea3i \u0111\u1ea5u", payment?.tournamentTitle, "", false),
+            renderTournamentPaymentInfoRow("\u0110\u1ed9i \u0111\u1ea5u", payment?.teamName, "", true),
+            renderTournamentPaymentInfoRow("Ng\u00e2n h\u00e0ng", payment?.receiverBankShortName || payment?.receiverBankName, "", false),
+            renderTournamentPaymentInfoRow("S\u1ed1 t\u00e0i kho\u1ea3n", payment?.receiverAccountNumber, payment?.receiverAccountNumber, true),
+            renderTournamentPaymentInfoRow("Ch\u1ee7 t\u00e0i kho\u1ea3n", payment?.receiverAccountName, "", false),
+            renderTournamentPaymentInfoRow("N\u1ed9i dung", payment?.transferContent || transactionCode, payment?.transferContent || transactionCode, true),
+            "</article>",
             "</section>",
             '<p class="tournament-payment-message" data-payment-message hidden></p>',
             '<div class="tournament-payment-actions">',
@@ -3459,15 +3505,17 @@
                 : `<a class="tournament-payment-action tournament-payment-action--ghost" href="${escapeHtml(listUrl)}"><ion-icon name="list-outline"></ion-icon><span>V\u1ec1 danh s\u00e1ch</span></a>`,
             "</div>",
             '<div class="tournament-payment-success-modal" data-payment-success-modal hidden>',
-            '<div class="tournament-payment-success-modal__backdrop" data-payment-success-close></div>',
+            `<div class="tournament-payment-success-modal__backdrop" ${isAppWebView ? "" : "data-payment-success-close"}></div>`,
             '<article class="tournament-payment-success-modal__dialog">',
             '<div class="tournament-payment-success-modal__icon"><ion-icon name="checkmark-circle"></ion-icon></div>',
             `<h3>${isAppWebView ? "\u0110\u00e3 ghi nh\u1eadn th\u00e0nh c\u00f4ng" : "B\u1ea1n \u0111\u00e3 thanh to\u00e1n th\u00e0nh c\u00f4ng"}</h3>`,
             `<p>${isAppWebView ? "H\u1ec7 th\u1ed1ng \u0111\u00e3 c\u1eadp nh\u1eadt th\u00f4ng tin cho \u0111\u1ed9i \u0111\u0103ng k\u00fd n\u00e0y." : "H\u1ec7 th\u1ed1ng \u0111\u00e3 ghi nh\u1eadn thanh to\u00e1n cho \u0111\u1ed9i \u0111\u0103ng k\u00fd n\u00e0y."}</p>`,
             isAppWebView
-                ? '<button type="button" class="is-primary" data-app-payment-close>Ho\u00e0n t\u1ea5t</button>'
+                ? '<button type="button" class="is-primary" data-app-payment-close>X\u00e1c nh\u1eadn</button>'
                 : `<a href="${escapeHtml(listUrl)}">V\u1ec1 danh s\u00e1ch \u0111\u0103ng k\u00fd</a>`,
-            '<button type="button" data-payment-success-close>\u0110\u00f3ng</button>',
+            isAppWebView
+                ? ""
+                : '<button type="button" data-payment-success-close>\u0110\u00f3ng</button>',
             "</article>",
             "</div>",
             "</div>"
@@ -3788,20 +3836,22 @@
         const winnerId = match?.winnerRegistrationId;
         const isWinnerA = !!winnerId && winnerId === match?.team1RegistrationId;
         const isWinnerB = !!winnerId && winnerId === match?.team2RegistrationId;
+        const isBye = trimToEmpty(match?.completionReason).toUpperCase() === "BYE";
 
         return {
             isReal: !!match,
             isCompleted: !!match?.isCompleted,
+            isBye: isBye,
             hasVideo: !!trimToEmpty(match?.videoUrl),
             matchId: match?.matchId || null,
             title: `#${trimToEmpty(match?.matchId) || `${groupKey}-${matchIndex + 1}`}`,
-            metaText: buildBracketMatchMeta(match),
-            teamA: buildBracketTeamName(match?.team1, `${groupKey}-#1`),
-            teamB: buildBracketTeamName(match?.team2, `${groupKey}-#2`),
+            metaText: isBye ? "Miễn đấu · tự động đi tiếp" : buildBracketMatchMeta(match),
+            teamA: isBye && !match?.team1RegistrationId ? "BYE · Miễn đấu" : buildBracketTeamName(match?.team1, `${groupKey}-#1`),
+            teamB: isBye && !match?.team2RegistrationId ? "BYE · Miễn đấu" : buildBracketTeamName(match?.team2, `${groupKey}-#2`),
             teamAIdentity: buildBracketTeamIdentity(match?.team1, match?.team1RegistrationId),
             teamBIdentity: buildBracketTeamIdentity(match?.team2, match?.team2RegistrationId),
-            scoreA: formatBracketScore(match?.scoreTeam1),
-            scoreB: formatBracketScore(match?.scoreTeam2),
+            scoreA: isBye ? "—" : formatBracketScore(match?.scoreTeam1),
+            scoreB: isBye ? "—" : formatBracketScore(match?.scoreTeam2),
             isWinnerA: isWinnerA,
             isWinnerB: isWinnerB,
             teamRegistrationIds: [
@@ -4135,6 +4185,7 @@
         const cardClass = [
             "tournament-bracket-group-match",
             match.isCompleted ? "is-completed" : "",
+            match.isBye ? "is-bye" : "",
             match.hasVideo ? "has-video" : ""
         ].filter(Boolean).join(" ");
 
@@ -5070,6 +5121,29 @@
         }));
     }
 
+    function closeTournamentAppPayment(page, payload) {
+        if (!page || page.getAttribute("data-payment-app") !== "true" ||
+            page.getAttribute("data-payment-close-sent") === "true") {
+            return;
+        }
+
+        page.setAttribute("data-payment-close-sent", "true");
+        postTournamentAppPaymentMessage(page, "payment-close", payload || {});
+    }
+
+    function scheduleTournamentAppPaymentClose(page, payload) {
+        if (!page || page.getAttribute("data-payment-app") !== "true" ||
+            page.getAttribute("data-payment-close-scheduled") === "true" ||
+            page.getAttribute("data-payment-close-sent") === "true") {
+            return;
+        }
+
+        page.setAttribute("data-payment-close-scheduled", "true");
+        window.setTimeout(function () {
+            closeTournamentAppPayment(page, Object.assign({ isPaid: true }, payload || {}));
+        }, 900);
+    }
+
     function applyTournamentPaymentStatus(page, status, options) {
         const isPaid = !!status?.isPaid;
         const isExpired = !!status?.isExpired;
@@ -5307,6 +5381,7 @@
 
             if (becamePaid) {
                 postTournamentAppPaymentMessage(page, "payment-paid", status || {});
+                scheduleTournamentAppPaymentClose(page, status || {});
             }
 
             if (nextPaid && pollTimer) {
@@ -5349,7 +5424,7 @@
         page.addEventListener("click", async function (event) {
             const appCloseButton = event.target.closest("[data-app-payment-close]");
             if (appCloseButton) {
-                postTournamentAppPaymentMessage(page, "payment-close", {
+                closeTournamentAppPayment(page, {
                     isPaid: page.getAttribute("data-payment-paid") === "true"
                 });
                 return;
@@ -5408,6 +5483,7 @@
             window.setTimeout(function () {
                 showTournamentPaymentSuccess(page);
                 postTournamentAppPaymentMessage(page, "payment-paid", { isPaid: true });
+                scheduleTournamentAppPaymentClose(page, { isPaid: true });
             }, 250);
         }
 
@@ -6004,7 +6080,7 @@
             initTournamentRegisterPageInteractions(root, data);
         }
 
-        if (kind === "tournament-payment-page") {
+        if (kind === "tournament-payment-page" || kind === "tournament-app-payment-page") {
             initTournamentPaymentPageInteractions(root, data);
         }
 

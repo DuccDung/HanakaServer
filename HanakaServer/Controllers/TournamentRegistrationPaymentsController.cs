@@ -42,12 +42,37 @@ public sealed class TournamentRegistrationPaymentsController : ControllerBase
     }
 
     [AllowAnonymous]
+    [HttpPost("registrations/{registrationId:long}/app-webview-checkout")]
+    public async Task<IActionResult> CreateAppWebViewCheckout(
+        long registrationId,
+        [FromQuery] long tournamentId,
+        CancellationToken cancellationToken)
+    {
+        if (tournamentId <= 0)
+        {
+            return BadRequest(new { message = "Thiếu thông tin giải đấu." });
+        }
+
+        var result = await _paymentService.CreateOrReuseAppWebViewCheckoutAsync(
+            tournamentId,
+            registrationId,
+            cancellationToken);
+
+        if (!result.Success || result.Payment is null)
+        {
+            return StatusCode(result.StatusCode, new { message = result.Message });
+        }
+
+        return Ok(result.Payment);
+    }
+
+    [AllowAnonymous]
     [HttpGet("{transactionCode}")]
     public async Task<ActionResult<TournamentPaymentCheckoutResponse>> GetCheckout(
         string transactionCode,
         CancellationToken cancellationToken)
     {
-        var checkout = await _paymentService.GetCheckoutByTransactionCodeAsync(transactionCode, CancellationToken.None);
+        var checkout = await _paymentService.GetCheckoutByTransactionCodeAsync(transactionCode, cancellationToken);
         if (checkout is null)
         {
             return NotFound(new { message = "Không tìm thấy mã thanh toán." });
@@ -62,7 +87,7 @@ public sealed class TournamentRegistrationPaymentsController : ControllerBase
         string transactionCode,
         CancellationToken cancellationToken)
     {
-        var status = await _paymentService.GetStatusAsync(transactionCode, CancellationToken.None);
+        var status = await _paymentService.GetStatusAsync(transactionCode, cancellationToken);
         if (status is null)
         {
             return NotFound(new { message = "Không tìm thấy mã thanh toán." });

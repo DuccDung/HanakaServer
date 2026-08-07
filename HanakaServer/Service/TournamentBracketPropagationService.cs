@@ -10,6 +10,17 @@ namespace HanakaServer.Services
         Task PropagateFromMatchAsync(long matchId, CancellationToken ct = default);
         Task PropagateFromGroupAsync(long groupId, CancellationToken ct = default);
         Task RecalculateMatchSlotsAsync(long matchId, CancellationToken ct = default);
+        Task<BracketPropagationReconcileResult> ReconcileTournamentAsync(long tournamentId, CancellationToken ct = default);
+    }
+
+    public sealed class BracketPropagationReconcileResult
+    {
+        public long TournamentId { get; set; }
+        public int PassCount { get; set; }
+        public int CompletedSourceCount { get; set; }
+        public int ResolvedSlotCount { get; set; }
+        public int UnresolvedSlotCount { get; set; }
+        public List<string> UnresolvedSlots { get; set; } = [];
     }
 
     public sealed class TournamentBracketPropagationService : ITournamentBracketPropagationService
@@ -35,16 +46,15 @@ namespace HanakaServer.Services
 
             if (source == null
                 || !source.IsCompleted
-                || !source.WinnerRegistrationId.HasValue
-                || !source.Team1RegistrationId.HasValue
-                || !source.Team2RegistrationId.HasValue)
+                || !source.WinnerRegistrationId.HasValue)
             {
                 return;
             }
 
             var winnerId = source.WinnerRegistrationId.Value;
             var loserId = ResolveLoser(source);
-            if (!loserId.HasValue)
+            var isBye = source.CompletionReason == MatchCompletionReasons.Bye;
+            if (!isBye && !loserId.HasValue)
                 return;
 
             var targets = await _db.TournamentGroupMatches
@@ -70,10 +80,18 @@ namespace HanakaServer.Services
                 var originalTeam2 = target.Team2RegistrationId;
 
                 if (target.Team1SourceMatchId == matchId)
-                    target.Team1RegistrationId = target.Team1SourceType == MatchSourceTypes.WinnerMatch ? winnerId : loserId.Value;
+                {
+                    target.Team1RegistrationId = target.Team1SourceType == MatchSourceTypes.WinnerMatch
+                        ? winnerId
+                        : loserId;
+                }
 
                 if (target.Team2SourceMatchId == matchId)
-                    target.Team2RegistrationId = target.Team2SourceType == MatchSourceTypes.WinnerMatch ? winnerId : loserId.Value;
+                {
+                    target.Team2RegistrationId = target.Team2SourceType == MatchSourceTypes.WinnerMatch
+                        ? winnerId
+                        : loserId;
+                }
 
                 if (HasDuplicateResolvedTeams(target))
                 {
@@ -86,10 +104,57 @@ namespace HanakaServer.Services
                     continue;
                 }
 
+                ResetPendingScoreIfParticipantsChanged(target, originalTeam1, originalTeam2);
                 target.UpdatedAt = DateTime.UtcNow;
+
+                if (!target.IsCompleted
+                    && target.Team1SourceType == MatchSourceTypes.Bye
+                    && target.Team2RegistrationId.HasValue)
+                {
+                    CompleteBye(target, target.Team2RegistrationId.Value);
+                }
+                else if (!target.IsCompleted
+                         && target.Team2SourceType == MatchSourceTypes.Bye
+                         && target.Team1RegistrationId.HasValue)
+                {
+                    CompleteBye(target, target.Team1RegistrationId.Value);
+                }
             }
 
             await _db.SaveChangesAsync(ct);
+
+            foreach (var target in targets)
+            {
+                if (target.Team1SourceMatchId == matchId
+                    && target.Team1SourceType is MatchSourceTypes.WinnerMatch or MatchSourceTypes.LoserMatch
+                    && !target.Team1RegistrationId.HasValue)
+                {
+                    _logger.LogWarning(
+                        "Propagation incomplete from match {SourceMatchId} to match {TargetMatchId} slot 1 ({SourceType}).",
+                        matchId,
+                        target.MatchId,
+                        target.Team1SourceType);
+                }
+
+                if (target.Team2SourceMatchId == matchId
+                    && target.Team2SourceType is MatchSourceTypes.WinnerMatch or MatchSourceTypes.LoserMatch
+                    && !target.Team2RegistrationId.HasValue)
+                {
+                    _logger.LogWarning(
+                        "Propagation incomplete from match {SourceMatchId} to match {TargetMatchId} slot 2 ({SourceType}).",
+                        matchId,
+                        target.MatchId,
+                        target.Team2SourceType);
+                }
+            }
+
+            foreach (var completedByeId in targets
+                         .Where(x => x.CompletionReason == MatchCompletionReasons.Bye)
+                         .Select(x => x.MatchId)
+                         .Distinct())
+            {
+                await PropagateFromMatchAsync(completedByeId, ct);
+            }
         }
 
         public async Task PropagateFromGroupAsync(long groupId, CancellationToken ct = default)
@@ -148,6 +213,7 @@ namespace HanakaServer.Services
                     continue;
                 }
 
+                ResetPendingScoreIfParticipantsChanged(target, originalTeam1, originalTeam2);
                 target.UpdatedAt = DateTime.UtcNow;
             }
 
@@ -162,11 +228,15 @@ namespace HanakaServer.Services
             if (target == null || target.IsCompleted)
                 return;
 
+            var originalTeam1 = target.Team1RegistrationId;
+            var originalTeam2 = target.Team2RegistrationId;
             target.Team1RegistrationId = await ResolveSlotAsync(target, slotNumber: 1, ct);
             target.Team2RegistrationId = await ResolveSlotAsync(target, slotNumber: 2, ct);
 
             if (HasDuplicateResolvedTeams(target))
             {
+                target.Team1RegistrationId = originalTeam1;
+                target.Team2RegistrationId = originalTeam2;
                 _logger.LogWarning(
                     "Recalculate skipped duplicate teams for match {MatchId}, registration {RegistrationId}.",
                     target.MatchId,
@@ -174,8 +244,106 @@ namespace HanakaServer.Services
                 return;
             }
 
+            ResetPendingScoreIfParticipantsChanged(target, originalTeam1, originalTeam2);
             target.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(ct);
+        }
+
+        public async Task<BracketPropagationReconcileResult> ReconcileTournamentAsync(
+            long tournamentId,
+            CancellationToken ct = default)
+        {
+            var applicationId = await _db.TournamentBracketApplications.AsNoTracking()
+                .Where(x => x.TournamentId == tournamentId && x.IsActive)
+                .Select(x => (long?)x.TournamentBracketApplicationId)
+                .FirstOrDefaultAsync(ct);
+            if (!applicationId.HasValue)
+                return new BracketPropagationReconcileResult { TournamentId = tournamentId };
+
+            var initialUnresolved = await CountUnresolvedSlotsAsync(applicationId.Value, ct);
+            var previousUnresolved = int.MaxValue;
+            var passCount = 0;
+            var maximumPasses = Math.Max(1, await _db.TournamentGroupMatches.AsNoTracking()
+                .CountAsync(x => x.BracketApplicationId == applicationId.Value, ct));
+
+            while (passCount < maximumPasses)
+            {
+                passCount++;
+                var completedMatchIds = await _db.TournamentGroupMatches.AsNoTracking()
+                    .Where(x => x.BracketApplicationId == applicationId.Value
+                                && x.IsCompleted
+                                && x.WinnerRegistrationId.HasValue)
+                    .Select(x => x.MatchId)
+                    .ToListAsync(ct);
+                foreach (var matchId in completedMatchIds)
+                    await PropagateFromMatchAsync(matchId, ct);
+
+                var groupIds = await _db.TournamentRoundGroups.AsNoTracking()
+                    .Where(x => x.BracketApplicationId == applicationId.Value)
+                    .Select(x => x.TournamentRoundGroupId)
+                    .ToListAsync(ct);
+                foreach (var groupId in groupIds)
+                    await PropagateFromGroupAsync(groupId, ct);
+
+                var pendingMatchIds = await _db.TournamentGroupMatches.AsNoTracking()
+                    .Where(x => x.BracketApplicationId == applicationId.Value && !x.IsCompleted)
+                    .Select(x => x.MatchId)
+                    .ToListAsync(ct);
+                foreach (var matchId in pendingMatchIds)
+                    await RecalculateMatchSlotsAsync(matchId, ct);
+
+                var currentUnresolved = await CountUnresolvedSlotsAsync(applicationId.Value, ct);
+                if (currentUnresolved == 0 || currentUnresolved >= previousUnresolved)
+                    break;
+                previousUnresolved = currentUnresolved;
+            }
+
+            var unresolvedMatches = await _db.TournamentGroupMatches.AsNoTracking()
+                .Where(x => x.BracketApplicationId == applicationId.Value && !x.IsCompleted)
+                .Select(x => new
+                {
+                    x.MatchId,
+                    x.Team1SourceType,
+                    x.Team1RegistrationId,
+                    x.Team2SourceType,
+                    x.Team2RegistrationId
+                })
+                .ToListAsync(ct);
+            var unresolved = unresolvedMatches.SelectMany(x => new[]
+                {
+                    IsUnresolved(x.Team1SourceType, x.Team1RegistrationId) ? $"Match #{x.MatchId} · slot 1" : null,
+                    IsUnresolved(x.Team2SourceType, x.Team2RegistrationId) ? $"Match #{x.MatchId} · slot 2" : null
+                })
+                .Where(x => x != null)
+                .Select(x => x!)
+                .ToList();
+            var completedSourceCount = await _db.TournamentGroupMatches.AsNoTracking()
+                .CountAsync(x => x.BracketApplicationId == applicationId.Value
+                                 && x.IsCompleted
+                                 && x.WinnerRegistrationId.HasValue, ct);
+            var result = new BracketPropagationReconcileResult
+            {
+                TournamentId = tournamentId,
+                PassCount = passCount,
+                CompletedSourceCount = completedSourceCount,
+                ResolvedSlotCount = Math.Max(0, initialUnresolved - unresolved.Count),
+                UnresolvedSlotCount = unresolved.Count,
+                UnresolvedSlots = unresolved
+            };
+
+            if (unresolved.Count == 0)
+            {
+                _logger.LogInformation(
+                    "Bracket propagation reconcile completed for tournament {TournamentId} in {PassCount} pass(es); {ResolvedSlotCount} slot(s) repaired.",
+                    tournamentId, passCount, result.ResolvedSlotCount);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Bracket propagation reconcile for tournament {TournamentId} ended with {UnresolvedSlotCount} unresolved slot(s): {UnresolvedSlots}.",
+                    tournamentId, unresolved.Count, string.Join(", ", unresolved));
+            }
+            return result;
         }
 
         private async Task<long?> ResolveSlotAsync(TournamentGroupMatch match, int slotNumber, CancellationToken ct)
@@ -188,6 +356,9 @@ namespace HanakaServer.Services
 
             if (sourceType == MatchSourceTypes.Registration)
                 return registrationId;
+
+            if (sourceType == MatchSourceTypes.Bye)
+                return null;
 
             if (sourceType == MatchSourceTypes.WinnerMatch || sourceType == MatchSourceTypes.LoserMatch)
             {
@@ -243,6 +414,60 @@ namespace HanakaServer.Services
             return match.Team1RegistrationId.HasValue
                 && match.Team2RegistrationId.HasValue
                 && match.Team1RegistrationId.Value == match.Team2RegistrationId.Value;
+        }
+
+        private async Task<int> CountUnresolvedSlotsAsync(long applicationId, CancellationToken ct)
+        {
+            var matches = await _db.TournamentGroupMatches.AsNoTracking()
+                .Where(x => x.BracketApplicationId == applicationId && !x.IsCompleted)
+                .Select(x => new
+                {
+                    x.Team1SourceType,
+                    x.Team1RegistrationId,
+                    x.Team2SourceType,
+                    x.Team2RegistrationId
+                })
+                .ToListAsync(ct);
+            return matches.Sum(x =>
+                (IsUnresolved(x.Team1SourceType, x.Team1RegistrationId) ? 1 : 0)
+                + (IsUnresolved(x.Team2SourceType, x.Team2RegistrationId) ? 1 : 0));
+        }
+
+        private static bool IsUnresolved(string? sourceType, long? registrationId)
+        {
+            var normalized = MatchSourceTypes.Normalize(sourceType);
+            return (normalized is MatchSourceTypes.WinnerMatch
+                or MatchSourceTypes.LoserMatch
+                or MatchSourceTypes.GroupRank)
+                && !registrationId.HasValue;
+        }
+
+        internal static void ResetPendingScoreIfParticipantsChanged(
+            TournamentGroupMatch match,
+            long? originalTeam1,
+            long? originalTeam2)
+        {
+            if (match.IsCompleted
+                || (match.Team1RegistrationId == originalTeam1
+                    && match.Team2RegistrationId == originalTeam2))
+            {
+                return;
+            }
+
+            match.ScoreTeam1 = 0;
+            match.ScoreTeam2 = 0;
+            match.WinnerRegistrationId = null;
+            match.CompletionReason = null;
+        }
+
+        private static void CompleteBye(TournamentGroupMatch match, long winnerRegistrationId)
+        {
+            match.IsCompleted = true;
+            match.WinnerRegistrationId = winnerRegistrationId;
+            match.ScoreTeam1 = 0;
+            match.ScoreTeam2 = 0;
+            match.CompletionReason = MatchCompletionReasons.Bye;
+            match.UpdatedAt = DateTime.UtcNow;
         }
     }
 }

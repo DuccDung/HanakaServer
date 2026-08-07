@@ -2,6 +2,7 @@
 using HanakaServer.Helpers;
 using HanakaServer.Options;
 using HanakaServer.Services;
+using HanakaServer.Services.Brackets;
 using HanakaServer.Services.Payments;
 using mail_service.Internal;
 using mail_service.service;
@@ -48,8 +49,12 @@ builder.Services.AddScoped<IUserRatingService, UserRatingService>();
 builder.Services.AddScoped<TournamentUserNotificationService>();
 builder.Services.AddScoped<ITournamentStandingsService, TournamentStandingsService>();
 builder.Services.AddScoped<ITournamentBracketPropagationService, TournamentBracketPropagationService>();
+builder.Services.AddScoped<IBracketTemplateValidationService, BracketTemplateValidationService>();
+builder.Services.AddScoped<IBracketTemplateService, BracketTemplateService>();
+builder.Services.AddScoped<ITournamentBracketApplicationService, TournamentBracketApplicationService>();
 builder.Services.AddSingleton<IWebAuthCookieService, WebAuthCookieService>();
 builder.Services.Configure<SepayOptions>(builder.Configuration.GetSection(SepayOptions.SectionName));
+builder.Services.AddScoped<SepaySettingsProvider>();
 builder.Services.AddHttpClient<SepayGatewayClient>();
 builder.Services.AddScoped<TournamentRegistrationPaymentService>();
 

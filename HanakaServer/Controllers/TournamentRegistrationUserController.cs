@@ -1048,6 +1048,9 @@ public class TournamentRegistrationUserController : ControllerBase
             long registrationId,
             CancellationToken ct)
     {
+        if (tournament.RegistrationLockedAt.HasValue)
+            return (false, "Danh sách đăng ký đã được khóa để xếp bracket.", null, null);
+
         var tournamentValidation = ValidateTournamentRegistrationWindow(
             tournament.Status,
             tournament.RegisterDeadline);
@@ -1107,6 +1110,9 @@ public class TournamentRegistrationUserController : ControllerBase
         bool requireCapacity,
         CancellationToken ct)
     {
+        if (tournament.RegistrationLockedAt.HasValue)
+            return (false, "Danh sách đăng ký đã được khóa để xếp bracket.");
+
         var successCount = await _db.TournamentRegistrations
             .Where(x => x.TournamentId == tournament.TournamentId && x.Success)
             .CountAsync(ct);

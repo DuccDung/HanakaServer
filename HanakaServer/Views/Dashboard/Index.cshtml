@@ -615,6 +615,10 @@
                 <span><i class="fas fa-images mr-2"></i>Biểu ngữ</span>
                 <i class="fas fa-arrow-right"></i>
             </a>
+            <a class="dashboard-action" asp-controller="BracketTemplates" asp-action="Index">
+                <span><i class="fas fa-project-diagram mr-2"></i>Thư viện Bracket</span>
+                <i class="fas fa-arrow-right"></i>
+            </a>
         </div>
     </section>
 
@@ -684,6 +688,7 @@
                 <div class="metric-foot">
                     <span class="metric-chip"><strong>@FormatNumber(Model.CompletedMatches)</strong> hoàn tất</span>
                     <span class="metric-chip"><strong>@FormatNumber(Model.UpcomingMatches)</strong> sắp diễn ra</span>
+                    <span class="metric-chip"><strong>@FormatNumber(Model.UnassignedBracketMatches)</strong> chưa có trọng tài</span>
                 </div>
             </a>
         </div>
@@ -817,6 +822,20 @@
                                 <small>@PercentText(Model.CompletedMatches, Model.TotalMatches)</small>
                             </div>
                             <div class="health-track"><span style="width:@PercentWidth(Model.CompletedMatches, Model.TotalMatches)"></span></div>
+                        </div>
+                        <div class="health-item">
+                            <div class="health-item__top">
+                                <span>Bracket template đã publish</span>
+                                <small>@FormatNumber(Model.PublishedBracketTemplateCount) publish · @FormatNumber(Model.DraftBracketTemplateCount) draft</small>
+                            </div>
+                            <div class="health-track"><span style="width:@PercentWidth(Model.PublishedBracketTemplateCount, Model.BracketTemplateCount)"></span></div>
+                        </div>
+                        <div class="health-item">
+                            <div class="health-item__top">
+                                <span>Bracket application thành công</span>
+                                <small>@FormatNumber(Model.SuccessfulBracketApplications) thành công · @FormatNumber(Model.FailedBracketApplications) lỗi · @FormatNumber(Model.RevertedBracketApplications) reset</small>
+                            </div>
+                            <div class="health-track"><span style="width:@PercentWidth(Model.SuccessfulBracketApplications, Model.SuccessfulBracketApplications + Model.FailedBracketApplications)"></span></div>
                         </div>
                         <div class="health-item">
                             <div class="health-item__top">

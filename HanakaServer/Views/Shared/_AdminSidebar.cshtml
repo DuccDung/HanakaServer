@@ -1,4 +1,5 @@
-﻿<ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
+﻿@inject IConfiguration Configuration
+<ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
     <a class="sidebar-brand d-flex align-items-center justify-content-center" asp-controller="Dashboard" asp-action="Index">
         <div class="sidebar-brand-icon admin-sidebar-logo-wrap">
             <img class="admin-sidebar-logo"
@@ -49,6 +50,15 @@
         </a>
     </li>
 
+    @if (Configuration.GetValue("FeatureFlags:ManualBracketTemplateEditor", true))
+    {
+        <li class="nav-item">
+            <a class="nav-link" asp-controller="BracketTemplates" asp-action="Index">
+                <i class="fas fa-fw fa-project-diagram"></i><span>Thư viện Bracket</span>
+            </a>
+        </li>
+    }
+
     <li class="nav-item">
         @* <a class="nav-link" asp-controller="Registrations" asp-action="Index"> *@
         @*     <i class="fas fa-fw fa-clipboard-list"></i><span>Đăng ký</span> *@
@@ -86,6 +96,12 @@
     <li class="nav-item">
         <a class="nav-link" asp-controller="Links" asp-action="Index">
             <i class="fas fa-fw fa-link"></i><span>Liên kết</span>
+        </a>
+    </li>
+
+    <li class="nav-item">
+        <a class="nav-link" asp-controller="SepaySettings" asp-action="Index">
+            <i class="fas fa-fw fa-credit-card"></i><span>Cấu hình Sepay</span>
         </a>
     </li>
 </ul>

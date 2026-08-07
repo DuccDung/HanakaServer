@@ -18,17 +18,20 @@ namespace HanakaServer.Controllers
         private readonly TournamentUserNotificationService _tournamentNotificationService;
         private readonly ITournamentBracketPropagationService _bracketPropagationService;
         private readonly ITournamentStandingsService _standingsService;
+        private readonly ILogger<AdminTournamentGroupMatchesController> _logger;
 
         public AdminTournamentGroupMatchesController(
             PickleballDbContext db,
             TournamentUserNotificationService tournamentNotificationService,
             ITournamentBracketPropagationService bracketPropagationService,
-            ITournamentStandingsService standingsService)
+            ITournamentStandingsService standingsService,
+            ILogger<AdminTournamentGroupMatchesController> logger)
         {
             _db = db;
             _tournamentNotificationService = tournamentNotificationService;
             _bracketPropagationService = bracketPropagationService;
             _standingsService = standingsService;
+            _logger = logger;
         }
 
         // GET /api/admin/groups/{groupId}/matches
@@ -41,7 +44,9 @@ namespace HanakaServer.Controllers
                 {
                     x.TournamentRoundGroupId,
                     x.TournamentRoundMapId,
-                    x.GroupName
+                    x.GroupName,
+                    x.BracketApplicationId,
+                    x.TemplateGroupKey
                 })
                 .FirstOrDefaultAsync();
 
@@ -55,7 +60,9 @@ namespace HanakaServer.Controllers
                     x.TournamentRoundMapId,
                     x.TournamentId,
                     x.RoundKey,
-                    x.RoundLabel
+                    x.RoundLabel,
+                    x.BracketApplicationId,
+                    x.TemplateRoundKey
                 })
                 .FirstOrDefaultAsync();
 
@@ -88,6 +95,9 @@ namespace HanakaServer.Controllers
                     m.MatchId,
                     m.TournamentRoundGroupId,
                     m.TournamentId,
+                    m.BracketApplicationId,
+                    m.TemplateMatchKey,
+                    m.CompletionReason,
                     m.Team1RegistrationId,
                     m.Team1SourceType,
                     m.Team1SourceMatchId,
@@ -173,6 +183,9 @@ namespace HanakaServer.Controllers
                     m.MatchId,
                     m.TournamentRoundGroupId,
                     m.TournamentId,
+                    m.BracketApplicationId,
+                    m.TemplateMatchKey,
+                    m.CompletionReason,
                     m.Team1RegistrationId,
                     Team1Text = m.Team1RegistrationId.HasValue && registrations.TryGetValue(m.Team1RegistrationId.Value, out var team1Reg)
                         ? BuildTeamText(t.GameType ?? "DOUBLE", team1Reg.Player1Name, team1Reg.Player2Name)
@@ -696,6 +709,14 @@ namespace HanakaServer.Controllers
             if (g == null)
                 return NotFound(new { message = "Không tìm thấy bảng đấu." });
 
+            if (g.BracketApplicationId.HasValue)
+            {
+                return BadRequest(new
+                {
+                    message = "Không thể thêm trận thủ công vào bảng được sinh từ template. Hãy reset và áp dụng lại bracket."
+                });
+            }
+
             var rm = await _db.TournamentRoundMaps.FirstOrDefaultAsync(x => x.TournamentRoundMapId == g.TournamentRoundMapId);
             if (rm == null)
                 return NotFound(new { message = "Không tìm thấy vòng đấu." });
@@ -783,9 +804,23 @@ namespace HanakaServer.Controllers
             if (m == null)
                 return NotFound(new { message = "Không tìm thấy trận đấu." });
 
-            var refereeValidationError = await ValidateAndEnsureRefereeAsync(dto.RefereeUserId);
-            if (refereeValidationError != null)
-                return BadRequest(new { message = refereeValidationError });
+            var isGeneratedMatch = m.BracketApplicationId.HasValue;
+            if (isGeneratedMatch
+                && (dto.Team1 != null || dto.Team1RegistrationId.HasValue
+                    || dto.Team2 != null || dto.Team2RegistrationId.HasValue))
+            {
+                return BadRequest(new
+                {
+                    message = "Không thể sửa nguồn đội của trận được sinh từ template. Hãy reset và áp dụng lại bracket."
+                });
+            }
+
+            if (!isGeneratedMatch || dto.RefereeUserId.HasValue)
+            {
+                var refereeValidationError = await ValidateAndEnsureRefereeAsync(dto.RefereeUserId);
+                if (refereeValidationError != null)
+                    return BadRequest(new { message = refereeValidationError });
+            }
 
             if (m.IsCompleted)
             {
@@ -794,8 +829,9 @@ namespace HanakaServer.Controllers
                 if (dto.CourtText != null) m.CourtText = string.IsNullOrWhiteSpace(dto.CourtText) ? null : dto.CourtText.Trim();
                 if (dto.VideoUrl != null) m.VideoUrl = string.IsNullOrWhiteSpace(dto.VideoUrl) ? null : dto.VideoUrl.Trim();
 
-                // vẫn cho sửa trọng tài
-                m.RefereeUserId = dto.RefereeUserId;
+                // Trận sinh tự động có thể cập nhật lịch trước, rồi phân công trọng tài sau.
+                if (!isGeneratedMatch || dto.RefereeUserId.HasValue)
+                    m.RefereeUserId = dto.RefereeUserId;
 
                 m.UpdatedAt = DateTime.UtcNow;
 
@@ -860,7 +896,8 @@ namespace HanakaServer.Controllers
             if (dto.CourtText != null) m.CourtText = string.IsNullOrWhiteSpace(dto.CourtText) ? null : dto.CourtText.Trim();
             if (dto.VideoUrl != null) m.VideoUrl = string.IsNullOrWhiteSpace(dto.VideoUrl) ? null : dto.VideoUrl.Trim();
 
-            m.RefereeUserId = dto.RefereeUserId;
+            if (!isGeneratedMatch || dto.RefereeUserId.HasValue)
+                m.RefereeUserId = dto.RefereeUserId;
             m.UpdatedAt = DateTime.UtcNow;
 
             try
@@ -889,6 +926,14 @@ namespace HanakaServer.Controllers
 
             if (m == null)
                 return NotFound(new { message = "Không tìm thấy trận đấu." });
+
+            if (m.BracketApplicationId.HasValue)
+            {
+                return BadRequest(new
+                {
+                    message = "Không thể xóa trận được sinh từ template. Hãy dùng chức năng reset bracket."
+                });
+            }
 
             var sourceDependencies = await (
                 from target in _db.TournamentGroupMatches.AsNoTracking()
@@ -973,6 +1018,9 @@ namespace HanakaServer.Controllers
             if (m == null)
                 return NotFound(new { message = "Không tìm thấy trận đấu." });
 
+            if (m.CompletionReason == MatchCompletionReasons.Bye)
+                return BadRequest(new { message = "Trận miễn đấu đã tự động hoàn thành và không cần nhập điểm." });
+
             if (!m.Team1RegistrationId.HasValue || !m.Team2RegistrationId.HasValue)
                 return BadRequest(new { message = "Trận chưa xác định đủ 2 đội nên chưa thể nhập điểm." });
 
@@ -988,6 +1036,7 @@ namespace HanakaServer.Controllers
             m.ScoreTeam1 = dto.ScoreTeam1;
             m.ScoreTeam2 = dto.ScoreTeam2;
             m.IsCompleted = dto.IsCompleted;
+            m.CompletionReason = dto.IsCompleted ? MatchCompletionReasons.Normal : null;
             m.WinnerRegistrationId = dto.IsCompleted
                 ? (dto.ScoreTeam1 > dto.ScoreTeam2
                     ? m.Team1RegistrationId
@@ -1007,9 +1056,12 @@ namespace HanakaServer.Controllers
 
                     await _bracketPropagationService.PropagateFromGroupAsync(groupId, HttpContext.RequestAborted);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Bracket propagation must not break a score that is already saved.
+                    _logger.LogError(ex,
+                        "Bracket propagation failed after admin saved match {MatchId} in group {GroupId}. Run bracket reconcile to retry.",
+                        m.MatchId,
+                        groupId);
                 }
             }
 

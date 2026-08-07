@@ -297,6 +297,8 @@
     }
 
     function buildMatchCard(match, matchIndex, groupKey, groupName, roundIndex, roundKey, roundLabel) {
+        const completionReason = trimToEmpty(match?.completionReason).toUpperCase();
+        const isBye = completionReason === "BYE";
         const winnerId = match?.winnerRegistrationId;
         const isWinnerA = !!winnerId && winnerId === match?.team1RegistrationId;
         const isWinnerB = !!winnerId && winnerId === match?.team2RegistrationId;
@@ -308,14 +310,17 @@
         return {
             matchId: toNumber(match?.matchId),
             isCompleted: !!match?.isCompleted,
+            isBye: isBye,
+            completionReason: completionReason,
             hasVideo: !!trimToEmpty(match?.videoUrl),
-            title: "#" + (trimToEmpty(match?.matchId) || (groupKey + "-" + (matchIndex + 1))),
+            title: trimToEmpty(match?.matchLabel)
+                || ("#" + (trimToEmpty(match?.matchId) || (groupKey + "-" + (matchIndex + 1)))),
             roundIndex: roundIndex,
             roundKey: roundKey,
             roundLabel: roundLabel,
             groupKey: groupKey,
             groupName: groupName,
-            metaText: buildMatchMeta(match),
+            metaText: isBye ? "Miễn đấu" : buildMatchMeta(match),
             teamA: buildTeamName(match?.team1, groupKey + "-#1"),
             teamB: buildTeamName(match?.team2, groupKey + "-#2"),
             teamAIdentity: buildTeamIdentity(match?.team1, match?.team1RegistrationId),
@@ -324,8 +329,8 @@
             teamBSource: teamBSource,
             teamAResolved: teamAResolved,
             teamBResolved: teamBResolved,
-            scoreA: formatScore(match?.scoreTeam1),
-            scoreB: formatScore(match?.scoreTeam2),
+            scoreA: isBye ? "—" : formatScore(match?.scoreTeam1),
+            scoreB: isBye ? "—" : formatScore(match?.scoreTeam2),
             isWinnerA: isWinnerA,
             isWinnerB: isWinnerB,
             teamRegistrationIds: [
@@ -892,6 +897,7 @@
         const classes = [
             "admin-bracket-match",
             match.isCompleted ? "is-completed" : "",
+            match.isBye ? "is-bye" : "",
             match.hasVideo ? "has-video" : ""
         ].filter(Boolean).join(" ");
 
@@ -901,6 +907,9 @@
             '<div class="admin-bracket-match__title">',
             '<div class="admin-bracket-match__group"><b>' + escapeHtml(match.groupKey || "") + "</b><span>" + escapeHtml(match.groupName || "") + "</span></div>",
             '<strong>' + escapeHtml(match.title) + "</strong>",
+            match.matchId > 0
+                ? '<span class="admin-bracket-match__runtime-id" title="ID trận đấu trong dữ liệu">ID #' + escapeHtml(match.matchId) + "</span>"
+                : "",
             "</div>",
             "<span>" + escapeHtml(match.metaText || "Chưa có giờ / sân") + "</span>",
             "</div>",

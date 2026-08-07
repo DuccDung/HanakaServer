@@ -1039,6 +1039,21 @@
     white-space: nowrap;
 }
 
+.admin-bracket-match__runtime-id {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 0 auto;
+    min-height: 22px;
+    padding: 0 7px;
+    border: 1px solid rgba(56, 189, 248, 0.34);
+    border-radius: 5px;
+    background: rgba(14, 116, 144, 0.2);
+    color: #7dd3fc;
+    font-size: 0.68rem;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
 .admin-bracket-match__top > span {
     flex: 0 1 45%;
     overflow: hidden;

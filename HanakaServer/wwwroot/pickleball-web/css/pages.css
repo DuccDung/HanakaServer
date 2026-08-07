@@ -6392,6 +6392,47 @@ body.has-web-pair-popup {
     padding: 10px;
 }
 
+.tournament-app-registration-info-page > .tournament-payment-page.is-app-webview {
+    min-height: 0;
+    padding: 0;
+    background: transparent;
+}
+
+.tournament-app-payment-unavailable {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid #DCE7F3;
+    border-radius: 8px;
+    background: #FFFFFF;
+    color: #475569;
+}
+
+.tournament-app-payment-unavailable > ion-icon {
+    flex: 0 0 auto;
+    color: #0F766E;
+    font-size: 1.5rem;
+}
+
+.tournament-app-payment-unavailable strong,
+.tournament-app-payment-unavailable p {
+    display: block;
+    margin: 0;
+}
+
+.tournament-app-payment-unavailable strong {
+    color: #0F172A;
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+
+.tournament-app-payment-unavailable p {
+    margin-top: 4px;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+}
+
 .tournament-payment-status {
     display: flex;
     align-items: flex-start;
@@ -8472,4 +8513,12 @@ body.has-web-pair-popup {
         padding: 0 6px;
         font-size: 0.625rem;
     }
+}
+.tournament-bracket-group-match.is-bye {
+    border-color: rgba(235, 178, 67, .62);
+    background: linear-gradient(135deg, rgba(90, 67, 24, .3), rgba(19, 29, 43, .96));
+}
+
+.tournament-bracket-group-match.is-bye .tournament-bracket-group-match__top span {
+    color: #f1c86f;
 }

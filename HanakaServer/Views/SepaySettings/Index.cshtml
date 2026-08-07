@@ -1,0 +1,184 @@
+@model HanakaServer.ViewModels.Admin.SepaySettingsViewModel
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Cấu hình Sepay";
+}
+
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">Cấu hình Sepay</h1>
+            <div class="small text-muted">Cấu hình thanh toán chuyển khoản cho trang chi tiết đăng ký.</div>
+        </div>
+    </div>
+
+    @if (TempData["SepaySettingsSuccess"] is string successMessage)
+    {
+        <div class="alert alert-success" role="alert">
+            <i class="fas fa-check-circle mr-1"></i>@successMessage
+        </div>
+    }
+
+    <form asp-controller="SepaySettings" asp-action="Index" method="post" autocomplete="off">
+        @Html.AntiForgeryToken()
+
+        @if (!ViewData.ModelState.IsValid)
+        {
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger"></div>
+        }
+
+        <div class="row">
+            <div class="col-xl-6">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Kết nối Sepay</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label asp-for="ApiBaseUrl"></label>
+                            <input asp-for="ApiBaseUrl" class="form-control" />
+                            <span asp-validation-for="ApiBaseUrl" class="text-danger small"></span>
+                        </div>
+
+                        <div class="form-group">
+                            <label asp-for="ApiToken"></label>
+                            <input asp-for="ApiToken" type="password" class="form-control" autocomplete="new-password"
+                                   placeholder="Để trống để giữ nguyên" />
+                            <small class="form-text text-muted">
+                                Trạng thái: @(Model.HasApiToken ? "đã cấu hình" : "chưa cấu hình"). Giá trị hiện tại không được hiển thị lại.
+                            </small>
+                            <span asp-validation-for="ApiToken" class="text-danger small"></span>
+                        </div>
+
+                        <div class="custom-control custom-checkbox mb-3">
+                            <input asp-for="ClearApiToken" class="custom-control-input" />
+                            <label asp-for="ClearApiToken" class="custom-control-label">Xóa API token đang lưu</label>
+                        </div>
+
+                        <div class="form-group">
+                            <label asp-for="BankAccountId"></label>
+                            <input asp-for="BankAccountId" type="number" min="1" class="form-control" placeholder="Không bắt buộc" />
+                            <small class="form-text text-muted">Dùng khi tài khoản Sepay có nhiều tài khoản ngân hàng.</small>
+                            <span asp-validation-for="BankAccountId" class="text-danger small"></span>
+                        </div>
+
+                        <div class="form-group">
+                            <label asp-for="QrBaseUrl"></label>
+                            <input asp-for="QrBaseUrl" class="form-control" />
+                            <span asp-validation-for="QrBaseUrl" class="text-danger small"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-6">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Tài khoản nhận tiền</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group col-md-6">
+                                <label asp-for="ReceiverBankShortName"></label>
+                                <input asp-for="ReceiverBankShortName" class="form-control" />
+                                <span asp-validation-for="ReceiverBankShortName" class="text-danger small"></span>
+                            </div>
+                            <div class="form-group col-md-6">
+                                <label asp-for="ReceiverBankName"></label>
+                                <input asp-for="ReceiverBankName" class="form-control" />
+                                <span asp-validation-for="ReceiverBankName" class="text-danger small"></span>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label asp-for="ReceiverAccountNumber"></label>
+                            <input asp-for="ReceiverAccountNumber" class="form-control" inputmode="numeric" />
+                            <span asp-validation-for="ReceiverAccountNumber" class="text-danger small"></span>
+                        </div>
+
+                        <div class="form-group">
+                            <label asp-for="ReceiverAccountName"></label>
+                            <input asp-for="ReceiverAccountName" class="form-control text-uppercase" />
+                            <span asp-validation-for="ReceiverAccountName" class="text-danger small"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-xl-6">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Webhook</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label asp-for="WebhookApiKey"></label>
+                            <input asp-for="WebhookApiKey" type="password" class="form-control" autocomplete="new-password"
+                                   placeholder="Để trống để giữ nguyên" />
+                            <small class="form-text text-muted">
+                                Trạng thái: @(Model.HasWebhookApiKey ? "đã cấu hình" : "chưa cấu hình"). Nếu chưa có key, webhook hiện không yêu cầu xác thực.
+                            </small>
+                            <span asp-validation-for="WebhookApiKey" class="text-danger small"></span>
+                        </div>
+
+                        <div class="custom-control custom-checkbox">
+                            <input asp-for="ClearWebhookApiKey" class="custom-control-input" />
+                            <label asp-for="ClearWebhookApiKey" class="custom-control-label">Xóa webhook API key đang lưu</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-6">
+                <div class="card shadow mb-4">
+                    <div class="card-header py-3">
+                        <h6 class="m-0 font-weight-bold text-primary">Giao dịch</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label asp-for="TransferCodePrefix"></label>
+                            <input asp-for="TransferCodePrefix" class="form-control text-uppercase" />
+                            <small class="form-text text-muted">Chỉ áp dụng cho mã thanh toán được tạo mới.</small>
+                            <span asp-validation-for="TransferCodePrefix" class="text-danger small"></span>
+                        </div>
+
+                        <div class="form-group mb-0">
+                            <label asp-for="PaymentExpireMinutes"></label>
+                            <input asp-for="PaymentExpireMinutes" type="number" min="0" max="10080" class="form-control" />
+                            <small class="form-text text-muted">Nhập 0 nếu không muốn mã thanh toán hết hạn.</small>
+                            <span asp-validation-for="PaymentExpireMinutes" class="text-danger small"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card shadow mb-4">
+            <div class="card-body d-sm-flex align-items-center justify-content-between">
+                <div class="small text-muted mb-3 mb-sm-0">
+                    @if (Model.UpdatedAt.HasValue)
+                    {
+                        <span>Cập nhật gần nhất: @Model.UpdatedAt.Value.ToLocalTime().ToString("HH:mm dd/MM/yyyy")</span>
+                        @if (!string.IsNullOrWhiteSpace(Model.UpdatedBy))
+                        {
+                            <span> bởi @Model.UpdatedBy</span>
+                        }
+                    }
+                    else
+                    {
+                        <span>Chưa có bản ghi cấu hình trong SQL Server.</span>
+                    }
+                </div>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save mr-1"></i>Lưu cấu hình
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

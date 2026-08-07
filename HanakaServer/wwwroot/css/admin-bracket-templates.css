@@ -1,0 +1,112 @@
+:root {
+    --bt-ink: #17223b;
+    --bt-muted: #667085;
+    --bt-line: #e5eaf2;
+    --bt-soft: #f5f7fb;
+    --bt-primary: #3157d5;
+    --bt-primary-dark: #203ca2;
+    --bt-teal: #0e9384;
+    --bt-warning: #dc8b17;
+}
+
+.bt-page { color: var(--bt-ink); padding-bottom: 2.5rem; }
+.bt-hero {
+    align-items: center;
+    background: linear-gradient(120deg, #17285d 0%, #294dbf 58%, #168f9e 130%);
+    border-radius: 18px;
+    box-shadow: 0 18px 42px rgba(27, 51, 120, .18);
+    color: #fff;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+    padding: 1.8rem 2rem;
+    position: relative;
+}
+.bt-hero::after {
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 50%;
+    content: "";
+    height: 250px;
+    position: absolute;
+    right: 15%;
+    top: -155px;
+    width: 250px;
+}
+.bt-hero h1 { font-size: clamp(1.65rem, 3vw, 2.35rem); font-weight: 800; margin: .25rem 0 .35rem; }
+.bt-hero p { color: rgba(255,255,255,.78); margin: 0; }
+.bt-eyebrow { color: inherit; font-size: .68rem; font-weight: 800; letter-spacing: .16em; }
+.bt-primary-action { border-radius: 10px; color: var(--bt-primary-dark); font-weight: 800; padding: .68rem 1rem; position: relative; z-index: 1; }
+
+.bt-filter-card, .bt-list-card {
+    background: #fff;
+    border: 1px solid var(--bt-line);
+    border-radius: 14px;
+    box-shadow: 0 8px 28px rgba(18, 38, 73, .06);
+}
+.bt-filter-card { display: grid; gap: .75rem; grid-template-columns: minmax(260px, 1fr) 220px 190px auto; margin-bottom: 1rem; padding: 1rem; }
+.bt-search-wrap { position: relative; }
+.bt-search-wrap i { color: #98a2b3; left: .9rem; position: absolute; top: .78rem; }
+.bt-search-wrap .form-control { padding-left: 2.45rem; }
+.bt-filter-card .form-control, .bt-modal .form-control { border-color: #dce2eb; border-radius: 9px; min-height: 42px; }
+.bt-filter-card .form-control:focus, .bt-modal .form-control:focus { border-color: #8097e7; box-shadow: 0 0 0 .2rem rgba(49,87,213,.12); }
+
+.bt-list-card { min-height: 360px; overflow: hidden; position: relative; }
+.bt-list-head { align-items: center; border-bottom: 1px solid var(--bt-line); display: flex; justify-content: space-between; padding: 1.1rem 1.25rem; }
+.bt-list-head h2 { font-size: 1.05rem; font-weight: 800; margin: 0 0 .15rem; }
+.bt-list-head p { color: var(--bt-muted); font-size: .82rem; margin: 0; }
+.bt-page-size { width: 115px; }
+.bt-table { color: var(--bt-ink); font-size: .84rem; min-width: 1050px; }
+.bt-table thead th { background: #f8fafc; border: 0; color: #687184; font-size: .69rem; letter-spacing: .055em; padding: .75rem 1rem; text-transform: uppercase; }
+.bt-table tbody td { border-color: #edf0f5; padding: .9rem 1rem; }
+.bt-table tbody tr:hover { background: #fbfcff; }
+.bt-template-name { font-size: .9rem; font-weight: 800; margin-bottom: .2rem; }
+.bt-table code { background: #eef2ff; border-radius: 5px; color: #3b54ae; display: inline-block; font-size: .7rem; padding: .14rem .3rem; }
+.bt-table small { color: var(--bt-muted); display: block; line-height: 1.35; margin-top: .25rem; max-width: 250px; }
+.bt-format { align-items: center; display: inline-flex; gap: .4rem; }
+.bt-format i { color: #687fd0; }
+.bt-status { align-items: center; border-radius: 999px; display: inline-flex; font-size: .72rem; font-weight: 700; gap: .4rem; padding: .3rem .55rem; white-space: nowrap; }
+.bt-status i { background: currentColor; border-radius: 50%; height: 6px; width: 6px; }
+.bt-status--draft { background: #fff7e6; color: #a15c05; }
+.bt-status--published { background: #eafaf4; color: #087c68; }
+.bt-status--archived { background: #f0f2f5; color: #667085; }
+.bt-use-count { align-items: center; background: #f1f4fb; border-radius: 50%; display: inline-flex; font-weight: 800; height: 30px; justify-content: center; width: 30px; }
+.bt-table .btn { border-radius: 8px; font-size: .76rem; font-weight: 700; }
+.bt-table .btn-primary { background: var(--bt-primary); border-color: var(--bt-primary); }
+
+.bt-pagination { align-items: center; border-top: 1px solid var(--bt-line); color: var(--bt-muted); display: flex; font-size: .82rem; justify-content: space-between; padding: .8rem 1.2rem; }
+.bt-pagination .btn { border-radius: 8px; }
+.bt-empty { padding: 3.5rem 1rem; text-align: center; }
+.bt-empty__icon { align-items: center; background: #eef2ff; border-radius: 16px; color: var(--bt-primary); display: inline-flex; font-size: 1.35rem; height: 54px; justify-content: center; margin-bottom: .8rem; width: 54px; }
+.bt-empty h3 { font-size: 1rem; font-weight: 800; }
+.bt-empty p { color: var(--bt-muted); font-size: .84rem; }
+.bt-loading { align-items: center; backdrop-filter: blur(1px); background: rgba(255,255,255,.84); display: flex; inset: 0; justify-content: center; position: absolute; z-index: 5; }
+
+.bt-modal { border: 0; border-radius: 16px; overflow: hidden; }
+.bt-modal .modal-header { align-items: flex-start; background: #f7f9fd; border-bottom-color: var(--bt-line); padding: 1.25rem 1.5rem; }
+.bt-modal .bt-eyebrow { color: var(--bt-primary); }
+.bt-modal .modal-title { font-size: 1.25rem; font-weight: 800; margin-top: .2rem; }
+.bt-modal .modal-body { padding: 1.4rem 1.5rem; }
+.bt-modal label { color: #344054; font-size: .79rem; font-weight: 700; }
+.bt-modal .modal-footer { background: #fbfcfe; border-top-color: var(--bt-line); }
+
+/* Let row action menus escape a short table instead of being clipped by the
+   card/table responsive overflow. Small screens keep horizontal scrolling. */
+@media (min-width: 992px) {
+    .bt-list-card { overflow: visible; }
+    .bt-list-card > .table-responsive { overflow: visible; }
+}
+
+@media (max-width: 991.98px) {
+    .bt-filter-card { grid-template-columns: 1fr 1fr; }
+    .bt-search-wrap { grid-column: 1 / -1; }
+}
+@media (max-width: 575.98px) {
+    .bt-hero { align-items: flex-start; flex-direction: column; padding: 1.35rem; }
+    .bt-hero .bt-primary-action { margin-top: 1rem; width: 100%; }
+    .bt-filter-card { grid-template-columns: 1fr; }
+    .bt-search-wrap { grid-column: auto; }
+    .bt-list-head, .bt-pagination { align-items: flex-start; flex-direction: column; gap: .75rem; }
+    .bt-pagination .btn-group { display: flex; width: 100%; }
+    .bt-pagination .btn { flex: 1; }
+}

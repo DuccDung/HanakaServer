@@ -865,6 +865,10 @@
 
                 <div class="modal-body">
                     <div id="formErr" class="alert alert-danger d-none"></div>
+                    <div id="generatedTopologyNotice" class="alert alert-info d-none" role="status">
+                        <i class="fas fa-lock mr-1" aria-hidden="true"></i>
+                        Trận này được sinh từ Bracket. Đội và nguồn đi tiếp đã được khóa; bạn vẫn có thể cập nhật lịch, sân, video và trọng tài.
+                    </div>
                     <div id="winnerSourceInfo" class="winner-source-info d-none mb-3"></div>
                     <div id="loserSourceInfo" class="winner-source-info d-none mb-3"></div>
 
@@ -889,7 +893,7 @@
                         </div>
                     </div>
 
-                    <div class="form-row">
+                    <div class="form-row" id="matchTopologyFields">
                         <div class="form-group col-md-6">
                             <label>Đội 1 (Đăng ký)</label>
                             <div class="match-team-selector">
@@ -900,6 +904,7 @@
                                         <option value="WINNER_MATCH">Thắng trận</option>
                                         <option value="LOSER_MATCH">Thua trận</option>
                                         <option value="GROUP_RANK">Hạng bảng</option>
+                                        <option value="BYE" disabled>Miễn đấu (BYE)</option>
                                     </select>
                                 </div>
                                 <div class="source-quick-actions mb-2" aria-label="Chọn nhanh nguồn đội 1">
@@ -964,6 +969,7 @@
                                         <option value="WINNER_MATCH">Thắng trận</option>
                                         <option value="LOSER_MATCH">Thua trận</option>
                                         <option value="GROUP_RANK">Hạng bảng</option>
+                                        <option value="BYE" disabled>Miễn đấu (BYE)</option>
                                     </select>
                                 </div>
                                 <div class="source-quick-actions mb-2" aria-label="Chọn nhanh nguồn đội 2">
@@ -3085,6 +3091,13 @@
                 syncSlotSourcePanel(slot);
             }
 
+            function setGeneratedTopologyLock(locked) {
+                $id("generatedTopologyNotice")?.classList.toggle("d-none", !locked);
+                $id("matchTopologyFields")?.querySelectorAll("input, select, button").forEach(control => {
+                    control.disabled = locked;
+                });
+            }
+
             function getSlotFieldIds(slot) {
                 const sourceType = $id(`team${slot}SourceType`).value || "REGISTRATION";
 
@@ -3311,6 +3324,7 @@
                 fillTeamsSelects(null, null);
                 setSlotSourceControls(1, null);
                 setSlotSourceControls(2, null);
+                setGeneratedTopologyLock(false);
                 closeTeamPicker();
             }
 
@@ -3335,6 +3349,7 @@
                 fillTeamsSelects(m.team1RegistrationId, m.team2RegistrationId);
                 setSlotSourceControls(1, m);
                 setSlotSourceControls(2, m);
+                setGeneratedTopologyLock(!!m.bracketApplicationId);
 
                 fillStartAtField(m.startAt);
                 $id("addressText").value = m.addressText || "";
@@ -3403,23 +3418,29 @@
 
                 const mode = $id("mode").value;
                 const editingId = $id("editingId").value;
+                const editingMatch = mode === "edit"
+                    ? (CACHE.items || []).find(x => String(x.matchId) === String(editingId))
+                    : null;
+                const isGeneratedMatch = !!editingMatch?.bracketApplicationId;
                 const clientErrors = [];
                 const invalidFields = [];
 
                 let team1Slot;
                 let team2Slot;
-                try {
-                    team1Slot = buildSlotPayload(1);
-                } catch (err) {
-                    clientErrors.push(err?.message || "Nguồn đội 1 không hợp lệ.");
-                    invalidFields.push(...getSlotFieldIds(1));
-                }
+                if (!isGeneratedMatch) {
+                    try {
+                        team1Slot = buildSlotPayload(1);
+                    } catch (err) {
+                        clientErrors.push(err?.message || "Nguồn đội 1 không hợp lệ.");
+                        invalidFields.push(...getSlotFieldIds(1));
+                    }
 
-                try {
-                    team2Slot = buildSlotPayload(2);
-                } catch (err) {
-                    clientErrors.push(err?.message || "Nguồn đội 2 không hợp lệ.");
-                    invalidFields.push(...getSlotFieldIds(2));
+                    try {
+                        team2Slot = buildSlotPayload(2);
+                    } catch (err) {
+                        clientErrors.push(err?.message || "Nguồn đội 2 không hợp lệ.");
+                        invalidFields.push(...getSlotFieldIds(2));
+                    }
                 }
 
                 if (team1Slot && team2Slot
@@ -3445,7 +3466,7 @@
                 }
 
                 const refereeUserId = Number($id("refereeUserId").value || 0) || null;
-                if (!refereeUserId) {
+                if (!refereeUserId && !isGeneratedMatch) {
                     clientErrors.push("Trận đấu bắt buộc phải có trọng tài hợp lệ.");
                     invalidFields.push("refereeUserIdInput");
                 }
@@ -3476,10 +3497,12 @@
                 };
 
                 const payloadUpdate = {
-                    team1: team1Slot,
-                    team2: team2Slot,
-                    team1RegistrationId: team1Slot.sourceType === "REGISTRATION" ? team1Slot.registrationId : null,
-                    team2RegistrationId: team2Slot.sourceType === "REGISTRATION" ? team2Slot.registrationId : null,
+                    ...(isGeneratedMatch ? {} : {
+                        team1: team1Slot,
+                        team2: team2Slot,
+                        team1RegistrationId: team1Slot.sourceType === "REGISTRATION" ? team1Slot.registrationId : null,
+                        team2RegistrationId: team2Slot.sourceType === "REGISTRATION" ? team2Slot.registrationId : null
+                    }),
                     startAtSet: true,
                     startAt: startAtIso,
                     addressText: $id("addressText").value || null,

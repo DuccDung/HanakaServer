@@ -1,0 +1,225 @@
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Thư viện Bracket";
+}
+
+@section Styles {
+    <link href="~/css/admin-bracket-templates.css" asp-append-version="true" rel="stylesheet" />
+}
+
+<main class="bt-page" id="bracketTemplateLibrary">
+    <header class="bt-hero">
+        <div>
+            <span class="bt-eyebrow">CẤU HÌNH GIẢI ĐẤU</span>
+            <h1>Thư viện Bracket</h1>
+            <p>Tạo cấu trúc một lần, kiểm tra và tái sử dụng an toàn cho nhiều giải đấu.</p>
+        </div>
+        <button class="btn btn-light bt-primary-action" type="button" data-action="open-create">
+            <i class="fas fa-plus mr-2"></i>Tạo template
+        </button>
+    </header>
+
+    <section class="bt-filter-card" aria-label="Bộ lọc template">
+        <div class="bt-search-wrap">
+            <i class="fas fa-search" aria-hidden="true"></i>
+            <label class="sr-only" for="btSearch">Tìm template</label>
+            <input id="btSearch" class="form-control" type="search" placeholder="Tìm theo tên hoặc mã..." autocomplete="off" />
+        </div>
+        <select class="form-control" id="btFormat" aria-label="Lọc loại bracket">
+            <option value="">Tất cả thể thức</option>
+            <option value="SINGLE_ELIMINATION">Loại trực tiếp</option>
+            <option value="GROUP_KNOCKOUT">Vòng bảng + loại trực tiếp</option>
+            <option value="CUSTOM">Tùy chỉnh</option>
+        </select>
+        <select class="form-control" id="btStatus" aria-label="Lọc trạng thái">
+            <option value="">Tất cả trạng thái</option>
+            <option value="DRAFT">Bản nháp</option>
+            <option value="PUBLISHED">Đã xuất bản</option>
+            <option value="ARCHIVED">Đã lưu trữ</option>
+        </select>
+        <button class="btn btn-outline-secondary" type="button" data-action="refresh" title="Tải lại">
+            <i class="fas fa-sync-alt"></i><span class="sr-only">Tải lại</span>
+        </button>
+    </section>
+
+    <div class="alert alert-danger d-none" role="alert" data-library-error></div>
+
+    <section class="bt-list-card">
+        <div class="bt-list-head">
+            <div>
+                <h2>Template hiện có</h2>
+                <p data-list-summary>Đang tải dữ liệu...</p>
+            </div>
+            <select id="btPageSize" class="form-control form-control-sm bt-page-size" aria-label="Số dòng mỗi trang">
+                <option value="10">10 / trang</option>
+                <option value="20" selected>20 / trang</option>
+                <option value="50">50 / trang</option>
+            </select>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table bt-table mb-0">
+                <thead>
+                    <tr>
+                        <th>Template</th>
+                        <th>Thể thức</th>
+                        <th>Quy mô</th>
+                        <th>Version</th>
+                        <th>Trạng thái</th>
+                        <th>Đã dùng</th>
+                        <th>Cập nhật</th>
+                        <th class="text-right">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody data-template-rows></tbody>
+            </table>
+        </div>
+
+        <div class="bt-empty d-none" data-empty>
+            <div class="bt-empty__icon"><i class="fas fa-project-diagram"></i></div>
+            <h3>Chưa có template phù hợp</h3>
+            <p>Thay đổi bộ lọc hoặc tạo template bracket đầu tiên.</p>
+        </div>
+
+        <footer class="bt-pagination">
+            <span data-page-info></span>
+            <div class="btn-group" role="group" aria-label="Phân trang">
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-action="prev-page">
+                    <i class="fas fa-chevron-left mr-1"></i>Trước
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" type="button" data-action="next-page">
+                    Sau<i class="fas fa-chevron-right ml-1"></i>
+                </button>
+            </div>
+        </footer>
+        <div class="bt-loading d-none" data-loading aria-live="polite">
+            <span class="spinner-border spinner-border-sm mr-2"></span>Đang tải template...
+        </div>
+    </section>
+</main>
+
+@section Modals {
+    <div class="modal fade" id="createBracketTemplateModal" tabindex="-1" role="dialog" aria-labelledby="createBracketTemplateTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <form class="modal-content bt-modal" id="createBracketTemplateForm">
+                <div class="modal-header">
+                    <div>
+                        <span class="bt-eyebrow">TEMPLATE MỚI</span>
+                        <h2 class="modal-title" id="createBracketTemplateTitle">Khởi tạo cấu trúc bracket</h2>
+                    </div>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger d-none" role="alert" data-create-error></div>
+                    <div class="form-row">
+                        <div class="form-group col-md-5">
+                            <label for="createTemplateCode">Mã template <span class="text-danger">*</span></label>
+                            <input class="form-control" id="createTemplateCode" maxlength="50" required readonly autocomplete="off" />
+                            <small class="form-text text-muted">Mã được tạo tự động khi mở biểu mẫu và không đổi sau khi tạo.</small>
+                        </div>
+                        <div class="form-group col-md-7">
+                            <label for="createTemplateName">Tên template <span class="text-danger">*</span></label>
+                            <input class="form-control" id="createTemplateName" maxlength="150" required placeholder="Knockout 8 đội tiêu chuẩn" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="createDescription">Mô tả</label>
+                        <textarea class="form-control" id="createDescription" rows="2" maxlength="1000" placeholder="Phạm vi sử dụng và lưu ý vận hành..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit" data-create-submit>
+                        <i class="fas fa-arrow-right mr-2"></i>Tạo và mở trình thiết kế
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editBracketTemplateModal" tabindex="-1" role="dialog" aria-labelledby="editBracketTemplateTitle" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <form class="modal-content bt-modal" id="editBracketTemplateForm">
+                <input type="hidden" id="editTemplateId" />
+                <input type="hidden" id="editTemplateRowVersion" />
+                <div class="modal-header">
+                    <div>
+                        <span class="bt-eyebrow">THÔNG TIN TEMPLATE</span>
+                        <h2 class="modal-title" id="editBracketTemplateTitle">Sửa tên và giới hạn số đội</h2>
+                    </div>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger d-none" role="alert" data-edit-error></div>
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label for="editTemplateCode">Mã template</label>
+                            <input class="form-control" id="editTemplateCode" readonly />
+                        </div>
+                        <div class="form-group col-md-8">
+                            <label for="editTemplateName">Tên template <span class="text-danger">*</span></label>
+                            <input class="form-control" id="editTemplateName" maxlength="150" required autocomplete="off" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="editMinimumTeams">Số đội tối thiểu <span class="text-danger">*</span></label>
+                            <input class="form-control" id="editMinimumTeams" type="number" min="2" max="1024" required />
+                            <small class="form-text text-muted">Ít hơn số này thì không được áp dụng template.</small>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="editSeedCapacity">Số đội tối đa <span class="text-danger">*</span></label>
+                            <input class="form-control" id="editSeedCapacity" type="number" min="2" max="1024" required />
+                            <small class="form-text text-muted">Nhiều hơn số này thì không được áp dụng template.</small>
+                        </div>
+                    </div>
+                    <div class="alert alert-info mb-0">
+                        Hệ thống chỉ dùng hai giới hạn này để kiểm tra số đội đầu vào. Sơ đồ Seed sẽ không tự thay đổi lại các giá trị đã nhập.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button>
+                    <button class="btn btn-primary" type="submit" data-edit-submit>
+                        <i class="fas fa-save mr-2"></i>Lưu thay đổi
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal fade" id="deleteBracketTemplateModal" tabindex="-1" role="dialog" aria-labelledby="deleteBracketTemplateTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <form class="modal-content bt-modal" id="deleteBracketTemplateForm">
+                <input type="hidden" id="deleteTemplateId" />
+                <input type="hidden" id="deleteTemplateRowVersion" />
+                <div class="modal-header">
+                    <div>
+                        <span class="bt-eyebrow text-danger">XÓA VĨNH VIỄN</span>
+                        <h2 class="modal-title" id="deleteBracketTemplateTitle">Xóa template</h2>
+                    </div>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span aria-hidden="true">&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger d-none" role="alert" data-delete-error></div>
+                    <p class="mb-2">Bạn sắp xóa <strong id="deleteTemplateName"></strong> <code id="deleteTemplateCode"></code>.</p>
+                    <p class="text-muted">Toàn bộ version và cấu trúc thiết kế bên trong sẽ bị xóa. Thao tác này không thể hoàn tác.</p>
+                    <div class="alert alert-warning d-none" data-delete-in-use></div>
+                    <div class="form-group mb-0">
+                        <label for="deleteTemplateConfirmation">Nhập <strong class="text-danger">XOA</strong> để xác nhận</label>
+                        <input class="form-control" id="deleteTemplateConfirmation" autocomplete="off" spellcheck="false" placeholder="XOA" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button>
+                    <button class="btn btn-danger" type="submit" data-delete-submit disabled>
+                        <i class="fas fa-trash-alt mr-2"></i>Xóa template
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <script src="~/js/admin-bracket-templates.js" asp-append-version="true"></script>
+}

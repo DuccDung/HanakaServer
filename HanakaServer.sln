@@ -5,6 +5,8 @@ VisualStudioVersion = 17.14.35906.104 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HanakaServer", "HanakaServer\HanakaServer.csproj", "{4EF76592-7F45-42A4-9520-37FA26433905}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HanakaServer.Tests", "HanakaServer.Tests\HanakaServer.Tests.csproj", "{A8AB44CA-E899-4DF6-BA94-BF1390DE845F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{4EF76592-7F45-42A4-9520-37FA26433905}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{4EF76592-7F45-42A4-9520-37FA26433905}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{4EF76592-7F45-42A4-9520-37FA26433905}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A8AB44CA-E899-4DF6-BA94-BF1390DE845F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A8AB44CA-E899-4DF6-BA94-BF1390DE845F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A8AB44CA-E899-4DF6-BA94-BF1390DE845F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A8AB44CA-E899-4DF6-BA94-BF1390DE845F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

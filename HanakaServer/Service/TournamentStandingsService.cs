@@ -1,4 +1,5 @@
 using HanakaServer.Data;
+using HanakaServer.Models;
 using Microsoft.EntityFrameworkCore;
 
 namespace HanakaServer.Services
@@ -53,6 +54,7 @@ namespace HanakaServer.Services
             var matches = await _db.TournamentGroupMatches.AsNoTracking()
                 .Where(x => x.TournamentRoundGroupId == groupId
                     && x.IsCompleted
+                    && (x.CompletionReason == null || x.CompletionReason != MatchCompletionReasons.Bye)
                     && x.WinnerRegistrationId.HasValue
                     && x.Team1RegistrationId.HasValue
                     && x.Team2RegistrationId.HasValue)
