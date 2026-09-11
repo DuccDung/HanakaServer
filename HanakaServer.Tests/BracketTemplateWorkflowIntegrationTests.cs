@@ -9,11 +9,13 @@ using Xunit;
 
 namespace HanakaServer.Tests;
 
-public sealed class BracketTemplateWorkflowIntegrationTests
+public sealed partial class BracketTemplateWorkflowIntegrationTests
 {
     private const long TestRefereeUserId = 90_001;
     private const string TestMatchAddress = "Nhà thi đấu Hanaka";
-    private static readonly DateTime TestMatchStartAt = new(2026, 8, 10, 8, 30, 0);
+    // Reset scenarios require matches that have not started. A fixed August 2026
+    // fixture began failing as the real clock passed that date.
+    private static readonly DateTime TestMatchStartAt = DateTime.Today.AddDays(30).AddHours(8).AddMinutes(30);
 
     [Fact]
     public async Task Manual_crud_round_group_match_and_slot_preserves_draft_graph()
@@ -364,6 +366,117 @@ public sealed class BracketTemplateWorkflowIntegrationTests
     }
 
     [Fact]
+    public async Task Apply_can_create_internal_virtual_teams_for_every_missing_seed()
+    {
+        await using var db = CreateDb();
+        var templateService = CreateTemplateService(db);
+        var (_, versionId, rowVersion) = await CreateDraftAsync(
+            templateService, "KO-8-VIRTUAL", BracketTemplateFormatTypes.SingleElimination, 4, 8, true);
+        var graph = BracketTemplateService.GenerateSingleElimination(8, false, [0]);
+        graph.RowVersion = rowVersion;
+        Assert.True((await templateService.SaveGraphAsync(versionId, graph, CancellationToken.None)).Success);
+        Assert.True((await templateService.PublishAsync(versionId, null, CancellationToken.None)).Success);
+
+        var tournamentId = await SeedTournamentAsync(db, 6);
+        var applicationService = CreateApplicationService(db, templateService);
+        var previewRequest = new TournamentBracketPreviewRequest
+        {
+            BracketTemplateVersionId = versionId,
+            SeedingMethod = BracketSeedingMethods.RegistrationOrder,
+            FillMissingWithVirtualTeams = true
+        };
+        var preview = await applicationService.PreviewAsync(
+            tournamentId, previewRequest, CancellationToken.None);
+
+        Assert.True(preview.Success, preview.Message);
+        Assert.Equal(6, preview.Data!.EligibleRegistrationCount);
+        Assert.Equal(2, preview.Data.VirtualTeamCount);
+        Assert.Equal(0, preview.Data.ByeCount);
+        Assert.Equal(new[] { "Nguyễn Minh Anh", "Trần Quốc Bảo" },
+            preview.Data.Seeds.Where(x => x.IsVirtualTeam).Select(x => x.TeamName));
+
+        var applied = await applicationService.ApplyAsync(tournamentId,
+            new ApplyTournamentBracketRequest
+            {
+                BracketTemplateVersionId = versionId,
+                SeedingMethod = BracketSeedingMethods.RegistrationOrder,
+                FillMissingWithVirtualTeams = true,
+                PreviewHash = preview.Data.PreviewHash,
+                StartAt = TestMatchStartAt,
+                RefereeUserId = TestRefereeUserId,
+                AddressText = TestMatchAddress
+            }, null, CancellationToken.None);
+
+        Assert.True(applied.Success, applied.Message);
+        Assert.Equal(2, applied.Data!.VirtualTeamCount);
+        Assert.Equal(0, applied.Data.ByeCount);
+        var virtualRegistrations = await db.TournamentRegistrations.AsNoTracking()
+            .Where(x => x.TournamentId == tournamentId && x.IsVirtualTeam)
+            .OrderBy(x => x.RegIndex)
+            .ToListAsync();
+        Assert.Equal(2, virtualRegistrations.Count);
+        Assert.Equal(new[] { "Nguyễn Minh Anh", "Trần Quốc Bảo" }, virtualRegistrations.Select(x => x.Player1Name));
+        Assert.All(virtualRegistrations, registration =>
+        {
+            Assert.Null(registration.Player1UserId);
+            Assert.Null(registration.Player2UserId);
+            Assert.False(registration.Success);
+            Assert.False(registration.Paid);
+            Assert.Equal(applied.Data.TournamentBracketApplicationId, registration.VirtualBracketApplicationId);
+        });
+        Assert.Equal(6, (await applicationService.GetEligibleRegistrationsAsync(
+            tournamentId, CancellationToken.None)).Data!.Items.Count);
+        var generatedMatches = await db.TournamentGroupMatches.AsNoTracking().ToListAsync();
+        Assert.DoesNotContain(generatedMatches,
+            match => match.CompletionReason == MatchCompletionReasons.Bye);
+        var virtualRegistrationIds = virtualRegistrations.Select(x => x.RegistrationId).ToHashSet();
+        var matchesWithVirtualTeams = generatedMatches.Where(match =>
+            (match.Team1RegistrationId.HasValue && virtualRegistrationIds.Contains(match.Team1RegistrationId.Value))
+            || (match.Team2RegistrationId.HasValue && virtualRegistrationIds.Contains(match.Team2RegistrationId.Value)))
+            .ToList();
+        Assert.NotEmpty(matchesWithVirtualTeams);
+        Assert.All(matchesWithVirtualTeams, match =>
+        {
+            Assert.True(match.Team1RegistrationId.HasValue);
+            Assert.True(match.Team2RegistrationId.HasValue);
+            Assert.False(match.IsCompleted);
+        });
+        Assert.Equal(2, await db.TournamentBracketSeedAssignments.AsNoTracking()
+            .CountAsync(x => x.AssignmentMethod == BracketSeedingMethods.Virtual));
+
+        var reset = await applicationService.ResetAsync(
+            tournamentId,
+            new ResetTournamentBracketRequest { Reason = "Kiểm tra áp dụng lại đội ảo" },
+            null,
+            CancellationToken.None);
+        Assert.True(reset.Success, reset.Message);
+        Assert.Equal(2, await db.TournamentRegistrations.AsNoTracking()
+            .CountAsync(x => x.TournamentId == tournamentId && x.IsVirtualTeam));
+
+        var secondPreview = await applicationService.PreviewAsync(
+            tournamentId, previewRequest, CancellationToken.None);
+        Assert.True(secondPreview.Success, secondPreview.Message);
+        var secondApplied = await applicationService.ApplyAsync(tournamentId,
+            new ApplyTournamentBracketRequest
+            {
+                BracketTemplateVersionId = versionId,
+                SeedingMethod = BracketSeedingMethods.RegistrationOrder,
+                FillMissingWithVirtualTeams = true,
+                PreviewHash = secondPreview.Data!.PreviewHash,
+                StartAt = TestMatchStartAt,
+                RefereeUserId = TestRefereeUserId,
+                AddressText = TestMatchAddress
+            }, null, CancellationToken.None);
+        Assert.True(secondApplied.Success, secondApplied.Message);
+        Assert.NotEqual(applied.Data.TournamentBracketApplicationId,
+            secondApplied.Data!.TournamentBracketApplicationId);
+        Assert.Equal(4, await db.TournamentRegistrations.AsNoTracking()
+            .CountAsync(x => x.TournamentId == tournamentId && x.IsVirtualTeam));
+        Assert.Equal(2, await db.TournamentRegistrations.AsNoTracking()
+            .CountAsync(x => x.VirtualBracketApplicationId == secondApplied.Data.TournamentBracketApplicationId));
+    }
+
+    [Fact]
     public async Task Registration_change_invalidates_previous_preview()
     {
         await using var db = CreateDb();
@@ -504,13 +617,15 @@ public sealed class BracketTemplateWorkflowIntegrationTests
         string formatType,
         int minimumTeams,
         int seedCapacity,
-        bool allowBye)
+        bool allowBye,
+        string participantMode = BracketTemplateParticipantModes.Standard)
     {
         var created = await service.CreateAsync(new CreateBracketTemplateRequest
         {
             TemplateCode = code,
             TemplateName = code,
             FormatType = formatType,
+            ParticipantMode = participantMode,
             MinimumTeams = minimumTeams,
             SeedCapacity = seedCapacity,
             AllowBye = allowBye,

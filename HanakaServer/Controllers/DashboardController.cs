@@ -32,10 +32,10 @@ namespace HanakaServer.Controllers
                 CompletedTournaments = await _db.Tournaments.CountAsync(x => !x.Remove && x.Status == "COMPLETED"),
                 RemovedTournaments = await _db.Tournaments.CountAsync(x => x.Remove),
 
-                TotalRegistrations = await _db.TournamentRegistrations.CountAsync(x => !x.Tournament.Remove),
-                SuccessfulRegistrations = await _db.TournamentRegistrations.CountAsync(x => !x.Tournament.Remove && x.Success),
-                PaidRegistrations = await _db.TournamentRegistrations.CountAsync(x => !x.Tournament.Remove && x.Paid),
-                WaitingPairRegistrations = await _db.TournamentRegistrations.CountAsync(x => !x.Tournament.Remove && x.WaitingPair),
+                TotalRegistrations = await _db.TournamentRegistrations.CountAsync(x => !x.IsVirtualTeam && !x.Tournament.Remove),
+                SuccessfulRegistrations = await _db.TournamentRegistrations.CountAsync(x => !x.IsVirtualTeam && !x.Tournament.Remove && x.Success),
+                PaidRegistrations = await _db.TournamentRegistrations.CountAsync(x => !x.IsVirtualTeam && !x.Tournament.Remove && x.Paid),
+                WaitingPairRegistrations = await _db.TournamentRegistrations.CountAsync(x => !x.IsVirtualTeam && !x.Tournament.Remove && x.WaitingPair),
 
                 TotalMatches = await _db.TournamentGroupMatches.CountAsync(x => !x.Tournament.Remove),
                 CompletedMatches = await _db.TournamentGroupMatches.CountAsync(x => !x.Tournament.Remove && x.IsCompleted),
@@ -94,7 +94,7 @@ namespace HanakaServer.Controllers
                     TournamentId = x.TournamentId,
                     Title = x.Title,
                     Status = x.Status,
-                    RegisteredCount = _db.TournamentRegistrations.Count(reg => reg.TournamentId == x.TournamentId),
+                    RegisteredCount = _db.TournamentRegistrations.Count(reg => reg.TournamentId == x.TournamentId && !reg.IsVirtualTeam),
                     MatchesCount = _db.TournamentGroupMatches.Count(match => match.TournamentId == x.TournamentId),
                     CompletedMatchesCount = _db.TournamentGroupMatches.Count(match => match.TournamentId == x.TournamentId && match.IsCompleted),
                     RoundCount = _db.TournamentRoundMaps.Count(round => round.TournamentId == x.TournamentId),

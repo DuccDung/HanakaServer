@@ -29,6 +29,38 @@ namespace HanakaServer.Dtos
 
         public PublicPlayerDto Player1 { get; set; } = new();
         public PublicPlayerDto? Player2 { get; set; }  // waiting => null
+
+        public bool IsRelay { get; set; }
+        public string? TeamName { get; set; }
+        public long? CaptainUserId { get; set; }
+        public int TeamSize { get; set; }
+        public bool IsReady { get; set; }
+        // Transitional field retained for older clients; no roster lock is enforced.
+        public bool LineupLocked { get; set; }
+        public PublicRelayRegistrationMemberDto[] Members { get; set; } = Array.Empty<PublicRelayRegistrationMemberDto>();
+        public PublicRelayReserveMemberDto[] ReserveMembers { get; set; } = [];
+    }
+
+    public class PublicRelayReserveMemberDto
+    {
+        public int Position { get; set; }
+        public long? UserId { get; set; }
+        public string Name { get; set; } = "";
+        public string? Avatar { get; set; }
+        public decimal Level { get; set; }
+        public bool Verified { get; set; }
+    }
+
+    public class PublicRelayRegistrationMemberDto
+    {
+        public int Position { get; set; }
+        public int PairNumber { get; set; }
+        public long? UserId { get; set; }
+        public string Name { get; set; } = "";
+        public string? Avatar { get; set; }
+        public decimal Level { get; set; }
+        public bool Verified { get; set; }
+        public bool IsCaptain { get; set; }
     }
 
     public class PublicRegistrationCountsDto

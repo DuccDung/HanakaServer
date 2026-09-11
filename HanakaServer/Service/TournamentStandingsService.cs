@@ -14,6 +14,7 @@ namespace HanakaServer.Services
     {
         public long RegistrationId { get; set; }
         public string TeamName { get; set; } = "";
+        public bool IsVirtualTeam { get; set; }
         public int Rank { get; set; }
         public int Played { get; set; }
         public int Wins { get; set; }
@@ -80,6 +81,7 @@ namespace HanakaServer.Services
                 {
                     x.RegistrationId,
                     x.RegIndex,
+                    x.IsVirtualTeam,
                     x.Player1Name,
                     x.Player2Name
                 })
@@ -90,6 +92,7 @@ namespace HanakaServer.Services
                 x => new
                 {
                     x.RegIndex,
+                    x.IsVirtualTeam,
                     TeamName = BuildTeamName(groupInfo.GameType, x.Player1Name, x.Player2Name)
                 });
 
@@ -103,6 +106,7 @@ namespace HanakaServer.Services
                 stats[registrationId] = new GroupStandingRow
                 {
                     RegistrationId = registrationId,
+                    IsVirtualTeam = regMap.TryGetValue(registrationId, out var virtualReg) && virtualReg.IsVirtualTeam,
                     TeamName = regMap.TryGetValue(registrationId, out var reg)
                         ? reg.TeamName
                         : $"Đội #{registrationId}"

@@ -53,11 +53,17 @@ public partial class TournamentRegistration
 
     public bool Success { get; set; }
 
+    public bool IsVirtualTeam { get; set; }
+
+    public long? VirtualBracketApplicationId { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public virtual User? Player1User { get; set; }
 
     public virtual User? Player2User { get; set; }
+
+    public virtual TournamentBracketApplication? VirtualBracketApplication { get; set; }
 
     public virtual Tournament Tournament { get; set; } = null!;
     public virtual ICollection<TournamentRegistrationPayment> TournamentRegistrationPayments { get; set; } = new List<TournamentRegistrationPayment>();

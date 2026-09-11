@@ -3,6 +3,8 @@
     ViewData["Title"] = "Thiết kế sơ đồ thi đấu";
     var templateId = (long)ViewBag.TemplateId;
     var versionId = (long)ViewBag.VersionId;
+    var participantMode = (string?)ViewBag.ParticipantMode ?? "STANDARD";
+    var isRelayTemplate = string.Equals(participantMode, "RELAY_TEAM", StringComparison.Ordinal);
 }
 
 @section Styles {
@@ -11,13 +13,13 @@
 }
 
 <main class="bte-page" id="bracketTemplateEditor"
-      data-template-id="@templateId" data-version-id="@versionId">
+      data-template-id="@templateId" data-version-id="@versionId" data-participant-mode="@participantMode">
     <header class="bte-toolbar">
         <div class="bte-toolbar__identity">
             <a class="bte-back" asp-controller="BracketTemplates" asp-action="Index" aria-label="Quay lại thư viện"><i class="fas fa-arrow-left"></i></a>
             <div>
                 <div class="bte-kicker"><code>@ViewBag.TemplateCode</code><span data-version-label>Đang tải...</span></div>
-                <h1>@ViewBag.TemplateName</h1>
+                <h1>@ViewBag.TemplateName @if (isRelayTemplate) { <span class="bte-relay-badge"><i class="fas fa-people-carry"></i>Đội tiếp sức</span> }</h1>
             </div>
         </div>
         <div class="bte-toolbar__status">
@@ -28,12 +30,20 @@
         </div>
     </header>
 
+    @if (isRelayTemplate)
+    {
+        <div class="bte-relay-notice" role="note">
+            <i class="fas fa-info-circle"></i>
+            <div><strong>Sơ đồ dành cho đội tiếp sức</strong><span>Mỗi Seed là một đội chính. Quy mô 4/6/8 người, thứ tự cặp, đồng hồ hiển thị 10 phút và điểm đích được cấu hình riêng trên từng giải.</span></div>
+        </div>
+    }
+
     <div class="alert alert-danger d-none" role="alert" data-editor-error></div>
     <div class="alert alert-success d-none" role="status" data-editor-success></div>
 
     <section class="bte-workspace">
         <aside class="bte-sidebar">
-            <div class="bte-panel d-none" aria-hidden="true">
+            <div class="bte-panel" data-version-settings>
                 <div class="bte-panel__head">
                     <div><span class="bte-step">01</span><h2>Cấu hình</h2></div>
                     <button class="bte-collapse" type="button" data-toggle="collapse" data-target="#templateConfigBody" aria-expanded="true"><i class="fas fa-chevron-up"></i></button>
@@ -45,7 +55,7 @@
                             <input class="form-control form-control-sm" id="bteMinimumTeams" type="number" min="2" max="1024" />
                         </div>
                         <div class="form-group col-6">
-                            <label for="bteSeedCapacity">Số hạt giống tối đa</label>
+                            <label for="bteSeedCapacity">Sức chứa đội</label>
                             <input class="form-control form-control-sm" id="bteSeedCapacity" type="number" min="2" max="1024" />
                         </div>
                     </div>
@@ -62,6 +72,7 @@
                         <input class="custom-control-input" id="bteAllowBye" type="checkbox" />
                         <label class="custom-control-label" for="bteAllowBye">Cho phép miễn đấu (BYE)</label>
                     </div>
+                    <small class="text-muted">Chỉnh trên bản nháp; gán đủ vị trí đội trước khi xuất bản. Phiên bản đã xuất bản chỉ được xem.</small>
                 </div>
             </div>
 

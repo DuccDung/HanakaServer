@@ -11,6 +11,136 @@ namespace HanakaServer.Tests;
 
 public sealed class AdminTournamentRoundsControllerTests
 {
+    [Fact]
+    public async Task ListMatchSchedules_returns_matches_across_rounds_with_schedule_and_referee()
+    {
+        await using var db = CreateDb();
+        await SeedRoundWithDependentMatchAsync(db);
+        var controller = new AdminTournamentRoundsController(db);
+
+        var result = Assert.IsType<OkObjectResult>(await controller.ListMatchSchedules(16));
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(result.Value));
+        var root = json.RootElement;
+        var items = root.GetProperty("items");
+
+        Assert.Equal(2, root.GetProperty("total").GetInt32());
+        Assert.Equal(1, root.GetProperty("scheduledCount").GetInt32());
+        Assert.Equal(1, root.GetProperty("assignedRefereeCount").GetInt32());
+        Assert.Equal(2, items.GetArrayLength());
+
+        var first = items[0];
+        Assert.Equal(301, first.GetProperty("MatchId").GetInt64());
+        Assert.Equal("R1", first.GetProperty("RoundKey").GetString());
+        Assert.Equal("Nhánh R1", first.GetProperty("GroupName").GetString());
+        Assert.Equal("Người chơi 1 & Đồng đội 1", first.GetProperty("Team1Text").GetString());
+        Assert.Equal("Sân trung tâm", first.GetProperty("CourtText").GetString());
+        Assert.Equal("Nhà thi đấu Hanaka", first.GetProperty("AddressText").GetString());
+        Assert.Equal(8001, first.GetProperty("RefereeUserId").GetInt64());
+        Assert.Equal("Trọng tài kiểm thử", first.GetProperty("RefereeName").GetString());
+    }
+
+    [Fact]
+    public async Task ListMatchSchedules_returns_not_found_for_unknown_tournament()
+    {
+        await using var db = CreateDb();
+        var controller = new AdminTournamentRoundsController(db);
+
+        Assert.IsType<NotFoundObjectResult>(await controller.ListMatchSchedules(999));
+    }
+
+    [Fact]
+    public async Task BulkUpdateMatchSchedules_updates_only_selected_matches_and_enabled_fields()
+    {
+        await using var db = CreateDb();
+        await SeedRoundWithDependentMatchAsync(db);
+        var controller = new AdminTournamentRoundsController(db);
+        var newStartAt = new DateTime(2026, 8, 8, 9, 30, 0);
+
+        var result = await controller.BulkUpdateMatchSchedules(16, new BulkUpdateMatchSchedulesDto
+        {
+            MatchIds = new List<long> { 302 },
+            StartAtSet = true,
+            StartAt = newStartAt,
+            CourtTextSet = true,
+            CourtText = "Sân giống nhau",
+            AddressTextSet = false,
+            AddressText = "Không được ghi vào",
+            RefereeUserIdSet = false,
+            RefereeUserId = 8001
+        });
+
+        Assert.IsType<OkObjectResult>(result);
+        db.ChangeTracker.Clear();
+
+        var updated = await db.TournamentGroupMatches.SingleAsync(x => x.MatchId == 302);
+        Assert.Equal(newStartAt, updated.StartAt);
+        Assert.Equal("Sân giống nhau", updated.CourtText);
+        Assert.Null(updated.AddressText);
+        Assert.Null(updated.RefereeUserId);
+        Assert.Equal(11, updated.ScoreTeam1);
+        Assert.Equal(7, updated.ScoreTeam2);
+
+        var untouched = await db.TournamentGroupMatches.SingleAsync(x => x.MatchId == 301);
+        Assert.Equal("Sân trung tâm", untouched.CourtText);
+        Assert.Equal("Nhà thi đấu Hanaka", untouched.AddressText);
+    }
+
+    [Fact]
+    public async Task BulkUpdateMatchSchedules_rejects_matches_outside_requested_tournament()
+    {
+        await using var db = CreateDb();
+        await SeedRoundWithDependentMatchAsync(db);
+        var controller = new AdminTournamentRoundsController(db);
+
+        var result = await controller.BulkUpdateMatchSchedules(16, new BulkUpdateMatchSchedulesDto
+        {
+            MatchIds = new List<long> { 301, 999 },
+            CourtTextSet = true,
+            CourtText = "Sân mới"
+        });
+
+        Assert.IsType<BadRequestObjectResult>(result);
+        db.ChangeTracker.Clear();
+        Assert.Equal("Sân trung tâm",
+            (await db.TournamentGroupMatches.SingleAsync(x => x.MatchId == 301)).CourtText);
+    }
+
+    [Fact]
+    public async Task BulkUpdateMatchSchedules_assigns_verified_active_referee_to_all_selected_matches()
+    {
+        await using var db = CreateDb();
+        await SeedRoundWithDependentMatchAsync(db);
+        db.Referees.Add(new Referee
+        {
+            RefereeId = 8101,
+            ExternalId = "8001",
+            FullName = "Trọng tài kiểm thử",
+            Verified = true,
+            RefereeType = "OFFICIAL",
+            CreatedAt = DateTime.UtcNow
+        });
+        db.Roles.Add(new Role
+        {
+            RoleId = 4,
+            RoleCode = "REFEREE",
+            RoleName = "Trọng tài"
+        });
+        await db.SaveChangesAsync();
+        var controller = new AdminTournamentRoundsController(db);
+
+        var result = await controller.BulkUpdateMatchSchedules(16, new BulkUpdateMatchSchedulesDto
+        {
+            MatchIds = new List<long> { 301, 302 },
+            RefereeUserIdSet = true,
+            RefereeUserId = 8001
+        });
+
+        Assert.IsType<OkObjectResult>(result);
+        db.ChangeTracker.Clear();
+        Assert.Equal(2, await db.TournamentGroupMatches.CountAsync(x => x.RefereeUserId == 8001));
+        Assert.True(await db.UserRoles.AnyAsync(x => x.UserId == 8001 && x.RoleId == 4));
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -100,10 +230,47 @@ public sealed class AdminTournamentRoundsControllerTests
             TournamentId = 16,
             Status = "ACTIVE",
             Title = "Delete round test",
+            GameType = "DOUBLE",
             GenderCategory = "OPEN",
             RegistrationFeeCurrency = "VND",
             CreatedAt = now
         });
+        db.Users.Add(new User
+        {
+            UserId = 8001,
+            FullName = "Trọng tài kiểm thử",
+            Phone = "0900000001",
+            IsActive = true,
+            CreatedAt = now
+        });
+        db.TournamentRegistrations.AddRange(
+            new TournamentRegistration
+            {
+                RegistrationId = 9001,
+                TournamentId = 16,
+                RegCode = "T1",
+                Player1Name = "Người chơi 1",
+                Player2Name = "Đồng đội 1",
+                CreatedAt = now
+            },
+            new TournamentRegistration
+            {
+                RegistrationId = 9002,
+                TournamentId = 16,
+                RegCode = "T2",
+                Player1Name = "Người chơi 2",
+                Player2Name = "Đồng đội 2",
+                CreatedAt = now
+            },
+            new TournamentRegistration
+            {
+                RegistrationId = 9003,
+                TournamentId = 16,
+                RegCode = "T3",
+                Player1Name = "Người chơi 3",
+                Player2Name = "Đồng đội 3",
+                CreatedAt = now
+            });
         db.TournamentRoundMaps.AddRange(
             new TournamentRoundMap
             {
@@ -151,6 +318,9 @@ public sealed class AdminTournamentRoundsControllerTests
                 Team1RegistrationId = 9001,
                 Team2RegistrationId = 9002,
                 StartAt = now,
+                CourtText = "Sân trung tâm",
+                AddressText = "Nhà thi đấu Hanaka",
+                RefereeUserId = 8001,
                 ScoreTeam1 = 11,
                 ScoreTeam2 = 5,
                 IsCompleted = true,

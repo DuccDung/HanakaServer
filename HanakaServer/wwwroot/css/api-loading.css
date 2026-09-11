@@ -1,0 +1,196 @@
+.hanaka-api-overlay[hidden],
+.hanaka-api-section-overlay[hidden] {
+    display: none !important;
+}
+
+.hanaka-api-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(244, 247, 252, 0.78);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    cursor: wait;
+    animation: hanaka-api-overlay-in 140ms ease-out both;
+}
+
+.hanaka-api-overlay__panel,
+.hanaka-api-section-overlay__panel {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: min(92vw, 440px);
+    padding: 16px 20px;
+    border: 1px solid rgba(87, 108, 212, 0.18);
+    border-radius: 16px;
+    background: #fff;
+    color: #17213a;
+    box-shadow: 0 18px 50px rgba(24, 35, 71, 0.18);
+    font-family: "Be Vietnam Pro", "Nunito", Arial, sans-serif;
+}
+
+.hanaka-api-overlay__spinner,
+.hanaka-api-section-overlay__spinner {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 auto;
+    border: 3px solid rgba(87, 108, 212, 0.2);
+    border-top-color: #576cd4;
+    border-radius: 50%;
+    animation: hanaka-api-spin 0.72s linear infinite;
+    content: "";
+}
+
+.hanaka-api-overlay__content,
+.hanaka-api-section-overlay__content {
+    min-width: 0;
+}
+
+.hanaka-api-overlay__message,
+.hanaka-api-section-overlay__message {
+    display: block;
+    margin: 0;
+    color: #17213a;
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+.hanaka-api-overlay__hint,
+.hanaka-api-section-overlay__hint {
+    display: block;
+    margin-top: 3px;
+    color: #68738c;
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.hanaka-api-section-host {
+    position: relative !important;
+}
+
+.hanaka-api-section-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 96px;
+    padding: 16px;
+    border-radius: inherit;
+    background: rgba(248, 250, 255, 0.82);
+    cursor: wait;
+}
+
+.hanaka-api-section-overlay__panel {
+    gap: 10px;
+    padding: 11px 14px;
+    border-radius: 12px;
+    box-shadow: 0 10px 28px rgba(24, 35, 71, 0.14);
+}
+
+.hanaka-api-section-overlay__spinner {
+    width: 20px;
+    height: 20px;
+}
+
+.hanaka-api-section-overlay__message {
+    font-size: 13px;
+}
+
+.hanaka-api-section-overlay__hint {
+    display: none;
+}
+
+.hanaka-api-button-busy {
+    position: relative !important;
+    cursor: wait !important;
+}
+
+button.hanaka-api-button-busy {
+    color: transparent !important;
+    text-shadow: none !important;
+}
+
+button.hanaka-api-button-busy > * {
+    visibility: hidden !important;
+}
+
+button.hanaka-api-button-busy::after {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    display: block;
+    width: 1em;
+    height: 1em;
+    color: var(--hanaka-api-button-spinner-color, #576cd4);
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: hanaka-api-button-spin 0.72s linear infinite;
+    content: "";
+}
+
+html.hanaka-api-busy,
+html.hanaka-api-busy body {
+    cursor: wait;
+}
+
+@keyframes hanaka-api-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes hanaka-api-button-spin {
+    from {
+        transform: translate(-50%, -50%) rotate(0deg);
+    }
+
+    to {
+        transform: translate(-50%, -50%) rotate(360deg);
+    }
+}
+
+@keyframes hanaka-api-overlay-in {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .hanaka-api-overlay {
+        align-items: flex-end;
+        padding: 16px;
+        background: rgba(244, 247, 252, 0.9);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+
+    .hanaka-api-overlay__panel {
+        width: 100%;
+        padding: 15px 16px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hanaka-api-overlay__spinner,
+    .hanaka-api-section-overlay__spinner,
+    button.hanaka-api-button-busy::after {
+        animation-duration: 1.6s;
+    }
+
+    .hanaka-api-overlay {
+        animation: none;
+    }
+}

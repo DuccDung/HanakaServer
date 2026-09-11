@@ -155,6 +155,7 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>window.HanakaApiLoading?.installAxios(window.axios);</script>
 
     <script>
         const TOURNAMENT_ID = @tournamentId;
@@ -245,6 +246,16 @@
 
         function teamText(reg) {
             if (!reg) return `<span class="text-muted">Chưa chọn đội</span>`;
+
+            if(reg.isRelay){
+                const members = (reg.relayMembers || []).map((name, index) =>
+                    `<div class="small text-muted">Cặp ${Math.floor(index / 2) + 1} · VĐV ${index + 1}: ${escapeHtml(name)}</div>`
+                ).join("");
+                return `
+                    <div><strong>${escapeHtml(reg.relayTeamName || `Đội #${reg.registrationId}`)}</strong> - ${escapeHtml(reg.regCode || "—")}</div>
+                    ${members}
+                `;
+            }
 
             const p1 = `${reg.player1Name || "—"}${reg.player1UserId ? ` (ID người dùng: ${reg.player1UserId})` : ""}`;
             const p2 = reg.player2Name
@@ -429,6 +440,21 @@
                 }
 
                       body.innerHTML = items.map(reg => {
+            if(reg.isRelay){
+                const members = (reg.relayMembers || []).map((name, index) =>
+                    `<div><strong>Cặp ${Math.floor(index / 2) + 1} · VĐV ${index + 1}:</strong> ${escapeHtml(name)}</div>`
+                ).join("");
+                return `
+                    <tr>
+                        <td>${reg.registrationId}</td>
+                        <td>${escapeHtml(reg.regCode || "—")}</td>
+                        <td><div class="font-weight-bold">${escapeHtml(reg.relayTeamName || "Đội tiếp sức")}</div>${members}</td>
+                        <td>—</td>
+                        <td>${reg.paid ? '<span class="badge badge-success">Có</span>' : '<span class="badge badge-secondary">Không</span>'}</td>
+                        <td>${reg.success ? '<span class="badge badge-success">Có</span>' : '<span class="badge badge-warning">Không</span>'}</td>
+                        <td><button class="btn btn-sm btn-primary" type="button" onclick="chooseRegistration('${encodeURIComponent(JSON.stringify(reg))}')">Chọn</button></td>
+                    </tr>`;
+            }
             const p1 = `${reg.player1Name || "—"}${reg.player1UserId ? ` (ID người dùng: ${reg.player1UserId})` : ""}`;
             const p2 = reg.player2Name
                 ? `${reg.player2Name}${reg.player2UserId ? ` (ID người dùng: ${reg.player2UserId})` : ""}`

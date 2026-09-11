@@ -146,7 +146,7 @@ namespace HanakaServer.Controllers
 
             var registrationStats = await _db.TournamentRegistrations
                 .AsNoTracking()
-                .Where(x => tournamentIds.Contains(x.TournamentId))
+                .Where(x => tournamentIds.Contains(x.TournamentId) && !x.IsVirtualTeam)
                 .GroupBy(x => x.TournamentId)
                 .Select(g => new
                 {
@@ -202,6 +202,7 @@ namespace HanakaServer.Controllers
                 .Select(x => new
                 {
                     x.RegistrationId,
+                    x.IsVirtualTeam,
                     x.RegCode,
                     x.RegIndex,
                     x.Player1Name,
@@ -241,17 +242,21 @@ namespace HanakaServer.Controllers
                         ? foundTeam2
                         : null;
 
-                var team1Name = BuildTeamDisplayName(
-                    tournament?.GameType,
-                    team1Reg?.Player1Name,
-                    team1Reg?.Player2Name
-                );
+                var team1Name = team1Reg?.IsVirtualTeam == true
+                    ? "Chờ cập nhật"
+                    : BuildTeamDisplayName(
+                        tournament?.GameType,
+                        team1Reg?.Player1Name,
+                        team1Reg?.Player2Name
+                    );
 
-                var team2Name = BuildTeamDisplayName(
-                    tournament?.GameType,
-                    team2Reg?.Player1Name,
-                    team2Reg?.Player2Name
-                );
+                var team2Name = team2Reg?.IsVirtualTeam == true
+                    ? "Chờ cập nhật"
+                    : BuildTeamDisplayName(
+                        tournament?.GameType,
+                        team2Reg?.Player1Name,
+                        team2Reg?.Player2Name
+                    );
 
                 string? winnerSide = null;
                 if (m.WinnerRegistrationId.HasValue)
@@ -288,17 +293,17 @@ namespace HanakaServer.Controllers
 
                     Team1RegistrationId = m.Team1RegistrationId,
                     Team1Name = team1Name,
-                    Team1Player1Name = team1Reg?.Player1Name,
-                    Team1Player1Avatar = ToAbsoluteUrl(team1Reg?.Player1Avatar),
-                    Team1Player2Name = team1Reg?.Player2Name,
-                    Team1Player2Avatar = ToAbsoluteUrl(team1Reg?.Player2Avatar),
+                    Team1Player1Name = team1Reg?.IsVirtualTeam == true ? "Chờ cập nhật" : team1Reg?.Player1Name,
+                    Team1Player1Avatar = team1Reg?.IsVirtualTeam == true ? null : ToAbsoluteUrl(team1Reg?.Player1Avatar),
+                    Team1Player2Name = team1Reg?.IsVirtualTeam == true ? null : team1Reg?.Player2Name,
+                    Team1Player2Avatar = team1Reg?.IsVirtualTeam == true ? null : ToAbsoluteUrl(team1Reg?.Player2Avatar),
 
                     Team2RegistrationId = m.Team2RegistrationId,
                     Team2Name = team2Name,
-                    Team2Player1Name = team2Reg?.Player1Name,
-                    Team2Player1Avatar = ToAbsoluteUrl(team2Reg?.Player1Avatar),
-                    Team2Player2Name = team2Reg?.Player2Name,
-                    Team2Player2Avatar = ToAbsoluteUrl(team2Reg?.Player2Avatar),
+                    Team2Player1Name = team2Reg?.IsVirtualTeam == true ? "Chờ cập nhật" : team2Reg?.Player1Name,
+                    Team2Player1Avatar = team2Reg?.IsVirtualTeam == true ? null : ToAbsoluteUrl(team2Reg?.Player1Avatar),
+                    Team2Player2Name = team2Reg?.IsVirtualTeam == true ? null : team2Reg?.Player2Name,
+                    Team2Player2Avatar = team2Reg?.IsVirtualTeam == true ? null : ToAbsoluteUrl(team2Reg?.Player2Avatar),
 
                     StartAt = m.StartAt,
                     AddressText = m.AddressText,
@@ -483,7 +488,7 @@ namespace HanakaServer.Controllers
 
             var registrationStats = await _db.TournamentRegistrations
                 .AsNoTracking()
-                .Where(x => tournamentIds.Contains(x.TournamentId))
+                .Where(x => tournamentIds.Contains(x.TournamentId) && !x.IsVirtualTeam)
                 .GroupBy(x => x.TournamentId)
                 .Select(g => new
                 {
@@ -539,6 +544,7 @@ namespace HanakaServer.Controllers
                 .Select(x => new
                 {
                     x.RegistrationId,
+                    x.IsVirtualTeam,
                     x.RegCode,
                     x.RegIndex,
                     x.Player1Name,
@@ -580,17 +586,21 @@ namespace HanakaServer.Controllers
                         ? foundTeam2
                         : null;
 
-                var team1Name = BuildTeamDisplayName(
-                    tournament?.GameType,
-                    team1Reg?.Player1Name,
-                    team1Reg?.Player2Name
-                );
+                var team1Name = team1Reg?.IsVirtualTeam == true
+                    ? "Chờ cập nhật"
+                    : BuildTeamDisplayName(
+                        tournament?.GameType,
+                        team1Reg?.Player1Name,
+                        team1Reg?.Player2Name
+                    );
 
-                var team2Name = BuildTeamDisplayName(
-                    tournament?.GameType,
-                    team2Reg?.Player1Name,
-                    team2Reg?.Player2Name
-                );
+                var team2Name = team2Reg?.IsVirtualTeam == true
+                    ? "Chờ cập nhật"
+                    : BuildTeamDisplayName(
+                        tournament?.GameType,
+                        team2Reg?.Player1Name,
+                        team2Reg?.Player2Name
+                    );
 
                 string? winnerSide = null;
                 if (m.WinnerRegistrationId.HasValue)
@@ -633,17 +643,17 @@ namespace HanakaServer.Controllers
 
                     Team1RegistrationId = m.Team1RegistrationId,
                     Team1Name = team1Name,
-                    Team1Player1Name = team1Reg?.Player1Name,
-                    Team1Player1Avatar = ToAbsoluteUrl(team1Reg?.Player1Avatar),
-                    Team1Player2Name = team1Reg?.Player2Name,
-                    Team1Player2Avatar = ToAbsoluteUrl(team1Reg?.Player2Avatar),
+                    Team1Player1Name = team1Reg?.IsVirtualTeam == true ? "Chờ cập nhật" : team1Reg?.Player1Name,
+                    Team1Player1Avatar = team1Reg?.IsVirtualTeam == true ? null : ToAbsoluteUrl(team1Reg?.Player1Avatar),
+                    Team1Player2Name = team1Reg?.IsVirtualTeam == true ? null : team1Reg?.Player2Name,
+                    Team1Player2Avatar = team1Reg?.IsVirtualTeam == true ? null : ToAbsoluteUrl(team1Reg?.Player2Avatar),
 
                     Team2RegistrationId = m.Team2RegistrationId,
                     Team2Name = team2Name,
-                    Team2Player1Name = team2Reg?.Player1Name,
-                    Team2Player1Avatar = ToAbsoluteUrl(team2Reg?.Player1Avatar),
-                    Team2Player2Name = team2Reg?.Player2Name,
-                    Team2Player2Avatar = ToAbsoluteUrl(team2Reg?.Player2Avatar),
+                    Team2Player1Name = team2Reg?.IsVirtualTeam == true ? "Chờ cập nhật" : team2Reg?.Player1Name,
+                    Team2Player1Avatar = team2Reg?.IsVirtualTeam == true ? null : ToAbsoluteUrl(team2Reg?.Player1Avatar),
+                    Team2Player2Name = team2Reg?.IsVirtualTeam == true ? null : team2Reg?.Player2Name,
+                    Team2Player2Avatar = team2Reg?.IsVirtualTeam == true ? null : ToAbsoluteUrl(team2Reg?.Player2Avatar),
 
                     StartAt = m.StartAt,
                     AddressText = m.AddressText,

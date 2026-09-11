@@ -43,19 +43,25 @@
 
     .registration-filter-toolbar {
         display: flex;
-        flex-wrap: wrap;
+        flex: 1 1 360px;
+        flex-wrap: nowrap;
         gap: 8px;
         align-items: center;
-        width: 100%;
+        min-width: 0;
     }
 
         .registration-filter-toolbar .filter-keyword {
-            flex: 1 1 320px;
-            min-width: 220px;
+            flex: 1 1 220px;
+            min-width: 0;
         }
 
         .registration-filter-toolbar .filter-action {
             flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            white-space: nowrap;
         }
 
     .player-head-tools {
@@ -290,6 +296,112 @@
         font-size: 13px;
     }
 
+    .cash-payment-confirmation-modal .modal-content {
+        overflow: hidden;
+        border: 0;
+        border-radius: 14px;
+        box-shadow: 0 20px 55px rgba(58, 59, 69, 0.28);
+    }
+
+    .cash-payment-confirmation-modal .modal-header {
+        align-items: flex-start;
+        padding: 22px 24px 16px;
+        border-bottom: 0;
+    }
+
+    .cash-payment-confirmation-modal .modal-body {
+        padding: 0 24px 22px;
+    }
+
+    .cash-payment-confirmation-modal .modal-footer {
+        padding: 16px 24px;
+        border-top-color: #eaecf4;
+        background: #f8f9fc;
+    }
+
+    .cash-payment-confirmation-heading {
+        display: flex;
+        align-items: flex-start;
+        gap: 14px;
+        padding-right: 24px;
+    }
+
+    .cash-payment-confirmation-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 44px;
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        color: #13855c;
+        background: #d9f3e8;
+        font-size: 18px;
+    }
+
+    .cash-payment-confirmation-subtitle {
+        margin-top: 4px;
+        color: #858796;
+        font-size: 13px;
+        line-height: 1.45;
+    }
+
+    .cash-payment-confirmation-summary {
+        display: grid;
+        grid-template-columns: minmax(0, 150px) minmax(0, 1fr);
+        gap: 10px;
+        margin-bottom: 14px;
+    }
+
+    .cash-payment-confirmation-summary-item {
+        padding: 12px 14px;
+        border: 1px solid #e3e6f0;
+        border-radius: 10px;
+        background: #fff;
+    }
+
+    .cash-payment-confirmation-summary-item.is-wide {
+        grid-column: 1 / -1;
+    }
+
+    .cash-payment-confirmation-summary-label {
+        margin-bottom: 4px;
+        color: #858796;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+
+    .cash-payment-confirmation-summary-value {
+        color: #3a3b45;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+    }
+
+    .cash-payment-confirmation-note {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        padding: 13px 14px;
+        border: 1px solid #b8dfcf;
+        border-radius: 10px;
+        color: #0f6848;
+        background: #edf9f4;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+
+    .cash-payment-confirmation-note i {
+        margin-top: 3px;
+        color: #1cc88a;
+    }
+
+    .cash-payment-confirmation-error {
+        border-radius: 10px;
+        font-size: 13px;
+    }
+
     @@media (max-width: 991.98px) {
         .card-header-responsive {
             flex-direction: column;
@@ -301,13 +413,8 @@
                 margin-bottom: 0;
             }
 
-        .registration-filter-toolbar .filter-keyword,
-        .registration-filter-toolbar .filter-action {
-            flex: 1 1 100%;
-            min-width: 100%;
-        }
-
-        .registration-filter-toolbar .btn {
+        .registration-filter-toolbar {
+            flex: 0 0 auto;
             width: 100%;
         }
     }
@@ -349,6 +456,14 @@
         .delete-registration-summary {
             grid-template-columns: 1fr;
         }
+
+        .cash-payment-confirmation-summary {
+            grid-template-columns: 1fr;
+        }
+
+        .cash-payment-confirmation-summary-item.is-wide {
+            grid-column: auto;
+        }
     }
 
     @@media (max-width: 575.98px) {
@@ -369,6 +484,22 @@
         }
 
         .delete-registration-modal .modal-footer .btn {
+            width: 100%;
+            margin: 4px 0 0;
+        }
+
+        .cash-payment-confirmation-modal .modal-header,
+        .cash-payment-confirmation-modal .modal-body,
+        .cash-payment-confirmation-modal .modal-footer {
+            padding-left: 18px;
+            padding-right: 18px;
+        }
+
+        .cash-payment-confirmation-modal .modal-footer {
+            flex-direction: column-reverse;
+        }
+
+        .cash-payment-confirmation-modal .modal-footer .btn {
             width: 100%;
             margin: 4px 0 0;
         }
@@ -409,6 +540,599 @@
                 max-width: 100%;
             }
     }
+    .relay-roster-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+        gap: 1rem;
+    }
+
+    .relay-reserve-editor summary { cursor: pointer; font-weight: 600; padding: 8px 0; }
+    .relay-reserve-editor summary span { font-size: 12px; font-weight: 400; }
+    .relay-reserve-list { margin-top: 12px; padding-top: 10px; border-top: 1px solid #e3e6f0; }
+    .relay-reserve-list .relay-team-card__roster-head { margin-bottom: 6px; }
+    .relay-reserve-list .relay-pair-member__position { min-width: 30px; width: auto; border-radius: 4px; padding: 0 3px; }
+
+    .relay-pair-editor {
+        overflow: hidden;
+        border: 1px solid #dbe4f0;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 4px 14px rgba(58, 59, 69, .06);
+    }
+
+    .relay-pair-editor.is-locked {
+        background: #f1f5f9;
+    }
+
+    .relay-pair-editor__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 11px 14px;
+        border-bottom: 1px solid #e8edf5;
+        color: #2947a9;
+        background: #f4f7ff;
+    }
+
+    .relay-pair-editor__head small {
+        color: #6e7891;
+        font-weight: 600;
+    }
+
+    .relay-athlete-editor {
+        padding: 13px 14px 14px;
+        background: #fff;
+    }
+
+    .relay-athlete-editor + .relay-athlete-editor {
+        border-top: 1px dashed #dbe4f0;
+    }
+
+    .relay-athlete-editor.is-locked {
+        background: #f8fafc;
+    }
+
+    .relay-athlete-editor__title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 9px;
+        color: #3a3b45;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    .relay-athlete-editor__position {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 28px;
+        height: 22px;
+        padding: 0 8px;
+        border-radius: 999px;
+        color: #4e73df;
+        background: #eaf0ff;
+        font-size: 11px;
+    }
+
+    .relay-user-check-button {
+        white-space: nowrap;
+    }
+
+    .relay-user-check-status {
+        display: block;
+        min-height: 1.25rem;
+        margin-top: .35rem;
+    }
+
+    .relay-lineup-list {
+        display: grid;
+        gap: .35rem;
+    }
+
+    .registration-page-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 18px;
+        padding: 20px 22px;
+        border: 1px solid #dfe6f3;
+        border-radius: 18px;
+        background: linear-gradient(135deg, #ffffff 0%, #f5f8ff 100%);
+        box-shadow: 0 8px 24px rgba(58, 59, 69, .07);
+    }
+
+    .registration-page-header__eyebrow {
+        margin-bottom: 4px;
+        color: #4e73df;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+    }
+
+    .registration-page-header h1 {
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1.25;
+    }
+
+    .registration-page-header__meta {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        margin-top: 7px;
+        color: #6e707e;
+        font-size: 13px;
+        line-height: 1.45;
+    }
+
+    .registration-summary {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .registration-summary__item {
+        position: relative;
+        overflow: hidden;
+        min-height: 92px;
+        padding: 15px 16px;
+        border: 1px solid #e3e8f2;
+        border-radius: 14px;
+        background: #fff;
+        box-shadow: 0 5px 16px rgba(58, 59, 69, .05);
+    }
+
+    .registration-summary__item::after {
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 4px;
+        height: 100%;
+        content: "";
+        background: var(--summary-color, #4e73df);
+    }
+
+    .registration-summary__label {
+        display: block;
+        margin-bottom: 7px;
+        color: #7a8192;
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+
+    .registration-summary__value {
+        color: #2d3348;
+        font-size: 24px;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .registration-summary__hint {
+        margin-top: 7px;
+        color: #858796;
+        font-size: 12px;
+    }
+
+    .registration-list-card {
+        overflow: hidden;
+        border: 1px solid #e2e7f0;
+        border-radius: 16px;
+        box-shadow: 0 8px 24px rgba(58, 59, 69, .07) !important;
+    }
+
+    .registration-list-card .card-header {
+        gap: 16px;
+        padding: 15px 18px !important;
+        border-bottom: 1px solid #e8ecf3;
+        background: #fff;
+    }
+
+    .registration-list-card .card-body {
+        padding: 18px;
+        background: #f8f9fc;
+    }
+
+    .registration-list-heading {
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow-wrap: anywhere;
+    }
+
+    .registration-list-heading small {
+        display: block;
+        margin-top: 3px;
+        color: #858796;
+        font-weight: 400;
+    }
+
+    .registration-filter-toolbar .input-group {
+        flex-wrap: nowrap;
+        border-radius: .35rem;
+    }
+
+    .registration-filter-toolbar .input-group:focus-within {
+        box-shadow: 0 0 0 .15rem rgba(78, 115, 223, .2);
+    }
+
+    .registration-filter-toolbar .input-group-text {
+        min-height: 40px;
+        border-right: 0;
+        color: #858796;
+        background: #fff;
+    }
+
+    .registration-filter-toolbar .filter-keyword input {
+        height: 40px;
+        min-height: 40px;
+        border-left: 0;
+        box-shadow: none;
+    }
+
+    .registration-filter-toolbar .filter-keyword input:focus {
+        border-color: #d1d3e2;
+    }
+
+    .registration-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 14px;
+    }
+
+    .registration-tabs__label {
+        margin-right: 3px;
+        color: #6e707e;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .registration-tabs .btn {
+        min-height: 36px;
+        padding: 7px 14px;
+        font-weight: 700;
+    }
+
+    .relay-team-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+    }
+
+    .relay-team-card {
+        overflow: hidden;
+        border: 1px solid #dfe5ef;
+        border-radius: 16px;
+        background: #fff;
+        box-shadow: 0 5px 18px rgba(58, 59, 69, .06);
+        transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+
+    .relay-team-card:hover {
+        border-color: #b9c8f5;
+        box-shadow: 0 10px 24px rgba(58, 59, 69, .11);
+        transform: translateY(-1px);
+    }
+
+    .relay-team-card.is-locked {
+        border-top: 4px solid #1cc88a;
+    }
+
+    .relay-team-card.is-ready {
+        border-top: 4px solid #f6c23e;
+    }
+
+    .relay-team-card.is-incomplete {
+        border-top: 4px solid #e74a3b;
+    }
+
+    .relay-team-card__head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 16px 17px 13px;
+        border-bottom: 1px solid #edf0f5;
+    }
+
+    .relay-team-card__identity {
+        display: flex;
+        align-items: flex-start;
+        gap: 11px;
+        min-width: 0;
+    }
+
+    .relay-team-card__number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 38px;
+        width: 38px;
+        height: 38px;
+        border-radius: 11px;
+        color: #4e73df;
+        background: #edf2ff;
+        font-weight: 800;
+    }
+
+    .relay-team-card__title {
+        margin: 0;
+        color: #2d3348;
+        font-size: 16px;
+        font-weight: 800;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+    }
+
+    .relay-team-card__meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px 12px;
+        margin-top: 5px;
+        color: #858796;
+        font-size: 11px;
+    }
+
+    .relay-team-card__status {
+        flex: 0 0 auto;
+        border-radius: 999px;
+        padding: 6px 9px;
+        font-size: 11px;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .relay-team-card__status.is-locked {
+        color: #0f704f;
+        background: #dff6ed;
+    }
+
+    .relay-team-card__status.is-ready {
+        color: #795b05;
+        background: #fff3cf;
+    }
+
+    .relay-team-card__status.is-incomplete {
+        color: #a9281e;
+        background: #fce5e3;
+    }
+
+    .relay-team-card__body {
+        padding: 14px 17px 16px;
+    }
+
+    .relay-team-card__roster-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 10px;
+        color: #5a5c69;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .relay-pair-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+        gap: 9px;
+    }
+
+    .relay-pair-card {
+        overflow: hidden;
+        border: 1px solid #e1e6ef;
+        border-radius: 11px;
+        background: #fbfcfe;
+    }
+
+    .relay-pair-card__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 7px 10px;
+        color: #3956b4;
+        background: #f0f4ff;
+        font-size: 11px;
+        font-weight: 800;
+    }
+
+    .relay-pair-member {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+        padding: 10px;
+    }
+
+    .relay-pair-member + .relay-pair-member {
+        border-top: 1px dashed #e0e5ee;
+    }
+
+    .relay-pair-member__avatar {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 42px;
+        width: 42px;
+        height: 42px;
+        border-radius: 50%;
+        color: #4e73df;
+        background: #e9efff;
+        font-size: 14px;
+        font-weight: 800;
+    }
+
+    .relay-pair-member__avatar img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border-radius: inherit;
+        object-fit: cover;
+    }
+
+    .relay-pair-member__position {
+        position: absolute;
+        right: -3px;
+        bottom: -3px;
+        z-index: 1;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 4px;
+        border: 2px solid #fff;
+        border-radius: 999px;
+        color: #fff;
+        background: #4e73df;
+        font-size: 8px;
+        line-height: 1;
+        font-weight: 800;
+    }
+
+    .relay-pair-member__copy {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .relay-pair-member__name {
+        display: block;
+        overflow: hidden;
+        color: #3a3b45;
+        font-size: 12px;
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .relay-pair-member__type {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px 9px;
+        margin-top: 3px;
+        color: #9298a8;
+        font-size: 10px;
+    }
+
+    .relay-pair-member__type span {
+        white-space: nowrap;
+    }
+
+    .relay-team-card__footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 17px;
+        border-top: 1px solid #e8ecf3;
+        background: #f9fafc;
+    }
+
+    .relay-team-card__payment {
+        flex: 0 0 auto;
+    }
+
+    .relay-team-card__actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 7px;
+    }
+
+    .relay-team-card__actions .btn,
+    .relay-team-card__payment .btn {
+        min-height: 34px;
+        border-radius: 9px;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .registration-empty {
+        grid-column: 1 / -1;
+        padding: 48px 20px;
+        border: 1px dashed #cfd6e2;
+        border-radius: 14px;
+        color: #858796;
+        background: #fff;
+        text-align: center;
+    }
+
+    .registration-empty i {
+        display: block;
+        margin-bottom: 12px;
+        color: #b7bfd0;
+        font-size: 30px;
+    }
+
+    .registration-empty strong {
+        display: block;
+        margin-bottom: 5px;
+        color: #5a5c69;
+    }
+
+    .registration-table-wrap .table {
+        margin-bottom: 0;
+        background: #fff;
+    }
+
+    .registration-table-wrap .table thead th {
+        border-bottom-width: 1px;
+        color: #606779;
+        background: #f3f5f9;
+        font-size: 11px;
+        letter-spacing: .025em;
+        text-transform: uppercase;
+        vertical-align: middle;
+    }
+
+    .registration-table-wrap .table td {
+        vertical-align: middle;
+    }
+
+    @@media (max-width: 1199.98px) {
+        .relay-team-grid { grid-template-columns: 1fr; }
+    }
+
+    @@media (max-width: 991.98px) {
+        .registration-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @@media (max-width: 767.98px) {
+        .relay-roster-grid { grid-template-columns: 1fr; }
+        .registration-page-header { align-items: stretch; flex-direction: column; }
+        .registration-page-header .registration-toolbar { width: 100%; }
+        .registration-page-header .registration-toolbar > * { flex: 1 1 0; }
+        .relay-team-card__footer { align-items: stretch; flex-direction: column; }
+        .relay-team-card__payment .btn { width: 100%; }
+        .relay-team-card__actions { display: grid; grid-template-columns: 1fr 1fr; }
+        .relay-team-card__actions .btn { width: 100%; }
+    }
+
+    @@media (max-width: 575.98px) {
+        .registration-page-header { padding: 17px; border-radius: 14px; }
+        .registration-page-header h1 { font-size: 21px; }
+        .registration-summary { grid-template-columns: 1fr 1fr; gap: 9px; }
+        .registration-summary__item { min-height: 84px; padding: 13px; }
+        .registration-summary__value { font-size: 21px; }
+        .registration-list-card .card-body { padding: 12px; }
+        .registration-filter-toolbar { flex-wrap: wrap; }
+        .registration-filter-toolbar .filter-keyword { flex-basis: 100%; }
+        .registration-filter-toolbar .filter-action { flex: 1 1 0; }
+        .registration-tabs__label { flex-basis: 100%; }
+        .registration-tabs .btn { flex: 1 1 calc(50% - 5px); }
+        .relay-team-card__head { align-items: stretch; flex-direction: column; }
+        .relay-team-card__status { align-self: flex-start; }
+        .relay-pair-grid { grid-template-columns: 1fr; }
+    }
 </style>
 
 <div class="container-fluid" id="pageRoot" data-tournament-id="@tid">
@@ -425,56 +1149,96 @@
         </button>
     </div>
 
-    <div class="d-sm-flex align-items-center justify-content-between mb-3 page-title-bar">
+    <div class="registration-page-header page-title-bar">
         <div>
+            <div class="registration-page-header__eyebrow">Quản lý đăng ký</div>
             <h1 class="h3 mb-0 text-gray-800">Danh sách đăng ký</h1>
-            <div class="small text-muted" id="tournamentMeta">Giải đấu #@tid</div>
-        </div>
-
-        <div>
-            <div class="d-flex registration-toolbar">
-                <button class="btn btn-sm btn-primary shadow-sm" type="button" id="btnOpenCreate">
-                    <i class="fas fa-plus fa-sm text-white-50"></i> Đăng ký cho vận động viên
-                </button>
-                <a class="btn btn-sm btn-outline-secondary" href="/Home/Tournaments">
-                    <i class="fas fa-arrow-left"></i> Quay lại
-                </a>
+            <div class="registration-page-header__meta">
+                <i class="fas fa-trophy" aria-hidden="true"></i>
+                <span id="tournamentMeta">Giải đấu #@tid</span>
             </div>
         </div>
+
+        <div class="d-flex registration-toolbar">
+            <button class="btn btn-primary shadow-sm" type="button" id="btnOpenCreate">
+                <i class="fas fa-plus fa-sm mr-1" aria-hidden="true"></i>
+                <span id="createButtonLabel">Đăng ký cho vận động viên</span>
+            </button>
+            <a class="btn btn-light border" href="/Home/Tournaments">
+                <i class="fas fa-arrow-left mr-1" aria-hidden="true"></i> Quay lại
+            </a>
+        </div>
     </div>
 
-    <!-- Tabs counts -->
-    <div class="mb-3 d-flex flex-wrap tabs-toolbar" style="gap:10px">
-        <button class="btn btn-sm pill" id="tabSuccess">Thành công</button>
-        <button class="btn btn-sm pill" id="tabWaiting">Chờ ghép</button>
-        <button class="btn btn-sm pill btn-outline-secondary" id="tabCapacity">Còn chỗ</button>
+    <div class="registration-summary d-none" id="registrationSummary" aria-label="Tổng quan đăng ký">
+        <div class="registration-summary__item" style="--summary-color:#4e73df">
+            <span class="registration-summary__label" id="summaryTotalLabel">Tổng đăng ký</span>
+            <div class="registration-summary__value" id="summaryTotal">0</div>
+            <div class="registration-summary__hint" id="summaryTotalHint">trên 0 đội dự kiến</div>
+        </div>
+        <div class="registration-summary__item" style="--summary-color:#1cc88a">
+            <span class="registration-summary__label" id="summarySuccessLabel">Thành công</span>
+            <div class="registration-summary__value" id="summarySuccess">0</div>
+            <div class="registration-summary__hint" id="summarySuccessHint">đăng ký hợp lệ</div>
+        </div>
+        <div class="registration-summary__item" style="--summary-color:#f6c23e">
+            <span class="registration-summary__label" id="summaryWaitingLabel">Chờ ghép</span>
+            <div class="registration-summary__value" id="summaryWaiting">0</div>
+            <div class="registration-summary__hint" id="summaryWaitingHint">cần xử lý</div>
+        </div>
+        <div class="registration-summary__item" style="--summary-color:#858796">
+            <span class="registration-summary__label">Còn chỗ</span>
+            <div class="registration-summary__value" id="summaryCapacity">0</div>
+            <div class="registration-summary__hint" id="summaryCapacityHint">đội có thể đăng ký thêm</div>
+        </div>
     </div>
 
-    <div class="card shadow mb-4">
+    <div class="registration-tabs tabs-toolbar" role="tablist" aria-label="Lọc trạng thái đăng ký">
+        <span class="registration-tabs__label"><i class="fas fa-filter mr-1" aria-hidden="true"></i>Hiển thị:</span>
+        <button class="btn btn-sm pill" type="button" id="tabSuccess" role="tab">Thành công</button>
+        <button class="btn btn-sm pill" type="button" id="tabWaiting" role="tab">Chờ ghép</button>
+        <button class="btn btn-sm pill btn-outline-secondary" type="button" id="tabCapacity" title="Xem cách tính số chỗ còn lại">
+            <i class="fas fa-info-circle mr-1" aria-hidden="true"></i>Còn chỗ
+        </button>
+    </div>
+
+    <div class="card shadow mb-4 registration-list-card">
         <div class="card-header py-3 d-flex align-items-center justify-content-between card-header-responsive">
-            <h6 class="m-0 font-weight-bold text-primary">Danh sách đăng ký</h6>
+            <div class="registration-list-heading">
+                <h6 class="m-0 font-weight-bold text-primary">Danh sách đội tham gia</h6>
+                <small id="resultSummary">Đang tải dữ liệu...</small>
+            </div>
 
             <div class="registration-filter-toolbar">
                 <div class="filter-keyword">
-                    <input id="q" class="form-control form-control-sm w-100" placeholder="Tìm tên / mã ĐK ..." />
+                    <div class="input-group input-group-sm">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+                        </div>
+                        <input id="q" class="form-control" placeholder="Tìm tên đội, vận động viên hoặc mã đăng ký..." autocomplete="off" aria-label="Tìm đăng ký" />
+                    </div>
                 </div>
-                <div class="filter-action">
-                    <button class="btn btn-sm btn-outline-primary" type="button" id="btnSearch">Tìm kiếm</button>
-                </div>
+                <button class="btn btn-sm btn-outline-secondary filter-action d-none" type="button" id="btnClearSearch">
+                    <i class="fas fa-times mr-1" aria-hidden="true"></i>Xóa lọc
+                </button>
+                <button class="btn btn-sm btn-primary filter-action" type="button" id="btnSearch">
+                    <i class="fas fa-search mr-1" aria-hidden="true"></i>Tìm kiếm
+                </button>
             </div>
         </div>
 
         <div class="card-body">
-            <div class="table-responsive">
+            <div class="relay-team-grid d-none" id="relayList" aria-live="polite"></div>
+            <div class="table-responsive registration-table-wrap" id="registrationTableWrap">
                 <table class="table table-bordered" width="100%" cellspacing="0">
                     <thead>
                         <tr>
                             <th style="width:60px">#</th>
                             <th style="width:160px">Mã ĐK</th>
                             <th style="width:160px">Thời gian</th>
-                            <th>VĐV 1</th>
-                            <th>VĐV 2</th>
-                            <th style="width:90px">Điểm</th>
+                            <th id="player1Header">VĐV 1</th>
+                            <th id="player2Header">VĐV 2</th>
+                            <th id="pointsHeader" style="width:90px">Điểm</th>
                             <th style="width:110px">Mã BT</th>
                             <th style="width:80px">Thanh toán</th>
                             <th style="width:220px">Thao tác</th>
@@ -503,7 +1267,7 @@
                     <div id="createErr" class="alert alert-danger d-none"></div>
 
                     <div class="form-row">
-                        <div class="form-group col-md-4">
+                        <div class="form-group col-md-4" id="standardGameTypeField">
                             <label>Loại thi đấu</label>
                             <select class="form-control" id="gameType">
                                 <option value="SINGLE">ĐẤU ĐƠN</option>
@@ -512,7 +1276,7 @@
                             <small class="text-muted">Loại thi đấu sẽ tự động khóa theo cấu hình của giải.</small>
                         </div>
 
-                        <div class="form-group col-md-4">
+                        <div class="form-group col-md-4" id="standardDoubleModeField">
                             <label>Trạng thái (Đủ - Chờ Ghép)</label>
                             <select class="form-control" id="doubleMode">
                                 <option value="PAIR" selected>Đủ cặp</option>
@@ -538,7 +1302,7 @@
 
                     <hr />
 
-                    <div class="row">
+                    <div class="row" id="standardCreatePlayers">
                         <!-- Player 1 -->
                         <div class="col-lg-6 mb-3">
                             <div class="player-card">
@@ -661,6 +1425,29 @@
 
                     </div>
 
+                    <div id="relayCreateBlock" class="d-none">
+                        <div class="alert alert-info py-2">
+                            Một đăng ký là một đội. Hãy nhập đủ thành viên theo cấu hình giải; cặp được xác định theo thứ tự vị trí.
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-md-7">
+                                <label>Tên đội tiếp sức *</label>
+                                <input class="form-control" id="relayCreateTeamName" maxlength="150" />
+                            </div>
+                            <div class="form-group col-md-5">
+                                <label>ID tài khoản đội trưởng</label>
+                                <input class="form-control" id="relayCreateCaptainId" type="number" min="1" step="1" />
+                                <small class="text-muted">Nếu nhập, tài khoản phải nằm trong đội hình.</small>
+                            </div>
+                        </div>
+                        <div class="relay-roster-grid" id="relayCreateMembers"></div>
+                        <details class="relay-reserve-editor mt-3" id="relayCreateReservesBlock">
+                            <summary>Thành viên dự bị <span class="text-muted">· Không bắt buộc · Tối đa 4 người</span></summary>
+                            <p class="small text-muted mt-2 mb-2">Để trống nếu không có dự bị. Đội hình chính vẫn cần đủ người.</p>
+                            <div class="relay-roster-grid" id="relayCreateReserves"></div>
+                        </details>
+                    </div>
+
                 </div>
 
                 <div class="modal-footer">
@@ -770,6 +1557,83 @@
     </div>
 </div>
 
+<!-- Modal Cash Payment Confirmation -->
+<div class="modal fade cash-payment-confirmation-modal"
+     id="modalCashPaymentConfirmation"
+     tabindex="-1"
+     role="dialog"
+     aria-labelledby="cashPaymentConfirmationTitle"
+     aria-describedby="cashPaymentConfirmationDescription"
+     aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="cash-payment-confirmation-heading">
+                    <div class="cash-payment-confirmation-icon" aria-hidden="true">
+                        <i class="fas fa-money-bill-wave"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title text-gray-900" id="cashPaymentConfirmationTitle">Xác nhận thanh toán tiền mặt?</h5>
+                        <div class="cash-payment-confirmation-subtitle" id="cashPaymentConfirmationDescription">
+                            Chỉ xác nhận sau khi bạn đã nhận đủ tiền trực tiếp từ khách.
+                        </div>
+                    </div>
+                </div>
+                <button class="close"
+                        type="button"
+                        data-dismiss="modal"
+                        data-cash-payment-modal-close
+                        aria-label="Đóng hộp thoại xác nhận thanh toán tiền mặt">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="cash-payment-confirmation-summary">
+                    <div class="cash-payment-confirmation-summary-item">
+                        <div class="cash-payment-confirmation-summary-label">Mã đăng ký</div>
+                        <div class="cash-payment-confirmation-summary-value text-primary" id="cashPaymentRegCode">—</div>
+                    </div>
+                    <div class="cash-payment-confirmation-summary-item">
+                        <div class="cash-payment-confirmation-summary-label">Số tiền xác nhận</div>
+                        <div class="cash-payment-confirmation-summary-value text-success" id="cashPaymentAmount">—</div>
+                    </div>
+                    <div class="cash-payment-confirmation-summary-item is-wide">
+                        <div class="cash-payment-confirmation-summary-label">Đội đấu</div>
+                        <div class="cash-payment-confirmation-summary-value" id="cashPaymentTeamName">—</div>
+                    </div>
+                </div>
+
+                <div class="cash-payment-confirmation-note">
+                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                    <div>Hệ thống sẽ ghi nhận đăng ký này đã thanh toán bằng tiền mặt và lưu thời gian xác nhận.</div>
+                </div>
+
+                <div class="alert alert-danger cash-payment-confirmation-error d-none mt-3 mb-0"
+                     id="cashPaymentConfirmationError"
+                     role="alert"
+                     aria-live="assertive"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-light border"
+                        type="button"
+                        id="btnCancelCashPayment"
+                        data-dismiss="modal"
+                        data-cash-payment-modal-close>
+                    Quay lại
+                </button>
+                <button class="btn btn-success"
+                        type="button"
+                        id="btnConfirmCashPayment"
+                        aria-describedby="cashPaymentConfirmationDescription">
+                    <i class="fas fa-check mr-1" aria-hidden="true"></i>Xác nhận đã thu tiền
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Cancel Payment Confirmation -->
 <div class="modal fade" id="modalCancelPaymentConfirmation" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
@@ -819,7 +1683,7 @@
                 <div class="modal-body">
                     <div id="editErr" class="alert alert-danger d-none"></div>
 
-                    <div class="row">
+                    <div class="row" id="standardEditPlayers">
                         <div class="col-lg-6 mb-3">
                             <div class="player-card">
                                 <div class="d-flex align-items-center justify-content-between mb-2 player-head">
@@ -927,6 +1791,29 @@
                         </div>
                     </div>
 
+                    <div id="relayEditBlock" class="d-none">
+                        <div class="alert alert-info py-2">
+                            Một đăng ký là một đội. Hãy nhập đủ thành viên theo cấu hình giải; cặp được xác định theo thứ tự vị trí.
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group col-md-7">
+                                <label>Tên đội tiếp sức *</label>
+                                <input class="form-control" id="relayEditTeamName" maxlength="150" />
+                            </div>
+                            <div class="form-group col-md-5">
+                                <label>ID tài khoản đội trưởng</label>
+                                <input class="form-control" id="relayEditCaptainId" type="number" min="1" step="1" />
+                                <small class="text-muted">Nếu nhập, tài khoản phải nằm trong đội hình.</small>
+                            </div>
+                        </div>
+                        <div class="relay-roster-grid" id="relayEditMembers"></div>
+                        <details class="relay-reserve-editor mt-3" id="relayEditReservesBlock">
+                            <summary>Thành viên dự bị <span class="text-muted">· Không bắt buộc · Tối đa 4 người</span></summary>
+                            <p class="small text-muted mt-2 mb-2">Để trống nếu không có dự bị. Đội hình chính vẫn cần đủ người.</p>
+                            <div class="relay-roster-grid" id="relayEditReserves"></div>
+                        </details>
+                    </div>
+
                     <div class="small text-muted" id="editTeamNote"></div>
                 </div>
 
@@ -972,6 +1859,7 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>window.HanakaApiLoading?.installAxios(window.axios);</script>
     <script>
         (() => {
           const $id = (id) => document.getElementById(id);
@@ -983,13 +1871,21 @@
           let CURRENT_TAB = "SUCCESS";
           let CACHE = { items: [], waiting: [] };
           let TOURNAMENT_GAME_TYPE = null; // "SINGLE" | "DOUBLE"
+          let IS_RELAY = false;
+          let RELAY_TEAM_SIZE = 0;
+          let RELAY_PAIR_COUNT = 0;
           let EDITING_REG = null;
+          let LOAD_SEQUENCE = 0;
+          let SEARCH_TIMER = null;
+          let HAS_AUTO_SELECTED_RELAY_TAB = false;
           let DELETE_REGISTRATION = { registrationId: 0, regCode: "", teamName: "", submitting: false };
+          let CASH_PAYMENT_CONFIRMATION = { registrationId: 0, submitting: false };
           let REGISTRATION_NOTICE_TIMER = null;
           let ACTIVE_PAYMENT = {
             registrationId: 0,
             regCode: "",
             teamName: "",
+            amountText: "",
             transactionCode: "",
             pollUrl: "",
             paid: false,
@@ -1006,6 +1902,7 @@
           const API_LIST = `/api/admin/tournaments/${TOURNAMENT_ID}/registrations`;
 
           const esc = (s) => String(s || "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
+          const escAttr = (s) => esc(s).replaceAll('"', "&quot;").replaceAll("'", "&#39;");
           const fmt = (dt) => {
             if(!dt) return "—";
             const d = new Date(dt);
@@ -1085,9 +1982,182 @@
 
           function registrationTeamName(registration){
             if(!registration) return "—";
+            if(registration.isRelay && String(registration.relayTeamName || "").trim()){
+              return String(registration.relayTeamName).trim();
+            }
             const player1Name = String(registration.player1Name || "").trim();
             const player2Name = String(registration.player2Name || "").trim();
             return [player1Name, player2Name].filter(Boolean).join(" / ") || "—";
+          }
+
+          function relayMemberEditorHtml(prefix, position, member, locked, reserve = false){
+            const userId = member?.userId || "";
+            const displayName = member?.displayName || "";
+            const disabled = locked ? "disabled" : "";
+            const accountStatus = userId
+              ? `Tài khoản hiện tại: ${displayName || `ID ${userId}`}`
+              : "Chưa kiểm tra tài khoản";
+            return `
+              <div class="relay-athlete-editor ${locked ? "is-locked" : ""}">
+                <div class="relay-athlete-editor__title">
+                  <span><i class="fas fa-user mr-1 text-primary" aria-hidden="true"></i>${reserve ? "Dự bị" : "Vận động viên"} ${position}</span>
+                  <span class="relay-athlete-editor__position">#${position}</span>
+                  ${reserve ? `<button type="button" class="btn btn-sm btn-link text-danger p-0" data-relay-reserve-clear data-prefix="${prefix}" data-position="${position}">Bỏ chọn</button>` : ""}
+                </div>
+                <div class="form-group mb-2">
+                  <label class="small text-muted mb-1">ID tài khoản</label>
+                  <div class="input-group input-group-sm">
+                    <input class="form-control" id="${prefix}RelayUser${position}" type="number" min="1" step="1" value="${escAttr(userId)}" placeholder="Nhập User ID" data-relay-user-input data-prefix="${prefix}" data-position="${position}" ${disabled} />
+                    <div class="input-group-append">
+                      <button class="btn btn-outline-primary relay-user-check-button" id="${prefix}RelayUserCheck${position}" type="button" data-relay-user-check data-prefix="${prefix}" data-position="${position}" title="Kiểm tra ID tài khoản" ${disabled}>
+                        <i class="fas fa-check" aria-hidden="true"></i> Kiểm tra
+                      </button>
+                    </div>
+                  </div>
+                  <small class="relay-user-check-status ${userId ? "text-success" : "text-muted"}" id="${prefix}RelayUserInfo${position}" aria-live="polite">${esc(accountStatus)}</small>
+                </div>
+                <div class="form-group mb-0">
+                  <label class="small text-muted mb-1">Họ tên nếu là khách</label>
+                  <input class="form-control form-control-sm" id="${prefix}RelayName${position}" maxlength="150" value="${escAttr(displayName)}" placeholder="Chỉ nhập khi VĐV chưa có tài khoản" ${disabled} />
+                </div>
+              </div>`;
+          }
+
+          function resetRelayUserCheck(prefix, position){
+            const input = $id(`${prefix}RelayUser${position}`);
+            const status = $id(`${prefix}RelayUserInfo${position}`);
+            if(input) delete input.dataset.checkedUserId;
+            if(status){
+              status.className = "relay-user-check-status text-muted";
+              status.textContent = String(input?.value || "").trim()
+                ? "ID đã thay đổi, vui lòng kiểm tra lại."
+                : "Chưa kiểm tra tài khoản";
+            }
+          }
+
+          async function checkRelayUser(prefix, position){
+            const input = $id(`${prefix}RelayUser${position}`);
+            const status = $id(`${prefix}RelayUserInfo${position}`);
+            const button = $id(`${prefix}RelayUserCheck${position}`);
+            const idRaw = String(input?.value || "").trim();
+            const userId = Number(idRaw);
+
+            if(!/^\d+$/.test(idRaw) || !Number.isSafeInteger(userId) || userId <= 0){
+              if(input) delete input.dataset.checkedUserId;
+              if(status){
+                status.className = "relay-user-check-status text-danger";
+                status.textContent = "Vui lòng nhập User ID là số nguyên dương.";
+              }
+              input?.focus();
+              return;
+            }
+
+            if(button){
+              button.disabled = true;
+              button.innerHTML = `<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Đang kiểm tra`;
+            }
+            if(status){
+              status.className = "relay-user-check-status text-muted";
+              status.textContent = `Đang kiểm tra User ID ${userId}...`;
+            }
+
+            try{
+              const res = await axios.get(`/api/admin/users/find/${userId}`);
+              if(String(input?.value || "").trim() !== idRaw) return;
+
+              const user = res.data || {};
+              if(input) input.dataset.checkedUserId = String(user.userId || userId);
+              if(status){
+                const single = Number(user.ratingSingle || 0);
+                const double = Number(user.ratingDouble || 0);
+                status.className = "relay-user-check-status text-success";
+                status.textContent = `Đúng tài khoản: ${user.fullName || "Chưa có họ tên"} · Đơn ${single.toFixed(2)} · Đôi ${double.toFixed(2)}`;
+              }
+            } catch(err){
+              if(String(input?.value || "").trim() !== idRaw) return;
+
+              if(input) delete input.dataset.checkedUserId;
+              if(status){
+                status.className = "relay-user-check-status text-danger";
+                status.textContent = err?.response?.data?.message || err?.message || "Không kiểm tra được tài khoản.";
+              }
+            } finally {
+              if(button){
+                button.disabled = false;
+                button.innerHTML = `<i class="fas fa-check" aria-hidden="true"></i> Kiểm tra`;
+              }
+            }
+          }
+
+          function renderRelayMemberEditors(containerId, prefix, members, locked){
+            const map = new Map((members || []).map(x => [Number(x.position), x]));
+            const container = $id(containerId);
+            if(!container) return;
+            container.innerHTML = Array.from({ length: RELAY_PAIR_COUNT }, (_, index) => {
+              const pairNumber = index + 1;
+              const firstPosition = (pairNumber * 2) - 1;
+              const secondPosition = pairNumber * 2;
+              return `
+                <section class="relay-pair-editor ${locked ? "is-locked" : ""}">
+                  <div class="relay-pair-editor__head">
+                    <strong><i class="fas fa-layer-group mr-1" aria-hidden="true"></i>Cặp ${pairNumber}</strong>
+                    <small>Vị trí ${firstPosition}–${secondPosition}</small>
+                  </div>
+                  ${relayMemberEditorHtml(prefix, firstPosition, map.get(firstPosition), locked)}
+                  ${relayMemberEditorHtml(prefix, secondPosition, map.get(secondPosition), locked)}
+                </section>`;
+            }).join("");
+          }
+
+          function renderRelayReserveEditors(mode, members){
+            const prefix = mode.toLowerCase() + "Reserve";
+            const map = new Map((members || []).map(x => [Number(x.position), x]));
+            $id('relay' + mode + 'Reserves').innerHTML = Array.from({length: 4}, (_, index) =>
+              '<section class="relay-pair-editor">' + relayMemberEditorHtml(prefix, index + 1, map.get(index + 1), false, true) + '</section>'
+            ).join('');
+            $id('relay' + mode + 'ReservesBlock').open = (members || []).length > 0;
+          }
+
+          function appendRelayMembers(fd, prefix){
+            const seenUserIds = new Set();
+            for(let position = 1; position <= RELAY_TEAM_SIZE; position++){
+              const userId = String($id(`${prefix}RelayUser${position}`)?.value || "").trim();
+              const displayName = String($id(`${prefix}RelayName${position}`)?.value || "").trim();
+              if(!userId && !displayName){
+                throw new Error(`Vận động viên vị trí ${position}: cần nhập ID tài khoản hoặc họ tên khách.`);
+              }
+              if(userId){
+                const parsedId = Number(userId);
+                if(!Number.isInteger(parsedId) || parsedId <= 0){
+                  throw new Error(`Vận động viên vị trí ${position}: ID tài khoản không hợp lệ.`);
+                }
+                if(seenUserIds.has(parsedId)){
+                  throw new Error(`Tài khoản ${parsedId} đang bị nhập trùng trong đội.`);
+                }
+                seenUserIds.add(parsedId);
+              }
+              const index = position - 1;
+              fd.append(`relayMembers[${index}].position`, String(position));
+              if(userId) fd.append(`relayMembers[${index}].userId`, userId);
+              fd.append(`relayMembers[${index}].displayName`, displayName);
+            }
+            fd.append("relayReserveMembersIncluded", "true");
+            let reserveIndex = 0;
+            for (let position = 1; position <= 4; position++) {
+              const userId = String($id(`${prefix}ReserveRelayUser${position}`)?.value || "").trim();
+              const displayName = String($id(`${prefix}ReserveRelayName${position}`)?.value || "").trim();
+              if (!userId && !displayName) continue;
+              if (userId) {
+                const id = Number(userId);
+                if (!Number.isSafeInteger(id) || id <= 0) throw new Error(`Dự bị ${position}: ID tài khoản không hợp lệ.`);
+                if (seenUserIds.has(id)) throw new Error(`Tài khoản ${id} bị trùng trong đội, kể cả dự bị.`);
+                seenUserIds.add(id);
+              }
+              fd.append(`relayReserveMembers[${reserveIndex}].position`, String(position));
+              if (userId) fd.append(`relayReserveMembers[${reserveIndex}].userId`, userId);
+              fd.append(`relayReserveMembers[${reserveIndex}].displayName`, displayName);
+              reserveIndex++;
+            }
           }
 
           function hideRegistrationNotice(){
@@ -1260,7 +2330,7 @@
 
             return `
               <div class="mt-3">
-                <button class="btn btn-success" type="button" onclick="confirmCashPayment(${Number(data?.registrationId || 0)})">
+                <button class="btn btn-success" type="button" onclick="openCashPaymentConfirmation(${Number(data?.registrationId || 0)})">
                   <i class="fas fa-money-bill-wave"></i> Xác nhận tiền mặt
                 </button>
                 <div class="small text-muted mt-2">Dùng khi khách đã thanh toán trực tiếp bằng tiền mặt.</div>
@@ -1386,6 +2456,7 @@
               registrationId: 0,
               regCode: "",
               teamName: "",
+              amountText: "",
               transactionCode: "",
               pollUrl: "",
               paid: false,
@@ -1424,6 +2495,15 @@
 
             const qrUrl = payment.qrImageUrl || record.qrImageUrl || "";
             const paidAtText = payment.paidAtText || record.paidAtText || manual.paidAtText;
+            const teamDetailRows = team.isRelay
+              ? (team.members || []).map(member =>
+                  paymentInfoRow(`Cặp ${member.pairNumber} · VĐV ${member.position}`, member.displayName, false)
+                ).join("")
+              : [
+                  paymentInfoRow("Điểm đội", team.points !== undefined ? Number(team.points || 0).toFixed(2) : "", false),
+                  paymentInfoRow("VĐV 1", team.player1Name, false),
+                  paymentInfoRow("VĐV 2", team.player2Name, false)
+                ].join("");
 
             const paymentRows = isPaid
               ? (isCashPayment ? [
@@ -1459,9 +2539,7 @@
                 ${paymentInfoRow("Giải đấu", tournament.title, false)}
                 ${paymentInfoRow("Mã đăng ký", data?.regCode, true)}
                 ${paymentInfoRow("Đội đấu", team.name, true)}
-                ${paymentInfoRow("Điểm đội", team.points !== undefined ? Number(team.points || 0).toFixed(2) : "", false)}
-                ${paymentInfoRow("VDV 1", team.player1Name, false)}
-                ${paymentInfoRow("VDV 2", team.player2Name, false)}
+                ${teamDetailRows}
               </div>
 
               ${!isPaid ? paymentQrHtml(qrUrl) : ""}
@@ -1478,12 +2556,14 @@
           function updateActivePaymentFromData(data){
             const payment = data?.payment || {};
             const record = data?.paymentRecord || {};
+            const tournament = data?.tournament || {};
             const transactionCode = payment.transactionCode || record.transactionCode || "";
             const pollUrl = payment.pollStatusUrl || (transactionCode ? `/api/tournament-registration-payments/${encodeURIComponent(transactionCode)}/status` : "");
 
             ACTIVE_PAYMENT.registrationId = Number(data?.registrationId || ACTIVE_PAYMENT.registrationId || 0);
             ACTIVE_PAYMENT.regCode = String(data?.regCode || ACTIVE_PAYMENT.regCode || "");
             ACTIVE_PAYMENT.teamName = String(data?.team?.name || ACTIVE_PAYMENT.teamName || "");
+            ACTIVE_PAYMENT.amountText = String(payment.amountText || record.amountText || tournament.feeText || ACTIVE_PAYMENT.amountText || "");
             ACTIVE_PAYMENT.transactionCode = normalizePaymentCode(transactionCode);
             ACTIVE_PAYMENT.pollUrl = pollUrl;
             ACTIVE_PAYMENT.paid = !!data?.isPaid || !!payment.isPaid;
@@ -1516,7 +2596,9 @@
             }
 
             try{
-              const res = await axios.get(ACTIVE_PAYMENT.pollUrl);
+              const res = await axios.get(ACTIVE_PAYMENT.pollUrl, {
+                hanakaLoading: "silent"
+              });
               handlePaymentStatusUpdated(res.data || {}, source || "poll");
             } catch(_error){
             }
@@ -1535,7 +2617,9 @@
             }
 
             try{
-              const res = await axios.post(`/api/admin/registrations/${id}/payment-info`);
+              const res = await axios.post(`/api/admin/registrations/${id}/payment-info`, undefined, {
+                hanakaLoading: "silent"
+              });
               const data = res.data || {};
               updateActivePaymentFromData(data);
 
@@ -1583,42 +2667,90 @@
             refreshPaymentModalAsPaid(status);
           }
 
-          async function confirmCashPayment(id){
+          function setCashPaymentConfirmationSubmitting(submitting){
+            CASH_PAYMENT_CONFIRMATION.submitting = !!submitting;
+
+            document.querySelectorAll("[data-cash-payment-modal-close]").forEach(function(button){
+              button.disabled = !!submitting;
+            });
+
+            const confirmButton = $id("btnConfirmCashPayment");
+            if(confirmButton){
+              confirmButton.disabled = !!submitting;
+              confirmButton.innerHTML = submitting
+                ? `<i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>Đang xác nhận...`
+                : `<i class="fas fa-check mr-1" aria-hidden="true"></i>Xác nhận đã thu tiền`;
+            }
+          }
+
+          function resetCashPaymentConfirmation(){
+            CASH_PAYMENT_CONFIRMATION = { registrationId: 0, submitting: false };
+            setCashPaymentConfirmationSubmitting(false);
+
+            const errorBox = $id("cashPaymentConfirmationError");
+            if(errorBox){
+              errorBox.textContent = "";
+              errorBox.classList.add("d-none");
+            }
+          }
+
+          function openCashPaymentConfirmation(id){
             const registrationId = Number(id || ACTIVE_PAYMENT.registrationId || 0);
             if(!registrationId){
-              alert("Không xác định được đăng ký cần xác nhận.");
+              showRegistrationNotice("danger", "Không thể mở xác nhận", "Không xác định được đăng ký cần xác nhận thanh toán.");
               return;
             }
 
-            if(!confirm("Xác nhận đội này đã thanh toán tiền mặt?")){
-              return;
-            }
+            CASH_PAYMENT_CONFIRMATION = { registrationId, submitting: false };
 
-            const body = $id("paymentInfoBody");
-            try{
-              if(body){
-                body.insertAdjacentHTML("afterbegin", `
-                  <div class="alert alert-info" data-cash-confirm-loading>
-                    <i class="fas fa-spinner fa-spin"></i> Đang xác nhận thanh toán tiền mặt...
-                  </div>
-                `);
+            const regCode = $id("cashPaymentRegCode");
+            const teamName = $id("cashPaymentTeamName");
+            const amount = $id("cashPaymentAmount");
+            const errorBox = $id("cashPaymentConfirmationError");
+            if(regCode) regCode.textContent = ACTIVE_PAYMENT.regCode || `#${registrationId}`;
+            if(teamName) teamName.textContent = ACTIVE_PAYMENT.teamName || "—";
+            if(amount) amount.textContent = ACTIVE_PAYMENT.amountText || "—";
+            if(errorBox){
+              errorBox.textContent = "";
+              errorBox.classList.add("d-none");
+            }
+            setCashPaymentConfirmationSubmitting(false);
+
+            $("#modalCashPaymentConfirmation").modal("show");
+          }
+
+          async function confirmCashPayment(){
+            const registrationId = Number(CASH_PAYMENT_CONFIRMATION.registrationId || 0);
+            const errorBox = $id("cashPaymentConfirmationError");
+            if(!registrationId || CASH_PAYMENT_CONFIRMATION.submitting){
+              if(!registrationId && errorBox){
+                errorBox.textContent = "Không xác định được đăng ký cần xác nhận thanh toán.";
+                errorBox.classList.remove("d-none");
               }
+              return;
+            }
 
+            if(errorBox){
+              errorBox.textContent = "";
+              errorBox.classList.add("d-none");
+            }
+            setCashPaymentConfirmationSubmitting(true);
+
+            try{
               await axios.post(`/api/admin/registrations/${registrationId}/confirm-cash-payment`);
 
+              setCashPaymentConfirmationSubmitting(false);
+              $("#modalCashPaymentConfirmation").modal("hide");
               cleanupActivePayment();
               ACTIVE_PAYMENT.registrationId = registrationId;
               await refreshPaymentModalAsPaid({ isPaid: true });
             } catch(err){
-              const loading = document.querySelector("[data-cash-confirm-loading]");
-              if(loading) loading.remove();
-
               const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || "Không thể xác nhận thanh toán tiền mặt.";
-              if(body){
-                body.insertAdjacentHTML("afterbegin", `<div class="alert alert-danger">${esc(msg)}</div>`);
-              } else {
-                alert(msg);
+              if(errorBox){
+                errorBox.textContent = msg;
+                errorBox.classList.remove("d-none");
               }
+              setCashPaymentConfirmationSubmitting(false);
             }
           }
 
@@ -1769,7 +2901,132 @@
             `;
           }
 
+          function relayPaymentHtml(reg){
+            const paid = !!reg.paid;
+            const cls = paid ? "btn-success" : "btn-outline-danger";
+            const icon = paid ? "fa-check-circle" : "fa-wallet";
+            const label = paid ? "Đã thanh toán" : "Chưa thanh toán";
+            const title = paid ? "Xem thông tin thanh toán" : "Tạo hoặc xem mã thanh toán";
+            return `
+              <button class="btn btn-sm ${cls}" type="button" onclick="openPaymentInfo(${Number(reg.registrationId || 0)})" title="${title}">
+                <i class="fas ${icon} mr-1" aria-hidden="true"></i>${label}
+              </button>`;
+          }
+
+          function relayMemberHtml(member, position){
+            const displayName = String(member?.displayName || "").trim();
+            const userId = Number(member?.userId || 0);
+            const avatarUrl = String(member?.avatarUrl || "").trim();
+            const initial = (displayName || "?").charAt(0).toUpperCase();
+            const avatarImage = avatarUrl
+              ? `<img src="${escAttr(avatarUrl)}" alt="Ảnh đại diện ${escAttr(displayName || "vận động viên")}" loading="lazy" onerror="this.remove()" />`
+              : "";
+            const memberDetails = userId
+              ? `<span><i class="fas fa-chart-line mr-1" aria-hidden="true"></i>Trình đôi: ${formatLevel(member?.ratingDouble)}</span>
+                 <span><i class="fas fa-id-badge mr-1" aria-hidden="true"></i>User ID: ${userId}</span>`
+              : `<span>${displayName ? "Vận động viên khách" : "Chưa nhập thông tin"}</span>`;
+            return `
+              <div class="relay-pair-member">
+                <span class="relay-pair-member__avatar" aria-hidden="true">
+                  ${esc(initial)}
+                  ${avatarImage}
+                  <span class="relay-pair-member__position">${position}</span>
+                </span>
+                <span class="relay-pair-member__copy">
+                  <span class="relay-pair-member__name" title="${escAttr(displayName || "Chưa có thành viên")}">${esc(displayName || "Chưa có thành viên")}</span>
+                  <span class="relay-pair-member__type">${memberDetails}</span>
+                </span>
+              </div>`;
+          }
+
+          function relayActionsHtml(reg){
+            const registrationId = Number(reg.registrationId || 0);
+            return `
+              <div class="relay-team-card__actions">
+                <button class="btn btn-sm btn-outline-primary" type="button" onclick="openEditTeam(${registrationId})">
+                  <i class="fas fa-user-edit mr-1" aria-hidden="true"></i>Sửa đội hình
+                </button>
+                <button class="btn btn-sm btn-outline-danger" type="button" onclick="delReg(${registrationId})" title="Xóa đăng ký đội">
+                  <i class="fas fa-trash-alt mr-1" aria-hidden="true"></i>Xóa
+                </button>
+              </div>`;
+          }
+
+          function relayTeamCardHtml(reg){
+            const members = (reg.relayMembers || []).slice().sort((a,b) => Number(a.position) - Number(b.position));
+            const memberByPosition = new Map(members.map(member => [Number(member.position), member]));
+            const complete = !!reg.relayRosterComplete;
+            const stateClass = complete ? "is-ready" : "is-incomplete";
+            const stateIcon = complete ? "fa-check-circle" : "fa-exclamation-triangle";
+            const missingCount = Math.max(0, RELAY_TEAM_SIZE - Number(reg.relayMemberCount || members.length));
+            const stateLabel = complete ? "Sẵn sàng" : `Thiếu ${missingCount} VĐV`;
+            const pairCards = Array.from({ length: RELAY_PAIR_COUNT }, (_, index) => {
+              const pairNumber = index + 1;
+              const firstPosition = (pairNumber * 2) - 1;
+              const secondPosition = pairNumber * 2;
+              return `
+                <section class="relay-pair-card">
+                  <div class="relay-pair-card__head">
+                    <span>Cặp ${pairNumber}</span>
+                    <span>Vị trí ${firstPosition}–${secondPosition}</span>
+                  </div>
+                  ${relayMemberHtml(memberByPosition.get(firstPosition), firstPosition)}
+                  ${relayMemberHtml(memberByPosition.get(secondPosition), secondPosition)}
+                </section>`;
+            }).join("");
+            const transferCode = String(reg.btCode || "").trim();
+            const captainId = Number(reg.relayCaptainUserId || 0);
+
+            return `
+              <article class="relay-team-card ${stateClass}">
+                <header class="relay-team-card__head">
+                  <div class="relay-team-card__identity">
+                    <span class="relay-team-card__number">${Number(reg.regIndex || 0) || "#"}</span>
+                    <div>
+                      <h3 class="relay-team-card__title">${esc(reg.relayTeamName || "Chưa đặt tên đội")}</h3>
+                      <div class="relay-team-card__meta">
+                        <span><i class="fas fa-tag mr-1" aria-hidden="true"></i>${esc(reg.regCode || "—")}</span>
+                        <span><i class="far fa-clock mr-1" aria-hidden="true"></i>${fmt(reg.regTime)}</span>
+                        ${captainId ? `<span><i class="fas fa-user-shield mr-1" aria-hidden="true"></i>Đội trưởng #${captainId}</span>` : ""}
+                        ${transferCode ? `<span><i class="fas fa-receipt mr-1" aria-hidden="true"></i>${esc(transferCode)}</span>` : ""}
+                      </div>
+                    </div>
+                  </div>
+                  <span class="relay-team-card__status ${stateClass}">
+                    <i class="fas ${stateIcon} mr-1" aria-hidden="true"></i>${stateLabel}
+                  </span>
+                </header>
+                <div class="relay-team-card__body">
+                  <div class="relay-team-card__roster-head">
+                    <span><i class="fas fa-users mr-1 text-primary" aria-hidden="true"></i>Đội hình thi đấu</span>
+                    <span>${Number(reg.relayMemberCount || members.length)}/${RELAY_TEAM_SIZE} VĐV · ${RELAY_PAIR_COUNT} cặp</span>
+                  </div>
+                  <div class="relay-pair-grid">${pairCards}</div>
+                  <div class="relay-reserve-list">
+                    <div class="relay-team-card__roster-head"><span>Thành viên dự bị</span><span>${(reg.relayReserveMembers || []).length}/4 người</span></div>
+                    ${(reg.relayReserveMembers || []).length ? '<div class="relay-pair-grid">' + reg.relayReserveMembers.map(member => '<div class="relay-pair-card">' + relayMemberHtml(member, 'DB ' + member.position) + '</div>').join('') + '</div>' : '<p class="small text-muted mb-0">Không có thành viên dự bị.</p>'}
+                  </div>
+                </div>
+                <footer class="relay-team-card__footer">
+                  <div class="relay-team-card__payment">${relayPaymentHtml(reg)}</div>
+                  ${relayActionsHtml(reg)}
+                </footer>
+              </article>`;
+          }
+
           function actionsHtml(reg){
+            if(IS_RELAY){
+              return `
+                <div class="d-flex flex-wrap" style="gap:6px">
+                  <button class="btn btn-sm btn-outline-primary" type="button" onclick="openEditTeam(${reg.registrationId})" title="Sửa đội hình tiếp sức">
+                    <i class="fas fa-user-edit"></i>
+                  </button>
+                  <button class="btn btn-sm btn-outline-danger" type="button" onclick="delReg(${reg.registrationId})" title="Xóa đội tiếp sức">
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </div>`;
+            }
+
             const isDouble = (TOURNAMENT_GAME_TYPE === "DOUBLE");
             const pairBtn = (isDouble && reg.waitingPair)
               ? `<button class="btn btn-sm btn-outline-warning" type="button" onclick="openPair(${reg.registrationId})" title="Ghép">
@@ -1796,6 +3053,36 @@
           }
 
           function rowHtml(reg){
+            if(IS_RELAY){
+              const members = (reg.relayMembers || []).slice().sort((a,b) => Number(a.position) - Number(b.position));
+              const pairs = [];
+              for(let pair = 1; pair <= RELAY_PAIR_COUNT; pair++){
+                const pairMembers = members.filter(x => Number(x.pairNumber) === pair);
+                const names = pairMembers.map(x => esc(x.displayName || "—")).join(" / ") || "Chưa đủ thành viên";
+                pairs.push(`<div><strong>Cặp ${pair}:</strong> ${names}</div>`);
+              }
+              const complete = !!reg.relayRosterComplete;
+              const missingCount = Math.max(0, RELAY_TEAM_SIZE - Number(reg.relayMemberCount || members.length));
+              const statusHtml = complete
+                ? `<span class="badge badge-success"><i class="fas fa-check-circle mr-1"></i>Sẵn sàng</span>`
+                : `<span class="badge badge-danger">Thiếu ${missingCount} VĐV</span>`;
+              return `
+                <tr>
+                  <td>${reg.regIndex ?? ""}</td>
+                  <td><div class="font-weight-bold">${esc(reg.regCode)}</div></td>
+                  <td>${fmt(reg.regTime)}</td>
+                  <td>
+                    <div class="font-weight-bold text-gray-900">${esc(reg.relayTeamName || "Chưa đặt tên đội")}</div>
+                    <div class="small text-muted">${Number(reg.relayMemberCount || 0)}/${RELAY_TEAM_SIZE} VĐV · ${RELAY_PAIR_COUNT} cặp</div>
+                  </td>
+                  <td><div class="relay-lineup-list small">${pairs.join("")}</div></td>
+                  <td class="text-center">${statusHtml}</td>
+                  <td>${esc(reg.btCode||"")}</td>
+                  <td class="text-center">${paidHtml(reg)}</td>
+                  <td>${actionsHtml(reg)}</td>
+                </tr>`;
+            }
+
             const teamPoints = getTeamPoints(reg);
 
             return `
@@ -1835,11 +3122,13 @@
 
             if(tabSuccess){
               tabSuccess.className = `btn btn-sm pill ${CURRENT_TAB==="SUCCESS"?"btn-success":"btn-outline-success"}`;
-              tabSuccess.textContent = `Thành công (${counts.success})`;
+              tabSuccess.textContent = IS_RELAY ? `Sẵn sàng (${counts.success})` : `Thành công (${counts.success})`;
+              tabSuccess.setAttribute("aria-selected", String(CURRENT_TAB === "SUCCESS"));
             }
             if(tabWaiting){
               tabWaiting.className = `btn btn-sm pill ${CURRENT_TAB==="WAITING"?"btn-warning":"btn-outline-warning"}`;
-              tabWaiting.textContent = `Chờ ghép (${counts.waiting})`;
+              tabWaiting.textContent = IS_RELAY ? `Chưa đủ đội hình (${counts.waiting})` : `Chờ ghép (${counts.waiting})`;
+              tabWaiting.setAttribute("aria-selected", String(CURRENT_TAB === "WAITING"));
             }
             if(tabCapacity){
               tabCapacity.className = `btn btn-sm pill btn-outline-secondary`;
@@ -1847,44 +3136,183 @@
             }
           }
 
-          async function load(tab){
-            CURRENT_TAB = tab;
+          function updateSummary(tournament, counts){
+            const success = Number(counts?.success || 0);
+            const waiting = Number(counts?.waiting || 0);
+            const capacity = Number(counts?.capacityLeft || 0);
+            const expected = Number(tournament?.expectedTeams || (success + waiting + capacity));
+            const total = success + waiting;
+
+            if($id("summaryTotal")) $id("summaryTotal").textContent = String(total);
+            if($id("summarySuccess")) $id("summarySuccess").textContent = String(success);
+            if($id("summaryWaiting")) $id("summaryWaiting").textContent = String(waiting);
+            if($id("summaryCapacity")) $id("summaryCapacity").textContent = String(capacity);
+            if($id("summaryTotalHint")) $id("summaryTotalHint").textContent = `trên ${expected} đội dự kiến`;
+            if($id("summarySuccessLabel")) $id("summarySuccessLabel").textContent = IS_RELAY ? "Sẵn sàng" : "Thành công";
+            if($id("summarySuccessHint")) $id("summarySuccessHint").textContent = IS_RELAY ? "đội sẵn sàng thi đấu" : "đăng ký hợp lệ";
+            if($id("summaryWaitingLabel")) $id("summaryWaitingLabel").textContent = IS_RELAY ? "Chưa đủ đội hình" : "Chờ ghép";
+            if($id("summaryWaitingHint")) $id("summaryWaitingHint").textContent = IS_RELAY ? "đội cần admin xử lý" : "đăng ký cần ghép đôi";
+            if($id("summaryCapacityHint")) $id("summaryCapacityHint").textContent = IS_RELAY ? "đội tiếp sức có thể thêm" : "đội có thể đăng ký thêm";
+            $id("registrationSummary")?.classList.remove("d-none");
+          }
+
+          function emptyStateHtml(title, message, icon = "fa-users"){
+            return `
+              <div class="registration-empty">
+                <i class="fas ${icon}" aria-hidden="true"></i>
+                <strong>${esc(title)}</strong>
+                <span>${esc(message)}</span>
+              </div>`;
+          }
+
+          function renderRegistrationItems(items, emptyTitle, emptyMessage){
+            const data = Array.isArray(items) ? items : [];
             const body = $id("body");
-            if(body) body.innerHTML = `<tr><td colspan="9" class="text-center text-muted">Đang tải...</td></tr>`;
+            const relayList = $id("relayList");
+            const resultSummary = $id("resultSummary");
+            const query = String($id("q")?.value || "").trim();
+            const unit = IS_RELAY ? "đội tiếp sức" : "đăng ký";
 
-            const res = await axios.get(API_LIST, { params: { tab } });
-            const { tournament, counts, items } = res.data;
-
-            const typeCode = String(tournament.tournamentTypeCode || "").toUpperCase();
-            const rawGameType = String(tournament.gameType || "").toUpperCase();
-            TOURNAMENT_GAME_TYPE = typeCode.startsWith("SINGLE")
-              ? "SINGLE"
-              : (typeCode.startsWith("DOUBLE") ? "DOUBLE" : (rawGameType === "SINGLE" ? "SINGLE" : "DOUBLE"));
-
-            const meta = $id("tournamentMeta");
-            if(meta){
-              meta.textContent = `${tournament.title} • ${tournament.status} • Loại thi đấu: ${tournament.gameType}`;
+            if(resultSummary){
+              resultSummary.textContent = query
+                ? `${data.length} kết quả phù hợp với “${query}”`
+                : `${data.length} ${unit} trong trạng thái đang chọn`;
             }
-            setTabButtons(counts);
 
-            CACHE.items = items || [];
-            const waitingRes = await axios.get(API_LIST, { params: { tab: "WAITING" } });
-            CACHE.waiting = waitingRes.data.items || [];
-
-            if(!body) return;
-
-            if(!CACHE.items.length){
-              body.innerHTML = `<tr><td colspan="9" class="text-center text-muted">No registrations</td></tr>`;
+            if(IS_RELAY){
+              if(!relayList) return;
+              relayList.innerHTML = data.length
+                ? data.map(relayTeamCardHtml).join("")
+                : emptyStateHtml(emptyTitle || "Chưa có đội trong mục này", emptyMessage || "Hãy chọn trạng thái khác hoặc thêm đăng ký mới.");
               return;
             }
-            body.innerHTML = CACHE.items.map(rowHtml).join("");
+
+            if(!body) return;
+            body.innerHTML = data.length
+              ? data.map(rowHtml).join("")
+              : `<tr><td colspan="9" class="p-0 border-0">${emptyStateHtml(emptyTitle || "Chưa có đăng ký", emptyMessage || "Hãy chọn trạng thái khác hoặc thêm đăng ký mới.")}</td></tr>`;
+          }
+
+          function matchesRegistration(registration, key){
+            if(!key) return true;
+            return [
+              registration.player1Name,
+              registration.player2Name,
+              registration.relayTeamName,
+              registration.regCode,
+              registration.btCode,
+              ...(registration.relayMembers || []).flatMap(member => [member.displayName, member.userId]),
+              ...(registration.relayReserveMembers || []).flatMap(member => [member.displayName, member.userId])
+            ].some(value => String(value || "").toLowerCase().includes(key));
+          }
+
+          function applySearchFilter(){
+            const key = String($id("q")?.value || "").trim().toLowerCase();
+            $id("btnClearSearch")?.classList.toggle("d-none", !key);
+            const filtered = (CACHE.items || []).filter(item => matchesRegistration(item, key));
+            renderRegistrationItems(
+              filtered,
+              key ? "Không tìm thấy kết quả" : undefined,
+              key ? "Thử tên đội, tên vận động viên, User ID hoặc mã đăng ký khác." : undefined);
+          }
+
+          function renderListLoading(){
+            const body = $id("body");
+            const relayList = $id("relayList");
+            if($id("resultSummary")) $id("resultSummary").textContent = "Đang tải dữ liệu...";
+            if(IS_RELAY && relayList){
+              relayList.innerHTML = emptyStateHtml("Đang tải danh sách đội", "Vui lòng chờ trong giây lát.", "fa-spinner fa-spin");
+            } else if(body){
+              body.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-5"><i class="fas fa-spinner fa-spin mr-2" aria-hidden="true"></i>Đang tải dữ liệu...</td></tr>`;
+            }
+          }
+
+          function renderListError(message){
+            const html = emptyStateHtml("Không tải được danh sách", message || "Vui lòng thử tải lại trang.", "fa-exclamation-circle");
+            if($id("resultSummary")) $id("resultSummary").textContent = "Có lỗi khi tải dữ liệu";
+            if(IS_RELAY && $id("relayList")){
+              $id("relayList").innerHTML = html;
+            } else if($id("body")){
+              $id("body").innerHTML = `<tr><td colspan="9" class="p-0 border-0">${html}</td></tr>`;
+            }
+          }
+
+          function applyTournamentModeUI(){
+            $id("standardGameTypeField")?.classList.toggle("d-none", IS_RELAY);
+            $id("standardDoubleModeField")?.classList.toggle("d-none", IS_RELAY);
+            $id("standardCreatePlayers")?.classList.toggle("d-none", IS_RELAY);
+            $id("relayCreateBlock")?.classList.toggle("d-none", !IS_RELAY);
+            $id("registrationTableWrap")?.classList.toggle("d-none", IS_RELAY);
+            $id("relayList")?.classList.toggle("d-none", !IS_RELAY);
+
+            const createLabel = $id("createButtonLabel");
+            if(createLabel) createLabel.textContent = IS_RELAY ? "Đăng ký đội tiếp sức" : "Đăng ký cho vận động viên";
+            const player1Header = $id("player1Header");
+            const player2Header = $id("player2Header");
+            const pointsHeader = $id("pointsHeader");
+            if(player1Header) player1Header.textContent = IS_RELAY ? "Đội tiếp sức" : "VĐV 1";
+            if(player2Header) player2Header.textContent = IS_RELAY ? "Đội hình và cặp" : "VĐV 2";
+            if(pointsHeader) pointsHeader.textContent = IS_RELAY ? "Trạng thái" : "Điểm";
+          }
+
+          async function load(tab){
+            const loadSequence = ++LOAD_SEQUENCE;
+            CURRENT_TAB = tab;
+            renderListLoading();
+
+            try{
+              const res = await axios.get(API_LIST, { params: { tab } });
+              if(loadSequence !== LOAD_SEQUENCE) return;
+              const { tournament, counts, items } = res.data;
+
+              IS_RELAY = !!tournament.isRelay;
+              RELAY_TEAM_SIZE = IS_RELAY ? Number(tournament.relayTeamSize || 0) : 0;
+              RELAY_PAIR_COUNT = IS_RELAY ? Number(tournament.relayPairCount || 0) : 0;
+              applyTournamentModeUI();
+
+              const typeCode = String(tournament.tournamentTypeCode || "").toUpperCase();
+              const rawGameType = String(tournament.gameType || "").toUpperCase();
+              TOURNAMENT_GAME_TYPE = typeCode.startsWith("SINGLE")
+                ? "SINGLE"
+                : (typeCode.startsWith("DOUBLE") ? "DOUBLE" : (rawGameType === "SINGLE" ? "SINGLE" : "DOUBLE"));
+
+              const meta = $id("tournamentMeta");
+              if(meta){
+                meta.textContent = IS_RELAY
+                  ? `${tournament.title} • ${tournament.status} • Tiếp sức ${RELAY_TEAM_SIZE} người/${RELAY_PAIR_COUNT} cặp • Đích ${tournament.relayTargetScore} điểm`
+                  : `${tournament.title} • ${tournament.status} • Loại thi đấu: ${tournament.gameType}`;
+              }
+              setTabButtons(counts);
+              updateSummary(tournament, counts);
+
+              if(IS_RELAY && !HAS_AUTO_SELECTED_RELAY_TAB && tab === "SUCCESS" && Number(counts.success || 0) === 0 && Number(counts.waiting || 0) > 0){
+                HAS_AUTO_SELECTED_RELAY_TAB = true;
+                return load("WAITING");
+              }
+              if(IS_RELAY) HAS_AUTO_SELECTED_RELAY_TAB = true;
+
+              CACHE.items = items || [];
+              if(IS_RELAY){
+                CACHE.waiting = [];
+              } else {
+                const waitingRes = await axios.get(API_LIST, { params: { tab: "WAITING" } });
+                if(loadSequence !== LOAD_SEQUENCE) return;
+                CACHE.waiting = waitingRes.data.items || [];
+              }
+
+              applySearchFilter();
+            } catch(err){
+              if(loadSequence !== LOAD_SEQUENCE) return;
+              const message = err?.response?.data?.message || err?.message || "Không thể tải danh sách đăng ký.";
+              renderListError(message);
+            }
           }
 
           window.togglePaid = togglePaid;
           window.delReg = delReg;
           window.syncLevels = syncLevels;
           window.openPaymentInfo = openPaymentInfo;
-          window.confirmCashPayment = confirmCashPayment;
+          window.openCashPaymentConfirmation = openCashPaymentConfirmation;
           window.openCancelPaymentConfirmation = openCancelPaymentConfirmation;
           window.confirmCancelPayment = confirmCancelPayment;
 
@@ -2011,6 +3439,34 @@
             const title = $id("editTeamTitle");
             if(title) title.textContent = `Sửa đội ${reg.regCode || ""}`;
 
+            const standardEdit = $id("standardEditPlayers");
+            const relayEdit = $id("relayEditBlock");
+            const saveButton = $id("btnEditSubmit");
+            if(IS_RELAY){
+              standardEdit?.classList.add("d-none");
+              relayEdit?.classList.remove("d-none");
+              if($id("relayEditTeamName")){
+                $id("relayEditTeamName").value = reg.relayTeamName || "";
+                $id("relayEditTeamName").disabled = false;
+              }
+              if($id("relayEditCaptainId")){
+                $id("relayEditCaptainId").value = reg.relayCaptainUserId || "";
+                $id("relayEditCaptainId").disabled = false;
+              }
+              renderRelayMemberEditors("relayEditMembers", "edit", reg.relayMembers || [], false);
+              renderRelayReserveEditors("Edit", reg.relayReserveMembers || []);
+              saveButton?.classList.remove("d-none");
+              if(title) title.textContent = `Sửa đội tiếp sức ${reg.regCode || ""}`;
+              const note = $id("editTeamNote");
+              if(note) note.textContent = `Phải có đúng ${RELAY_TEAM_SIZE} VĐV. Thay đổi chỉ áp dụng cho các trận chưa bắt đầu chấm điểm.`;
+              $("#modalEditTeam").modal("show");
+              return;
+            }
+
+            standardEdit?.classList.remove("d-none");
+            relayEdit?.classList.add("d-none");
+            saveButton?.classList.remove("d-none");
+
             fillEditPlayer(1, reg, false);
 
             const hideP2 = TOURNAMENT_GAME_TYPE !== "DOUBLE" || !!reg.waitingPair;
@@ -2096,6 +3552,17 @@
             if(!EDITING_REG) throw new Error("Chưa chọn đội cần sửa.");
 
             const fd = new FormData();
+            if(IS_RELAY){
+              const teamName = String($id("relayEditTeamName")?.value || "").trim();
+              const captainId = String($id("relayEditCaptainId")?.value || "").trim();
+              if(!teamName) throw new Error("Vui lòng nhập tên đội tiếp sức.");
+              fd.append("relayTeamName", teamName);
+              if(captainId) fd.append("relayCaptainUserId", captainId);
+              fd.append("relayExpectedVersion", String(EDITING_REG.relayVersion || 0));
+              appendRelayMembers(fd, "edit");
+              return fd;
+            }
+
             appendEditPlayer(fd, 1, "player1");
 
             if(TOURNAMENT_GAME_TYPE === "DOUBLE" && !EDITING_REG.waitingPair){
@@ -2208,6 +3675,19 @@
           function buildFormData(){
             const fd = new FormData();
 
+            fd.append("paid", String(($id("paid")?.value || "false") === "true"));
+            fd.append("btCode", $id("btCode")?.value || "");
+
+            if(IS_RELAY){
+              const teamName = String($id("relayCreateTeamName")?.value || "").trim();
+              const captainId = String($id("relayCreateCaptainId")?.value || "").trim();
+              if(!teamName) throw new Error("Vui lòng nhập tên đội tiếp sức.");
+              fd.append("relayTeamName", teamName);
+              if(captainId) fd.append("relayCaptainUserId", captainId);
+              appendRelayMembers(fd, "create");
+              return fd;
+            }
+
             const gt = $id("gameType")?.value || "DOUBLE";
             let dm = $id("doubleMode")?.value || "PAIR";
 
@@ -2216,8 +3696,6 @@
 
             fd.append("gameType", gt);
             fd.append("waitingPair", String(waitingPair));
-            fd.append("paid", String(($id("paid")?.value || "false") === "true"));
-            fd.append("btCode", $id("btCode")?.value || "");
 
             const p1Type = $id("p1Type")?.value || "USER";
             if(p1Type === "USER"){
@@ -2264,29 +3742,60 @@
               return;
             }
 
+            document.addEventListener("click", (event) => {
+              const clear = event.target.closest("[data-relay-reserve-clear]");
+              if (clear) {
+                const prefix = clear.dataset.prefix, position = Number(clear.dataset.position);
+                $id(`${prefix}RelayUser${position}`).value = "";
+                $id(`${prefix}RelayName${position}`).value = "";
+                resetRelayUserCheck(prefix, position);
+                return;
+              }
+              const button = event.target.closest("[data-relay-user-check]");
+              if(!button) return;
+              checkRelayUser(button.dataset.prefix, Number(button.dataset.position));
+            });
+
+            document.addEventListener("input", (event) => {
+              const input = event.target.closest("[data-relay-user-input]");
+              if(!input) return;
+              resetRelayUserCheck(input.dataset.prefix, Number(input.dataset.position));
+            });
+
             on("tabSuccess","click", () => load("SUCCESS"));
             on("tabWaiting","click", () => load("WAITING"));
-            on("tabCapacity","click", () => alert("Số chỗ còn lại = Số đội dự kiến - Số đội đăng ký thành công."));
+            on("tabCapacity","click", () => alert(IS_RELAY
+              ? "Số chỗ còn lại = Số đội dự kiến - Tổng số đăng ký đội tiếp sức."
+              : "Số chỗ còn lại = Số đội dự kiến - Số đội đăng ký thành công."));
 
-            on("btnSearch","click", () => {
-              const key = ($id("q")?.value || "").trim().toLowerCase();
-              const body = $id("body");
-              if(!body) return;
-
-              const filtered = (CACHE.items || []).filter(x =>
-                (x.player1Name||"").toLowerCase().includes(key) ||
-                (x.player2Name||"").toLowerCase().includes(key) ||
-                (x.regCode||"").toLowerCase().includes(key)
-              );
-
-              body.innerHTML = filtered.length
-                ? filtered.map(rowHtml).join("")
-                : `<tr><td colspan="9" class="text-center text-muted">Không có kết quả</td></tr>`;
+            on("btnSearch", "click", applySearchFilter);
+            on("btnClearSearch", "click", () => {
+              const input = $id("q");
+              if(input) input.value = "";
+              applySearchFilter();
+              input?.focus();
+            });
+            on("q", "keydown", event => {
+              if(event.key !== "Enter") return;
+              event.preventDefault();
+              window.clearTimeout(SEARCH_TIMER);
+              applySearchFilter();
+            });
+            on("q", "input", () => {
+              window.clearTimeout(SEARCH_TIMER);
+              SEARCH_TIMER = window.setTimeout(applySearchFilter, 220);
             });
 
             on("btnOpenCreate","click", () => {
               clearCreateErr();
               $id("formCreate")?.reset();
+
+              if(IS_RELAY){
+                if($id("relayCreateTeamName")) $id("relayCreateTeamName").value = "";
+                if($id("relayCreateCaptainId")) $id("relayCreateCaptainId").value = "";
+                renderRelayMemberEditors("relayCreateMembers", "create", [], false);
+                renderRelayReserveEditors("Create", []);
+              }
 
               if($id("p1Type")) $id("p1Type").value = "USER";
               if($id("p2Type")) $id("p2Type").value = "USER";
@@ -2298,6 +3807,7 @@
 
               if($id("doubleMode")) $id("doubleMode").value = "PAIR";
               applyModeUI();
+              applyTournamentModeUI();
 
               $("#modalCreate").modal("show");
             });
@@ -2324,6 +3834,7 @@
             on("e2GuestAvatarFile","change", () => previewEditGuestAvatar(2));
 
             on("btnConfirmDeleteRegistration", "click", confirmDeleteRegistration);
+            on("btnConfirmCashPayment", "click", confirmCashPayment);
             on("btnCloseRegistrationNotice", "click", hideRegistrationNotice);
 
             $("#modalDeleteRegistration")
@@ -2336,6 +3847,22 @@
                 }
               })
               .on("hidden.bs.modal", resetDeleteRegistrationModal);
+
+            $("#modalCashPaymentConfirmation")
+              .on("shown.bs.modal", function(){
+                $id("btnCancelCashPayment")?.focus();
+              })
+              .on("hide.bs.modal", function(event){
+                if(CASH_PAYMENT_CONFIRMATION.submitting){
+                  event.preventDefault();
+                }
+              })
+              .on("hidden.bs.modal", function(){
+                resetCashPaymentConfirmation();
+                if($("#modalPaymentInfo").hasClass("show")){
+                  document.body.classList.add("modal-open");
+                }
+              });
 
             $("#modalPaymentInfo").on("hidden.bs.modal", cleanupActivePayment);
             $("#modalCancelPaymentConfirmation").on("hidden.bs.modal", function(){

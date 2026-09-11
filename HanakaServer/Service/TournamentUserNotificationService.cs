@@ -37,7 +37,9 @@ namespace HanakaServer.Services
                 || !match.Team1RegistrationId.HasValue
                 || !match.Team2RegistrationId.HasValue
                 || match.Team1Registration == null
-                || match.Team2Registration == null)
+                || match.Team2Registration == null
+                || match.Team1Registration.IsVirtualTeam
+                || match.Team2Registration.IsVirtualTeam)
             {
                 return;
             }

@@ -7,27 +7,43 @@ namespace HanakaServer.Services
 {
     public class PublicRealtimeHub
     {
+        private static readonly TimeSpan SendTimeout = TimeSpan.FromSeconds(3);
+
         private readonly ConcurrentDictionary<string, WebSocket> _sockets = new();
+        private readonly ConcurrentDictionary<string, SemaphoreSlim> _socketSendLocks = new();
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<long, byte>> _socketTournamentSubscriptions = new();
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<long, byte>> _socketMatchSubscriptions = new();
         private readonly ConcurrentDictionary<string, byte> _socketVideoFeedSubscriptions = new();
         private readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> _socketPaymentSubscriptions = new();
+        private readonly ILogger<PublicRealtimeHub> _logger;
 
         private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+
+        public PublicRealtimeHub(ILogger<PublicRealtimeHub> logger)
+        {
+            _logger = logger;
+        }
 
         public string AddSocket(WebSocket socket)
         {
             var socketId = Guid.NewGuid().ToString("N");
             _sockets[socketId] = socket;
+            _socketSendLocks[socketId] = new SemaphoreSlim(1, 1);
             _socketTournamentSubscriptions[socketId] = new ConcurrentDictionary<long, byte>();
             _socketMatchSubscriptions[socketId] = new ConcurrentDictionary<long, byte>();
             _socketPaymentSubscriptions[socketId] = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
             return socketId;
         }
 
+        public Task SendToSocketAsync(string socketId, object payload)
+        {
+            return SafeSendAsync(socketId, Serialize(payload), "direct", "socket.response");
+        }
+
         public async Task RemoveSocketAsync(string socketId)
         {
             _sockets.TryRemove(socketId, out _);
+            _socketSendLocks.TryRemove(socketId, out _);
             _socketTournamentSubscriptions.TryRemove(socketId, out _);
             _socketMatchSubscriptions.TryRemove(socketId, out _);
             _socketVideoFeedSubscriptions.TryRemove(socketId, out _);
@@ -107,9 +123,12 @@ namespace HanakaServer.Services
 
         public async Task BroadcastMatchScoreUpdatedAsync(long tournamentId, long matchId, object payload)
         {
+            var eventId = Guid.NewGuid().ToString("N");
             var bytes = Serialize(new
             {
                 type = "tournament.match.score.updated",
+                eventId,
+                occurredAt = DateTime.UtcNow,
                 payload
             });
 
@@ -136,13 +155,26 @@ namespace HanakaServer.Services
                 targetSocketIds.Add(socketId);
             }
 
-            foreach (var socketId in targetSocketIds)
+            await SendToSocketsAsync(targetSocketIds, bytes, eventId, "tournament.match.score.updated");
+        }
+
+        public async Task BroadcastBracketUpdatedAsync(long tournamentId, object payload)
+        {
+            var eventId = Guid.NewGuid().ToString("N");
+            var bytes = Serialize(new
             {
-                if (_sockets.TryGetValue(socketId, out var ws))
-                {
-                    await SafeSendAsync(ws, bytes);
-                }
-            }
+                type = "tournament.bracket.updated",
+                eventId,
+                occurredAt = DateTime.UtcNow,
+                payload
+            });
+
+            var targetSocketIds = _socketTournamentSubscriptions
+                .Where(pair => pair.Value.ContainsKey(tournamentId))
+                .Select(pair => pair.Key)
+                .ToArray();
+
+            await SendToSocketsAsync(targetSocketIds, bytes, eventId, "tournament.bracket.updated");
         }
 
         public async Task BroadcastTournamentPaymentStatusUpdatedAsync(string transactionCode, object payload)
@@ -153,24 +185,21 @@ namespace HanakaServer.Services
                 return;
             }
 
+            var eventId = Guid.NewGuid().ToString("N");
             var bytes = Serialize(new
             {
                 type = "tournament.payment.status.updated",
+                eventId,
+                occurredAt = DateTime.UtcNow,
                 payload
             });
 
-            foreach (var pair in _socketPaymentSubscriptions)
-            {
-                if (!pair.Value.ContainsKey(normalizedCode))
-                {
-                    continue;
-                }
+            var targetSocketIds = _socketPaymentSubscriptions
+                .Where(pair => pair.Value.ContainsKey(normalizedCode))
+                .Select(pair => pair.Key)
+                .ToArray();
 
-                if (_sockets.TryGetValue(pair.Key, out var ws))
-                {
-                    await SafeSendAsync(ws, bytes);
-                }
-            }
+            await SendToSocketsAsync(targetSocketIds, bytes, eventId, "tournament.payment.status.updated");
         }
 
         private static string NormalizeTransactionCode(string? value)
@@ -189,19 +218,81 @@ namespace HanakaServer.Services
             return Encoding.UTF8.GetBytes(json);
         }
 
-        private static async Task SafeSendAsync(WebSocket ws, byte[] bytes)
+        private Task SendToSocketsAsync(
+            IEnumerable<string> socketIds,
+            byte[] bytes,
+            string eventId,
+            string eventType)
         {
+            return Task.WhenAll(socketIds
+                .Distinct(StringComparer.Ordinal)
+                .Select(socketId => SafeSendAsync(socketId, bytes, eventId, eventType)));
+        }
+
+        private async Task SafeSendAsync(string socketId, byte[] bytes, string eventId, string eventType)
+        {
+            if (!_sockets.TryGetValue(socketId, out var ws)
+                || !_socketSendLocks.TryGetValue(socketId, out var sendLock))
+            {
+                return;
+            }
+
+            var lockTaken = false;
             try
             {
+                using var timeout = new CancellationTokenSource(SendTimeout);
+                await sendLock.WaitAsync(timeout.Token);
+                lockTaken = true;
+
                 if (ws.State != WebSocketState.Open)
                 {
                     return;
                 }
 
-                await ws.SendAsync(bytes, WebSocketMessageType.Text, true, CancellationToken.None);
+                await ws.SendAsync(bytes, WebSocketMessageType.Text, true, timeout.Token);
             }
-            catch
+            catch (OperationCanceledException)
             {
+                _logger.LogDebug(
+                    "Public realtime send timed out for event {EventType}/{EventId} on socket {SocketId}.",
+                    eventType,
+                    eventId,
+                    socketId);
+
+                try
+                {
+                    ws.Abort();
+                }
+                catch
+                {
+                }
+
+                await RemoveSocketAsync(socketId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Public realtime send failed for event {EventType}/{EventId} on socket {SocketId}.",
+                    eventType,
+                    eventId,
+                    socketId);
+
+                try
+                {
+                    ws.Abort();
+                }
+                catch
+                {
+                }
+
+                await RemoveSocketAsync(socketId);
+            }
+            finally
+            {
+                if (lockTaken)
+                {
+                    sendLock.Release();
+                }
             }
         }
     }

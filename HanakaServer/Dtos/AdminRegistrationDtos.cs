@@ -20,6 +20,12 @@ namespace HanakaServer.Dtos
         public string? Player2Name { get; set; }      // guest
         public decimal? Player2Level { get; set; }    // guest
         public IFormFile? Player2AvatarFile { get; set; }
+
+        // Relay team: one registration represents one complete 4/6/8-player team.
+        public string? RelayTeamName { get; set; }
+        public long? RelayCaptainUserId { get; set; }
+        public List<RelayRegistrationMemberForm> RelayMembers { get; set; } = [];
+        public List<RelayRegistrationMemberForm>? RelayReserveMembers { get; set; }
     }
  
     public class RegistrationItemDto
@@ -66,6 +72,21 @@ namespace HanakaServer.Dtos
         public string? Player2Name { get; set; }
         public decimal? Player2Level { get; set; }
         public IFormFile? Player2AvatarFile { get; set; }
+
+        public string? RelayTeamName { get; set; }
+        public long? RelayCaptainUserId { get; set; }
+        public long RelayExpectedVersion { get; set; }
+        public List<RelayRegistrationMemberForm> RelayMembers { get; set; } = [];
+        // Omitted = preserve. Multipart forms use the flag to explicitly clear all reserves.
+        public List<RelayRegistrationMemberForm>? RelayReserveMembers { get; set; }
+        public bool RelayReserveMembersIncluded { get; set; }
+    }
+
+    public class RelayRegistrationMemberForm
+    {
+        public int Position { get; set; }
+        public long? UserId { get; set; }
+        public string? DisplayName { get; set; }
     }
 
     public class PairWaitingDto
@@ -109,5 +130,39 @@ namespace HanakaServer.Dtos
         public bool WaitingPair { get; set; }
         public bool Success { get; set; }
         public DateTime CreatedAt { get; set; }
+
+        public bool IsRelay { get; set; }
+        public string? RelayTeamName { get; set; }
+        public long? RelayCaptainUserId { get; set; }
+        public int? RelayTeamSize { get; set; }
+        public int? RelayPairCount { get; set; }
+        public int RelayMemberCount { get; set; }
+        public bool RelayRosterComplete { get; set; }
+        public bool RelayIsReady { get; set; }
+        // Transitional fields retained for older clients. No write lock is enforced.
+        public bool RelayLineupLocked { get; set; }
+        public DateTimeOffset? RelayLineupLockedAtUtc { get; set; }
+        public long RelayVersion { get; set; }
+        public List<RelayRegistrationMemberDto> RelayMembers { get; set; } = [];
+        public List<RelayRegistrationReserveMemberDto> RelayReserveMembers { get; set; } = [];
+    }
+
+    public class RelayRegistrationReserveMemberDto
+    {
+        public int Position { get; set; }
+        public long? UserId { get; set; }
+        public string DisplayName { get; set; } = "";
+        public string? AvatarUrl { get; set; }
+        public decimal? RatingDouble { get; set; }
+    }
+
+    public class RelayRegistrationMemberDto
+    {
+        public int Position { get; set; }
+        public int PairNumber => (Position + 1) / 2;
+        public long? UserId { get; set; }
+        public string DisplayName { get; set; } = "";
+        public string? AvatarUrl { get; set; }
+        public decimal? RatingDouble { get; set; }
     }
 }

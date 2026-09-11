@@ -1320,6 +1320,8 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>window.HanakaApiLoading?.installAxios(window.axios);</script>
+    <script src="~/js/public-realtime.js" asp-append-version="true"></script>
     <script src="~/js/admin-tournament-bracket.js" asp-append-version="true"></script>
     <script src="~/js/admin-tournament-bracket-editor.js" asp-append-version="true"></script>
     <script>
@@ -1377,6 +1379,12 @@
             let BRACKET_VIEWER = null;
             let BRACKET_ZOOM = 0.82;
             let BRACKET_POPUP_NEEDS_RELOAD = false;
+            let SCORE_MODAL_BASELINE = null;
+            let SCORE_SAVE_BUSY = false;
+            let PENDING_REALTIME_RELOAD = false;
+            let REALTIME_RELOAD_TIMER = 0;
+            let REMOVE_REALTIME_LISTENER = null;
+            let LOAD_REQUEST_ID = 0;
 
             const esc = (s) => String(s || "")
                 .replaceAll("&", "&amp;")
@@ -3270,19 +3278,24 @@
                 box.innerHTML = items.map(cardHtml).join("");
             }
 
-            async function load() {
+            async function load(options = {}) {
                 hideErr();
+                const requestId = ++LOAD_REQUEST_ID;
+                const backgroundLoading = options.silent ? "silent" : undefined;
 
                 try {
                     const [res, regsRes, winnerSourceRes, loserSourceRes, sourceOptionsRes] = await Promise.all([
-                        axios.get(API),
+                        axios.get(API, { hanakaLoading: backgroundLoading }),
                         axios.get(API_REGS, {
-                            params: { tab: "SUCCESS" }
+                            params: { tab: "SUCCESS" },
+                            hanakaLoading: backgroundLoading
                         }),
-                        axios.get(API_WINNER_SOURCES),
-                        axios.get(API_LOSER_SOURCES),
-                        axios.get(API_SOURCE_OPTIONS)
+                        axios.get(API_WINNER_SOURCES, { hanakaLoading: backgroundLoading }),
+                        axios.get(API_LOSER_SOURCES, { hanakaLoading: backgroundLoading }),
+                        axios.get(API_SOURCE_OPTIONS, { hanakaLoading: backgroundLoading })
                     ]);
+
+                    if (requestId !== LOAD_REQUEST_ID) return;
 
                     CACHE.items = res.data?.items || [];
                     CACHE.regs = regsRes.data?.items || [];
@@ -3300,8 +3313,105 @@
 
                     render();
                 } catch (err) {
+                    if (requestId !== LOAD_REQUEST_ID) return;
                     showErr(err?.response?.data?.message || err?.message || "Tải dữ liệu thất bại.");
                 }
+            }
+
+            function captureScoreModalState() {
+                return {
+                    matchId: Number($id("scoreMatchId")?.value || 0),
+                    scoreTeam1: Number($id("score1")?.value || 0),
+                    scoreTeam2: Number($id("score2")?.value || 0),
+                    isCompleted: !!$id("isCompleted")?.checked
+                };
+            }
+
+            function isScoreModalDirty() {
+                if (!SCORE_MODAL_BASELINE || !$("#modalScore").hasClass("show")) return false;
+                const current = captureScoreModalState();
+                return current.matchId !== SCORE_MODAL_BASELINE.matchId
+                    || current.scoreTeam1 !== SCORE_MODAL_BASELINE.scoreTeam1
+                    || current.scoreTeam2 !== SCORE_MODAL_BASELINE.scoreTeam2
+                    || current.isCompleted !== SCORE_MODAL_BASELINE.isCompleted;
+            }
+
+            function applyRealtimeScore(payload) {
+                const matchId = Number(payload?.matchId || payload?.MatchId || 0);
+                const idx = (CACHE.items || []).findIndex(x => Number(x.matchId) === matchId);
+                if (idx < 0) return false;
+
+                const activeScoreMatchId = Number($id("scoreMatchId")?.value || 0);
+                const activeScoreModal = $("#modalScore").hasClass("show") && activeScoreMatchId === matchId;
+                if (activeScoreModal && (SCORE_SAVE_BUSY || isScoreModalDirty())) {
+                    PENDING_REALTIME_RELOAD = true;
+                    showFormErr(
+                        "Tỷ số vừa được cập nhật từ trọng tài. Dữ liệu bạn đang nhập được giữ nguyên; đóng hộp thoại để đồng bộ.",
+                        "scoreErr"
+                    );
+                    return false;
+                }
+
+                const match = CACHE.items[idx];
+                match.scoreTeam1 = Number(payload?.scoreTeam1 ?? payload?.ScoreTeam1 ?? 0);
+                match.scoreTeam2 = Number(payload?.scoreTeam2 ?? payload?.ScoreTeam2 ?? 0);
+                match.isCompleted = !!(payload?.isCompleted ?? payload?.IsCompleted);
+                match.winnerRegistrationId = payload?.winnerRegistrationId ?? payload?.WinnerRegistrationId ?? null;
+                match.winnerTeam = payload?.winnerTeam ?? payload?.WinnerTeam ?? null;
+                match.updatedAt = payload?.updatedAt ?? payload?.UpdatedAt ?? match.updatedAt;
+
+                if (activeScoreModal) {
+                    $id("score1").value = String(match.scoreTeam1);
+                    $id("score2").value = String(match.scoreTeam2);
+                    $id("isCompleted").checked = match.isCompleted;
+                    SCORE_MODAL_BASELINE = captureScoreModalState();
+                }
+
+                render();
+                return true;
+            }
+
+            function scheduleRealtimeReload() {
+                window.clearTimeout(REALTIME_RELOAD_TIMER);
+                REALTIME_RELOAD_TIMER = window.setTimeout(() => {
+                    if (SCORE_SAVE_BUSY || isScoreModalDirty()) {
+                        PENDING_REALTIME_RELOAD = true;
+                        return;
+                    }
+                    load({ silent: true });
+                }, 180);
+            }
+
+            function initRealtime() {
+                const realtime = window.HanakaPublicRealtime;
+                if (!realtime || TOURNAMENT_ID <= 0) return;
+
+                realtime.subscribeTournament(TOURNAMENT_ID);
+                REMOVE_REALTIME_LISTENER = realtime.on(event => {
+                    const type = String(event?.type || "");
+                    if (type === "__public_socket_open__" && event?.reconnected) {
+                        scheduleRealtimeReload();
+                        return;
+                    }
+
+                    const payload = event?.payload || {};
+                    if (Number(payload.tournamentId || payload.TournamentId || 0) !== TOURNAMENT_ID) return;
+
+                    if (type === "tournament.match.score.updated") {
+                        const eventGroupId = Number(payload.tournamentRoundGroupId || payload.TournamentRoundGroupId || 0);
+                        if (eventGroupId === GROUP_ID) applyRealtimeScore(payload);
+                    } else if (type === "tournament.bracket.updated") {
+                        scheduleRealtimeReload();
+                    }
+                });
+
+                window.addEventListener("pagehide", event => {
+                    if (event.persisted) return;
+                    window.clearTimeout(REALTIME_RELOAD_TIMER);
+                    REMOVE_REALTIME_LISTENER?.();
+                    REMOVE_REALTIME_LISTENER = null;
+                    realtime.unsubscribeTournament(TOURNAMENT_ID);
+                }, { once: true });
             }
 
             function resetMatchForm() {
@@ -3406,6 +3516,7 @@
                 $id("score1").value = String(m.scoreTeam1 ?? 0);
                 $id("score2").value = String(m.scoreTeam2 ?? 0);
                 $id("isCompleted").checked = !!m.isCompleted || true;
+                SCORE_MODAL_BASELINE = captureScoreModalState();
 
                 $("#modalScore").modal("show");
             };
@@ -3543,11 +3654,18 @@
                 const s2 = Number($id("score2").value || 0);
                 const completed = !!$id("isCompleted").checked;
 
+                SCORE_SAVE_BUSY = true;
                 try {
                     const res = await axios.put(`${API}/${matchId}/score`, {
                         scoreTeam1: s1,
                         scoreTeam2: s2,
                         isCompleted: completed
+                    }, {
+                        hanakaLoading: {
+                            mode: "section",
+                            target: "#modalScore .modal-content",
+                            message: "Đang lưu tỷ số..."
+                        }
                     });
 
                     $("#modalScore").modal("hide");
@@ -3568,6 +3686,8 @@
                         err?.response?.data?.message || err?.message || "Cập nhật tỷ số thất bại.",
                         "scoreErr"
                     );
+                } finally {
+                    SCORE_SAVE_BUSY = false;
                 }
             });
 
@@ -3779,6 +3899,13 @@
             };
 
             $("#modalMatch").on("hidden.bs.modal", closeTeamPicker);
+            $("#modalScore").on("hidden.bs.modal", () => {
+                SCORE_MODAL_BASELINE = null;
+                if (PENDING_REALTIME_RELOAD) {
+                    PENDING_REALTIME_RELOAD = false;
+                    scheduleRealtimeReload();
+                }
+            });
             $("#modalWinnerFilter").on("hidden.bs.modal", () => {
                 if (!REOPEN_MATCH_MODAL_AFTER_WINNER_FILTER) {
                     return;
@@ -3803,6 +3930,7 @@
             document.addEventListener("DOMContentLoaded", () => {
                 bindStartAtField();
                 syncStartAtPreview();
+                initRealtime();
                 load();
             });
         })();

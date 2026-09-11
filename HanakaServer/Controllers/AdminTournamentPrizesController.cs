@@ -74,6 +74,10 @@ namespace HanakaServer.Controllers
                 })
                 .ToListAsync();
 
+            await EnrichRelayRegistrationsAsync(
+                tournamentId,
+                items.Where(x => x.Registration != null).Select(x => x.Registration!).ToList());
+
             return Ok(new
             {
                 tournament,
@@ -100,7 +104,20 @@ namespace HanakaServer.Controllers
 
             var query = _db.TournamentRegistrations
                 .AsNoTracking()
-                .Where(x => x.TournamentId == tournamentId);
+                .Where(x => x.TournamentId == tournamentId && !x.IsVirtualTeam);
+
+            var relaySearchIds = new List<long>();
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var relayTerm = q.Trim();
+                relaySearchIds = await _db.RelayTeams.AsNoTracking()
+                    .Where(x => x.TournamentId == tournamentId
+                        && (x.TeamName.Contains(relayTerm)
+                            || _db.RelayTeamMembers.Any(m => m.RegistrationId == x.RegistrationId
+                                && m.DisplayName.Contains(relayTerm))))
+                    .Select(x => x.RegistrationId)
+                    .ToListAsync();
+            }
 
             if (registrationId.HasValue)
             {
@@ -114,6 +131,7 @@ namespace HanakaServer.Controllers
                 {
                     query = query.Where(x =>
                         x.RegistrationId == parsedId ||
+                        relaySearchIds.Contains(x.RegistrationId) ||
                         x.RegCode.Contains(q) ||
                         x.Player1Name.Contains(q) ||
                         (x.Player2Name != null && x.Player2Name.Contains(q)));
@@ -121,6 +139,7 @@ namespace HanakaServer.Controllers
                 else
                 {
                     query = query.Where(x =>
+                        relaySearchIds.Contains(x.RegistrationId) ||
                         x.RegCode.Contains(q) ||
                         x.Player1Name.Contains(q) ||
                         (x.Player2Name != null && x.Player2Name.Contains(q)));
@@ -145,6 +164,16 @@ namespace HanakaServer.Controllers
                     Success = x.Success
                 })
                 .ToListAsync();
+
+            await EnrichRelayRegistrationsAsync(tournamentId, items);
+
+            var relaySettings = await _db.RelayTournamentSettings.AsNoTracking()
+                .SingleOrDefaultAsync(x => x.TournamentId == tournamentId);
+            if (relaySettings != null)
+            {
+                items = items.Where(x => x.IsRelay
+                    && x.RelayMemberCount == relaySettings.TeamSize).ToList();
+            }
 
             return Ok(new { items });
         }
@@ -229,6 +258,12 @@ namespace HanakaServer.Controllers
             var registrationMap = await _db.TournamentRegistrations
                 .Where(x => x.TournamentId == tournamentId && registrationIds.Contains(x.RegistrationId))
                 .ToDictionaryAsync(x => x.RegistrationId, x => x);
+            var relayUserIds = (await _db.RelayTeamMembers.AsNoTracking()
+                    .Where(x => registrationIds.Contains(x.RegistrationId) && x.UserId.HasValue)
+                    .Select(x => new { x.RegistrationId, UserId = x.UserId!.Value })
+                    .ToListAsync())
+                .GroupBy(x => x.RegistrationId)
+                .ToDictionary(x => x.Key, x => x.Select(member => member.UserId).Distinct().ToList());
 
             var gameType = (tournament.GameType ?? string.Empty).Trim().ToUpperInvariant();
             var isDoubleTournament = gameType == "DOUBLE" || gameType == "MIXED";
@@ -286,12 +321,7 @@ namespace HanakaServer.Controllers
                 if (!item.RegistrationId.HasValue) continue;
                 if (!registrationMap.TryGetValue(item.RegistrationId.Value, out var reg)) continue;
 
-                var userIds = new List<long>();
-                if (reg.Player1UserId.HasValue) userIds.Add(reg.Player1UserId.Value);
-                if (reg.Player2UserId.HasValue && reg.Player2UserId.Value != reg.Player1UserId)
-                    userIds.Add(reg.Player2UserId.Value);
-
-                foreach (var userId in userIds.Distinct())
+                foreach (var userId in GetAwardUserIds(reg, relayUserIds).Distinct())
                 {
                     var key = $"{userId}_{tournamentId}_{item.PrizeType}";
                     if (!uniqueAchievementKeys.Add(key)) continue;
@@ -332,11 +362,7 @@ namespace HanakaServer.Controllers
                     if (!registrationMap.TryGetValue(x.RegistrationId!.Value, out var reg))
                         return Enumerable.Empty<long>();
 
-                    var ids = new List<long>();
-                    if (reg.Player1UserId.HasValue) ids.Add(reg.Player1UserId.Value);
-                    if (reg.Player2UserId.HasValue && reg.Player2UserId.Value != reg.Player1UserId)
-                        ids.Add(reg.Player2UserId.Value);
-                    return ids.Distinct();
+                    return GetAwardUserIds(reg, relayUserIds).Distinct();
                 })
                 .Distinct()
                 .ToList();
@@ -392,12 +418,7 @@ namespace HanakaServer.Controllers
 
                 if (addExp <= 0) continue;
 
-                var userIds = new List<long>();
-                if (reg.Player1UserId.HasValue) userIds.Add(reg.Player1UserId.Value);
-                if (reg.Player2UserId.HasValue && reg.Player2UserId.Value != reg.Player1UserId)
-                    userIds.Add(reg.Player2UserId.Value);
-
-                foreach (var userId in userIds.Distinct())
+                foreach (var userId in GetAwardUserIds(reg, relayUserIds).Distinct())
                 {
                     var current = currentRatings[userId];
 
@@ -572,7 +593,9 @@ namespace HanakaServer.Controllers
             if (assignedIds.Any())
             {
                 var validIds = await _db.TournamentRegistrations
-                    .Where(x => x.TournamentId == tournamentId && assignedIds.Contains(x.RegistrationId))
+                    .Where(x => x.TournamentId == tournamentId
+                                && !x.IsVirtualTeam
+                                && assignedIds.Contains(x.RegistrationId))
                     .Select(x => x.RegistrationId)
                     .ToListAsync();
 
@@ -584,9 +607,75 @@ namespace HanakaServer.Controllers
                         message = $"Đội #{invalidId} không thuộc giải đấu này hoặc không tồn tại."
                     }));
                 }
+
+                var relaySettings = await _db.RelayTournamentSettings.AsNoTracking()
+                    .SingleOrDefaultAsync(x => x.TournamentId == tournamentId);
+                if (relaySettings != null)
+                {
+                    var readyRelayIds = await _db.RelayTeams.AsNoTracking()
+                        .Where(x => assignedIds.Contains(x.RegistrationId)
+                            && _db.RelayTeamMembers.Count(m => m.RegistrationId == x.RegistrationId)
+                                == relaySettings.TeamSize
+                            && !_db.RelayTeamMembers.Any(m => m.RegistrationId == x.RegistrationId
+                                && (m.Position < 1 || m.Position > relaySettings.TeamSize
+                                    || m.DisplayName.Trim() == "")))
+                        .Select(x => x.RegistrationId)
+                        .ToListAsync();
+                    var invalidRelayId = assignedIds.FirstOrDefault(x => !readyRelayIds.Contains(x));
+                    if (invalidRelayId != 0)
+                    {
+                        return ValidateResult.Fail(BadRequest(new
+                        {
+                            message = $"Đội #{invalidRelayId} phải đủ {relaySettings.TeamSize} vận động viên hợp lệ trước khi nhận giải."
+                        }));
+                    }
+                }
             }
 
             return ValidateResult.Ok();
+        }
+
+        private async Task EnrichRelayRegistrationsAsync(
+            long tournamentId,
+            IReadOnlyCollection<TournamentRegistrationLookupDto> registrations)
+        {
+            if (registrations.Count == 0) return;
+            var relayTeamSize = await _db.RelayTournamentSettings.AsNoTracking()
+                .Where(x => x.TournamentId == tournamentId)
+                .Select(x => (int?)x.TeamSize)
+                .SingleOrDefaultAsync();
+            var ids = registrations.Select(x => x.RegistrationId).ToArray();
+            var teams = await _db.RelayTeams.AsNoTracking().Include(x => x.Members)
+                .Where(x => x.TournamentId == tournamentId && ids.Contains(x.RegistrationId))
+                .ToDictionaryAsync(x => x.RegistrationId);
+            foreach (var registration in registrations)
+            {
+                if (!teams.TryGetValue(registration.RegistrationId, out var team)) continue;
+                registration.IsRelay = true;
+                registration.RelayTeamName = team.TeamName;
+                registration.RelayLineupLocked = relayTeamSize.HasValue
+                    && team.Members.Count == relayTeamSize.Value
+                    && team.Members.OrderBy(x => x.Position).Select(x => x.Position)
+                        .SequenceEqual(Enumerable.Range(1, relayTeamSize.Value))
+                    && team.Members.All(x => !string.IsNullOrWhiteSpace(x.DisplayName));
+                registration.RelayMemberCount = team.Members.Count;
+                registration.RelayMembers = team.Members.OrderBy(x => x.Position)
+                    .Select(x => x.DisplayName).ToList();
+            }
+        }
+
+        private static IEnumerable<long> GetAwardUserIds(
+            TournamentRegistration registration,
+            IReadOnlyDictionary<long, List<long>> relayUserIds)
+        {
+            if (relayUserIds.TryGetValue(registration.RegistrationId, out var teamUserIds))
+                return teamUserIds;
+
+            var result = new List<long>();
+            if (registration.Player1UserId.HasValue) result.Add(registration.Player1UserId.Value);
+            if (registration.Player2UserId.HasValue && registration.Player2UserId.Value != registration.Player1UserId)
+                result.Add(registration.Player2UserId.Value);
+            return result;
         }
 
         private static string NormalizePrizeType(string? value)
@@ -648,6 +737,11 @@ namespace HanakaServer.Controllers
         public decimal Points { get; set; }
         public bool Paid { get; set; }
         public bool Success { get; set; }
+        public bool IsRelay { get; set; }
+        public string? RelayTeamName { get; set; }
+        public List<string> RelayMembers { get; set; } = [];
+        public bool RelayLineupLocked { get; set; }
+        public int RelayMemberCount { get; set; }
     }
 
     public class ValidateResult

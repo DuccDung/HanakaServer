@@ -44,7 +44,7 @@
     border-radius: 14px;
     box-shadow: 0 8px 28px rgba(18, 38, 73, .06);
 }
-.bt-filter-card { display: grid; gap: .75rem; grid-template-columns: minmax(260px, 1fr) 220px 190px auto; margin-bottom: 1rem; padding: 1rem; }
+.bt-filter-card { display: grid; gap: .75rem; grid-template-columns: minmax(220px, 1fr) 205px 205px 175px auto; margin-bottom: 1rem; padding: 1rem; }
 .bt-search-wrap { position: relative; }
 .bt-search-wrap i { color: #98a2b3; left: .9rem; position: absolute; top: .78rem; }
 .bt-search-wrap .form-control { padding-left: 2.45rem; }
@@ -65,6 +65,8 @@
 .bt-table small { color: var(--bt-muted); display: block; line-height: 1.35; margin-top: .25rem; max-width: 250px; }
 .bt-format { align-items: center; display: inline-flex; gap: .4rem; }
 .bt-format i { color: #687fd0; }
+.bt-participant { align-items: center; background: #f1f4f9; border-radius: 999px; color: #536078; display: inline-flex; font-size: .72rem; font-weight: 700; gap: .38rem; padding: .3rem .55rem; white-space: nowrap; }
+.bt-participant--relay { background: #e8f8f4; color: #087c68; }
 .bt-status { align-items: center; border-radius: 999px; display: inline-flex; font-size: .72rem; font-weight: 700; gap: .4rem; padding: .3rem .55rem; white-space: nowrap; }
 .bt-status i { background: currentColor; border-radius: 50%; height: 6px; width: 6px; }
 .bt-status--draft { background: #fff7e6; color: #a15c05; }

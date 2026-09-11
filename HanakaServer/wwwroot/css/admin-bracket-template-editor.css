@@ -6,6 +6,12 @@
 .bte-toolbar h1 { font-size: 1.1rem; font-weight: 800; margin: .14rem 0 0; }
 .bte-kicker { align-items: center; color: #667085; display: flex; font-size: .7rem; gap: .5rem; }
 .bte-kicker code { background: #edf1ff; border-radius: 5px; color: #3953ad; padding: .12rem .3rem; }
+.bte-relay-badge { align-items: center; background: #e8f8f4; border: 1px solid #b8e6da; border-radius: 999px; color: #087c68; display: inline-flex; font-size: .68rem; font-weight: 800; gap: .35rem; margin-left: .5rem; padding: .3rem .55rem; vertical-align: middle; }
+.bte-relay-notice { align-items: flex-start; background: linear-gradient(100deg,#ecfbf7,#f4f8ff); border: 1px solid #b9e6db; border-radius: 11px; color: #245d54; display: flex; gap: .65rem; margin-bottom: .8rem; padding: .7rem .9rem; }
+.bte-relay-notice > i { color: #0e9384; margin-top: .18rem; }
+.bte-relay-notice strong, .bte-relay-notice span { display: block; }
+.bte-relay-notice strong { font-size: .78rem; }
+.bte-relay-notice span { color: #54746f; font-size: .7rem; margin-top: .12rem; }
 .bte-toolbar .btn { border-radius: 9px; font-size: .8rem; font-weight: 700; }
 .bte-save-state { align-items: center; color: #667085; display: inline-flex; font-size: .75rem; gap: .38rem; margin-right: .4rem; }
 .bte-save-state i { background: #13a474; border-radius: 50%; height: 7px; width: 7px; }

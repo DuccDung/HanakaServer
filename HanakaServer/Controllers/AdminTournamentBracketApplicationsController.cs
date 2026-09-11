@@ -24,9 +24,10 @@ public sealed class AdminTournamentBracketApplicationsController : ControllerBas
     }
 
     [HttpGet("templates")]
-    public async Task<IActionResult> Templates(long tournamentId, CancellationToken ct)
+    public async Task<IActionResult> Templates(long tournamentId, CancellationToken ct,
+        [FromQuery] bool excludeUnpaidTeams = false)
     {
-        var items = await _service.GetApplicableTemplatesAsync(tournamentId, ct);
+        var items = await _service.GetApplicableTemplatesAsync(tournamentId, ct, excludeUnpaidTeams);
         return Ok(new { items });
     }
 
@@ -34,7 +35,8 @@ public sealed class AdminTournamentBracketApplicationsController : ControllerBas
     public async Task<IActionResult> EligibleRegistrations(long tournamentId, CancellationToken ct)
     {
         var result = await _service.GetEligibleRegistrationsAsync(tournamentId, ct);
-        return ToActionResult(result);
+        if (!result.Success) return ToActionResult(result);
+        return Ok(new { data = result.Data!.Items, result.Data.RegistrationFeeAmount, result.Message });
     }
 
     [HttpPost("registration-lock")]
@@ -117,11 +119,12 @@ public sealed class AdminTournamentBracketApplicationsController : ControllerBas
         if (result.Success)
             return created ? StatusCode(StatusCodes.Status201Created, new { data = result.Data, result.Message }) : Ok(new { data = result.Data, result.Message });
 
-        var payload = new { code = result.ErrorCode, message = result.Message };
+        var payload = new { code = result.ErrorCode, message = result.Message, issues = result.Issues };
         return result.ErrorCode switch
         {
             "TOURNAMENT_NOT_FOUND" or "VERSION_NOT_FOUND" or "APPLICATION_NOT_FOUND" => NotFound(payload),
-            "ACTIVE_APPLICATION_EXISTS" or "RUNTIME_STRUCTURE_EXISTS" or "TOURNAMENT_ALREADY_STARTED" or "PREVIEW_CHANGED" => Conflict(payload),
+            "ACTIVE_APPLICATION_EXISTS" or "RUNTIME_STRUCTURE_EXISTS" or "TOURNAMENT_ALREADY_STARTED" or "PREVIEW_CHANGED"
+                or "TEMPLATE_PARTICIPANT_MODE_MISMATCH" => Conflict(payload),
             _ => BadRequest(payload)
         };
     }

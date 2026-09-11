@@ -175,7 +175,7 @@ namespace HanakaServer.Controllers
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                return new EmptyResult();
+                throw;
             }
 
             if (user == null)

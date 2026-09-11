@@ -192,11 +192,12 @@
         }
     }
 
-    async function fetchJson(url) {
+    async function fetchJson(url, loading) {
         var response = await fetch(url, {
             headers: { Accept: "application/json" },
             credentials: "same-origin",
-            cache: "no-store"
+            cache: "no-store",
+            hanakaLoading: loading === undefined ? "silent" : loading
         });
 
         if (!response.ok) {
@@ -217,6 +218,11 @@
         }, options && options.body ? {
             "Content-Type": "application/json"
         } : {}, options && options.headers ? options.headers : {});
+
+        if (!Object.prototype.hasOwnProperty.call(init, "hanakaLoading")
+            && String(init.method || "GET").toUpperCase() === "GET") {
+            init.hanakaLoading = "silent";
+        }
 
         var response = await fetch(url, init);
         var contentType = response.headers.get("content-type") || "";
@@ -1229,7 +1235,7 @@
         window.addEventListener(NOTIFICATION_CENTER_EVENT, notificationCenter.onNotificationChange);
         document.addEventListener("visibilitychange", notificationCenter.onVisibilityChange);
 
-        fetchJson("/api/web-auth/me")
+        window.HanakaWebSession.read({ hanakaLoading: "silent" })
             .then(function (session) {
                 notificationCenter.authenticated = !!(session && session.isAuthenticated);
 
@@ -1271,8 +1277,7 @@
                 syncNotificationCenter({ allowPopup: true });
             })
             .catch(function () {
-                notificationCenter.authenticated = false;
-                setNotificationBellCount(0);
+                // Leave the last confirmed session and notification count intact.
             });
 
         window.addEventListener("pagehide", function () {
@@ -1522,6 +1527,10 @@
     }
 
     function addPublicRealtimeListener(listener) {
+        if (window.HanakaPublicRealtime) {
+            return window.HanakaPublicRealtime.on(listener);
+        }
+
         if (typeof listener !== "function") {
             return function () { };
         }
@@ -1535,6 +1544,10 @@
     }
 
     function sendPublicRealtime(payload) {
+        if (window.HanakaPublicRealtime) {
+            return window.HanakaPublicRealtime.send(payload);
+        }
+
         if (!publicPageRealtime.ws || publicPageRealtime.ws.readyState !== WebSocket.OPEN) {
             connectPublicRealtime();
             return false;
@@ -1566,6 +1579,11 @@
     }
 
     function connectPublicRealtime() {
+        if (window.HanakaPublicRealtime) {
+            window.HanakaPublicRealtime.connect();
+            return true;
+        }
+
         if (!("WebSocket" in window)) {
             return false;
         }
@@ -1622,6 +1640,11 @@
     }
 
     function subscribeVideosFeedRealtime() {
+        if (window.HanakaPublicRealtime) {
+            window.HanakaPublicRealtime.subscribeVideos();
+            return true;
+        }
+
         publicPageRealtime.videosSubscribed = true;
         connectPublicRealtime();
         return sendPublicRealtime({ type: "videos.subscribe" });
@@ -1631,6 +1654,11 @@
         var id = Number(matchId);
         if (!Number.isFinite(id) || id <= 0) {
             return false;
+        }
+
+        if (window.HanakaPublicRealtime) {
+            window.HanakaPublicRealtime.subscribeMatch(id);
+            return true;
         }
 
         publicPageRealtime.matchSubscriptions[String(id)] = true;
@@ -1879,7 +1907,7 @@
             '<div class="native-club-card__stats">',
             '<span>Trận: ' + escapeHtml(item.matchesPlayed || 0) + "</span>",
             '<span>Thắng: ' + escapeHtml(item.matchesWin || 0) + "</span>",
-            '<span>Hoa: ' + escapeHtml(item.matchesDraw || 0) + "</span>",
+            '<span>Hòa: ' + escapeHtml(item.matchesDraw || 0) + "</span>",
             '<span>Thua: ' + escapeHtml(item.matchesLoss || 0) + "</span>",
             "</div>",
             '<div class="native-club-card__actions">',
@@ -1925,7 +1953,7 @@
 
         function imageMarkup(url) {
             return url
-                ? '<img class="native-court-card__image" src="' + escapeHtml(url) + '" alt="' + escapeHtml(item.courtName || "San") + '" loading="lazy">'
+                ? '<img class="native-court-card__image" src="' + escapeHtml(url) + '" alt="' + escapeHtml(item.courtName || "Sân") + '" loading="lazy">'
                 : '<div class="native-court-card__image native-court-card__image--fallback"><ion-icon name="image-outline"></ion-icon></div>';
         }
 
@@ -2013,7 +2041,7 @@
             '<div class="native-exchange-card__stats">',
             '<div><strong>' + escapeHtml(item.matchesPlayed || 0) + '</strong><span>Trận</span></div>',
             '<div><strong>' + escapeHtml(item.matchesWin || 0) + '</strong><span>Thắng</span></div>',
-            '<div><strong>' + escapeHtml(item.matchesDraw || 0) + '</strong><span>Hoa</span></div>',
+            '<div><strong>' + escapeHtml(item.matchesDraw || 0) + '</strong><span>Hòa</span></div>',
             '<div><strong>' + escapeHtml(item.matchesLoss || 0) + '</strong><span>Thua</span></div>',
             "</div>",
             '<a class="native-exchange-card__detail" href="/PickleballWeb/Club/' + escapeHtml(item.clubId) + '">Xem chi tiết</a>',
@@ -2223,9 +2251,14 @@
 
         async function refreshSession() {
             try {
-                state.session = await requestJson("/api/web-auth/me", { method: "GET" });
-            } catch (_error) {
-                state.session = { isAuthenticated: false };
+                state.session = await window.HanakaWebSession.read();
+                return true;
+            } catch (error) {
+                if (!window.HanakaWebSession.isAborted(error)) {
+                    state.error = window.HanakaWebSession.unavailableMessage;
+                    render();
+                }
+                return false;
             }
         }
 
@@ -2252,7 +2285,7 @@
             }
 
             if (!(state.session && state.session.isAuthenticated)) {
-                await refreshSession();
+                if (!await refreshSession()) return;
             }
 
             if (!(state.session && state.session.isAuthenticated)) {
@@ -2301,7 +2334,7 @@
             }
 
             if (!(state.session && state.session.isAuthenticated)) {
-                await refreshSession();
+                if (!await refreshSession()) return;
             }
 
             if (!(state.session && state.session.isAuthenticated)) {
@@ -2656,7 +2689,7 @@
             '<div class="native-inline-filter"><span data-native-filter-text>Tất cả giải đấu</span></div>',
             '<div class="native-tabs">',
             '<button class="native-tabs__item is-active" type="button" data-native-tab="ongoing">Đang</button>',
-            '<button class="native-tabs__item" type="button" data-native-tab="finished">Ket thuc</button>',
+            '<button class="native-tabs__item" type="button" data-native-tab="finished">Kết thúc</button>',
             "</div>"
         ].join(""));
         renderEmptyState(refs, "Không có giải đấu nào");
@@ -2910,7 +2943,7 @@
             '<label class="native-match-filter__date"><ion-icon name="calendar-clear-outline"></ion-icon><span data-match-to-label>Đến ngày</span><input type="date" data-match-to-input></label>',
             '</div>',
             '<div class="native-match-filter__actions">',
-            '<button class="native-match-filter__clear" type="button" data-match-clear><ion-icon name="refresh-outline"></ion-icon><span>Dat lai</span></button>',
+            '<button class="native-match-filter__clear" type="button" data-match-clear><ion-icon name="refresh-outline"></ion-icon><span>Đặt lại</span></button>',
             '<button class="native-match-filter__apply" type="button" data-match-apply><ion-icon name="funnel-outline"></ion-icon><span>Lọc dữ liệu</span></button>',
             '</div>',
             '</div>'
@@ -3130,7 +3163,7 @@
             '<p class="native-notification-card__line"><strong>Đối thủ:</strong> ' + escapeHtml(buildNotificationOpponentText(item)) + "</p>",
             '<p class="native-notification-card__line"><strong>Thời gian:</strong> ' + escapeHtml(startAtText) + "</p>",
             '<p class="native-notification-card__line"><strong>Địa điểm:</strong> ' + escapeHtml(addressText) + "</p>",
-            '<p class="native-notification-card__line"><strong>San:</strong> ' + escapeHtml(courtText) + "</p>",
+            '<p class="native-notification-card__line"><strong>Sân:</strong> ' + escapeHtml(courtText) + "</p>",
             '<p class="native-notification-card__time">' + escapeHtml(startAtText) + "</p>",
             "</article>"
         ].join("");
@@ -3389,12 +3422,12 @@
             '<section class="native-settings-section">',
             '<h2 class="native-settings-section__title">An toàn cộng đồng</h2>',
             renderSettingsRow({
-                label: "Dieu khoan, moderation va block list",
+                label: "Điều khoản, kiểm duyệt và danh sách chặn",
                 icon: "shield-checkmark-outline",
                 href: "/PickleballWeb/CommunitySafety"
             }),
             renderSettingsRow({
-                label: "Chinh sach quyen rieng tu",
+                label: "Chính sách quyền riêng tư",
                 icon: "document-text-outline",
                 href: "https://hanakasport.click/policy/index"
             }),
@@ -3403,7 +3436,7 @@
             '<div class="native-settings-divider"></div>',
             '<section class="native-settings-section">',
             '<h2 class="native-settings-section__title">Thông tin ứng dụng</h2>',
-            '<p class="native-settings-version">Phien ban: 1.0.0</p>',
+            '<p class="native-settings-version">Phiên bản: 1.0.0</p>',
             "</section>"
         ].join("");
     }
@@ -3737,7 +3770,7 @@
             render();
 
             try {
-                var session = await fetchJson("/api/web-auth/me");
+                var session = await window.HanakaWebSession.read();
                 if (!(session && session.isAuthenticated)) {
                     state.authRequired = true;
                     state.pairItems = [];
@@ -4183,8 +4216,8 @@
             "</label>",
             '<div class="native-tabs native-tabs--video">',
             '<button class="native-tabs__item is-active" type="button" data-video-tab="all">Tất cả</button>',
-            '<button class="native-tabs__item" type="button" data-video-tab="suggested">De xuat</button>',
-            '<button class="native-tabs__item" type="button" data-video-tab="live">Hom nay</button>',
+            '<button class="native-tabs__item" type="button" data-video-tab="suggested">Đề xuất</button>',
+            '<button class="native-tabs__item" type="button" data-video-tab="live">Hôm nay</button>',
             "</div>",
             "</div>"
         ].join(""));
@@ -4337,11 +4370,13 @@
             applyRealtimeScoreUpdate(payload);
         });
 
-        window.addEventListener("pagehide", function () {
+        window.addEventListener("pagehide", function (event) {
+            if (event.persisted) return;
             if (removePublicRealtimeListener) {
                 removePublicRealtimeListener();
                 removePublicRealtimeListener = null;
             }
+            window.HanakaPublicRealtime?.unsubscribeVideos();
         }, { once: true });
 
         load(true);
@@ -4356,7 +4391,7 @@
             '<strong>' + escapeHtml(title || "Không mở được video trong web") + "</strong>",
             "<p>Video này cần mở bằng trình duyệt ngoài hoặc dịch vụ video gốc.</p>",
             videoUrl
-                ? '<a class="native-video-player__external" href="' + escapeHtml(buildSafeHref(videoUrl, "#")) + '" target="_blank" rel="noreferrer">Mo video ben ngoai</a>'
+                ? '<a class="native-video-player__external" href="' + escapeHtml(buildSafeHref(videoUrl, "#")) + '" target="_blank" rel="noreferrer">Mở video bên ngoài</a>'
                 : '<button class="native-video-player__external is-disabled" type="button" disabled>Không có video</button>',
             "</div>",
             "</div>"
@@ -4445,7 +4480,7 @@
                 setHeaderTitle(root, trimToEmpty(tournament && tournament.title) || "Xem video");
                 setHeaderAction(root, videoUrl ? {
                     className: "native-page-header__action--video-status",
-                    html: '<ion-icon name="open-outline"></ion-icon><span>Mo video</span>',
+                    html: '<ion-icon name="open-outline"></ion-icon><span>Mở video</span>',
                     ariaLabel: "Mở video trận đấu",
                     onClick: function () {
                         window.open(buildSafeHref(videoUrl, "#"), "_blank", "noopener");
@@ -4478,9 +4513,9 @@
                     "</div>",
                     '<div class="native-video-meta__info">',
                     formatDateTime(match && match.startAt) ? '<div><small>Thời gian</small><strong>' + escapeHtml(formatDateTime(match.startAt)) + "</strong></div>" : "",
-                    trimToEmpty(match && match.courtText) ? '<div><small>San</small><strong>' + escapeHtml(match.courtText) + "</strong></div>" : "",
+                    trimToEmpty(match && match.courtText) ? '<div><small>Sân</small><strong>' + escapeHtml(match.courtText) + "</strong></div>" : "",
                     trimToEmpty(match && match.addressText) ? '<div><small>Địa điểm</small><strong>' + escapeHtml(match.addressText) + "</strong></div>" : "",
-                    videoUrl ? '<div><small>Video</small><strong><a href="' + escapeHtml(buildSafeHref(videoUrl, "#")) + '" target="_blank" rel="noreferrer">Mo lien ket goc</a></strong></div>' : "",
+                    videoUrl ? '<div><small>Video</small><strong><a href="' + escapeHtml(buildSafeHref(videoUrl, "#")) + '" target="_blank" rel="noreferrer">Mở liên kết gốc</a></strong></div>' : "",
                     "</div>",
                     '<div class="native-video-meta__teams">',
                     renderVideoTeamSummary(match && match.team1, match && match.scoreTeam1, ["1", "TEAM1"].indexOf(trimToEmpty(match && match.winnerTeam).toUpperCase()) >= 0),
@@ -4527,12 +4562,14 @@
             });
         }
 
-        window.addEventListener("pagehide", function () {
+        window.addEventListener("pagehide", function (event) {
+            if (event.persisted) return;
             window.clearTimeout(refreshTimer);
             if (removePublicRealtimeListener) {
                 removePublicRealtimeListener();
                 removePublicRealtimeListener = null;
             }
+            window.HanakaPublicRealtime?.unsubscribeMatch(matchId);
         }, { once: true });
 
         load();
@@ -4731,7 +4768,8 @@
             try {
                 var payload = await requestJson("/api/clubs/chat-rooms?page=1&pageSize=50", {
                     method: "GET",
-                    headers: { Accept: "application/json" }
+                    headers: { Accept: "application/json" },
+                    hanakaLoading: silent ? "silent" : undefined
                 });
 
                 state.items = Array.isArray(payload && payload.items) ? payload.items : [];
@@ -4767,7 +4805,7 @@
             render();
 
             try {
-                var session = await requestJson("/api/web-auth/me", {
+                var session = await window.HanakaWebSession.read({
                     method: "GET",
                     headers: { Accept: "application/json" }
                 });
@@ -5013,20 +5051,22 @@
             });
         }
 
-        async function refreshDirectRooms() {
+        async function refreshDirectRooms(silent) {
             var payload = await requestJson("/api/direct-chats/rooms?page=1&pageSize=50", {
                 method: "GET",
-                headers: { Accept: "application/json" }
+                headers: { Accept: "application/json" },
+                hanakaLoading: silent ? "silent" : undefined
             });
 
             state.directRooms = Array.isArray(payload && payload.items) ? payload.items : [];
             syncDirectSubscriptions();
         }
 
-        async function refreshClubRooms() {
+        async function refreshClubRooms(silent) {
             var payload = await requestJson("/api/clubs/chat-rooms?page=1&pageSize=50", {
                 method: "GET",
-                headers: { Accept: "application/json" }
+                headers: { Accept: "application/json" },
+                hanakaLoading: silent ? "silent" : undefined
             });
 
             state.clubRooms = Array.isArray(payload && payload.items) ? payload.items : [];
@@ -5048,8 +5088,8 @@
 
             try {
                 await Promise.all([
-                    refreshDirectRooms(),
-                    refreshClubRooms()
+                    refreshDirectRooms(silent),
+                    refreshClubRooms(silent)
                 ]);
             } catch (_error) {
                 if (!silent) {
@@ -5162,7 +5202,7 @@
             render();
 
             try {
-                var session = await requestJson("/api/web-auth/me", {
+                var session = await window.HanakaWebSession.read({
                     method: "GET",
                     headers: { Accept: "application/json" }
                 });
@@ -5933,7 +5973,7 @@
                 });
 
                 window.alert(payload && payload.developerNotified
-                    ? "Báo cáo đã được gửi tới moderation."
+                    ? "Báo cáo đã được gửi tới bộ phận kiểm duyệt."
                     : "Báo cáo đã được ghi nhận.");
             } catch (error) {
                 window.alert(error.message || "Không gửi được báo cáo.");
@@ -6062,7 +6102,7 @@
             render();
 
             try {
-                var session = await requestJson("/api/web-auth/me", {
+                var session = await window.HanakaWebSession.read({
                     method: "GET",
                     headers: { Accept: "application/json" }
                 });
@@ -6605,7 +6645,7 @@
             render();
 
             try {
-                var session = await requestJson("/api/web-auth/me", {
+                var session = await window.HanakaWebSession.read({
                     method: "GET",
                     headers: { Accept: "application/json" }
                 });

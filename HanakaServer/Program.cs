@@ -1,9 +1,11 @@
 ﻿using HanakaServer.Data;
 using HanakaServer.Helpers;
+using HanakaServer.Middleware;
 using HanakaServer.Options;
 using HanakaServer.Services;
 using HanakaServer.Services.Brackets;
 using HanakaServer.Services.Payments;
+using HanakaServer.Services.Relay;
 using mail_service.Internal;
 using mail_service.service;
 using Microsoft.AspNetCore.Authentication;
@@ -38,6 +40,14 @@ var jwtKey = jwtSection["Key"] ?? throw new Exception("Jwt:Key is missing");
 
 // Services
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddMemoryCache();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.Configure<RelayOptions>(builder.Configuration.GetSection("Relay"));
+builder.Services.AddScoped<RelayAdminService>();
+builder.Services.AddScoped<RelayLineupService>();
+builder.Services.AddScoped<RelayTeamReader>();
+builder.Services.AddScoped<RelayMatchLineupSnapshotService>();
+builder.Services.AddScoped<RelayLegacyWriteGuard>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<IOtpEmailService, OtpEmailService>();
 builder.Services.AddScoped<IOtpGenerator, OtpGenerator>();
@@ -87,36 +97,8 @@ builder.Services.AddAuthentication(options =>
     options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
     options.Events = new CookieAuthenticationEvents
     {
-        OnRedirectToLogin = context =>
-        {
-            if (context.Request.Path.StartsWithSegments("/RatingPortal"))
-            {
-                context.Response.Redirect("/RatingPortal/Login");
-                return Task.CompletedTask;
-            }
-
-            if (context.Request.Path.StartsWithSegments("/api/rating-auth")
-                || context.Request.Path.StartsWithSegments("/api/rating-assessment"))
-            {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                return Task.CompletedTask;
-            }
-
-            context.Response.Redirect(context.RedirectUri);
-            return Task.CompletedTask;
-        },
-        OnRedirectToAccessDenied = context =>
-        {
-            if (context.Request.Path.StartsWithSegments("/api/rating-auth")
-                || context.Request.Path.StartsWithSegments("/api/rating-assessment"))
-            {
-                context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                return Task.CompletedTask;
-            }
-
-            context.Response.Redirect(context.RedirectUri);
-            return Task.CompletedTask;
-        }
+        OnRedirectToLogin = CookieAuthenticationResponseHandler.HandleRedirectToLoginAsync,
+        OnRedirectToAccessDenied = CookieAuthenticationResponseHandler.HandleRedirectToAccessDeniedAsync
     };
 })
 .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
@@ -194,6 +176,11 @@ if (!app.Environment.IsDevelopment())
     app.UseExceptionHandler("/Home/Error");
     app.UseHsts();
 }
+
+// Client disconnects are expected cancellation, not application failures.
+// Keep this after UseExceptionHandler so it handles cancellation before the
+// general production exception handler sees it.
+app.UseMiddleware<RequestCancellationMiddleware>();
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();

@@ -11,7 +11,72 @@ namespace HanakaServer.Tests;
 public sealed class BracketTemplateLibraryManagementTests
 {
     [Fact]
-    public async Task Settings_update_keeps_manual_team_range_for_published_version()
+    public async Task List_propagates_caller_cancellation()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            service.ListAsync(null, null, null, null, 1, 20, cancellation.Token));
+    }
+
+    [Fact]
+    public async Task Relay_template_is_created_and_filtered_by_participant_mode()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var created = await service.CreateAsync(new CreateBracketTemplateRequest
+        {
+            TemplateCode = "RELAY_ONLY",
+            TemplateName = "Sơ đồ tiếp sức",
+            FormatType = BracketTemplateFormatTypes.SingleElimination,
+            ParticipantMode = BracketTemplateParticipantModes.RelayTeam,
+            MinimumTeams = 4,
+            SeedCapacity = 8
+        }, null, CancellationToken.None);
+
+        Assert.True(created.Success, created.Message);
+        Assert.Equal(BracketTemplateParticipantModes.RelayTeam, created.Data!.ParticipantMode);
+        var relayPage = await service.ListAsync(null, null, null,
+            BracketTemplateParticipantModes.RelayTeam, 1, 20, CancellationToken.None);
+        var standardPage = await service.ListAsync(null, null, null,
+            BracketTemplateParticipantModes.Standard, 1, 20, CancellationToken.None);
+        Assert.Single(relayPage.Items);
+        Assert.Empty(standardPage.Items);
+    }
+
+    [Fact]
+    public async Task Participant_mode_cannot_change_after_publish()
+    {
+        await using var db = CreateDb();
+        var service = CreateService(db);
+        var detail = await CreateTemplateAsync(service, "MODE_LOCKED");
+        var template = await db.BracketTemplates.SingleAsync();
+        var version = await db.BracketTemplateVersions.SingleAsync();
+        template.Status = BracketTemplateStatuses.Published;
+        template.CurrentPublishedVersionId = version.BracketTemplateVersionId;
+        version.Status = BracketTemplateStatuses.Published;
+        await db.SaveChangesAsync();
+        detail = (await service.GetAsync(template.BracketTemplateId, CancellationToken.None))!;
+
+        var result = await service.UpdateSettingsAsync(template.BracketTemplateId,
+            new UpdateBracketTemplateSettingsRequest
+            {
+                TemplateName = detail.TemplateName,
+                ParticipantMode = BracketTemplateParticipantModes.RelayTeam,
+                MinimumTeams = detail.MinimumTeams!.Value,
+                SeedCapacity = detail.SeedCapacity!.Value,
+                RowVersion = detail.RowVersion
+            }, null, CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal("PARTICIPANT_MODE_LOCKED", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task Published_capacity_changes_are_rejected_but_renaming_preserves_version()
     {
         await using var db = CreateDb();
         var service = CreateService(db);
@@ -33,14 +98,22 @@ public sealed class BracketTemplateLibraryManagementTests
                 RowVersion = detail.RowVersion
             }, null, CancellationToken.None);
 
-        Assert.True(result.Success, result.Message);
-        Assert.Equal("Giải 20 đội", result.Data!.TemplateName);
-        Assert.Equal(8, result.Data.MinimumTeams);
-        Assert.Equal(20, result.Data.SeedCapacity);
+        Assert.False(result.Success);
+        Assert.Equal("VERSION_IMMUTABLE", result.ErrorCode);
+        Assert.Equal(detail.TemplateName, template.TemplateName);
         var graph = await service.GetGraphAsync(version.BracketTemplateVersionId, CancellationToken.None);
         Assert.NotNull(graph);
-        Assert.Equal(8, graph.MinimumTeams);
-        Assert.Equal(20, graph.SeedCapacity);
+        Assert.Equal(detail.MinimumTeams, graph.MinimumTeams);
+        Assert.Equal(detail.SeedCapacity, graph.SeedCapacity);
+        var before = System.Text.Json.JsonSerializer.Serialize(graph);
+        result = await service.UpdateSettingsAsync(template.BracketTemplateId, new()
+        {
+            TemplateName = "Tên hiển thị mới", MinimumTeams = graph.MinimumTeams,
+            SeedCapacity = graph.SeedCapacity, RowVersion = detail.RowVersion
+        }, null, default);
+        Assert.True(result.Success, result.Message);
+        Assert.Equal("Tên hiển thị mới", result.Data!.TemplateName);
+        Assert.Equal(before, System.Text.Json.JsonSerializer.Serialize(await service.GetGraphAsync(version.BracketTemplateVersionId, default)));
     }
 
     [Fact]

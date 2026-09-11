@@ -732,7 +732,7 @@ namespace HanakaServer.Services
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
-                return (user.RatingSingle, user.RatingDouble);
+                throw;
             }
         }
 

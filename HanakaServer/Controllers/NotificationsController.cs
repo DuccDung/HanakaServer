@@ -353,7 +353,7 @@ namespace HanakaServer.Controllers
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested || HttpContext.RequestAborted.IsCancellationRequested)
             {
-                return new EmptyResult();
+                throw;
             }
         }
 
@@ -390,7 +390,7 @@ namespace HanakaServer.Controllers
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested || HttpContext.RequestAborted.IsCancellationRequested)
             {
-                return new EmptyResult();
+                throw;
             }
         }
 
@@ -433,7 +433,7 @@ namespace HanakaServer.Controllers
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested || HttpContext.RequestAborted.IsCancellationRequested)
             {
-                return new EmptyResult();
+                throw;
             }
         }
 
@@ -475,6 +475,7 @@ namespace HanakaServer.Controllers
                     Team1 = new
                     {
                         team1.RegistrationId,
+                        team1.IsVirtualTeam,
                         team1.Player1UserId,
                         team1.Player1Name,
                         team1.Player1Avatar,
@@ -485,6 +486,7 @@ namespace HanakaServer.Controllers
                     Team2 = new
                     {
                         team2.RegistrationId,
+                        team2.IsVirtualTeam,
                         team2.Player1UserId,
                         team2.Player1Name,
                         team2.Player1Avatar,
@@ -552,14 +554,14 @@ namespace HanakaServer.Controllers
 
                     opponentTeam = new
                     {
-                        registrationId = opponentTeam.RegistrationId,
+                        registrationId = opponentTeam.IsVirtualTeam ? (long?)null : opponentTeam.RegistrationId,
                         player1 = new
                         {
-                            userId = opponentTeam.Player1UserId,
-                            name = opponentTeam.Player1Name,
-                            avatarUrl = ToAbsoluteUrl(opponentTeam.Player1Avatar)
+                            userId = opponentTeam.IsVirtualTeam ? null : opponentTeam.Player1UserId,
+                            name = opponentTeam.IsVirtualTeam ? "Chờ cập nhật" : opponentTeam.Player1Name,
+                            avatarUrl = opponentTeam.IsVirtualTeam ? null : ToAbsoluteUrl(opponentTeam.Player1Avatar)
                         },
-                        player2 = string.IsNullOrWhiteSpace(opponentTeam.Player2Name) ? null : new
+                        player2 = opponentTeam.IsVirtualTeam || string.IsNullOrWhiteSpace(opponentTeam.Player2Name) ? null : new
                         {
                             userId = opponentTeam.Player2UserId,
                             name = opponentTeam.Player2Name,
@@ -746,7 +748,7 @@ namespace HanakaServer.Controllers
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested || HttpContext.RequestAborted.IsCancellationRequested)
             {
-                return new EmptyResult();
+                throw;
             }
         }
     }

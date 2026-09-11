@@ -82,11 +82,12 @@
         }).format(date);
     }
 
-    async function fetchJson(url) {
+    async function fetchJson(url, loading) {
         const response = await fetch(url, {
             headers: { Accept: "application/json" },
             cache: "no-store",
-            credentials: "same-origin"
+            credentials: "same-origin",
+            hanakaLoading: loading
         });
 
         if (!response.ok) {
@@ -894,6 +895,8 @@
     }
 
     function renderMatch(match) {
+        const groupTitle = [match.groupKey, match.groupName].filter(Boolean).join(" · ");
+        const metaText = match.metaText || "Chưa có giờ / sân";
         const classes = [
             "admin-bracket-match",
             match.isCompleted ? "is-completed" : "",
@@ -905,13 +908,15 @@
             '<article class="' + escapeHtml(classes) + '" data-match-id="' + escapeHtml(match.matchId || "") + '" data-round-index="' + escapeHtml(match.roundIndex ?? "") + '" data-round-key="' + escapeHtml(match.roundKey || "") + '" data-round-label="' + escapeHtml(match.roundLabel || "") + '" tabindex="0" role="button" title="Bấm để làm rõ dây liên kết">',
             '<div class="admin-bracket-match__top">',
             '<div class="admin-bracket-match__title">',
-            '<div class="admin-bracket-match__group"><b>' + escapeHtml(match.groupKey || "") + "</b><span>" + escapeHtml(match.groupName || "") + "</span></div>",
-            '<strong>' + escapeHtml(match.title) + "</strong>",
+            '<strong title="' + escapeHtml(match.title) + '">' + escapeHtml(match.title) + "</strong>",
             match.matchId > 0
                 ? '<span class="admin-bracket-match__runtime-id" title="ID trận đấu trong dữ liệu">ID #' + escapeHtml(match.matchId) + "</span>"
                 : "",
             "</div>",
-            "<span>" + escapeHtml(match.metaText || "Chưa có giờ / sân") + "</span>",
+            '<div class="admin-bracket-match__meta">',
+            '<div class="admin-bracket-match__group" title="' + escapeHtml(groupTitle) + '"><b>' + escapeHtml(match.groupKey || match.groupName || "") + "</b></div>",
+            '<span class="admin-bracket-match__meta-text" title="' + escapeHtml(metaText) + '">' + escapeHtml(metaText) + "</span>",
+            "</div>",
             "</div>",
             renderMatchTeam(match, 1),
             renderMatchTeam(match, 2),
@@ -1963,6 +1968,9 @@
     const validationRescueRoundIndexes = new Set();
     let validationPanel = null;
     let validationMode = "winner";
+    let realtimeReloadTimer = 0;
+    let removeRealtimeListener = null;
+    let loadRequestId = 0;
 
     function updateZoomControls() {
         if (zoomValue) {
@@ -2239,6 +2247,7 @@
         }
 
         loadOptions = loadOptions || {};
+        const requestId = ++loadRequestId;
         const preservedViewport = loadOptions.preserveViewport && scroller
             ? { left: scroller.scrollLeft, top: scroller.scrollTop }
             : null;
@@ -2247,12 +2256,18 @@
         setLoading(true);
 
         try {
-            latestPayload = await fetchJson("/api/tournaments/" + tournamentId + "/rounds-with-matches");
+            const payload = await fetchJson(
+                "/api/tournaments/" + tournamentId + "/rounds-with-matches",
+                loadOptions.silent ? "silent" : undefined
+            );
+            if (requestId !== loadRequestId) return;
+            latestPayload = payload;
             render(latestPayload, {
                 viewport: preservedViewport,
                 focusMatchId: loadOptions.focusMatchId
             });
         } catch (error) {
+            if (requestId !== loadRequestId) return;
             setError(error?.message || "Tải sơ đồ thất bại.");
             if (board) {
                 board.style.width = "100%";
@@ -2260,7 +2275,7 @@
                 board.innerHTML = '<div class="admin-tournament-bracket-loading">Không tải được sơ đồ giải đấu.</div>';
             }
         } finally {
-            setLoading(false);
+            if (requestId === loadRequestId) setLoading(false);
         }
     }
 
@@ -2269,6 +2284,49 @@
             render(latestPayload);
         }
     }, 120);
+
+    function scheduleRealtimeReload() {
+        window.clearTimeout(realtimeReloadTimer);
+        realtimeReloadTimer = window.setTimeout(function () {
+            loadBracket({ preserveViewport: true, silent: true }).catch(function () { });
+        }, 180);
+    }
+
+    function initRealtime() {
+        const realtime = window.HanakaPublicRealtime;
+        if (!realtime || tournamentId <= 0) {
+            return;
+        }
+
+        realtime.subscribeTournament(tournamentId);
+        removeRealtimeListener = realtime.on(function (event) {
+            const type = trimToEmpty(event?.type);
+            if (type === "__public_socket_open__" && event?.reconnected) {
+                scheduleRealtimeReload();
+                return;
+            }
+
+            if (type !== "tournament.match.score.updated"
+                && type !== "tournament.bracket.updated") {
+                return;
+            }
+
+            const payload = event?.payload || {};
+            if (toNumber(payload.tournamentId || payload.TournamentId) === tournamentId) {
+                scheduleRealtimeReload();
+            }
+        });
+
+        window.addEventListener("pagehide", function (event) {
+            if (event.persisted) return;
+            window.clearTimeout(realtimeReloadTimer);
+            if (removeRealtimeListener) {
+                removeRealtimeListener();
+                removeRealtimeListener = null;
+            }
+            realtime.unsubscribeTournament(tournamentId);
+        }, { once: true });
+    }
 
     const reloadButton = qs("[data-reload-bracket]", page);
     if (reloadButton) {
@@ -2307,6 +2365,7 @@
         });
 
         initDragScroller(scroller);
+        initRealtime();
         window.addEventListener("resize", rerender);
         applyBracketZoom(bracketZoom);
 

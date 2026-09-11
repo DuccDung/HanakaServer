@@ -6,6 +6,7 @@ namespace HanakaServer.Services.Brackets;
 public interface IBracketTemplateValidationService
 {
     BracketValidationResultDto Validate(BracketTemplateGraphDto graph);
+    BracketValidationResultDto ValidateForUse(BracketTemplateGraphDto graph);
 }
 
 public sealed class BracketTemplateValidationService : IBracketTemplateValidationService
@@ -145,6 +146,7 @@ public sealed class BracketTemplateValidationService : IBracketTemplateValidatio
 
         ValidateDependencies(result, matches, matchesByKey, groupsByKey);
         ValidateSeedUsage(result, matches);
+        ValidateInitialPositions(result, graph, matches);
         ValidateTerminalFlow(result, matches, groupsByKey);
 
         if (roundsByKey.Count > 0)
@@ -154,6 +156,58 @@ public sealed class BracketTemplateValidationService : IBracketTemplateValidatio
         }
 
         return result;
+    }
+
+    // Incomplete positions can be saved while designing. They must be resolved
+    // before publication or before using any existing published version.
+    public BracketValidationResultDto ValidateForUse(BracketTemplateGraphDto graph)
+    {
+        var result = Validate(graph);
+        foreach (var issue in result.Issues.Where(x => x.Code is
+                     "INITIAL_TEAM_POSITION_REQUIRED" or "SEED_EXCEEDS_CAPACITY"
+                     or "INITIAL_POSITION_CAPACITY_MISMATCH" or "SEED_POSITION_UNUSED"))
+            issue.Severity = "ERROR";
+        return result;
+    }
+
+    private static void ValidateInitialPositions(
+        BracketValidationResultDto result, BracketTemplateGraphDto graph,
+        IReadOnlyCollection<MatchLocation> matches)
+    {
+        var positions = matches.SelectMany(location => location.Match.Slots
+            .Where(slot => NormalizeKey(slot.SourceType) == BracketTemplateSourceTypes.Seed)
+            .Select(slot => new { Location = location, Slot = slot })).ToList();
+
+        // Count distinct team entries, not the number of round-robin appearances.
+        var knockoutEntries = positions.Count(x =>
+            NormalizeKey(x.Location.Round.RoundType) != BracketRoundTypes.GroupStage);
+        if (knockoutEntries > graph.SeedCapacity)
+            Warning(result, "INITIAL_POSITION_CAPACITY_MISMATCH",
+                $"Mẫu khai báo tối đa {graph.SeedCapacity} đội nhưng có {knockoutEntries} vị trí đội đầu vào ngoài vòng bảng. Hãy sửa sức chứa hoặc cấu trúc trận.");
+
+        foreach (var position in positions)
+        {
+            var (round, group, match) = position.Location;
+            var slot = position.Slot;
+            var label = $"{round.RoundLabel} ({round.RoundKey}), {group.GroupName} ({group.GroupKey}), {match.MatchLabel ?? match.MatchKey} ({match.MatchKey}), Đội {slot.SlotNumber}";
+            if (!slot.SeedNumber.HasValue)
+                Warning(result, "INITIAL_TEAM_POSITION_REQUIRED",
+                    $"{label}: chưa gán số vị trí đội đầu vào.", round.RoundKey, group.GroupKey, match.MatchKey, slot.SlotNumber);
+            else if (slot.SeedNumber > graph.SeedCapacity)
+                Warning(result, "SEED_EXCEEDS_CAPACITY",
+                    $"{label}: vị trí {slot.SeedNumber} vượt sức chứa {graph.SeedCapacity} đội.", round.RoundKey, group.GroupKey, match.MatchKey, slot.SlotNumber);
+        }
+
+        // Blanks are reported individually; avoid a second list of missing numbers
+        // until every entry has a number. BYE is an opponent, not a numbered entry.
+        if (graph.SeedCapacity is >= 2 and <= 1024 && positions.All(x => x.Slot.SeedNumber.HasValue))
+        {
+            var used = positions.Select(x => x.Slot.SeedNumber!.Value).ToHashSet();
+            var unused = Enumerable.Range(1, graph.SeedCapacity).Where(x => !used.Contains(x)).ToArray();
+            if (unused.Length > 0)
+                Warning(result, "SEED_POSITION_UNUSED",
+                    $"Có {unused.Length} vị trí đội chưa được đưa vào sơ đồ: {string.Join(", ", unused.Take(16))}{(unused.Length > 16 ? ", …" : "")}. Hãy gán đủ vị trí hoặc sửa sức chứa.");
+        }
     }
 
     private static void ValidateUniqueKeys(BracketValidationResultDto result, BracketTemplateGraphDto graph)

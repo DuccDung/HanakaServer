@@ -26,6 +26,13 @@
 
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET ARITHABORT ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET NUMERIC_ROUNDABORT OFF;
 
 IF @@TRANCOUNT <> 0
     THROW 51007, N'Session SSMS đang có transaction chưa đóng. Hãy COMMIT hoặc ROLLBACK transaction đó trước khi chạy script.', 1;
@@ -556,6 +563,8 @@ BEGIN TRY
             SeedCapacity                   int NOT NULL,
             ByeCount                       int NOT NULL
                 CONSTRAINT DF_TournamentBracketApplications_ByeCount DEFAULT (0),
+            VirtualTeamCount                int NOT NULL
+                CONSTRAINT DF_TournamentBracketApplications_VirtualTeamCount DEFAULT (0),
             PreviewHash                    varchar(64) NOT NULL,
             AppliedByUserId                bigint NULL,
             RevertedByUserId               bigint NULL,
@@ -628,7 +637,8 @@ BEGIN TRY
                     AND SeedCapacity >= 2
                     AND ByeCount >= 0
                     AND ByeCount <= SeedCapacity
-                    AND EligibleRegistrationCount + ByeCount = SeedCapacity
+                    AND VirtualTeamCount >= 0
+                    AND EligibleRegistrationCount + VirtualTeamCount + ByeCount = SeedCapacity
                 ),
 
             CONSTRAINT CK_TournamentBracketApplications_RandomSeed
@@ -704,7 +714,8 @@ BEGIN TRY
                     'RANDOM',
                     'MANUAL',
                     'RANKING',
-                    'BYE'
+                    'BYE',
+                    'VIRTUAL'
                 )),
 
             CONSTRAINT CK_TournamentBracketSeedAssignments_RegistrationOrBye
@@ -739,6 +750,114 @@ BEGIN TRY
     BEGIN
         ALTER TABLE dbo.BracketTemplateVersions
             ADD DraftGraphJson nvarchar(max) NULL;
+    END;
+
+    --------------------------------------------------------------------------
+    -- 1.9. Đội ảo nội bộ dùng để lấp vị trí còn thiếu khi apply bracket
+    --------------------------------------------------------------------------
+    IF COL_LENGTH(N'dbo.TournamentRegistrations', N'IsVirtualTeam') IS NULL
+    BEGIN
+        ALTER TABLE dbo.TournamentRegistrations
+            ADD IsVirtualTeam bit NOT NULL
+                CONSTRAINT DF_TournamentRegistrations_IsVirtualTeam DEFAULT (0) WITH VALUES;
+    END;
+
+    IF COL_LENGTH(N'dbo.TournamentRegistrations', N'VirtualBracketApplicationId') IS NULL
+    BEGIN
+        ALTER TABLE dbo.TournamentRegistrations
+            ADD VirtualBracketApplicationId bigint NULL;
+    END;
+
+    IF COL_LENGTH(N'dbo.TournamentBracketApplications', N'VirtualTeamCount') IS NULL
+    BEGIN
+        ALTER TABLE dbo.TournamentBracketApplications
+            ADD VirtualTeamCount int NOT NULL
+                CONSTRAINT DF_TournamentBracketApplications_VirtualTeamCount DEFAULT (0) WITH VALUES;
+    END;
+
+    IF EXISTS
+    (
+        SELECT 1 FROM sys.check_constraints
+        WHERE [name] = N'CK_TournamentBracketApplications_Counts'
+          AND parent_object_id = OBJECT_ID(N'dbo.TournamentBracketApplications')
+    )
+    BEGIN
+        ALTER TABLE dbo.TournamentBracketApplications
+            DROP CONSTRAINT CK_TournamentBracketApplications_Counts;
+    END;
+
+    EXEC sys.sp_executesql N'
+        ALTER TABLE dbo.TournamentBracketApplications WITH CHECK
+            ADD CONSTRAINT CK_TournamentBracketApplications_Counts
+                CHECK
+                (
+                    EligibleRegistrationCount >= 0
+                    AND VirtualTeamCount >= 0
+                    AND SeedCapacity >= 2
+                    AND ByeCount >= 0
+                    AND ByeCount <= SeedCapacity
+                    AND EligibleRegistrationCount + VirtualTeamCount + ByeCount = SeedCapacity
+                );';
+
+    IF EXISTS
+    (
+        SELECT 1 FROM sys.check_constraints
+        WHERE [name] = N'CK_TournamentBracketSeedAssignments_AssignmentMethod'
+          AND parent_object_id = OBJECT_ID(N'dbo.TournamentBracketSeedAssignments')
+    )
+    BEGIN
+        ALTER TABLE dbo.TournamentBracketSeedAssignments
+            DROP CONSTRAINT CK_TournamentBracketSeedAssignments_AssignmentMethod;
+    END;
+
+    ALTER TABLE dbo.TournamentBracketSeedAssignments WITH CHECK
+        ADD CONSTRAINT CK_TournamentBracketSeedAssignments_AssignmentMethod
+            CHECK (AssignmentMethod IN ('REGISTRATION_ORDER', 'RANDOM', 'MANUAL', 'RANKING', 'BYE', 'VIRTUAL'));
+
+    IF NOT EXISTS
+    (
+        SELECT 1 FROM sys.foreign_keys
+        WHERE [name] = N'FK_TournamentRegistrations_VirtualBracketApplication'
+          AND parent_object_id = OBJECT_ID(N'dbo.TournamentRegistrations')
+    )
+    BEGIN
+        EXEC sys.sp_executesql N'
+            ALTER TABLE dbo.TournamentRegistrations WITH CHECK
+                ADD CONSTRAINT FK_TournamentRegistrations_VirtualBracketApplication
+                    FOREIGN KEY (VirtualBracketApplicationId)
+                    REFERENCES dbo.TournamentBracketApplications (TournamentBracketApplicationId);';
+    END;
+
+    IF NOT EXISTS
+    (
+        SELECT 1 FROM sys.check_constraints
+        WHERE [name] = N'CK_TournamentRegistrations_VirtualTeam'
+          AND parent_object_id = OBJECT_ID(N'dbo.TournamentRegistrations')
+    )
+    BEGIN
+        EXEC sys.sp_executesql N'
+            ALTER TABLE dbo.TournamentRegistrations WITH CHECK
+                ADD CONSTRAINT CK_TournamentRegistrations_VirtualTeam
+                    CHECK
+                    (
+                        (IsVirtualTeam = 0 AND VirtualBracketApplicationId IS NULL)
+                        OR
+                        (IsVirtualTeam = 1 AND VirtualBracketApplicationId IS NOT NULL
+                            AND Player1UserId IS NULL AND Player2UserId IS NULL)
+                    );';
+    END;
+
+    IF NOT EXISTS
+    (
+        SELECT 1 FROM sys.indexes
+        WHERE [name] = N'IX_TournamentRegistrations_VirtualBracketApplication'
+          AND object_id = OBJECT_ID(N'dbo.TournamentRegistrations')
+    )
+    BEGIN
+        EXEC sys.sp_executesql N'
+            CREATE INDEX IX_TournamentRegistrations_VirtualBracketApplication
+                ON dbo.TournamentRegistrations (VirtualBracketApplicationId, IsVirtualTeam)
+                WHERE VirtualBracketApplicationId IS NOT NULL;';
     END;
 
     --------------------------------------------------------------------------

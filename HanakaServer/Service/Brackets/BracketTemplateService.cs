@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using HanakaServer.Data;
 using HanakaServer.Dtos.Brackets;
+using HanakaServer.Helpers;
 using HanakaServer.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
@@ -12,7 +13,7 @@ namespace HanakaServer.Services.Brackets;
 public interface IBracketTemplateService
 {
     Task<string> GetNextCodeAsync(CancellationToken ct);
-    Task<PagedBracketTemplateListDto> ListAsync(string? search, string? status, string? formatType, int page, int pageSize, CancellationToken ct);
+    Task<PagedBracketTemplateListDto> ListAsync(string? search, string? status, string? formatType, string? participantMode, int page, int pageSize, CancellationToken ct);
     Task<BracketTemplateDetailDto?> GetAsync(long templateId, CancellationToken ct);
     Task<BracketTemplateGraphDto?> GetGraphAsync(long versionId, CancellationToken ct);
     Task<BracketOperationResult<BracketTemplateDetailDto>> CreateAsync(CreateBracketTemplateRequest request, long? userId, CancellationToken ct);
@@ -83,6 +84,7 @@ public sealed class BracketTemplateService : IBracketTemplateService
         string? search,
         string? status,
         string? formatType,
+        string? participantMode,
         int page,
         int pageSize,
         CancellationToken ct)
@@ -97,6 +99,9 @@ public sealed class BracketTemplateService : IBracketTemplateService
         var normalizedFormat = Normalize(formatType);
         if (normalizedFormat.Length > 0)
             query = query.Where(x => x.FormatType == normalizedFormat);
+        var normalizedParticipantMode = Normalize(participantMode);
+        if (normalizedParticipantMode.Length > 0)
+            query = query.Where(x => x.ParticipantMode == normalizedParticipantMode);
 
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 10, 100);
@@ -112,6 +117,7 @@ public sealed class BracketTemplateService : IBracketTemplateService
                 TemplateName = x.TemplateName,
                 Description = x.Description,
                 FormatType = x.FormatType,
+                ParticipantMode = x.ParticipantMode,
                 Status = x.Status,
                 CurrentPublishedVersionId = x.CurrentPublishedVersionId,
                 CurrentVersionNumber = x.CurrentPublishedVersionId.HasValue
@@ -263,7 +269,8 @@ public sealed class BracketTemplateService : IBracketTemplateService
         var code = NormalizeCode(request.TemplateCode);
         var name = TrimToNull(request.TemplateName);
         var format = Normalize(request.FormatType);
-        const string seeding = BracketSeedingMethods.RegistrationOrder;
+        var participantMode = Normalize(request.ParticipantMode);
+        var seeding = Normalize(request.DefaultSeedingMethod);
 
         if (code == null)
             return BracketOperationResult<BracketTemplateDetailDto>.Fail("TEMPLATE_CODE_REQUIRED", "Vui lòng nhập mã template.");
@@ -271,6 +278,10 @@ public sealed class BracketTemplateService : IBracketTemplateService
             return BracketOperationResult<BracketTemplateDetailDto>.Fail("TEMPLATE_NAME_REQUIRED", "Vui lòng nhập tên template.");
         if (!IsFormatType(format))
             return BracketOperationResult<BracketTemplateDetailDto>.Fail("FORMAT_INVALID", "Loại bracket không hợp lệ.");
+        if (!IsParticipantMode(participantMode))
+            return BracketOperationResult<BracketTemplateDetailDto>.Fail("PARTICIPANT_MODE_INVALID", "Đối tượng thi đấu của template không hợp lệ.");
+        if (!IsSeedingMethod(seeding))
+            return BracketOperationResult<BracketTemplateDetailDto>.Fail("SEEDING_INVALID", "Phương pháp seed mặc định không hợp lệ.");
         if (request.MinimumTeams is < 2 or > 1024)
             return BracketOperationResult<BracketTemplateDetailDto>.Fail("MINIMUM_TEAMS_INVALID", "Số đội tối thiểu phải nằm trong khoảng 2 đến 1024.");
         if (request.SeedCapacity is < 2 or > 1024)
@@ -287,6 +298,7 @@ public sealed class BracketTemplateService : IBracketTemplateService
             TemplateName = name,
             Description = TrimToNull(request.Description),
             FormatType = format,
+            ParticipantMode = participantMode,
             Status = BracketTemplateStatuses.Draft,
             CreatedByUserId = userId,
             UpdatedByUserId = userId,
@@ -331,14 +343,28 @@ public sealed class BracketTemplateService : IBracketTemplateService
 
         var name = TrimToNull(request.TemplateName);
         var format = Normalize(request.FormatType);
+        var participantMode = string.IsNullOrWhiteSpace(request.ParticipantMode)
+            ? template.ParticipantMode
+            : Normalize(request.ParticipantMode);
         if (name == null)
             return BracketOperationResult<BracketTemplateDetailDto>.Fail("TEMPLATE_NAME_REQUIRED", "Vui lòng nhập tên template.");
         if (!IsFormatType(format))
             return BracketOperationResult<BracketTemplateDetailDto>.Fail("FORMAT_INVALID", "Loại bracket không hợp lệ.");
+        if (!IsParticipantMode(participantMode))
+            return BracketOperationResult<BracketTemplateDetailDto>.Fail("PARTICIPANT_MODE_INVALID", "Đối tượng thi đấu của template không hợp lệ.");
+        if (!string.Equals(template.ParticipantMode, participantMode, StringComparison.Ordinal)
+            && (template.CurrentPublishedVersionId.HasValue
+                || await _db.TournamentBracketApplications.AnyAsync(x => x.BracketTemplateId == templateId, ct)))
+        {
+            return BracketOperationResult<BracketTemplateDetailDto>.Fail(
+                "PARTICIPANT_MODE_LOCKED",
+                "Không thể đổi đối tượng thi đấu sau khi template đã xuất bản hoặc được áp dụng.");
+        }
 
         template.TemplateName = name;
         template.Description = TrimToNull(request.Description);
         template.FormatType = format;
+        template.ParticipantMode = participantMode;
         template.UpdatedByUserId = userId;
         template.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
@@ -382,44 +408,42 @@ public sealed class BracketTemplateService : IBracketTemplateService
         if (version == null)
             return BracketOperationResult<BracketTemplateDetailDto>.Fail("VERSION_NOT_FOUND", "Template chưa có version để cập nhật sức chứa.");
 
-        version.MinimumTeams = request.MinimumTeams;
-        version.SeedCapacity = request.SeedCapacity;
-        version.AllowBye = request.MinimumTeams < request.SeedCapacity;
-        version.UpdatedAt = DateTime.UtcNow;
-
-        SaveBracketTemplateGraphRequest? jsonGraph = null;
-        if (TryReadDraft(version.DraftGraphJson, out var draftGraph))
+        var participantMode = string.IsNullOrWhiteSpace(request.ParticipantMode)
+            ? template.ParticipantMode
+            : Normalize(request.ParticipantMode);
+        if (!IsParticipantMode(participantMode))
+            return BracketOperationResult<BracketTemplateDetailDto>.Fail("PARTICIPANT_MODE_INVALID", "Đối tượng thi đấu của template không hợp lệ.");
+        if (!string.Equals(template.ParticipantMode, participantMode, StringComparison.Ordinal)
+            && (template.CurrentPublishedVersionId.HasValue
+                || await _db.TournamentBracketApplications.AnyAsync(x => x.BracketTemplateId == templateId, ct)))
         {
-            draftGraph.MinimumTeams = request.MinimumTeams;
-            draftGraph.SeedCapacity = request.SeedCapacity;
-            draftGraph.AllowBye = version.AllowBye;
-            version.DraftGraphJson = JsonSerializer.Serialize(draftGraph, DraftJsonOptions);
-            jsonGraph = draftGraph;
+            return BracketOperationResult<BracketTemplateDetailDto>.Fail(
+                "PARTICIPANT_MODE_LOCKED",
+                "Không thể đổi đối tượng thi đấu sau khi template đã xuất bản hoặc được áp dụng.");
         }
 
-        if (version.Status == BracketTemplateStatuses.Published)
-        {
-            BracketTemplateGraphDto? hashGraph;
-            if (jsonGraph != null)
-            {
-                hashGraph = MapInputGraph(version, jsonGraph);
-            }
-            else
-            {
-                hashGraph = await GetGraphAsync(version.BracketTemplateVersionId, ct);
-                if (hashGraph != null)
-                {
-                    hashGraph.MinimumTeams = request.MinimumTeams;
-                    hashGraph.SeedCapacity = request.SeedCapacity;
-                    hashGraph.AllowBye = version.AllowBye;
-                }
-            }
+        if (version.Status == BracketTemplateStatuses.Published
+            && (version.MinimumTeams != request.MinimumTeams || version.SeedCapacity != request.SeedCapacity))
+            return BracketOperationResult<BracketTemplateDetailDto>.Fail("VERSION_IMMUTABLE",
+                "Sức chứa của phiên bản đã xuất bản không được sửa trực tiếp. Hãy tạo bản nháp phiên bản mới, chỉnh cấu trúc và xuất bản lại.");
 
-            if (hashGraph != null)
-                version.ConfigurationHash = ComputeGraphHash(hashGraph);
+        if (version.Status != BracketTemplateStatuses.Published)
+        {
+            version.MinimumTeams = request.MinimumTeams;
+            version.SeedCapacity = request.SeedCapacity;
+            version.AllowBye = request.MinimumTeams < request.SeedCapacity;
+            version.UpdatedAt = DateTime.UtcNow;
+            if (TryReadDraft(version.DraftGraphJson, out var draftGraph))
+            {
+                draftGraph.MinimumTeams = request.MinimumTeams;
+                draftGraph.SeedCapacity = request.SeedCapacity;
+                draftGraph.AllowBye = version.AllowBye;
+                version.DraftGraphJson = JsonSerializer.Serialize(draftGraph, DraftJsonOptions);
+            }
         }
 
         template.TemplateName = name;
+        template.ParticipantMode = participantMode;
         template.UpdatedByUserId = userId;
         template.UpdatedAt = DateTime.UtcNow;
 
@@ -640,6 +664,14 @@ public sealed class BracketTemplateService : IBracketTemplateService
             if (transaction != null)
                 await transaction.CommitAsync(ct);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            await CancellationCleanup.TryRollbackAsync(
+                transaction,
+                _logger,
+                $"save bracket template graph {versionId}");
+            throw;
+        }
         catch
         {
             if (transaction != null)
@@ -663,7 +695,7 @@ public sealed class BracketTemplateService : IBracketTemplateService
         var graph = await GetGraphAsync(versionId, ct);
         if (graph == null)
             return BracketOperationResult<BracketValidationResultDto>.Fail("VERSION_NOT_FOUND", "Không tìm thấy template version.");
-        return BracketOperationResult<BracketValidationResultDto>.Ok(_validator.Validate(graph));
+        return BracketOperationResult<BracketValidationResultDto>.Ok(_validator.ValidateForUse(graph));
     }
 
     public async Task<BracketOperationResult<BracketValidationResultDto>> ValidateDraftAsync(
@@ -677,7 +709,7 @@ public sealed class BracketTemplateService : IBracketTemplateService
             return BracketOperationResult<BracketValidationResultDto>.Fail("VERSION_NOT_FOUND", "Không tìm thấy template version.");
 
         return BracketOperationResult<BracketValidationResultDto>.Ok(
-            _validator.Validate(MapInputGraph(version, request)));
+            _validator.ValidateForUse(MapInputGraph(version, request)));
     }
 
     public async Task<BracketOperationResult<BracketTemplateGraphDto>> GenerateAsync(
@@ -727,9 +759,10 @@ public sealed class BracketTemplateService : IBracketTemplateService
         if (graph.Status != BracketTemplateStatuses.Draft)
             return BracketOperationResult<BracketTemplateVersionSummaryDto>.Fail("VERSION_IMMUTABLE", "Version này không còn ở trạng thái draft.");
 
-        var validation = _validator.Validate(graph);
+        var validation = _validator.ValidateForUse(graph);
         if (!validation.IsValid)
-            return BracketOperationResult<BracketTemplateVersionSummaryDto>.Fail("GRAPH_INVALID", "Template còn lỗi và chưa thể publish.");
+            return BracketOperationResult<BracketTemplateVersionSummaryDto>.Fail("GRAPH_INVALID",
+                validation.Issues.First(x => x.Severity == "ERROR").Message, validation.Issues);
 
         // Drafts are loaded from DraftGraphJson so they can retain incomplete work
         // without replacing the last normalized graph. Before changing the status,
@@ -748,9 +781,10 @@ public sealed class BracketTemplateService : IBracketTemplateService
         }
 
         graph = synchronized.Data;
-        validation = _validator.Validate(graph);
+        validation = _validator.ValidateForUse(graph);
         if (!validation.IsValid)
-            return BracketOperationResult<BracketTemplateVersionSummaryDto>.Fail("GRAPH_INVALID", "Template còn lỗi và chưa thể publish.");
+            return BracketOperationResult<BracketTemplateVersionSummaryDto>.Fail("GRAPH_INVALID",
+                validation.Issues.First(x => x.Severity == "ERROR").Message, validation.Issues);
 
         var expectedRoundCount = graph.Rounds.Count;
         var expectedGroupCount = graph.Rounds.Sum(x => x.Groups.Count);
@@ -865,6 +899,7 @@ public sealed class BracketTemplateService : IBracketTemplateService
             TemplateName = templateName,
             Description = sourceTemplate.Description,
             FormatType = sourceTemplate.FormatType,
+            ParticipantMode = sourceTemplate.ParticipantMode,
             MinimumTeams = source.MinimumTeams,
             SeedCapacity = source.SeedCapacity,
             AllowBye = source.AllowBye,
@@ -1888,6 +1923,7 @@ public sealed class BracketTemplateService : IBracketTemplateService
             TemplateName = entity.TemplateName,
             Description = entity.Description,
             FormatType = entity.FormatType,
+            ParticipantMode = entity.ParticipantMode,
             Status = entity.Status,
             CurrentPublishedVersionId = entity.CurrentPublishedVersionId,
             CurrentVersionNumber = current?.VersionNumber,
@@ -1949,6 +1985,10 @@ public sealed class BracketTemplateService : IBracketTemplateService
         BracketTemplateFormatTypes.GroupKnockout or
         BracketTemplateFormatTypes.DoubleElimination or
         BracketTemplateFormatTypes.Custom;
+
+    private static bool IsParticipantMode(string value) => value is
+        BracketTemplateParticipantModes.Standard or
+        BracketTemplateParticipantModes.RelayTeam;
 
     private static bool IsSeedingMethod(string value) => value is
         BracketSeedingMethods.RegistrationOrder or

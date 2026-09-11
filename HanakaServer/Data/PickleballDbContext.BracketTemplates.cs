@@ -25,25 +25,30 @@ public partial class PickleballDbContext
         ConfigureTournamentBracketApplication(modelBuilder);
         ConfigureTournamentBracketSeedAssignment(modelBuilder);
         ConfigureBracketRuntimeExtensions(modelBuilder);
+        ConfigureRelay(modelBuilder);
     }
 
     private static void ConfigureBracketTemplate(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<BracketTemplate>(entity =>
         {
-            entity.ToTable("BracketTemplates");
+            entity.ToTable("BracketTemplates", table => table.HasCheckConstraint(
+                "CK_BracketTemplates_ParticipantMode",
+                "[ParticipantMode] IN ('STANDARD','RELAY_TEAM')"));
             entity.HasKey(x => x.BracketTemplateId).HasName("PK_BracketTemplates");
 
             entity.HasIndex(x => x.TemplateCode)
                 .IsUnique()
                 .HasDatabaseName("UX_BracketTemplates_TemplateCode");
-            entity.HasIndex(x => new { x.Status, x.FormatType })
-                .HasDatabaseName("IX_BracketTemplates_Status_FormatType");
+            entity.HasIndex(x => new { x.Status, x.ParticipantMode, x.FormatType })
+                .HasDatabaseName("IX_BracketTemplates_Status_ParticipantMode_FormatType");
 
             entity.Property(x => x.TemplateCode).HasMaxLength(50).IsUnicode(false);
             entity.Property(x => x.TemplateName).HasMaxLength(150);
             entity.Property(x => x.Description).HasMaxLength(1000);
             entity.Property(x => x.FormatType).HasMaxLength(30).IsUnicode(false);
+            entity.Property(x => x.ParticipantMode).HasMaxLength(30).IsUnicode(false)
+                .HasDefaultValue(BracketTemplateParticipantModes.Standard);
             entity.Property(x => x.Status).HasMaxLength(20).IsUnicode(false).HasDefaultValue(BracketTemplateStatuses.Draft);
             entity.Property(x => x.CreatedAt).HasPrecision(0).HasDefaultValueSql("(sysdatetime())");
             entity.Property(x => x.UpdatedAt).HasPrecision(0);
@@ -241,6 +246,7 @@ public partial class PickleballDbContext
                 .HasDatabaseName("IX_TournamentBracketApplications_Tournament_History");
 
             entity.Property(x => x.Status).HasMaxLength(20).IsUnicode(false).HasDefaultValue(BracketApplicationStatuses.Applying);
+            entity.Property(x => x.VirtualTeamCount).HasDefaultValue(0);
             entity.Property(x => x.SeedingMethod).HasMaxLength(30).IsUnicode(false);
             entity.Property(x => x.PreviewHash).HasMaxLength(64).IsUnicode(false);
             entity.Property(x => x.RevertReason).HasMaxLength(1000);

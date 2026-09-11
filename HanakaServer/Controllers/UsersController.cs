@@ -538,7 +538,7 @@ namespace HanakaServer.Controllers
 
             await EnsureInitialRatingHistoryAsync(user);
 
-            var items = await _db.UserRatingHistories
+            var histories = await _db.UserRatingHistories
                 .AsNoTracking()
                 .Where(x => x.UserId == userId)
                 .OrderByDescending(x => x.RatedAt)
@@ -554,6 +554,25 @@ namespace HanakaServer.Controllers
                     RatedByName = x.RatedByUserId == null ? "Hệ thống" : (x.RatedByUser != null ? x.RatedByUser.FullName : null)
                 })
                 .ToListAsync();
+
+            var items = histories.Select(x =>
+            {
+                var attribution = RatingHistoryAttribution.ForPublicDisplay(
+                    x.Note,
+                    x.RatedByUserId,
+                    x.RatedByName);
+
+                return new
+                {
+                    x.RatingHistoryId,
+                    x.RatingSingle,
+                    x.RatingDouble,
+                    x.RatedAt,
+                    attribution.Note,
+                    attribution.RatedByUserId,
+                    attribution.RatedByName
+                };
+            }).ToList();
 
             return Ok(new
             {
@@ -573,7 +592,7 @@ namespace HanakaServer.Controllers
 
             await EnsureInitialRatingHistoryAsync(user);
 
-            var items = await _db.UserRatingHistories
+            var histories = await _db.UserRatingHistories
                 .AsNoTracking()
                 .Where(x => x.UserId == id)
                 .OrderByDescending(x => x.RatedAt)
@@ -589,6 +608,25 @@ namespace HanakaServer.Controllers
                     RatedByName = x.RatedByUserId == null ? "Hệ thống" : (x.RatedByUser != null ? x.RatedByUser.FullName : null)
                 })
                 .ToListAsync();
+
+            var items = histories.Select(x =>
+            {
+                var attribution = RatingHistoryAttribution.ForPublicDisplay(
+                    x.Note,
+                    x.RatedByUserId,
+                    x.RatedByName);
+
+                return new
+                {
+                    x.RatingHistoryId,
+                    x.RatingSingle,
+                    x.RatingDouble,
+                    x.RatedAt,
+                    attribution.Note,
+                    attribution.RatedByUserId,
+                    attribution.RatedByName
+                };
+            }).ToList();
 
             return Ok(new
             {
@@ -626,6 +664,13 @@ namespace HanakaServer.Controllers
                 })
                 .FirstOrDefaultAsync();
 
+            var attribution = latest == null
+                ? null
+                : RatingHistoryAttribution.ForPublicDisplay(
+                    latest.Note,
+                    latest.RatedByUserId,
+                    latest.RatedByName);
+
             return Ok(new
             {
                 userId = user.UserId,
@@ -633,9 +678,9 @@ namespace HanakaServer.Controllers
                 ratingSingle = latest?.RatingSingle,
                 ratingDouble = latest?.RatingDouble,
                 ratedAt = latest?.RatedAt,
-                ratedByUserId = latest?.RatedByUserId,
-                ratedByName = latest?.RatedByName,
-                note = latest?.Note
+                ratedByUserId = attribution?.RatedByUserId,
+                ratedByName = attribution?.RatedByName,
+                note = attribution?.Note
             });
         }
         private const string SYSTEM_RATING_NOTE_PREFIX = "Hệ thống khởi tạo điểm trình ban đầu";

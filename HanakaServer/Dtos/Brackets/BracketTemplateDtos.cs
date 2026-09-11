@@ -6,6 +6,7 @@ public sealed class CreateBracketTemplateRequest
     public string? TemplateName { get; set; }
     public string? Description { get; set; }
     public string? FormatType { get; set; } = "CUSTOM";
+    public string? ParticipantMode { get; set; } = "STANDARD";
     public int MinimumTeams { get; set; } = 2;
     public int SeedCapacity { get; set; } = 2;
     public bool AllowBye { get; set; }
@@ -17,12 +18,14 @@ public sealed class UpdateBracketTemplateRequest
     public string? TemplateName { get; set; }
     public string? Description { get; set; }
     public string? FormatType { get; set; }
+    public string? ParticipantMode { get; set; }
     public string? RowVersion { get; set; }
 }
 
 public sealed class UpdateBracketTemplateSettingsRequest
 {
     public string? TemplateName { get; set; }
+    public string? ParticipantMode { get; set; }
     public int MinimumTeams { get; set; }
     public int SeedCapacity { get; set; }
     public string? RowVersion { get; set; }
@@ -179,6 +182,7 @@ public class BracketTemplateListItemDto
     public string TemplateName { get; set; } = "";
     public string? Description { get; set; }
     public string FormatType { get; set; } = "";
+    public string ParticipantMode { get; set; } = "STANDARD";
     public string Status { get; set; } = "";
     public int? CurrentVersionNumber { get; set; }
     public long? CurrentPublishedVersionId { get; set; }
@@ -311,8 +315,10 @@ public sealed class BracketValidationIssueDto
 public class TournamentBracketPreviewRequest
 {
     public long BracketTemplateVersionId { get; set; }
+    public bool ExcludeUnpaidTeams { get; set; }
     public string? SeedingMethod { get; set; }
     public long? RandomSeed { get; set; }
+    public bool FillMissingWithVirtualTeams { get; set; }
     public List<ManualSeedAssignmentRequest> SeedAssignments { get; set; } = [];
 }
 
@@ -347,13 +353,17 @@ public sealed class TournamentBracketPreviewDto
     public long BracketTemplateVersionId { get; set; }
     public string TemplateName { get; set; } = "";
     public string TemplateCode { get; set; } = "";
+    public string ParticipantMode { get; set; } = "STANDARD";
     public int VersionNumber { get; set; }
     public string SeedingMethod { get; set; } = "";
     public long? RandomSeed { get; set; }
     public int EligibleRegistrationCount { get; set; }
     public int ExcludedRegistrationCount { get; set; }
+    public bool ExcludeUnpaidTeams { get; set; }
+    public int ExcludedUnpaidRegistrationCount { get; set; }
     public int SeedCapacity { get; set; }
     public int ByeCount { get; set; }
+    public int VirtualTeamCount { get; set; }
     public int RoundCount { get; set; }
     public int GroupCount { get; set; }
     public int MatchCount { get; set; }
@@ -364,11 +374,20 @@ public sealed class TournamentBracketPreviewDto
     public List<TournamentBracketPreviewRoundDto> Rounds { get; set; } = [];
 }
 
+public sealed class TournamentBracketRegistrationListDto
+{
+    public decimal RegistrationFeeAmount { get; set; }
+    public IReadOnlyList<TournamentBracketSeedDto> Items { get; set; } = [];
+}
+
 public sealed class TournamentBracketSeedDto
 {
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public HanakaServer.Dtos.Relay.RelayBracketTeamDto? Relay { get; set; }
     public int SeedNumber { get; set; }
     public long? RegistrationId { get; set; }
     public bool IsBye { get; set; }
+    public bool IsVirtualTeam { get; set; }
     public int? InputOrder { get; set; }
     public bool IsManuallyAdjusted { get; set; }
     public string? RegCode { get; set; }
@@ -419,6 +438,7 @@ public sealed class TournamentBracketPreviewSlotDto
     public int? SeedNumber { get; set; }
     public long? RegistrationId { get; set; }
     public bool IsBye { get; set; }
+    public bool IsVirtualTeam { get; set; }
     public string DisplayText { get; set; } = "";
     public string? SourceMatchKey { get; set; }
     public string? SourceGroupKey { get; set; }
@@ -433,6 +453,7 @@ public sealed class TournamentBracketApplicationDto
     public long BracketTemplateVersionId { get; set; }
     public string TemplateName { get; set; } = "";
     public string TemplateCode { get; set; } = "";
+    public string ParticipantMode { get; set; } = "STANDARD";
     public int VersionNumber { get; set; }
     public string Status { get; set; } = "";
     public bool IsActive { get; set; }
@@ -441,6 +462,7 @@ public sealed class TournamentBracketApplicationDto
     public int EligibleRegistrationCount { get; set; }
     public int SeedCapacity { get; set; }
     public int ByeCount { get; set; }
+    public int VirtualTeamCount { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? AppliedAt { get; set; }
     public string? AppliedByName { get; set; }
@@ -459,10 +481,11 @@ public sealed class BracketOperationResult<T>
     public string? ErrorCode { get; init; }
     public string? Message { get; init; }
     public T? Data { get; init; }
+    public IReadOnlyList<BracketValidationIssueDto>? Issues { get; init; }
 
     public static BracketOperationResult<T> Ok(T data, string? message = null) =>
         new() { Success = true, Data = data, Message = message };
 
-    public static BracketOperationResult<T> Fail(string code, string message) =>
-        new() { Success = false, ErrorCode = code, Message = message };
+    public static BracketOperationResult<T> Fail(string code, string message, IReadOnlyList<BracketValidationIssueDto>? issues = null) =>
+        new() { Success = false, ErrorCode = code, Message = message, Issues = issues };
 }

@@ -65,6 +65,10 @@ namespace HanakaServer.Controllers
                     message = "Yêu cầu hỗ trợ đã được gửi thành công. Chúng tôi sẽ phản hồi sớm nhất có thể."
                 });
             }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (Exception)
             {
                 return StatusCode(500, new

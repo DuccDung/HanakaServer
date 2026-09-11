@@ -1239,6 +1239,8 @@ public partial class PickleballDbContext : DbContext
 
             entity.HasIndex(e => new { e.TournamentId, e.RegIndex }, "IX_TournamentRegistrations_Tournament");
 
+            entity.HasIndex(e => new { e.VirtualBracketApplicationId, e.IsVirtualTeam }, "IX_TournamentRegistrations_VirtualBracketApplication");
+
             entity.Property(e => e.BtCode).HasMaxLength(50);
             entity.Property(e => e.CreatedAt)
                 .HasPrecision(0)
@@ -1256,6 +1258,7 @@ public partial class PickleballDbContext : DbContext
             entity.Property(e => e.RegCode).HasMaxLength(50);
             entity.Property(e => e.RegTime).HasPrecision(0);
             entity.Property(e => e.RegTimeRaw).HasMaxLength(30);
+            entity.Property(e => e.IsVirtualTeam).HasDefaultValue(false);
 
             entity.HasOne(d => d.Player1User).WithMany(p => p.TournamentRegistrationPlayer1Users)
                 .HasForeignKey(d => d.Player1UserId)
@@ -1264,6 +1267,11 @@ public partial class PickleballDbContext : DbContext
             entity.HasOne(d => d.Player2User).WithMany(p => p.TournamentRegistrationPlayer2Users)
                 .HasForeignKey(d => d.Player2UserId)
                 .HasConstraintName("FK_Reg_P2User");
+
+            entity.HasOne(d => d.VirtualBracketApplication).WithMany(p => p.VirtualRegistrations)
+                .HasForeignKey(d => d.VirtualBracketApplicationId)
+                .OnDelete(DeleteBehavior.Restrict)
+                .HasConstraintName("FK_TournamentRegistrations_VirtualBracketApplication");
 
             entity.HasOne(d => d.Tournament).WithMany(p => p.TournamentRegistrations)
                 .HasForeignKey(d => d.TournamentId)

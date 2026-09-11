@@ -1,487 +1,446 @@
-# HanakaServer Context
+# HanakaServer — Ngữ cảnh kỹ thuật chuẩn
+
+> Trạng thái đối chiếu: 06/09/2026  
+> Phạm vi: solution `HanakaServer.sln` và các script SQL nằm trong repository này.  
+> Đây là nguồn ngữ cảnh kỹ thuật duy nhất của dự án. Nếu tài liệu mâu thuẫn với code, SQL hoặc test hiện tại thì code/SQL/test là nguồn xác nhận cuối cùng và file này phải được cập nhật ngay.
+
+## 1. Trạng thái repository
+
+- Solution có hai project: ứng dụng `HanakaServer` và test `HanakaServer.Tests`.
+- Ứng dụng target `net10.0`, nullable và implicit usings đang bật.
+- Kiến trúc là modular monolith nhưng boundary chưa đồng đều: phần cũ chứa nhiều nghiệp vụ trong controller; bracket, payment và relay đã có service riêng rõ hơn.
+- Data layer dùng EF Core 10 + SQL Server. Schema được duy trì bằng mapping database-first và script SQL thủ công, không có chuỗi EF Migration chuẩn với model snapshot.
+- Có nhiều thư mục build tạm, `bin`, `obj` và `artifacts`; không dùng chúng làm nguồn đọc code.
+- Git hiện không có trong `PATH` của môi trường đã khảo sát, vì vậy chưa thể xác nhận danh sách thay đổi chưa commit bằng `git status`.
+
+## 2. Luồng ứng dụng
+
+```text
+Mobile / Browser / Admin / Referee
+                │
+                ├── REST hoặc Razor MVC
+                │       ↓
+                │   Controllers
+                │       ↓
+                │   Services + EF DbContext
+                │       ↓
+                │     SQL Server
+                │
+                ├── /ws         → WebSocketHandler → RealtimeHub
+                └── /ws-public  → PublicWebSocketHandler → PublicRealtimeHub
+```
+
+Entry point là `Program.cs`:
+
+- `AddControllersWithViews()` phục vụ cả API và Razor MVC.
+- `PickleballDbContext` lấy connection string `PickleballDb`.
+- CORS policy `AllowAll` hiện cho phép mọi origin/header/method.
+- Cookie là authentication scheme mặc định.
+- JWT Bearer dùng cho API client/mobile và `/ws`.
+- `TournamentPairRequestExpiryService` chạy nền để xử lý lời mời ghép đôi hết hạn.
+- `RelayLineupService` chỉ có một constructor công khai nhận `PickleballDbContext` và `RelayMatchLineupSnapshotService`. Test tạo trực tiếp phải truyền service snapshot; không thêm overload nhận `TimeProvider` vì cả hai dependency đều có trong DI và sẽ gây lỗi constructor không rõ ràng tại `builder.Build()`.
+- Hai realtime hub là singleton trong tiến trình; trạng thái subscription không được chia sẻ giữa nhiều instance server.
+
+Route cấp ứng dụng:
+
+- `/` → `PickleballWebController.Index`.
+- `/{controller=Home}/{action=Login}/{id?}` → MVC mặc định.
+- `/RefereePortal/{action=Login}/{id?}` → cổng trọng tài.
+- `/ws-public` → WebSocket công khai.
+- `/ws` → WebSocket yêu cầu JWT hợp lệ và claim định danh user.
+
+### Cancellation và client disconnect
+
+- `RequestCancellationMiddleware` là boundary chung cho MVC, API và endpoint WebSocket. `OperationCanceledException` chỉ được coi là request bị bỏ khi `HttpContext.RequestAborted` đã được kích hoạt.
+- Request bị client đóng không được đổi thành lỗi nghiệp vụ/500 và không ghi log Warning/Error; middleware đặt status 499 nếu response chưa bắt đầu. Cancellation không bắt nguồn từ `RequestAborted` vẫn được truyền lên để không che provider timeout hoặc lỗi ứng dụng.
+- Middleware nhận diện thêm `SqlException` trực tiếp hoặc được EF bọc trong `InvalidOperationException`: request phải đã hủy và danh sách SQL errors phải có mã `0` với thông báo `Operation cancelled by user.`. Chỉ chấp nhận lỗi đi kèm đã xác minh: mã `3980` hoặc mã `0`/class `11`/state `0` với thông báo severe-error chuẩn của SqlClient. `3980` đơn lẻ, severe-error đơn lẻ, timeout, deadlock, lỗi schema và mọi SQL error khác vẫn được truyền lên. Log cancellation chỉ ghi Method/Path/TraceId/SqlErrorNumber ở mức Debug.
+- Cancellation token vẫn phải được truyền xuống EF/HTTP I/O để dừng công việc không còn cần thiết. Các `catch (Exception)` có token của caller phải cho caller cancellation đi tiếp.
+- Rollback sau cancellation dùng token cleanup độc lập, có timeout 5 giây, thay vì dùng lại token đã bị hủy.
+- Sau khi thao tác chấm điểm đã commit, bracket propagation và thông báo người thắng dùng token do server sở hữu với timeout 15 giây; việc client rời trang không được làm mất bước giữ nhất quán sau commit.
+- WebSocket disconnect/request cancellation là đóng kết nối bình thường; lỗi protocol/runtime khác vẫn được log. Timeout gửi realtime được tách khỏi request cancellation.
+- Màn hình setup bracket hủy lần tải cũ bằng `AbortController`, bỏ qua `AbortError` và dùng sequence guard để response cũ không ghi đè trạng thái mới.
+- Public web tải `pickleball-web/js/web-session.js` trước các script trang. `HanakaWebSession.read()` chỉ xác nhận phiên từ JSON hợp lệ hoặc HTTP 401; lỗi mạng/500/JSON không hợp lệ là trạng thái chưa kiểm tra được, còn AbortError/499 được giữ là cancellation. Không cache phiên hoặc dùng chung request giữa các caller.
+- Trang chủ, tài khoản và đổi mật khẩu giữ danh tính đã xác nhận khi kiểm tra phiên lỗi; lần tải đầu chưa xác định sẽ hiển thị trạng thái trung lập. Account giữ dữ liệu đang nhập và sequence guard; chỉ xóa danh tính/chuyển đăng nhập khi server xác nhận không còn phiên. Danh sách đăng ký giải vẫn hiển thị dữ liệu công khai khi kiểm tra phiên lỗi, kèm thông báo tải lại và chặn thao tác cần xác nhận phiên.
+- Kiểm thử cancellation SQL chạy với `HANAKA_AUTH_SQL_TESTS=1` trên Windows/LocalDB (`AuthRequestCancellationSqlTests`). Test tạo/xóa database `HanakaAuthCancellationTests_<guid>`, kiểm tra lỗi EF bọc, hủy SQL đang chạy, HTTP disconnect qua Kestrel, lỗi schema và các request tiếp theo. Không sử dụng connection string thật của ứng dụng. JavaScript: `node --test HanakaServer.Tests/JavaScript/*.test.js`, gồm kiểm thử phiên và tương tác account/change-password trên Edge headless.
+
+### Phản hồi loading cho API trên web
+
+- `wwwroot/js/api-loading.js` và `wwwroot/css/api-loading.css` là boundary giao diện dùng chung cho hoạt động API trên public web, admin, referee portal, rating portal và các trang web độc lập.
+- Mọi lời gọi `fetch` được theo dõi tự động; các trang dùng Axios cài interceptor chung. Bộ quản lý dùng token và reference count nên chỉ đóng overlay sau khi toàn bộ request foreground đồng thời đã kết thúc, kể cả khi request lỗi hoặc bị hủy.
+- Mặc định request hiển thị overlay toàn màn hình và khóa nút vừa kích hoạt. API có thể chọn `section`, `button` hoặc `silent` qua tùy chọn `hanakaLoading`; chấm điểm dùng `silent`, báo trạng thái lưu ngay trong form và khóa ghi đồng thời, không phủ loading lên bảng điểm.
+- Payment polling, refresh do realtime và đồng bộ chat nền phải dùng `silent` để không làm overlay nhấp nháy hoặc chặn thao tác. WebSocket là kết nối dài hạn nên không được đưa vào reference count của API loading.
+- Overlay có độ trễ ngắn để tránh chớp với request rất nhanh, có thời gian hiển thị tối thiểu, thông báo khi request chậm và tự dọn trạng thái khi `pagehide`/BFCache restore.
 
-## 1. Tong quan du an
+## 3. Xác thực và phân quyền
 
-- Du an la mot ung dung ASP.NET Core Web (`net9.0`) gom nhieu vai tro trong cung 1 project:
-  - JSON API cho mobile/client
-  - Admin web dung Razor MVC
-  - Referee portal rieng
-  - Public landing page
-  - WebSocket realtime cho chat/thong bao
-- Entry point nam o `Program.cs`.
-- Data layer dung `EF Core + SQL Server` qua `Data/PickleballDbContext.cs`.
-- Khong thay thu muc `Migrations`, nen kha nang cao day la mo hinh database-first/scaffolded.
+### Cookie
 
-## 2. Cau truc thu muc chinh
+- Dùng cho admin web, referee portal và rating portal.
+- Cookie tên `Hanaka.Auth`, `HttpOnly`, `SameSite=Lax`, thời hạn 8 giờ và sliding expiration.
+- API dùng cookie được xử lý để trả 401/403 JSON thay vì redirect HTML.
+- `HomeController` vẫn có credential admin hard-code. Không xem đây là cơ chế đăng nhập production.
 
-- `Controllers/`: chua gan nhu toan bo business flow chinh.
-- `Data/`: `PickleballDbContext`.
-- `Models/`: entity model map voi DB.
-- `Dtos/`: request/response DTO.
-- `Service/`: email, OTP, realtime WebSocket.
-- `Views/`: Razor view cho admin/public/referee.
-- `wwwroot/`: static assets, uploads, css/js, giao dien public.
+### JWT
 
-## 3. Startup, auth, route
+- Dùng cho auth/mobile API, user API, tournament self-registration, chat trực tiếp và WebSocket `/ws`.
+- Token được đọc từ `Authorization: Bearer`, query `access_token` cho WebSocket, hoặc cookie access-token của public web.
+- Cấu hình hiện tại có thời gian sống access token rất dài; cần rút ngắn và bổ sung chiến lược refresh/revoke trước production.
 
-### Startup
+### Role và policy
+
+- `AdminOnly`: role `Admin`.
+- `RefereeOnly`: role `REFEREE` hoặc `Admin`.
+- `RatingAssessorOnly`: role rating assessor hoặc `Admin`.
+- Một số controller dùng policy, một số dùng chuỗi role trực tiếp. Khi thay đổi role phải tìm cả hai kiểu khai báo.
+
+## 4. Data model và schema
+
+### Nhóm entity chính
+
+| Miền | Entity tiêu biểu |
+| --- | --- |
+| User/Auth | `User`, `Role`, `UserRole`, `UserOtp`, `UserRatingHistory`, `UserAchievement`, `UserBlock`, `UserNotification` |
+| Club/Chat | `Club`, `ClubMember`, `ClubMessage`, `DirectChatRoom`, `DirectChatMessage`, `DirectChatRoomParticipant`, `ModerationReport` |
+| Tournament | `Tournament`, `TournamentRegistration`, `TournamentPairRequest`, `TournamentRound`, `TournamentRoundMap`, `TournamentRoundGroup`, `TournamentGroupMatch`, `TournamentPrize`, `TournamentMatchScoreHistory` |
+| Payment | `TournamentRegistrationPayment`, `TournamentSepayWebhook`, `SepaySetting` |
+| Bracket library | `BracketTemplate`, `BracketTemplateVersion`, `BracketTemplateRound`, `BracketTemplateGroup`, `BracketTemplateMatch`, `BracketTemplateMatchSlot`, `TournamentBracketApplication`, `TournamentBracketSeedAssignment` |
+| Relay | `RelayTournamentSettings`, `RelayTeam`, `RelayTeamMember`, `RelayMatchState`, `RelayLeg`, `RelayMatchCommand`, `RelayBracketSeedSnapshot` |
+| Directory/Public | `Coach`, `Referee`, `Court`, `CourtImage`, `Banner`, `Link`, `Exchange` |
 
-- `Program.cs` dang ky:
-  - `AddControllersWithViews()`
-  - `PickleballDbContext` voi `UseSqlServer(...)`
-  - CORS policy `AllowAll`
-  - Cookie auth + JWT auth
-  - Authorization policy `RefereeOnly`, `AdminOnly`
-  - WebSocket endpoint `/ws`
+### Quy ước dữ liệu
 
-### Auth
+- DB thường lưu đường dẫn upload tương đối; response ghép với `PublicBaseUrl` khi cần URL tuyệt đối.
+- `UserRatingHistories` là nguồn chuẩn của rating. `Users.RatingSingle` và `Users.RatingDouble` là cache/legacy và vẫn được đồng bộ để tương thích.
+- `Coach` và `Referee` có shadow profile liên kết với user qua external/user id; cập nhật profile/rating có thể phải đồng bộ các bảng này.
+- `TournamentRegistration` vừa đại diện người/cặp đăng ký truyền thống, vừa là vị trí đội chính khi tích hợp relay. Không được dùng tên đội relay làm tên VĐV giả trong các trường legacy.
+- Bracket application giữ seed snapshot để lịch sử không bị thay đổi khi registration hoặc roster về sau thay đổi.
 
-- Cookie auth la mac dinh:
-  - dung cho admin MVC
-  - dung cho referee portal
-- JWT Bearer:
-  - dung cho mobile/client API
-  - dung cho WebSocket, token co the di qua query `access_token`
-
-### Route chinh
-
-- `""` => `PickleballWeb/Index` (landing page public)
-- `"{controller=Home}/{action=Login}/{id?}"` => MVC admin mac dinh
-- `"RefereePortal/{action=Login}/{id?}"` => portal trong tai
-- `"/ws"` => WebSocket realtime
-
-## 4. Cau hinh quan trong
-
-File: `appsettings.json`
-
-- `ConnectionStrings:PickleballDb`
-- `Jwt`
-- `PublicBaseUrl`
-- `Otp`
-- `Email`
-- `Support`
-- `Smtp`
-
-Luu y:
-
-- Hien tai `appsettings.json` dang chua connection string va SMTP credential dang plaintext.
-- Neu tiep tuc phat trien/nghiem tuc hoa moi truong, nen dua cac secret nay sang environment variables, user secrets hoac secret manager.
-
-## 5. Kien truc nghiep vu tong the
-
-Du an dang theo huong "controller-heavy":
-
-- Controller khong chi nhan request ma con chua kha nhieu business logic.
-- `Service/` hien tai chi giai quyet mot so concern cu the:
-  - OTP/email
-  - realtime WebSocket
-- Chua thay layer application/service domain tach biet ro rang.
-
-Dieu nay co nghia la khi sua tinh nang, phan lon thoi gian can doc `Controllers/*.cs` truoc.
-
-## 6. Module chinh
-
-### 6.1 Auth va nguoi dung
-
-File quan trong:
-
-- `Controllers/AuthsController.cs`
-- `Controllers/UsersController.cs`
-- `Service/OtpEmailService.cs`
-- `Service/UserOtpService.cs`
-
-Chuc nang:
-
-- Dang ky tai khoan
-- Gui OTP qua email
-- Xac thuc OTP
-- Dang nhap tra JWT
-- Xem/sua profile
-- Upload avatar
-- Doi mat khau
-- Xoa tai khoan (anonymize + vo hieu hoa)
-- Tu cham diem trinh
-- Xem lich su diem trinh
-- Xem achievements
-
-Luu y quan trong:
-
-- Diem trinh chinh dang doc tu `UserRatingHistories`, khong con xem `Users.RatingSingle/RatingDouble` la nguon du lieu chuan.
-- Tuy nhien, code van sync nguoc gia tri rating vao bang `Users` de giu tuong thich voi code cu.
-- Khi user sua profile/rating, he thong sync sang ban shadow cua `Coach` va `Referee` neu co.
-
-### 6.2 Clubs va chat realtime
-
-File quan trong:
-
-- `Controllers/ClubsController.cs`
-- `Service/RealtimeHub.cs`
-- `Service/WebSocketHandler.cs`
-
-Chuc nang:
-
-- Tao CLB
-- Upload cover
-- Join/approve/remove member
-- Bat/tat challenge mode
-- Lay danh sach CLB, overview, members, pending members
-- Chat room theo CLB
-- Upload media cho chat
-- Xoa message cua chinh minh
-- Push realtime message/typing/notification
-
-Realtime flow:
-
-- Client ket noi `/ws` bang JWT.
-- `RealtimeHub` luu map:
-  - `userId -> many sockets`
-  - `socketId -> subscribed clubIds`
-- `WebSocketHandler` xu ly message tu client:
-  - `ping`
-  - `club.subscribe`
-  - `club.unsubscribe`
-  - `club.typing`
-- Server push:
-  - `club.message.created`
-  - `club.message.deleted`
-  - `club.typing`
-  - `club.notification`
-  - `session.revoked`
-
-Luu y:
-
-- REST API van la noi luu source of truth vao DB.
-- WebSocket chi dung de push state realtime sau khi luu xong.
-- Chat co lien ket voi moderation va block user.
-
-### 6.3 Tournament
-
-File quan trong:
-
-- `Controllers/PublicTournamentsController.cs`
-- `Controllers/TournamentClientController.cs`
-- `Controllers/AdminTournamentsApiController.cs`
-- `Controllers/AdminRegistrationsController.cs`
-- `Controllers/AdminTournamentRoundsController.cs`
-- `Controllers/AdminTournamentRoundGroupsController.cs`
-- `Controllers/AdminTournamentGroupMatchesController.cs`
-- `Controllers/AdminTournamentPrizesController.cs`
-
-Chuc nang:
-
-- Public list/detail tournament
-- Public registrations
-- Client lay rounds -> groups -> matches
-- Client lay standings cua tung round/group
-- Client lay tournament rule
-- Admin CRUD tournament
-- Admin quan ly registration
-- Admin quan ly round map, group, match
-- Admin quan ly prize setup/confirm
-
-Mo hinh tournament co nhieu lop:
-
-- `Tournament`
-- `TournamentRegistration`
-- `TournamentRound`
-- `TournamentRoundMap`
-- `TournamentRoundGroup`
-- `TournamentGroupMatch`
-- `TournamentPrize`
-- `TournamentMatchScoreHistory`
-
-Hieu nhanh:
-
-- `TournamentRoundMap` la map mot round cua giai.
-- `TournamentRoundGroup` la group/bang nam trong round map.
-- `TournamentGroupMatch` la tran dau cu the giua 2 registration.
-- `TournamentRegistration` la doi dang ky / cap doi / nguoi choi.
-
-Tinh trang dang ky giai hien tai:
-
-- App mobile hien chi doc va hien thi danh sach dang ky giai, chua co luong de VDV tu dang ky tham gia giai.
-- Man hinh mobile lien quan:
-  - `hanaka-sport/src/screens/Tournament/TournamentDetailScreen.js`
-    - co nut vao danh sach dang ky, the le, lich thi dau, bang xep hang
-    - chua co nut/form submit dang ky tham gia giai
-  - `hanaka-sport/src/screens/Tournament/RegistrationListScreen.js`
-    - chi goi `publicListTournamentRegistrations()`
-    - chi doc `GET /api/public/tournaments/{id}/registrations`
-  - `hanaka-sport/src/services/tournamentService.js`
-    - co `publicListTournamentRegistrations()`
-    - chua co ham POST tao registration cho user mobile
-- Server hien co:
-  - `GET /api/public/tournaments/{id}/registrations`
-    - trong `PublicTournamentsController.PublicRegistrations`
-    - public read-only
-  - `POST /api/admin/tournaments/{tournamentId}/registrations`
-    - trong `AdminRegistrationsController.Create`
-    - chi danh cho admin cookie auth / role Admin
-  - `POST /api/admin/registrations/{registrationId}/pair`
-    - trong `AdminRegistrationsController.Pair`
-    - ghep 2 dang ky waiting thanh 1 doi success
-- Server hien chua co endpoint JWT cho mobile user tu dang ky, vi du:
-  - `POST /api/tournaments/{tournamentId}/registrations/me`
-
-Finding quan trong ve registration:
-
-1. App chua co self-registration:
-   - VDV trong app khong the tu dang ky giai bang API hien tai.
-   - Neu can tinh nang nay, phai lam ca API JWT va UI mobile.
-
-2. `MIXED` chua duoc xu ly dung trong admin registration:
-   - `Tournament.GameType` va public display co xu ly `MIXED` nhu double-like.
-   - `AdminRegistrationsController.Create` hien chi chap nhan `SINGLE` va `DOUBLE`.
-   - `Views/Registrations/Index.cshtml` cung chi co select `SINGLE`/`DOUBLE`, lock UI theo 2 gia tri nay.
-   - He qua: giai `MIXED` co the khong tao registration duoc, bi roi ve UI double, hoac khong pair duoc.
-
-3. Chua chan trung VDV trong cung giai:
-   - Admin create chua check user da nam trong registration nao cua tournament hay chua.
-   - Chua chan `Player1UserId == Player2UserId`.
-   - Pair 2 waiting registrations cung can check de khong ghep 2 entry cua cung mot user.
-   - Neu khong chan, co the lam sai boc bang, lich dau, diem va prize.
-
-4. Public registration hien thi rating co the lech snapshot:
-   - `TournamentRegistration.Player1Level`, `Player2Level`, `Points` la snapshot luc dang ky.
-   - `PublicTournamentsController.PublicRegistrations` lai lay rating hien tai tu `Users.RatingSingle/RatingDouble` neu registration co `PlayerUserId`.
-   - Neu admin/app sua diem trinh sau khi dang ky, UI public/mobile co the hien level moi trong khi `Points` van la diem cu.
-   - Can quyet dinh ro:
-     - hien thi snapshot registration de khop `Points`; hoac
-     - cap nhat lai snapshot/points co chu y khi rating thay doi.
-
-5. Rating source of truth:
-   - He thong moi xem `UserRatingHistories` la source of truth.
-   - Nhieu doan registration van doc `Users.RatingSingle/RatingDouble`.
-   - Neu sua registration, can can nhac doc latest rating tu `UserRatingHistories` hoac dung snapshot da luu trong `TournamentRegistration`.
-
-Huong sua de lam self-registration cho mobile:
-
-- Tao API JWT rieng cho user dang nhap, khong dung endpoint admin.
-- Server lay user hien tai tu claim `uid`, khong tin `player1UserId` client gui len.
-- Validate:
-  - tournament ton tai va khong phai `DRAFT`
-  - status dang cho dang ky, kha nang la `OPEN`
-  - `RegisterDeadline` chua qua han
-  - capacity con cho
-  - user chua dang ky trong tournament nay
-  - partner khac current user va chua dang ky trong tournament nay
-  - rating nam trong gioi han cua giai
-- Voi `SINGLE`:
-  - tao success registration cho current user
-  - diem dung single rating
-- Voi `DOUBLE`/`MIXED`:
-  - cho phep dang ky waiting hoac dang ky kem partner
-  - diem dung double rating
-  - full pair moi tinh vao `ExpectedTeams`
-- Khi tao registration:
-  - luu snapshot vao `Player1Level`, `Player2Level`
-  - tinh `Points` tu snapshot
-  - tranh recompute silent tu rating hien tai khi hien thi public neu product muon snapshot on dinh
-
-### 6.4 Referee
-
-File quan trong:
-
-- `Controllers/RefereeAuthApiController.cs`
-- `Controllers/RefereeMatchesApiController.cs`
-- `Controllers/RefereePortalController.cs`
-- `Views/RefereePortal/Matches.cshtml`
-
-Chuc nang:
-
-- Login referee bang cookie auth
-- Lay danh sach tran duoc phan cong
-- Cham diem tran dau
-- Luu lich su cham diem vao `TournamentMatchScoreHistories`
-
-Luu y:
-
-- Referee portal la mot man hinh MVC/Razor + JS, khong phai SPA rieng.
-- Referee chi duoc cham diem khi da den gio thi dau.
-
-### 6.5 Admin MVC
-
-File quan trong:
-
-- `Controllers/HomeController.cs`
-- `Controllers/DashboardController.cs`
-- `Views/Home/*.cshtml`
-
-Vai tro:
-
-- Admin login
-- Dashboard thong ke
-- Cac trang quan tri tournament, banners, courts, links, registrations, rounds...
-
-Luu y quan trong:
-
-- `HomeController` dang hard-code admin account:
-  - Email: `admin@hanaka.com`
-  - Password: `123456`
-- Day la diem can luu y rat manh ve bao mat va kha nang mo rong.
-
-### 6.6 Moderation
-
-File quan trong:
-
-- `Controllers/ModerationController.cs`
-- `Controllers/AdminModerationController.cs`
-
-Chuc nang:
-
-- User submit report
-- User block nguoi khac
-- User xem reports/blocks cua minh
-- Admin xem queue moderation
-- Admin hide message
-- Admin eject/reinstate user
-- Neu eject user thi realtime socket co the bi disconnect
-
-Moderation co lien ket truc tiep voi:
-
-- `ModerationReports`
-- `UserBlocks`
-- `ClubMessages`
-- `RealtimeHub`
-
-## 7. Model du lieu quan trong
-
-### User side
-
-- `User`
-- `Role`
-- `UserRole`
-- `UserOtp`
-- `UserRatingHistory`
-- `UserAchievement`
-- `UserBlock`
-
-### Club side
-
-- `Club`
-- `ClubMember`
-- `ClubMessage`
-
-### Tournament side
-
-- `Tournament`
-- `TournamentRegistration`
-- `TournamentRound`
-- `TournamentRoundMap`
-- `TournamentRoundGroup`
-- `TournamentGroupMatch`
-- `TournamentPrize`
-- `TournamentMatchScoreHistory`
-
-### Other domain
-
-- `Coach`
-- `Referee`
-- `Court`
-- `CourtImage`
-- `Banner`
-- `Link`
-- `Exchange`
-- `ModerationReport`
-
-## 8. Cac quy uoc du lieu/logic dang ton tai
-
-### Absolute vs relative URL
-
-- DB thuong luu relative path, vi du `/uploads/...`
-- API response thuong convert thanh absolute bang `PublicBaseUrl`
-
-### Shadow profile
-
-- `Coach` va `Referee` dang co ve duoc dong bo tu `User`
-- Nhiem vu dong bo xuat hien trong `UsersController`
-- `ExternalId` cua `Coach`/`Referee` duoc dung de lien ket voi `UserId` dang string
-
-### Upload file
-
-- Avatar: `wwwroot/uploads/avatars`
-- Club cover: `wwwroot/uploads/clubs`
-- Club message media: `wwwroot/uploads/club-messages`
-- Tournament banner: `wwwroot/uploads/tournaments`
-
-### Rating
-
-- Source of truth moi: `UserRatingHistories`
-- Bang `Users` van giu gia tri cache/legacy
-
-## 9. Public UI va web UI
-
-### Public landing page
-
-- `Views/PickleballWeb/Index.cshtml`
-- Giao dien la Razor + JS/CSS, lay du lieu public tu backend
-- Muc tieu la giong giao dien mobile app
-
-### Admin UI
-
-- Razor view + JS tren trang
-- Nhieu man hinh goi truc tiep cac API `/api/admin/...`
-
-### Referee UI
-
-- Razor page rieng, toan man hinh, tap trung cho viec cham diem
-
-## 10. Diem can chu y khi tiep tuc doc/sua code
-
-1. Neu can sua nghiep vu, doc controller truoc, vi logic dang nam o day la chinh.
-2. Neu can sua schema/quan he, doc `PickleballDbContext.cs` truoc vi file nay map rat nhieu constraint/index/relationship.
-3. Neu can sua chat realtime, xem ca `ClubsController`, `RealtimeHub`, `WebSocketHandler`.
-4. Neu can sua tournament, thuong phai theo day:
-   - registration
-   - round map
-   - group
-   - match
-   - prize / standings / referee scoring
-5. Neu can sua profile user, luu y logic sync sang `TournamentRegistration`, `Coach`, `Referee`.
-6. Neu can sua auth, nho rang he thong dang co 2 kenh auth khac nhau: Cookie va JWT.
-
-## 11. Cac van de / debt ky thuat da nhan ra
-
-### Bao mat
-
-- Secret dang nam trong `appsettings.json`
-- Admin account hard-code trong source
-
-### Architecture
-
-- Business logic tap trung nhieu trong controller
-- Chua thay service layer/domain layer ro rang
-
-### Consistency
-
-- Logic default rating co dau hieu khong dong nhat:
-  - `AuthsController` dang co default nam la `2.3`
-  - `UsersController` dang co default nam la `2.6`
-
-### Maintainability
-
-- Project gom qua nhieu vai tro trong cung mot app:
-  - public site
-  - mobile API
-  - admin MVC
-  - referee portal
-  - realtime gateway
-- Ve sau co the can tach ro hon theo module hoac boundary.
-
-## 12. Neu can onboard nhanh trong lan sau
-
-Thu tu doc de hieu nhanh nhat:
-
-1. `context.md`
-2. `Program.cs`
-3. `Data/PickleballDbContext.cs`
-4. Controller theo module dang can sua:
-   - auth/user => `AuthsController`, `UsersController`
-   - club/chat => `ClubsController`, `RealtimeHub`, `WebSocketHandler`
-   - tournament => `PublicTournamentsController`, `TournamentClientController`, `Admin*Tournament*`
-   - referee => `RefereeAuthApiController`, `RefereeMatchesApiController`
-   - moderation => `ModerationController`, `AdminModerationController`
-
-## 13. Tom tat 1 cau
-
-`HanakaServer` la mot monolith ASP.NET Core phuc vu ca mobile API, admin web, referee portal va realtime club chat, trong do phan lon nghiep vu nam truc tiep trong controllers va data duoc quan ly bang EF Core tren SQL Server.
+### Script SQL
+
+- `database/migrations` và `database/updates` đều là script thủ công; tên thư mục không có nghĩa EF sẽ tự chạy.
+- Script phải có kế hoạch backup, kiểm tra repeatability và chạy trên bản sao database trước.
+- Các script relay/bracket bổ sung là additive và đã được chạy thành công lên SQL Server đang cấu hình ngày 06/09/2026; vẫn phải chạy theo thứ tự này ở môi trường mới:
+  1. `20260906_add_relay_foundation.sql` tạo sáu bảng nền, constraint, index và trigger.
+  2. `20260906_relay_informational_timer_configurable_target.sql` bỏ ràng buộc deadline, giữ timer 600 giây ở vai trò hiển thị và cập nhật trigger khóa luật.
+  3. `20260906_add_relay_bracket_snapshots.sql` tạo bảng snapshot thứ bảy và phụ thuộc schema bracket đã có.
+  4. `20260906_add_bracket_template_participant_mode.sql` tách đối tượng tham gia `STANDARD`/`RELAY_TEAM` khỏi topology bracket và phân loại draft `TP_08` nếu chưa từng được dùng.
+  5. `20260907_optimize_public_relay_registrations.sql` bổ sung index đọc danh sách đăng ký công khai.
+  6. `20260908_remove_relay_lineup_lock_and_add_match_snapshots.sql` bỏ trigger khóa roster và tạo snapshot đội hình bất biến theo từng trận.
+
+## 5. Bản đồ module
+
+### Auth và user
+
+Điểm vào chính:
+
+- `AuthsController`: register, OTP, resend, forgot/reset password, login/logout cho client.
+- `WebAuthApiController`: cùng auth flow nhưng quản lý cookie/token cho public web.
+- `AppAuthService`: nghiệp vụ auth dùng chung.
+- `UsersController`: profile, avatar, password, rating, lịch sử, achievement và xóa/anonymize tài khoản.
+- `UserRatingService`: đọc/ghi rating chuẩn và đồng bộ cache/shadow profile.
+
+Khi sửa auth, phải kiểm tra đồng thời mobile JWT, web cookie, portal cookie và WebSocket token extraction.
+
+### Club, direct chat và moderation
+
+Điểm vào chính:
+
+- `ClubsController`: CRUD/participation CLB, member approval, cover và chat CLB.
+- `DirectChatsController`: phòng chat 1-1, message, recall/edit/delete và trạng thái đọc.
+- `ModerationController`, `AdminModerationController`: report, block, ẩn nội dung, eject/reinstate.
+- `RealtimeHub`, `WebSocketHandler`: subscription và push theo user, CLB hoặc direct room.
+
+REST/DB là source of truth; WebSocket chỉ phát sự kiện sau thao tác lưu. Khi sửa chat phải giữ đồng bộ giữa persistence, block/privacy, moderation và realtime.
+
+### Tournament registration
+
+`TournamentRegistrationUserController` cung cấp luồng JWT cho VĐV:
+
+- Xem trạng thái đăng ký của mình.
+- Tìm partner.
+- Đăng ký giải đơn.
+- Tạo đăng ký chờ ghép đôi.
+- Tạo, nhận, từ chối hoặc hủy lời mời ghép đôi.
+- Xem danh sách và chi tiết lời mời.
+
+Admin dùng `AdminRegistrationsController` để quản lý registration. Mọi thay đổi registration có thể ảnh hưởng capacity, payment, bracket seed, match participants, notification và relay lineup; không sửa độc lập từng bảng.
+
+Thanh tìm kiếm trên `Views/Registrations/Index.cshtml` (10/09/2026): bỏ `w-100` khỏi ô nhập và giữ input-group không xuống dòng để kính lúp nối liền ô tìm kiếm. Ô nhập và nút cao 40 px, header có khoảng cách rõ với tiêu đề; dưới 576 px, ô nhập nằm trên và các nút chia đều hàng dưới. Từ 576 px, toolbar giữ cùng hàng và ô nhập co theo phần diện tích còn lại. Các nút là phần tử trực tiếp của toolbar nên nút “Xóa lọc” ẩn không để lại khung rỗng. Có viền focus cho thao tác bàn phím. Đã kiểm tra bằng Edge với HTML/CSS thực và dữ liệu hiển thị giả lập: 32 trường hợp ở chiều rộng 320–1920 px, bao gồm hiện/ẩn nút xóa và diện tích bị giới hạn bởi sidebar/container; JavaScript tìm kiếm giữ nguyên. Build Release thành công, 0 lỗi và 17 cảnh báo hiện có.
+
+### Payment SePay
+
+Điểm vào chính:
+
+- `TournamentRegistrationPaymentsController`: tạo checkout, app-webview checkout, đọc trạng thái và nhận webhook.
+- `TournamentRegistrationPaymentService`: điều phối trạng thái payment/registration.
+- `SepaySettingsProvider`: đọc cấu hình runtime.
+- `SepayGatewayClient`: gọi nhà cung cấp.
+- `PublicRealtimeHub`: phát `tournament.payment.status.updated` cho subscriber transaction code.
+
+Webhook phải idempotent, không tin số tiền/trạng thái từ client và không log secret/API key.
+
+### Tournament runtime
+
+- `AdminTournamentRoundsController`: round map và lịch hàng loạt.
+- `AdminTournamentRoundGroupsController`: group trong round.
+- `AdminTournamentGroupMatchesController`: trận, điểm và trọng tài.
+- `TournamentClientController`: lịch, chi tiết trận và rule cho client.
+- `PublicTournamentsController`: danh sách/chi tiết/registration công khai.
+- `TournamentStandingsService`: tính xếp hạng bảng.
+- `TournamentBracketPropagationService`: đưa winner/loser/group rank sang các slot phụ thuộc và reconcile.
+- `RefereeMatchesApiController`: danh sách và đường chấm điểm chung cho đơn, đôi và đội tiếp sức.
+- Khối thông tin đầu trang chấm điểm trong `Views/RefereePortal/Matches.cshtml` dùng hai hàng gọn: tên giải và trạng thái cùng hàng, giờ/sân ở hàng dưới. Trạng thái không ngắt dòng; tên giải và sân dài được xuống dòng. Đã đối chiếu bằng Edge ở chiều rộng 320–1024 px và chế độ ngang; với nội dung mẫu “hanaka”, khối cao 70 px thay vì khoảng 113 px trên màn hình 390 px.
+- Tương tác cộng/trừ điểm (10/09/2026): không tự focus ô số, không hiện overlay/toast cho mỗi điểm; trạng thái lưu nằm trong form. Cả cộng/trừ và lưu thủ công đồng bộ điểm, nhãn trạng thái, công tắc kết thúc, đội thắng và lịch sử ngay từ phản hồi HTTP đã xác nhận, không phụ thuộc realtime. Các thay đổi kết quả được cập nhật tại chỗ, giữ DOM của form, tình huống đang chọn, vị trí cuộn và các khối thông tin đang mở; thay đổi quyền chấm, đội tham gia hoặc thông tin cấu trúc trận vẫn dựng lại chi tiết. Realtime dùng cùng bước đồng bộ nên sự kiện kết thúc hoặc đổi đội thắng không làm mất form và echo không nhân lịch sử.
+- Phản hồi danh sách realtime được kiểm tra lại sau khi nhận: dữ liệu cũ hoặc đến trong lúc đang lưu/nhập nháp phải hoãn đồng bộ, không ghi đè điểm vừa nhập. Browser test `JavaScript/referee-score-interaction.test.js` chạy Razor/JS thật với API và realtime giả lập, bao gồm kết thúc lần đầu 1–0/0–1, tỷ số 5–2, nút trừ, lưu thủ công khi thiếu realtime, echo trước/sau/lặp, mạng chậm, hủy xác nhận, lỗi lưu, timeout đã commit, mở lại trận và đổi quyền sang chỉ xem.
+
+Sửa tỷ số phải giữ: match result, winner, score history, propagation, public realtime và quyền trọng tài. Relay dùng hai registration đội cha trên `TournamentGroupMatch`; không tạo hoặc cập nhật state/cặp/lượt relay khi chấm điểm.
+
+### Bracket template library
+
+Thành phần chính:
+
+- `BracketTemplateService`: CRUD template/version/graph, generate, publish và lifecycle.
+- `BracketTemplateValidationService`: kiểm topology, source, cycle, BYE, group rank và terminal.
+- `TournamentBracketApplicationService`: chọn registration, preview seed, apply, reset và lưu lịch sử.
+- `AdminBracketTemplatesController`: API quản lý thư viện.
+- `AdminTournamentBracketApplicationsController`: API áp dụng template cho giải.
+- `TournamentBracketPropagationService`: runtime propagation sau khi có kết quả.
+
+Nguyên tắc phải giữ:
+
+- Template đã publish có version riêng; draft không được làm thay đổi bản đã dùng.
+- Seed và random seed phải ổn định/replay được.
+- Đội ảo chỉ phục vụ lấp seed và phải được ẩn ở API public phù hợp.
+- Relay tái sử dụng nguyên graph template: một seed là một đội chính, không đưa cặp/lượt relay vào graph.
+
+Giao diện thẻ trận trên `TournamentAdminBracket` (10/09/2026): header chia hai hàng, tên trận và ID ở trên, mã nhánh cùng giờ/sân ở dưới; tên nhánh đầy đủ nằm trong tooltip. Chữ dài được rút gọn bằng dấu ba chấm và có tooltip xem đầy đủ, tránh đè lên ID hoặc thông tin bên cạnh. Đã kiểm tra bằng Edge với renderer/CSS thật và dữ liệu giả lập: 48 trường hợp ở độ rộng thẻ 292–400 px, zoom 55–160%, bao gồm chữ dài, thiếu thông tin và trận có video; bố cục nhiều vòng và đường nối vẫn hoạt động. Bộ 17 test JavaScript hiện có đạt; chưa kiểm tra trang giải 37 trong phiên đăng nhập thực tế.
+
+Lựa chọn đội theo thanh toán trên trang `TournamentBracketSetup`:
+
+- Mặc định danh sách và sơ đồ gồm cả đội đã thanh toán và chưa thanh toán; vẫn yêu cầu đăng ký thành công, không chờ ghép cặp, đủ thành viên và không phải đội ảo. Áp dụng chung cho đơn, đôi và tiếp sức.
+- `GET .../bracket/eligible-registrations` giữ `data` là mảng đội và bổ sung `registrationFeeAmount`. Service trả `TournamentBracketRegistrationListDto` gồm `Items` và lệ phí giải; giao diện phân biệt “Chưa thanh toán” với “Miễn phí”.
+- Checkbox “Loại đội chưa thanh toán” mặc định tắt. `GET .../bracket/templates` nhận query `excludeUnpaidTeams`; request preview/apply nhận `ExcludeUnpaidTeams`, mặc định `false`. Chỉ lọc `Paid = true` khi tùy chọn bật và lệ phí giải lớn hơn 0. Không thay đổi đăng ký hoặc nghĩa vụ thanh toán của đội bị loại.
+- Giao diện giữ đủ danh sách để đối chiếu, đánh dấu đội bị loại và hiển thị tổng đội/đã trả/chưa trả/đội đưa vào sơ đồ. Thay đổi checkbox tải lại template và danh sách, xóa preview cùng xác nhận cũ. Preview thêm đội ảo và apply dùng lại đúng tùy chọn của preview.
+- Preview trả `ExcludedUnpaidRegistrationCount` riêng với tổng số đăng ký bị loại. Tùy chọn lọc được đưa vào checksum; khi apply, danh sách và trạng thái thanh toán được kiểm tra lại trong transaction cho cả giải tiêu chuẩn và tiếp sức. Dữ liệu thay đổi làm preview không còn khớp thì cần xem trước lại.
+- Tùy chọn chỉ phục vụ lần tạo sơ đồ; không thêm cột database. Sơ đồ đã tạo giữ nguyên seed snapshot, không tự bổ sung đội thanh toán sau. Các đội ngoài snapshot được gọi là “đội chưa nằm trong sơ đồ”, không mặc định coi là đăng ký mới.
+
+Kiểm chứng ngày 09/09/2026: build Release `net10.0` thành công; 26/26 test workflow bracket đạt, gồm 13 trường hợp mới về thanh toán và 2 SQL integration test trên database LocalDB riêng. Test trình duyệt `JavaScript/bracket-payment-selection.test.js` chạy Razor markup và JavaScript thực với API giả lập, đạt 22 kiểm tra hành vi; 4/4 JavaScript contract test đội ảo đạt. Chưa chạy thao tác tạo sơ đồ trên giải 37 thật.
+
+### Kiểm tra mẫu trước khi xuất bản và áp dụng (09/09/2026)
+
+- `BracketTemplateValidationService.Validate` vẫn cho lưu bản nháp chưa gán hết vị trí, kèm cảnh báo có vòng/bảng/trận/bên đội. `ValidateForUse` nâng các lỗi thiếu vị trí, vượt sức chứa, thừa vị trí đầu vào hoặc thiếu số trong dải sức chứa thành lỗi chặn sử dụng.
+- Vòng bảng được kiểm tra theo các số vị trí đội phân biệt, không đếm lặp một đội ở nhiều trận. Các nguồn thắng/thua/hạng bảng chờ kết quả vẫn hợp lệ; vị trí `SEED` thiếu số không được coi là một đội đang chờ kết quả.
+- Kiểm tra chặt áp dụng khi kiểm tra trong editor, xuất bản, liệt kê mẫu có thể dùng, preview và apply, kể cả phiên bản đã xuất bản từ trước. Response lỗi có `issues` để UI hiển thị vị trí cần sửa. Draft chưa hoàn chỉnh vẫn lưu được.
+- Sức chứa/tối thiểu của phiên bản đã xuất bản không được sửa qua API settings. Thay đổi cấu trúc phải tạo phiên bản nháp mới; đổi tên template vẫn được phép và không đổi graph/hash của phiên bản. Editor hiển thị, nạp và lưu cấu hình đội, cách xếp và BYE cho draft; phiên bản đã xuất bản khóa các trường này.
+- Apply kiểm tra lại graph và checksum bên trong transaction trước khi tạo dữ liệu. `SetInitialSlot` yêu cầu mỗi đầu vào SEED được giải thành registration hoặc BYE; kiểm tra runtime bổ sung nguồn hợp lệ và registration không rỗng. Giữ nguyên ràng buộc SQL, không có migration schema mới.
+- Trang setup khóa xác nhận/apply khi có lỗi hoặc còn đầu vào chưa gán, kể cả khi kết thúc loading. Đổi mẫu hoặc tạo preview mới xóa bản xem trước cũ; lỗi API liệt kê vị trí cần sửa. Nguồn vòng sau vẫn hiển thị “Thắng/Thua trận…” bình thường.
+- Kiểm chứng source: build Release `net10.0` đạt; toàn bộ 201 test .NET đạt khi bật `HANAKA_RELAY_SQL_TESTS=1`, không bỏ qua. Có test SQL mô phỏng TP_08 lỗi, tạo phiên bản sửa, áp dụng với constraint nguồn thật và rollback sau lỗi ghi trận. Browser test setup đạt 35 kiểm tra, editor đạt 10 kiểm tra; các test JavaScript đội ảo, API loading và public realtime cũng đạt.
+- Dữ liệu đã chuẩn bị: TP_08 giữ phiên bản cũ ID 9 và xuất bản phiên bản 2 ID 11, sức chứa 8, giữ tối thiểu 2 và cho phép BYE như cấu hình gốc, cấu trúc 3 vòng/7 trận với đủ vị trí 1–8. Preview API thật của giải 37 trả 8 đội, 0 BYE, 0 lỗi, cả 8 vị trí đầu đã gán registration. Chưa gọi apply để tạo trận vào giải 37. Bản sao cấu hình trước/sau và tóm tắt preview nằm tại `artifacts/bracket-readiness-tp08-*.json`.
+- Các kết quả test trên xác nhận bản source/Release mới. Tiến trình development đang chạy cần được khởi động lại để nạp các guard và Razor mới; việc sửa mẫu TP_08 trong database đã có hiệu lực trên preview hiện tại.
+
+### Public realtime
+
+`/ws-public` hỗ trợ subscription theo tournament, match, video feed và transaction code.
+
+Các event server chính:
+
+- `tournament.match.score.updated`
+- `tournament.bracket.updated`
+- `tournament.payment.status.updated`
+
+`PublicRealtimeHub` serialize send theo từng socket và loại socket lỗi. Vì hub lưu subscription trong memory, scale-out cần backplane/pub-sub và chiến lược phân phối subscription.
+
+## 6. Đồng đội tiếp sức
+
+### Thành viên dự bị trong đăng ký (10/09/2026)
+
+- Mỗi đội được có 0–4 dự bị. Lưu riêng trong `RelayTeamReserveMembers` (RegistrationId, Position 1–4 kiểu SQL int, UserId tùy chọn cho admin, tên/ảnh); không thêm vào `RelayTeam.Members`, TeamSize, cặp, Player1/Player2, snapshot trận hoặc seed sơ đồ. Kiểm tra đủ đội hình chính 4/6/8, capacity theo đội, lệ phí và chấm điểm giữ nguyên.
+- Script `database/updates/20260910_add_relay_reserve_members.sql` cần áp dụng trước khi chạy server mới trên mỗi môi trường; chỉ thêm bảng/constraint/index. Sau kiểm thử SQL LocalDB, script đã được chạy theo yêu cầu người dùng trên `112.78.2.114` / `van17737_ngocanh` lúc 20:30 ngày 10/09/2026 (UTC+7). Đã xác minh bằng kết nối mới: đủ 5 cột đúng kiểu, 2 check constraint, 2 khóa ngoại và 3 index gồm khóa chính; bảng ban đầu có 0 dòng. Kết quả lưu ở `artifacts/relay-reserves-20260910/remote-migration.json` và `remote-verification.json`.
+- Cùng script đã được chạy tiếp theo yêu cầu người dùng trên `112.78.2.90` / `han33198_hanaka` lúc 20:34 ngày 10/09/2026 (UTC+7). Kết nối mới xác minh bảng dự bị có 0 dòng và cấu trúc cột/constraint/khóa ngoại/index khớp bản trên `van17737_ngocanh`. Kết quả riêng lưu ở `artifacts/relay-reserves-20260910/hanaka-migration.json` và `hanaka-verification.json`; không thay đổi cấu hình kết nối ứng dụng.
+- Dữ liệu mẫu giải 37: theo yêu cầu người dùng, đã chạy `database/seeds/20260910_seed_tournament_37_relay_reserves.sql` trên database đang phục vụ localhost là `112.78.2.114` / `van17737_ngocanh`, thêm 32 dự bị khách (UserId null), mỗi đội mẫu 01–08 có 4 người, dùng ảnh có sẵn `/uploads/avatars/demo/relay37-avatar-sprite-v1.webp`. Script chỉ nhắm 8 đăng ký mẫu, không ghi đè dự bị khác, chạy lại không thêm trùng và tăng version đội khi có dữ liệu mới. Hash trước/sau xác nhận 48 thành viên chính, đăng ký, trận và snapshot trận giữ nguyên; API và DOM trang user hiển thị đủ 8 nhóm/32 dự bị. Kết quả tại `artifacts/relay-reserves-20260910/t37-reserve-seed-result.json`, `t37-public-seed-verification.json` và ảnh `t37-live-reserves.png`.
+- User POST relay thêm `reserveMembers: [{ position: 1, userId: 123 }]`, có thể bỏ qua/null/rỗng khi tạo. User chỉ chọn tài khoản đang hoạt động; admin giữ cách nhập User ID hoặc tên khách. Danh sách chính vẫn ở `members`/`relayMembers`. Không thêm quyền user tự sửa đội sau đăng ký hay chức năng thay người trong trận.
+- Admin create/update thêm `relayReserveMembers`. Khi update: bỏ qua/null và không có cờ thì giữ dự bị; gửi danh sách sẽ thay thế. Multipart không biểu diễn mảng rỗng, nên UI gửi `relayReserveMembersIncluded=true` cùng các dòng; cờ true không có dòng nghĩa là xóa toàn bộ dự bị. Có kiểm tra version như roster hiện tại. Đường lưu roster cũ qua RelaySetup giữ dự bị và kiểm tra tránh trùng với roster mới.
+- Một User ID chỉ xuất hiện một lần trong đội và một đội trong cùng giải, tính cả chính thức/dự bị. `RelayReserveMembers` kiểm tra tổng hai nhóm trong transaction Serializable của caller. Member-search và trạng thái đăng ký nhận diện tài khoản dự bị đã thuộc đội; không thêm lời mời, phê duyệt hay thông báo loại mới.
+- Danh sách admin/public và trang đội đã đăng ký trả trường dự bị riêng; form có mục mở/thu gọn tùy chọn, tìm kiếm danh sách bao gồm tên/ID dự bị. Public đọc dự bị theo một truy vấn batch riêng để không nhân số hàng roster chính. App cũ tiếp tục gửi payload hiện tại; app muốn nhập/hiển thị dự bị cần bổ sung giao diện riêng.
+- Kiểm thử: `RelayReserveRegistrationTests` bao phủ giới hạn/trùng/tài khoản/thiếu đội hình, trạng thái/search/public, bỏ qua/thay/xóa/version và giữ snapshot. SQL opt-in `HANAKA_RELAY_SQL_TESTS=1` dùng migration thật chạy lặp và vòng đời user/admin trên database tạm. Test trình duyệt kiểm tra form và hiển thị mobile/desktop.
+
+### Luật đã chốt
+
+- Admin chọn đội chính 4, 6 hoặc 8 người theo từng giải, tương ứng 2, 3 hoặc 4 cặp trong đội hình đăng ký.
+- Ở luồng user, người đang đăng nhập là đội trưởng và tự động giữ vị trí 1; đội trưởng nhập tên đội rồi tìm/chọn các tài khoản còn lại bằng tên, số điện thoại hoặc User ID.
+- Tất cả thành viên phải là tài khoản đang hoạt động. Không có bước mời hoặc chờ thành viên đồng ý; đăng ký hợp lệ sẽ tạo đủ đội hình và khóa ngay trong cùng transaction.
+- Một tài khoản không được lặp trong đội và không được thuộc đội relay khác của cùng giải. Thành viên nhận thông báo thông tin sau khi đội được tạo nhưng không phải xác nhận.
+- Cặp, vị trí và thứ tự chỉ mô tả roster; runtime không theo dõi cặp con nào đang thi đấu hoặc ghép cặp con giữa hai đội.
+- Trận là cuộc đấu giữa hai `TournamentRegistration` đội cha và chỉ có một tỷ số cộng dồn trên `TournamentGroupMatch`.
+- Trọng tài chấm trận tiếp sức qua đúng luồng đơn/đôi: cộng/trừ hoặc nhập tổng điểm cho hai đội cha, ghi chú và lưu lịch sử.
+- Không có lượt thi đấu hay đồng hồ trong runtime chấm điểm. `TargetScore` không tự hoàn tất trận.
+- Trọng tài chủ động bật kết thúc trận và xác nhận; không hỗ trợ kết quả hòa, đội cha có điểm cao hơn là đội thắng.
+- Lệ phí tính một lần theo đội. Một `TournamentRegistration` gắn với một `RelayTeam` là một nghĩa vụ thanh toán, không nhân theo số thành viên.
+- Bracket template vẫn hoạt động như cũ; một vị trí/seed là một đội chính.
+- Template có `ParticipantMode`: `STANDARD` cho đơn/đôi và `RELAY_TEAM` cho đội tiếp sức. `FormatType` vẫn chỉ mô tả topology loại trực tiếp/vòng bảng/nhánh thắng-thua/tùy chỉnh.
+- Không tự chuyển các giải đơn/đôi hiện hữu sang relay.
+
+### Cấu hình và tương thích dữ liệu
+
+- `TeamSize` chỉ nhận 4, 6 hoặc 8; `PairCount` được suy ra bằng `TeamSize / 2`.
+- `TargetScore`, `LegDurationSeconds` và `DeadlinePolicy` còn trong schema để tương thích database đã triển khai nhưng runtime chấm điểm không sử dụng.
+- Luồng hiện tại không tạo mới `RelayMatchState`, `RelayLeg` hoặc `RelayMatchCommand`; các bảng này chỉ còn phục vụ đối chiếu dữ liệu legacy nếu từng có trận chạy theo cơ chế cũ.
+
+### Phần đã có trong code
+
+- Model và EF mapping relay trong `RelayModels.cs` và `PickleballDbContext.Relay.cs`.
+- Bốn script SQL additive, constraint/index, trigger khóa roster/quy mô, bước chuyển timer sang chỉ-hiển-thị và phân loại bracket template tiếp sức.
+- `RelayLineupService`: lưu draft, validate vị trí và khóa đội hình hoàn chỉnh.
+- `RelayMatchEngine`, `RelayMatchStore`, `RelayMatchReader` và các bảng state/lượt/command được giữ làm code/data legacy, không còn đăng ký runtime hoặc được expose để chấm điểm.
+- GET công khai `/api/tournaments/matches/{matchId}/relay` và API trọng tài `/api/referee/matches/{matchId}/relay` trả `410 Gone` khi feature relay đang bật; client phải dùng tỷ số trận chung.
+- Admin preview API/trang để lưu settings, nhập roster cho registration đã tồn tại và khóa roster.
+- `/Home/Tournaments` có nút tạo giải tiếp sức riêng; thao tác tạo lưu đồng thời giải và `RelayTournamentSettings`, nhận quy mô 4/6/8 cùng điểm đích, rồi chuyển admin sang trang chuẩn bị đội.
+- Form tạo/sửa giải giới hạn `SingleLimit` và `DoubleLimit` trong khoảng `0..99.99` ngay trên UI; API kiểm tra lại cùng phạm vi trước khi ghi để phù hợp schema `decimal(4,2)`.
+- `/Registrations/Index` nhận biết giải relay: form tạo/sửa sinh đúng 4/6/8 vị trí, lưu `TournamentRegistration`, `RelayTeam` và toàn bộ `RelayTeamMembers` trong cùng transaction. Đội đủ người hợp lệ được dùng ngay; admin vẫn được sửa, còn trận đã nhập điểm đọc đội hình từ `RelayMatchLineupSnapshots`.
+- `RelayMatchLineupSnapshot.Side` giữ kiểu `int` trong C# nhưng ánh xạ qua `HasConversion<byte>()` sang SQL `tinyint`, đúng với script `20260908_remove_relay_lineup_lock_and_add_match_snapshots.sql`. Thiếu chuyển đổi này gây `InvalidCastException` (`Byte` sang `Int32`) khi trang trọng tài hoặc `RelayTeamReader` đọc snapshot đã lưu. Test SQL trong `RelayMatchLineupSnapshotTests` dùng chính script trên LocalDB riêng để kiểm tra lưu snapshot, projection của danh sách trận, đọc lại khi chấm điểm và giữ đội hình cũ sau khi sửa roster; không chỉ dựa vào InMemory hay schema do `EnsureCreated` sinh ra.
+- Trang user `/PickleballWeb/Tournament/{id}/Register` nhận biết giải relay: đội trưởng nhập tên đội, tìm tài khoản đang hoạt động theo tên/số điện thoại/User ID, chọn đủ các vị trí còn lại và tạo đội hoàn chỉnh đã khóa ngay; không tạo lời mời ghép cặp hay yêu cầu thành viên duyệt.
+- Trang công khai `/PickleballWeb/Tournament/{id}/Registrations` nhận biết giải relay và hiển thị theo đội cha: tên đội, trạng thái đủ người/khóa, toàn bộ roster nhóm theo cặp với ảnh, tên, User ID và trình đôi mới nhất. Tên/ảnh lấy từ hồ sơ tài khoản hiện tại và fallback về snapshot đăng ký; tên dài được xuống dòng, User ID luôn hiển thị. Giao diện relay không dùng hai cột Player1/Player2 hoặc tổng trình legacy và dùng chung hành động thanh toán của registration.
+- `GET /api/tournament-registrations/tournaments/{tournamentId}/relay/member-search` trả kết quả tài khoản tối thiểu cần thiết, che số điện thoại và đánh dấu tài khoản đã thuộc đội; `POST .../{tournamentId}/relay` luôn lấy đội trưởng từ JWT thay vì tin dữ liệu client.
+- API user tạo registration đội cha, `RelayTeam` và roster 4/6/8 người theo hai bước lưu trong một transaction: lưu đội hình chưa khóa để trigger kiểm tra được roster, sau đó khóa ngay. Hai thành viên đầu vẫn được mirror sang Player1/Player2 để tương thích dữ liệu cũ.
+- API đăng ký relay kiểm tra lại số lượng/vị trí, tài khoản trùng trong đội và tài khoản đã thuộc đội khác trong cùng giải; hai thành viên đầu được mirror vào Player1/Player2 để tương thích nhưng tên đội không được dùng làm VĐV giả và `Points` không được tính sai từ hai người đầu.
+- Danh sách đăng ký relay tách trạng thái “đã chốt/chưa chốt”, tính capacity theo số đăng ký đội, ẩn ghép đôi/đồng bộ trình legacy, cho xóa transactionally đội hình chưa chốt và chặn sửa/xóa đội hình đã chốt.
+- Thẻ đội hình relay trên màn quản lý đăng ký hiển thị tên, ảnh đại diện snapshot, User ID và trình đôi mới nhất của từng thành viên có tài khoản; trình lấy từ `UserRatingHistories` và fallback về cache `Users.RatingDouble`.
+- Payment admin hiển thị toàn bộ roster nhưng vẫn thu một lần theo registration; lịch vòng đấu/màn trận dùng tên `RelayTeam`; nguồn đội trực tiếp, bracket và giải thưởng chỉ nhận đội đủ người đã chốt.
+- Khi xác nhận giải thưởng relay, achievement/rating notification được áp dụng cho toàn bộ thành viên có tài khoản trong `RelayTeamMembers`, không chỉ Player1/Player2.
+- Admin cấu hình đội 4/6/8, điểm đích và kích hoạt thi đấu sau khi có ít nhất hai đội hình hoàn chỉnh đã khóa.
+- `RefereeMatchesApiController` cho phép chấm relay qua `PUT /api/referee/matches/{matchId}/score`, dùng hai registration đội cha và chỉ hoàn tất khi request đặt `IsCompleted = true`.
+- Trang cũ `/RefereePortal/RelayMatch/{id}` chuyển hướng về `/RefereePortal/Matches/{id}`; thẻ relay mở cùng bảng chấm điểm đơn/đôi.
+- Relay dùng chung realtime event `tournament.match.score.updated`; event riêng `tournament.relay.match.updated` đã ngừng phát.
+- Payment checkout dùng phí registration một lần cho cả relay team, không nhân theo `TeamSize`; bất kỳ user đã đăng nhập nào cũng có thể thanh toán hộ và mở lại checkout dùng chung, không bắt buộc thuộc roster hoặc là captain, đồng thời admin vẫn có đường hỗ trợ.
+- Dữ liệu demo giải 37 có script enrich idempotent `database/seeds/20260907_enrich_tournament_37_relay_profiles.sql`: cập nhật 60 tài khoản seed thành tên tiếng Việt và avatar nhân vật tổng hợp riêng, đồng bộ snapshot roster/Player1/Player2 trong một transaction; ảnh sprite WebP nằm tại `wwwroot/uploads/avatars/demo/relay37-avatar-sprite-v1.webp` và không dùng danh tính của user thật.
+- API danh sách đăng ký công khai tách riêng nhánh tiếp sức: metadata kèm bộ đếm + đội hình phẳng, tối đa 2 lệnh SQL thay vì chạy truy vấn đơn/đôi rồi nạp đội hình; dữ liệu được cache trong bộ nhớ 5 giây (cấu hình `PublicRegistrations:CacheSeconds`, giới hạn 0-30 giây), timeout SQL được thử lại một lần rồi trả HTTP 503 có mã `DATABASE_TIMEOUT`.
+- Trang `/PickleballWeb/Tournament/{id}/Registrations` dùng metadata có sẵn trong response danh sách, không gọi trùng endpoint chi tiết giải. Index đọc công khai nằm trong `database/updates/20260907_optimize_public_relay_registrations.sql`.
+- Ảnh bìa trang chi tiết `/PickleballWeb/Tournament/{id}` hiển thị toàn bộ theo tỷ lệ gốc (`height: auto`, `object-fit: contain`), thay cho khung cao 150 px cắt ảnh; khung dự phòng khi không có ảnh vẫn cao 150 px. Đã kiểm tra trực tiếp trang giải 37 trên localhost bằng Edge ngày 10/09/2026 ở độ rộng 320, 390, 768 và 1440 px: ảnh gốc 1024×1535 hiển thị đúng tỷ lệ, không tràn ngang.
+- Thông tin dưới ảnh bìa (10/09/2026) dùng nhãn/giá trị trong `dl`, lưới hai cột với địa điểm và đơn vị tổ chức chiếm cả hàng; trạng thái đặt cạnh tên giải. Các số liệu được tách vào khung “Quy mô tham gia”, nội dung và bốn liên kết công khai có khung thống nhất. Liên kết nằm trong lưới 2×2 cùng kích thước, có viền focus bàn phím; giữ nguyên giá trị từ API, URL điều hướng và cách hiển thị toàn bộ ảnh bìa. Kiểm tra Edge trên trang giải 37 ở 320–1440 px và nội dung dài giả lập đạt 8 trường hợp; 17/17 test JavaScript hiện có đạt.
+- Thẻ trận lịch thi đấu công khai (10/09/2026) gom số thứ tự, ID, giờ và sân vào header tự xuống dòng khi thiếu chỗ; bo góc thẻ 6 px, nhãn 4 px và giảm padding/khoảng cách. Tên đội và tỷ số nằm trong cùng hàng grid; tên dài có dấu ba chấm và tooltip. Giữ các thuộc tính `data-schedule-*` cùng hàm cập nhật tỷ số realtime và các liên kết video/diễn biến. Edge xác nhận thẻ #763 giảm từ khoảng 189 xuống 137 px trên màn hình 390 px, căn đúng tỷ số, không tràn ở 320–1440 px và khi tên đội/sân dài; 17/17 test JavaScript hiện có đạt.
+- `RelayBracketAdapter`: lọc đội đã khóa, enrich seed và lưu/khôi phục snapshot roster theo bracket application.
+- Thư viện bracket cho phép tạo, lọc và nhân bản template tiếp sức; editor hiển thị rõ mỗi seed là một đội và không đưa quy mô đội hay điểm đích vào graph dùng chung.
+- Luồng áp dụng chỉ đưa template `RELAY_TEAM` vào giải đã có relay settings và chặn áp dụng chéo với template `STANDARD`; relay không tạo đội ảo thiếu roster, chỉ dùng đội thật đã chốt hoặc BYE.
+- `RelayTeamReader`: chiếu tên đội/roster vào API lịch và chi tiết trận mà vẫn giữ field Player1/Player2 legacy.
+- `RelayLegacyWriteGuard`: vẫn chặn sửa/xóa/reset match có state legacy và thay đổi registration relay không an toàn, nhưng không chặn đường score chung.
+
+### Phần chưa hoàn tất
+
+- Propagation sau commit có retry và đầy đủ guard cho mọi đường ghi round/group/source/BYE/registration.
+- Standings/ranking cho toàn đội; xử lý BYE, bỏ cuộc, thiếu người và tiêu chí phụ.
+- Hiển thị tên đội/roster đầy đủ ở standings, video và các màn public còn lại ngoài trang danh sách đăng ký đã hỗ trợ relay.
+- UAT server thật, thiết bị mobile, dữ liệu demo và checklist release.
+- Bốn SQL relay đã được áp dụng lên database đang cấu hình ngày 06/09/2026; feature flag đã bật trong `appsettings.json`, chưa UAT và chưa phát hành.
+
+### Feature flag và rào an toàn
+
+- `Relay:AdminPreviewEnabled` hiện là `true` trong `appsettings.json` sau khi schema đã được triển khai; environment variable là `Relay__AdminPreviewEnabled`.
+- Khi flag tắt, admin/public relay endpoint trả 404 trước khi truy vấn bảng relay.
+- Flag cho phép truy cập schema relay, trang chuẩn bị, projection và guard; API state/command thi đấu cũ trả `410 Gone` khi flag bật.
+- `RelayTournamentSettings.IsEnabled` chỉ được bật qua command admin `POST .../relay/activate` sau khi cấu hình hợp lệ và tất cả đội hình đã được khóa.
+- Không bật `IsEnabled` trực tiếp trong DB để đi vòng qua validation kích hoạt.
+- `RelayMatchStore` không còn được đăng ký DI hoặc expose qua controller; quyền chấm relay đi qua cùng API phân công trọng tài như đơn/đôi.
+
+### Quyết định nghiệp vụ còn mở
+
+1. Quy tắc giao bóng, sửa điểm và sửa kết quả trận đã hoàn tất?
+2. Quy trình thay người sau khi đội user đã được tạo và khóa xử lý thế nào?
+3. Thiếu người, chấn thương, giới tính và giới hạn rating xử lý thế nào?
+4. Standings, hiệu số, tiêu chí phụ, bỏ cuộc và BYE xử lý thế nào?
+
+Không tự biến đề xuất kỹ thuật thành luật nghiệp vụ khi chưa có câu trả lời.
+
+## 7. Test và bằng chứng hiện có
+
+Project test tập trung vào:
+
+- Bracket validation, generator/seeding, draft/publish và application workflow.
+- Virtual team visibility.
+- Public WebSocket và public realtime hub.
+- Cookie API challenge/forbidden behavior.
+- Admin round scheduling.
+- Relay engine, admin feature flag, compatibility và SQL integration/concurrency.
+
+Kiểm chứng trực tiếp ngày 06/09/2026 sau khi tích hợp đăng ký đội tiếp sức 4/6/8 người vào màn quản lý admin:
+
+- 158 test server.
+- 158 đạt.
+- Trong đó có 16 SQL tests dùng LocalDB/database riêng.
+- Build và test chạy native `net10.0`.
+
+Kiểm chứng cục bộ ngày 06/09/2026 cho thay đổi thẻ thành viên relay: solution build thành công trên `net10.0`; 143/143 test không phụ thuộc SQL đạt, 16 SQL integration test được bỏ qua vì `HANAKA_RELAY_SQL_TESTS` không được bật, tổng cộng phát hiện 159 test.
+
+Kiểm chứng cục bộ ngày 07/09/2026 cho luồng user tự đăng ký và danh sách công khai đội relay: solution build thành công trên `net10.0`; 10/10 test mục tiêu đạt, gồm các quy mô 4/6/8, tìm thành viên, chặn trùng/dữ liệu legacy/không hợp lệ, user ngoài roster được thanh toán hộ và dùng chung checkout, projection đầy đủ roster public và test chạy với schema cùng trigger SQL Server thật. Giao diện danh sách đã được render bằng Edge headless với đội 6 người, đủ 3 cặp và 6 thẻ thành viên. Toàn bộ suite khi bật `HANAKA_RELAY_SQL_TESTS=1` đạt 171/171, không bỏ qua test.
+
+Kiểm chứng cục bộ ngày 07/09/2026 cho API loading toàn web: solution build thành công trên `net10.0`; suite không bật SQL đạt 154 test, bỏ qua 17 SQL integration test. Edge headless xác nhận vòng đời request đồng thời cho `fetch`, request nền `silent`, Axios interceptor và render overlay; môi trường kiểm tra không có Node.js nên file JavaScript unit test mới chưa được chạy trực tiếp bằng Node.
+
+Tối ưu độ ổn định loading ngày 07/09/2026: mỗi request chỉ sở hữu một chế độ `button`, `section`, `global` hoặc `silent`; request phát sinh trực tiếp từ nút mặc định dùng spinner phủ tuyệt đối trong kích thước nút đã khóa nên không làm dịch chuyển nội dung. Global overlay trì hoãn 320ms, section overlay trì hoãn 180ms, mobile không dùng backdrop blur. Các màn hình Pickleball Web đã có loading cục bộ dùng request đọc `silent`; trang đăng ký giải có skeleton ổn định và cập nhật registration/register từ realtime bằng render im lặng thay vì reload toàn trang. Build đạt, suite .NET đạt 154 test và bỏ qua 17 SQL integration test; JavaScript contract test đã được bổ sung nhưng chưa chạy trực tiếp vì máy không có Node.js.
+
+Đây là log lịch sử, không phải kết quả vừa chạy sau mỗi thay đổi. Trước khi phát hành:
+
+1. Cài runtime .NET 10 phù hợp.
+2. Chạy full suite native `net10.0`.
+3. Chạy SQL tests trên LocalDB/database thử nghiệm riêng.
+4. Chạy UAT trên bản sao schema/dữ liệu gần production.
+5. Không cho test đọc hoặc migrate connection string production trong `appsettings.json`.
+
+Khoảng trống test đáng chú ý: auth/OTP, club/direct chat, moderation, payment webhook và phần lớn controller CRUD chưa có độ bao phủ tương xứng với kích thước code.
+
+## 8. Rủi ro và technical debt
+
+### Ưu tiên bảo mật
+
+- `appsettings.json` có lịch sử chứa DB, SMTP và OTP credential plaintext. Xoay toàn bộ credential liên quan, xóa khỏi history nếu repository từng được chia sẻ và dùng secret manager/environment variables.
+- Admin credential hard-code trong `HomeController` phải được thay bằng identity/user DB và password hash trước production.
+- JWT access token sống quá lâu và chưa thể hiện refresh-token lifecycle đầy đủ.
+- CORS `AllowAll` cần giới hạn origin theo môi trường.
+- Build log hiện cảnh báo vulnerability mức moderate cho phiên bản MailKit và MimeKit đang dùng; cần nâng phiên bản sau khi kiểm tra tương thích.
+- Không log token, OTP, webhook secret, connection string hoặc payload nhạy cảm.
+
+### Kiến trúc và bảo trì
+
+- Một số controller/service trên 1.000 dòng; thay đổi nhỏ dễ tác động chéo.
+- Transaction boundary và realtime side effect chưa được chuẩn hóa giữa các module.
+- Manual SQL cần registry/version table hoặc quy trình deployment rõ ràng để biết script nào đã chạy.
+- Subscription WebSocket chỉ ở memory nên chưa sẵn sàng scale nhiều instance.
+- Public/admin/mobile/referee cùng nằm trong một app; thay đổi auth, route, DTO hoặc middleware có blast radius lớn.
+- Generated/temp build directories nằm trong cây project gây nhiễu khi tìm kiếm; không xóa khi chưa xác nhận chúng không chứa dữ liệu cần giữ.
+
+### Cảnh báo tính nhất quán
+
+- Luôn phân biệt rating history chuẩn với field rating cache trong `Users`.
+- Luôn phân biệt registration snapshot với thông tin user hiện tại.
+- Luôn giữ backward compatibility của Player1/Player2 khi thêm projection relay.
+- Mọi thay đổi score cần xét score history, winner, completion reason, propagation và realtime.
+- Mọi thay đổi registration cần xét pair request, payment, seed/application hash, virtual team và relay roster.
+
+## 9. Thứ tự đọc khi nhận task mới
+
+1. `README.md` và file này.
+2. `Program.cs` để xác định DI, auth và route.
+3. Partial `PickleballDbContext` liên quan.
+4. Controller nhận request.
+5. Service được controller gọi.
+6. DTO/entity và script SQL liên quan.
+7. Test hiện hữu cùng module.
+8. JS/Razor gọi endpoint nếu task ảnh hưởng giao diện.
+
+Bản đồ nhanh:
+
+- Auth/user → `AuthsController`, `WebAuthApiController`, `AppAuthService`, `UsersController`, `UserRatingService`.
+- Club/chat → `ClubsController`, `DirectChatsController`, `RealtimeHub`, `WebSocketHandler`.
+- Registration/payment → `TournamentRegistrationUserController`, `AdminRegistrationsController`, `TournamentRegistrationPaymentsController`, `TournamentRegistrationPaymentService`.
+- Runtime tournament → `AdminTournamentRoundsController`, `AdminTournamentGroupMatchesController`, `TournamentClientController`, `TournamentStandingsService`, `TournamentBracketPropagationService`.
+- Bracket library → `AdminBracketTemplatesController`, `BracketTemplateService`, `BracketTemplateValidationService`, `TournamentBracketApplicationService`.
+- Referee → `RefereeAuthApiController`, `RefereeMatchesApiController`, `RefereePortalController`.
+- Relay → `Models/RelayModels.cs`, partial DbContext relay, `Service/Relay`, relay controllers và bốn SQL update ngày 06/09/2026.
+
+## 10. Quy tắc cập nhật ngữ cảnh
+
+- Chỉ duy trì hai file Markdown: `README.md` và `HanakaServer/context.md`.
+- Không ghi credential hoặc dữ liệu cá nhân vào tài liệu.
+- Không ghi “đã hoàn thành” nếu chưa có code và bằng chứng kiểm tra tương ứng.
+- Phân biệt rõ: đã implement, đã test mock, đã test integration, đã UAT và đã deploy.
+- Khi thêm endpoint, entity, migration, feature flag hoặc thay luật nghiệp vụ, cập nhật file này trong cùng thay đổi.
+- Khi một quyết định relay được chốt, chuyển nó từ “còn mở” sang “luật đã chốt” và cập nhật code/test liên quan.
+- Không dựa vào log trong `artifacts` như trạng thái hiện tại nếu code đã thay đổi sau thời điểm log.

@@ -327,7 +327,7 @@ namespace HanakaServer.Controllers.Web
             return View("Detail", BuildDetailPage(
                 title: "Danh Sách Đăng Ký",
                 eyebrow: "Public registrations",
-                description: "Danh sách vận động viên, trạng thái ghép cặp và chỉ số đăng ký công khai của giải đấu.",
+                description: "Danh sách đội hoặc vận động viên, trạng thái thanh toán và thông tin đăng ký công khai của giải đấu.",
                 pageKind: "tournament-registrations",
                 entityId: id,
                 backHref: $"/PickleballWeb/Tournament/{id}",

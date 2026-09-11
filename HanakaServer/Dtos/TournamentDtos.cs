@@ -9,6 +9,10 @@ namespace HanakaServer.Dtos
         public string? GenderCategory { get; set; } // OPEN/MEN/WOMEN/MIXED
         public string? Status { get; set; } // DRAFT/OPEN/CLOSED (default DRAFT)
 
+        public bool IsRelay { get; set; }
+        public int? RelayTeamSize { get; set; }
+        public int? RelayTargetScore { get; set; }
+
         public int? ExpectedTeams { get; set; }
 
         public DateTime? StartTime { get; set; }
@@ -48,6 +52,12 @@ namespace HanakaServer.Dtos
         public string GenderCategory { get; set; } = "OPEN";
         public string TournamentTypeCode { get; set; } = "DOUBLE_OPEN";
         public string TournamentTypeLabel { get; set; } = "";
+        public bool IsRelay { get; set; }
+        public int? RelayTeamSize { get; set; }
+        public int? RelayPairCount { get; set; }
+        public int? RelayTargetScore { get; set; }
+        public bool RelayIsEnabled { get; set; }
+        public long? RelayVersion { get; set; }
         public int ExpectedTeams { get; set; }
         public string? LocationText { get; set; }
         public string? AreaText { get; set; }

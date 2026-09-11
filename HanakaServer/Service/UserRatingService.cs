@@ -1,4 +1,5 @@
 using HanakaServer.Data;
+using HanakaServer.Helpers;
 using HanakaServer.Models;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,8 +7,6 @@ namespace HanakaServer.Services
 {
     public sealed class UserRatingService : IUserRatingService
     {
-        private const int MaxNoteLength = 500;
-
         private readonly PickleballDbContext _db;
 
         public UserRatingService(PickleballDbContext db)
@@ -83,7 +82,7 @@ namespace HanakaServer.Services
             var now = DateTime.UtcNow;
             var single = NormalizeRating(ratingSingle);
             var doubleScore = NormalizeRating(ratingDouble);
-            var auditNote = BuildHanakaStaffNote(note, staffUserLabel);
+            var auditNote = RatingHistoryAttribution.BuildHanakaStaffAuditNote(note, staffUserLabel);
 
             var history = new UserRatingHistory
             {
@@ -127,17 +126,6 @@ namespace HanakaServer.Services
         private static decimal NormalizeRating(decimal value)
         {
             return Math.Round(value, 2, MidpointRounding.AwayFromZero);
-        }
-
-        private static string BuildHanakaStaffNote(string note, string staffUserLabel)
-        {
-            var trimmedNote = (note ?? "").Trim();
-            var staffLabel = string.IsNullOrWhiteSpace(staffUserLabel)
-                ? "unknown"
-                : staffUserLabel.Trim();
-
-            var audit = $"nhân viên Hanaka userid:{staffLabel}. Ghi chú: {trimmedNote}";
-            return audit.Length <= MaxNoteLength ? audit : audit[..MaxNoteLength];
         }
 
         private async Task SyncShadowProfilesAsync(

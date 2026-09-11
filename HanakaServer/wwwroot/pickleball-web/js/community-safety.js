@@ -49,9 +49,15 @@
     }
 
     async function requestJson(url, options) {
-        var response = await fetch(url, Object.assign({
+        var init = Object.assign({
             credentials: "same-origin"
-        }, options || {}));
+        }, options || {});
+        if (!Object.prototype.hasOwnProperty.call(init, "hanakaLoading")
+            && String(init.method || "GET").toUpperCase() === "GET") {
+            init.hanakaLoading = "silent";
+        }
+
+        var response = await fetch(url, init);
         var payload = await parseResponsePayload(response);
 
         if (!response.ok) {
@@ -116,7 +122,7 @@
         var pending = item && item.pendingSync
             ? "Đã ghi nhận trên thiết bị"
             : item && item.developerNotified
-                ? "Đã gửi moderation"
+                ? "Đã gửi bộ phận kiểm duyệt"
                 : "";
 
         return [
@@ -131,7 +137,7 @@
 
     function initCommunitySafetyPage(root) {
         var state = {
-            authenticated: false,
+            authenticated: null,
             blockedUsers: [],
             reports: []
         };
@@ -168,7 +174,9 @@
                 refs.blockedList.hidden = true;
                 refs.blockedList.innerHTML = "";
                 refs.blockedEmpty.hidden = false;
-                refs.blockedEmpty.innerHTML = "<p>Đăng nhập để xem danh sách chặn của bạn.</p>";
+                refs.blockedEmpty.innerHTML = state.authenticated === null
+                    ? "<p>Đang kiểm tra phiên đăng nhập...</p>"
+                    : "<p>Đăng nhập để xem danh sách chặn của bạn.</p>";
                 return;
             }
 
@@ -190,7 +198,9 @@
                 refs.reportList.hidden = true;
                 refs.reportList.innerHTML = "";
                 refs.reportEmpty.hidden = false;
-                refs.reportEmpty.innerHTML = "<p>Đăng nhập để xem lịch sử báo cáo của bạn.</p>";
+                refs.reportEmpty.innerHTML = state.authenticated === null
+                    ? "<p>Đang kiểm tra phiên đăng nhập...</p>"
+                    : "<p>Đăng nhập để xem lịch sử báo cáo của bạn.</p>";
                 return;
             }
 
@@ -209,16 +219,16 @@
 
         async function loadData() {
             try {
-                var session = await requestJson("/api/web-auth/me", {
-                    method: "GET",
-                    headers: {
-                        Accept: "application/json"
-                    }
-                });
+                var session = await window.HanakaWebSession.read();
 
                 state.authenticated = !!(session && session.isAuthenticated);
             } catch (error) {
-                state.authenticated = false;
+                if (!window.HanakaWebSession.isAborted(error) && !state.authenticated) {
+                    const message = '<p>' + escapeHtml(window.HanakaWebSession.unavailableMessage) + '</p><a href="">Tải lại trang</a>';
+                    refs.blockedEmpty.innerHTML = message;
+                    refs.reportEmpty.innerHTML = message;
+                }
+                return;
             }
 
             if (!state.authenticated) {

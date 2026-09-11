@@ -80,6 +80,15 @@ public sealed class SepayGatewayClient
             var receiver = TryParseReceiver(document.RootElement, rawResponse, options);
             return receiver ?? fallback with { ProviderRawResponse = rawResponse };
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException exception)
+        {
+            _logger.LogWarning(exception, "SePay receiver lookup timed out. Falling back to configured receiver information.");
+            return fallback;
+        }
         catch (Exception exception)
         {
             _logger.LogWarning(exception, "Unable to resolve SePay receiver information from API.");

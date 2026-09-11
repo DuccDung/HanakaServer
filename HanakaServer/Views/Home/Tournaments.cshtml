@@ -3,6 +3,10 @@
     ViewData["Title"] = "Giải đấu";
 }
 
+@inject Microsoft.Extensions.Options.IOptions<HanakaServer.Options.RelayOptions> RelayFeature
+@{
+    var relayUiEnabled = RelayFeature.Value.AdminPreviewEnabled;
+}
 <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet" />
 
 <style>
@@ -17,6 +21,356 @@
         color: #6c757d;
     }
 
+    .tournament-list-card {
+        border: 0;
+        border-radius: 14px;
+        overflow: hidden;
+    }
+
+    .tournament-list-card .card-header {
+        min-height: 68px;
+        padding: 0.9rem 1.25rem;
+        border-bottom: 1px solid #e8edf5;
+        background: #fff;
+    }
+
+    .tournament-list-heading {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .tournament-list-heading__icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        background: #eef2ff;
+        color: #4e73df;
+    }
+
+    .tournament-list-heading__subtitle {
+        display: block;
+        margin-top: 2px;
+        color: #858796;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .tournament-filter {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .tournament-filter label {
+        margin: 0;
+        color: #6c757d;
+        font-size: 0.75rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .tournament-filter .form-control {
+        width: 164px;
+        height: 34px;
+        border-color: #dbe4f0;
+        border-radius: 8px;
+        font-weight: 600;
+    }
+
+    .tournament-table-wrap {
+        border: 1px solid #e8edf5;
+        border-radius: 12px;
+    }
+
+    .tournament-table {
+        min-width: 1320px;
+        table-layout: fixed;
+        color: #3a3f51;
+    }
+
+    .tournament-table thead th {
+        padding: 0.8rem 0.75rem;
+        border-color: #e8edf5;
+        border-top: 0;
+        background: #f7f9fc;
+        color: #596275;
+        font-size: 0.71rem;
+        font-weight: 800;
+        letter-spacing: 0.035em;
+        line-height: 1.25;
+        text-transform: uppercase;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    .tournament-table tbody td {
+        padding: 1rem 0.75rem;
+        border-color: #e8edf5;
+        background: #fff;
+        vertical-align: middle;
+    }
+
+    .tournament-table tbody tr {
+        transition: background-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    .tournament-table tbody tr:hover td {
+        background: #fbfcff;
+    }
+
+    .tournament-identity {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .tournament-thumbnail {
+        flex: 0 0 96px;
+        width: 96px;
+        height: 64px;
+        overflow: hidden;
+        border: 1px solid #e4e9f2;
+        border-radius: 10px;
+        background: #f5f7fb;
+    }
+
+    .tournament-thumbnail img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .tournament-thumbnail--empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        gap: 3px;
+        color: #a3abc0;
+        font-size: 0.68rem;
+        font-weight: 700;
+    }
+
+    .tournament-thumbnail--empty i {
+        font-size: 1rem;
+    }
+
+    .tournament-identity__content {
+        min-width: 0;
+    }
+
+    .tournament-title {
+        display: -webkit-box;
+        overflow: hidden;
+        color: #2f3547;
+        font-size: 0.94rem;
+        font-weight: 800;
+        line-height: 1.4;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+    }
+
+    .tournament-meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-width: 0;
+        margin-top: 5px;
+        color: #7b8499;
+        font-size: 0.76rem;
+        line-height: 1.35;
+    }
+
+    .tournament-meta i {
+        flex: 0 0 auto;
+        width: 13px;
+        color: #a0a9bb;
+        text-align: center;
+    }
+
+    .tournament-meta span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .badge-status,
+    .tournament-kind-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 26px;
+        padding: 0.35rem 0.58rem;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 800;
+        line-height: 1;
+        white-space: nowrap;
+    }
+
+    .tournament-kind-badge {
+        margin-top: 7px;
+        background: #eef2ff;
+        color: #4e62d6;
+    }
+
+    .tournament-kind-badge--relay {
+        background: #eaf8f0;
+        color: #218855;
+    }
+
+    .tournament-schedule {
+        display: grid;
+        gap: 10px;
+    }
+
+    .tournament-schedule__item {
+        display: grid;
+        grid-template-columns: 62px minmax(0, 1fr);
+        gap: 6px;
+        align-items: baseline;
+    }
+
+    .tournament-schedule__label {
+        color: #98a0b3;
+        font-size: 0.68rem;
+        font-weight: 800;
+        text-transform: uppercase;
+    }
+
+    .tournament-schedule__value {
+        color: #454c60;
+        font-size: 0.79rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .tournament-content-name {
+        color: #343a4d;
+        font-size: 0.88rem;
+        font-weight: 800;
+        line-height: 1.35;
+    }
+
+    .tournament-content-code {
+        margin-top: 3px;
+        color: #7f8799;
+        font-size: 0.73rem;
+        line-height: 1.35;
+    }
+
+    .tournament-limits {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin-top: 8px;
+    }
+
+    .tournament-limit-chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.25rem 0.42rem;
+        border-radius: 6px;
+        background: #f2f4f8;
+        color: #687086;
+        font-size: 0.68rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    .tournament-capacity__number {
+        color: #30384c;
+        font-size: 1.15rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+
+    .tournament-capacity__label {
+        margin-top: 5px;
+        color: #8a92a5;
+        font-size: 0.7rem;
+        font-weight: 700;
+        line-height: 1.3;
+    }
+
+    .tournament-fee {
+        color: #3d4558;
+        font-size: 0.84rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .tournament-fee--free {
+        color: #248a58;
+    }
+
+    .tournament-actions {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .tournament-action-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        min-height: 34px;
+        padding: 0.35rem 0.62rem;
+        border-radius: 8px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+
+    .tournament-actions .dropdown-menu {
+        min-width: 205px;
+        padding: 0.45rem;
+        border: 1px solid #e2e7f0;
+        border-radius: 10px;
+        box-shadow: 0 12px 30px rgba(42, 49, 66, 0.16);
+    }
+
+    .tournament-actions .dropdown-item {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0.55rem 0.65rem;
+        border: 0;
+        border-radius: 7px;
+        background: transparent;
+        color: #4a5266;
+        font-size: 0.78rem;
+        font-weight: 700;
+    }
+
+    .tournament-actions .dropdown-item i {
+        width: 16px;
+        color: #6f7b91;
+        text-align: center;
+    }
+
+    .tournament-actions .dropdown-item:hover {
+        background: #f1f4fb;
+        color: #304fc4;
+    }
+
+    .tournament-actions .dropdown-item.text-danger:hover,
+    .tournament-actions .dropdown-item.text-danger:hover i {
+        background: #fff0f0;
+        color: #d83a3a !important;
+    }
+
+    .tournament-list-message {
+        padding: 2.5rem 1rem !important;
+    }
+
         .rule-preview-lite p,
         .rule-preview-lite ul,
         .rule-preview-lite ol {
@@ -25,8 +379,7 @@
 
     .tournament-pagination {
         gap: 10px;
-        padding-top: 14px;
-        border-top: 1px solid #eef2f7;
+        padding-top: 16px;
     }
 
     .tournament-pagination__info {
@@ -126,6 +479,99 @@
     }
 
     @@media (max-width: 767.98px) {
+        .tournament-list-card .card-header {
+            align-items: stretch !important;
+            gap: 12px;
+        }
+
+        .tournament-filter {
+            width: 100%;
+        }
+
+        .tournament-filter label {
+            display: none;
+        }
+
+        .tournament-filter .form-control {
+            flex: 1 1 auto;
+            width: auto;
+        }
+
+        .tournament-table-wrap {
+            overflow: visible;
+            border: 0;
+        }
+
+        .tournament-table,
+        .tournament-table tbody,
+        .tournament-table tr,
+        .tournament-table td {
+            display: block;
+            width: 100%;
+        }
+
+        .tournament-table {
+            min-width: 0;
+            border: 0;
+        }
+
+        .tournament-table thead {
+            display: none;
+        }
+
+        .tournament-table tbody tr {
+            overflow: visible;
+            margin-bottom: 14px;
+            border: 1px solid #e1e7f0;
+            border-radius: 12px;
+            box-shadow: 0 5px 16px rgba(50, 60, 80, 0.06);
+        }
+
+        .tournament-table tbody td {
+            display: grid;
+            grid-template-columns: 100px minmax(0, 1fr);
+            gap: 12px;
+            padding: 0.72rem 0.85rem;
+            border: 0;
+            border-bottom: 1px solid #eef1f6;
+        }
+
+        .tournament-table tbody td::before {
+            content: attr(data-label);
+            color: #8a92a5;
+            font-size: 0.68rem;
+            font-weight: 800;
+            letter-spacing: 0.025em;
+            text-transform: uppercase;
+        }
+
+        .tournament-table tbody td:first-child {
+            display: block;
+            padding: 1rem 0.85rem;
+            background: #fbfcff;
+        }
+
+        .tournament-table tbody td:first-child::before,
+        .tournament-list-message::before {
+            display: none;
+        }
+
+        .tournament-table tbody td:last-child {
+            border-bottom: 0;
+        }
+
+        .tournament-actions {
+            align-items: stretch;
+        }
+
+        .tournament-action-btn {
+            flex: 1 1 auto;
+        }
+
+        .tournament-list-message {
+            display: block !important;
+        }
+
         .tournament-pagination {
             align-items: stretch !important;
         }
@@ -151,50 +597,74 @@
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800">Giải đấu</h1>
 
-        <button id="btnOpenCreate"
-                class="btn btn-primary btn-sm shadow-sm"
-                type="button">
-            <i class="fas fa-plus fa-sm text-white-50"></i> Tạo giải đấu
-        </button>
+        <div class="d-flex flex-wrap" style="gap:8px">
+            @if (relayUiEnabled)
+            {
+                <button id="btnOpenCreateRelay"
+                        class="btn btn-success btn-sm shadow-sm"
+                        type="button">
+                    <i class="fas fa-people-carry fa-sm"></i> Tạo giải tiếp sức
+                </button>
+            }
+            <button id="btnOpenCreate"
+                    class="btn btn-primary btn-sm shadow-sm"
+                    type="button">
+                <i class="fas fa-plus fa-sm text-white-50"></i> Tạo giải đấu
+            </button>
+        </div>
     </div>
 
-    <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex align-items-center justify-content-between">
-            <h6 class="m-0 font-weight-bold text-primary">Danh sách giải đấu</h6>
-            <div class="d-flex" style="gap: 8px">
-                <select id="statusFilter" class="form-control form-control-sm" style="width: 140px;">
+    <div class="card shadow mb-4 tournament-list-card">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between">
+            <div class="tournament-list-heading">
+                <span class="tournament-list-heading__icon"><i class="fas fa-flag-checkered"></i></span>
+                <div>
+                    <h6 class="m-0 font-weight-bold text-primary">Danh sách giải đấu</h6>
+                    <span class="tournament-list-heading__subtitle">Quản lý thông tin, đăng ký và thi đấu</span>
+                </div>
+            </div>
+            <div class="tournament-filter">
+                <label for="statusFilter">Trạng thái</label>
+                <select id="statusFilter" class="form-control form-control-sm">
                     <option value="ALL" selected>Tất cả trạng thái</option>
                     <option value="OPEN">Mở đăng ký</option>
                     <option value="CLOSED">Đã đóng</option>
                     <option value="DRAFT">Bản nháp</option>
                 </select>
-                <button id="btnFilter" class="btn btn-sm btn-outline-primary" type="button">Lọc</button>
+                <button id="btnFilter" class="btn btn-sm btn-primary tournament-action-btn" type="button">
+                    <i class="fas fa-filter"></i><span>Lọc</span>
+                </button>
             </div>
         </div>
 
         <div class="card-body">
             <div id="pageError" class="alert alert-danger d-none"></div>
 
-            <div class="table-responsive">
-                <table class="table table-bordered" width="100%" cellspacing="0">
+            <div class="table-responsive tournament-table-wrap">
+                <table class="table tournament-table mb-0" width="100%" cellspacing="0">
+                    <colgroup>
+                        <col style="width: 330px;" />
+                        <col style="width: 120px;" />
+                        <col style="width: 220px;" />
+                        <col style="width: 225px;" />
+                        <col style="width: 105px;" />
+                        <col style="width: 130px;" />
+                        <col style="width: 190px;" />
+                    </colgroup>
                     <thead>
                         <tr>
-                            <th>Ảnh giải đấu</th>
-                            <th>Tiêu đề</th>
+                            <th>Giải đấu</th>
                             <th>Trạng thái</th>
-                            <th>Ngày bắt đầu</th>
-                            <th>Hạn đăng ký</th>
+                            <th>Lịch thi đấu</th>
                             <th>Nội dung thi đấu</th>
-                            <th>Số đội</th>
-                            <th>Giới hạn đơn</th>
-                            <th>Giới hạn đôi</th>
+                            <th>Quy mô</th>
                             <th>Phí đăng ký</th>
-                            <th style="width: 250px;">Thao tác</th>
+                            <th>Thao tác</th>
                         </tr>
                     </thead>
                     <tbody id="tournamentsBody">
                         <tr>
-                            <td colspan="11" class="text-center text-muted">Đang tải...</td>
+                            <td colspan="7" class="tournament-list-message text-center text-muted">Đang tải...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -249,6 +719,43 @@
 
                 <div class="modal-body">
                     <div id="formError" class="alert alert-danger d-none"></div>
+
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label>Hình thức giải *</label>
+                            <select id="tournamentMode" class="form-control" required>
+                                <option value="STANDARD" selected>Giải tiêu chuẩn</option>
+                                @if (relayUiEnabled)
+                                {
+                                    <option value="RELAY">Giải tiếp sức</option>
+                                }
+                            </select>
+                            <small id="tournamentModeHint" class="text-muted d-block mt-2">Thi đấu đơn hoặc đôi theo cách thông thường.</small>
+                        </div>
+                    </div>
+
+                    @if (relayUiEnabled)
+                    {
+                        <div id="relayCreateFields" class="form-row d-none">
+                            <div class="form-group col-md-4">
+                                <label>Quy mô đội tiếp sức *</label>
+                                <select id="relayTeamSize" class="form-control">
+                                    <option value="4">4 người · 2 cặp</option>
+                                    <option value="6" selected>6 người · 3 cặp</option>
+                                    <option value="8">8 người · 4 cặp</option>
+                                </select>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label>Điểm đích *</label>
+                                <input id="relayTargetScore" type="number" min="1" step="1" class="form-control" value="40" />
+                                <small class="text-muted d-block mt-2">Trận kết thúc khi một đội đạt điểm đích này.</small>
+                            </div>
+                            <div class="form-group col-md-4">
+                                <label>Luật thời gian và lệ phí</label>
+                                <p class="form-control-plaintext mb-0">10 phút chỉ hiển thị, không khóa chấm điểm. Lệ phí bên dưới được thu một lần cho mỗi đội.</p>
+                            </div>
+                        </div>
+                    }
 
                     <div class="form-row">
                         <div class="form-group col-md-8">
@@ -348,11 +855,13 @@
                         </div>
                         <div class="form-group col-md-2">
                             <label>Giới hạn đơn</label>
-                            <input id="singleLimit" type="number" step="0.01" class="form-control" value="0" />
+                            <input id="singleLimit" type="number" step="0.01" min="0" max="99.99" class="form-control tournament-limit-input" value="0" />
+                            <small class="text-muted">Tối đa 99.99</small>
                         </div>
                         <div class="form-group col-md-2">
                             <label>Giới hạn đôi</label>
-                            <input id="doubleLimit" type="number" step="0.01" class="form-control" value="0" />
+                            <input id="doubleLimit" type="number" step="0.01" min="0" max="99.99" class="form-control tournament-limit-input" value="0" />
+                            <small class="text-muted">Tối đa 99.99</small>
                         </div>
                         <div class="form-group col-md-3">
                             <label>Phí đăng ký</label>
@@ -445,10 +954,12 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>window.HanakaApiLoading?.installAxios(window.axios);</script>
     <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
 
     <script>
         const API_BASE = "/api/admin/tournaments";
+        const relayFeatureEnabled = @relayUiEnabled.ToString().ToLowerInvariant();
         const TOURNAMENT_LIST_STATE_KEY = "admin-home-tournaments:return-state";
         let tournamentRuleQuill = null;
         let pendingTournamentListState = null;
@@ -535,6 +1046,35 @@
                 case "DOUBLE_OPEN": return "Hỗn Hợp";
                 default: return "—";
             }
+        }
+
+        function syncTournamentModeUI() {
+            const mode = document.getElementById("tournamentMode")?.value || "STANDARD";
+            const isRelay = relayFeatureEnabled && mode === "RELAY";
+            const relayFields = document.getElementById("relayCreateFields");
+            const hint = document.getElementById("tournamentModeHint");
+            const teamSize = document.getElementById("relayTeamSize");
+            const targetScore = document.getElementById("relayTargetScore");
+
+            relayFields?.classList.toggle("d-none", !isRelay);
+            if (hint) {
+                hint.textContent = isRelay
+                    ? "Mỗi đăng ký là một đội chính; các cặp thi đấu theo thứ tự đội hình đã chốt."
+                    : "Thi đấu đơn hoặc đôi theo cách thông thường.";
+            }
+            if (teamSize) teamSize.disabled = !isRelay;
+            if (targetScore) targetScore.disabled = !isRelay;
+        }
+
+        function clampTournamentLimit(input) {
+            if (!input || input.value === "") return;
+            const value = Number(input.value);
+            if (!Number.isFinite(value)) {
+                input.value = "0";
+                return;
+            }
+            if (value > 99.99) input.value = "99.99";
+            if (value < 0) input.value = "0";
         }
 
         function getTournamentTypeCode(gameType, genderCategory) {
@@ -817,66 +1357,93 @@
 
         function rowHtml(t) {
             const banner = t.bannerUrl
-                ? `<img style="width:120px;height:44px;object-fit:cover;border-radius:6px" src="${t.bannerUrl}" />`
-                : `<div style="width:120px;height:44px;border:1px dashed #ddd;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#999">Chưa có ảnh</div>`;
+                ? `<div class="tournament-thumbnail"><img src="${escapeHtml(t.bannerUrl)}" alt="Ảnh giải ${escapeHtml(t.title)}" loading="lazy" /></div>`
+                : `<div class="tournament-thumbnail tournament-thumbnail--empty"><i class="far fa-image"></i><span>Chưa có ảnh</span></div>`;
 
             const sub = `${t.areaText || "—"}${t.locationText ? " • " + t.locationText : ""}`;
-            const extra1 = `${t.organizer ? "Đơn vị tổ chức: " + t.organizer : "Đơn vị tổ chức: —"}${t.creatorName ? " • Người tạo: " + t.creatorName : ""}`;
-            const extra2 = `${t.formatText ? "Thể thức: " + t.formatText : "Thể thức: —"}${t.playoffType ? " • Vòng loại: " + t.playoffType : ""}`;
-            const zaloText = t.zaloLink ? `Zalo: ${t.zaloLink}` : "Zalo: —";
-            const rulePreview = normalizeHtml(t.tournamentRule)
-                ? `<div class="small rule-preview-lite mt-1">${t.tournamentRule}</div>`
-                : `<div class="small text-gray-500 mt-1">Thể lệ: —</div>`;
+            const organizer = t.organizer || "Chưa cập nhật đơn vị tổ chức";
 
             const singleLimit = (t.singleLimit ?? 0);
             const doubleLimit = (t.doubleLimit ?? 0);
             const registrationFeeAmount = Number(t.registrationFeeAmount ?? 0);
             const registrationFeeCurrency = t.registrationFeeCurrency || "VND";
-            const tournamentTypeLabel = getTournamentTypeLabel(t.gameType, t.genderCategory);
-            const tournamentTypeCode = getTournamentTypeCode(t.gameType, t.genderCategory);
+            const tournamentTypeLabel = t.isRelay
+                ? "Đội tiếp sức"
+                : getTournamentTypeLabel(t.gameType, t.genderCategory);
+            const tournamentTypeCode = t.isRelay
+                ? `${t.relayTeamSize || "—"} người · ${t.relayPairCount || "—"} cặp · đích ${t.relayTargetScore || "—"}`
+                : getTournamentTypeCode(t.gameType, t.genderCategory);
+            const relayAction = relayFeatureEnabled && t.isRelay
+                ? `<a class="dropdown-item" href="/RelaySetup/Index?tournamentId=${t.tournamentId}"><i class="fas fa-users"></i><span>Chuẩn bị đội tiếp sức</span></a>`
+                : "";
+            const kindClass = t.isRelay ? " tournament-kind-badge--relay" : "";
+            const kindLabel = t.isRelay ? "Giải tiếp sức" : "Giải tiêu chuẩn";
+            const feeHtml = registrationFeeAmount > 0
+                ? `${registrationFeeAmount.toLocaleString("vi-VN")} ${escapeHtml(registrationFeeCurrency)}`
+                : `<span class="tournament-fee--free">Miễn phí</span>`;
 
             return `
                 <tr data-id="${t.tournamentId}">
-                    <td>${banner}</td>
-                    <td>
-                        <div class="font-weight-bold text-gray-900">${escapeHtml(t.title)}</div>
-                        <div class="small text-gray-500">${escapeHtml(sub)}</div>
-                        <div class="small text-gray-500">${escapeHtml(extra1)}</div>
-                        <div class="small text-gray-500">${escapeHtml(extra2)}</div>
-                        <div class="small text-gray-500">${escapeHtml(zaloText)}</div>
-                        ${rulePreview}
+                    <td data-label="Giải đấu">
+                        <div class="tournament-identity">
+                            ${banner}
+                            <div class="tournament-identity__content">
+                                <div class="tournament-title" title="${escapeHtml(t.title)}">${escapeHtml(t.title)}</div>
+                                <div class="tournament-meta" title="${escapeHtml(sub)}"><i class="fas fa-map-marker-alt"></i><span>${escapeHtml(sub)}</span></div>
+                                <div class="tournament-meta" title="${escapeHtml(organizer)}"><i class="fas fa-building"></i><span>${escapeHtml(organizer)}</span></div>
+                                <span class="tournament-kind-badge${kindClass}">${kindLabel}</span>
+                            </div>
+                        </div>
                     </td>
-                    <td>${badgeHtml(t.status)}</td>
-                    <td>${formatVietnamDateTime(t.startTime)}</td>
-                    <td>${formatVietnamDateTime(t.registerDeadline)}</td>
-                    <td>
-                        <div class="font-weight-bold text-gray-900">${escapeHtml(tournamentTypeLabel)}</div>
-                        <div class="small text-muted">${escapeHtml(tournamentTypeCode)}</div>
+                    <td data-label="Trạng thái">${badgeHtml(t.status)}</td>
+                    <td data-label="Lịch thi đấu">
+                        <div class="tournament-schedule">
+                            <div class="tournament-schedule__item">
+                                <span class="tournament-schedule__label">Bắt đầu</span>
+                                <span class="tournament-schedule__value">${formatVietnamDateTime(t.startTime)}</span>
+                            </div>
+                            <div class="tournament-schedule__item">
+                                <span class="tournament-schedule__label">Hạn đăng ký</span>
+                                <span class="tournament-schedule__value">${formatVietnamDateTime(t.registerDeadline)}</span>
+                            </div>
+                        </div>
                     </td>
-                    <td>${t.expectedTeams ?? 0}</td>
-                    <td>${Number(singleLimit).toFixed(2)}</td>
-                    <td>${Number(doubleLimit).toFixed(2)}</td>
-                    <td>${registrationFeeAmount.toLocaleString("vi-VN")} ${escapeHtml(registrationFeeCurrency)}</td>
-                    <td>
-                        <div class="d-flex flex-wrap" style="gap:6px">
-                            <button class="btn btn-sm btn-outline-primary" onclick="openEdit(${t.tournamentId})" type="button" title="Chỉnh sửa">
-                                <i class="fas fa-edit"></i>
+                    <td data-label="Nội dung">
+                        <div class="tournament-content-name">${escapeHtml(tournamentTypeLabel)}</div>
+                        <div class="tournament-content-code">${escapeHtml(tournamentTypeCode)}</div>
+                        <div class="tournament-limits">
+                            <span class="tournament-limit-chip" title="Giới hạn điểm đơn">Đơn ${Number(singleLimit).toFixed(2)}</span>
+                            <span class="tournament-limit-chip" title="Giới hạn điểm đôi">Đôi ${Number(doubleLimit).toFixed(2)}</span>
+                        </div>
+                    </td>
+                    <td data-label="Quy mô">
+                        <div class="tournament-capacity">
+                            <div class="tournament-capacity__number">${t.expectedTeams ?? 0}</div>
+                            <div class="tournament-capacity__label">đội dự kiến</div>
+                        </div>
+                    </td>
+                    <td data-label="Phí đăng ký"><div class="tournament-fee">${feeHtml}</div></td>
+                    <td data-label="Thao tác">
+                        <div class="tournament-actions">
+                            <button class="btn btn-sm btn-outline-primary tournament-action-btn" onclick="openEdit(${t.tournamentId})" type="button" title="Chỉnh sửa giải đấu">
+                                <i class="fas fa-edit"></i><span>Sửa</span>
                             </button>
-                            <button class="btn btn-sm btn-outline-info" onclick="gotoRegs(${t.tournamentId})" type="button" title="Danh sách đăng ký">
-                                <i class="fas fa-list"></i>
+                            <button class="btn btn-sm btn-outline-info tournament-action-btn" onclick="gotoRegs(${t.tournamentId})" type="button" title="Danh sách đăng ký">
+                                <i class="fas fa-users"></i><span>Đăng ký</span>
                             </button>
-                            <button class="btn btn-sm btn-outline-success" onclick="gotoRounds(${t.tournamentId})" type="button" title="Các vòng đấu">
-                                <i class="fas fa-layer-group"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-dark" onclick="gotoBracket(${t.tournamentId})" type="button" title="Sơ đồ admin">
-                                <i class="fas fa-project-diagram"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-warning" onclick="gotoPrizeSetup(${t.tournamentId})" type="button" title="Thiết lập giải thưởng">
-                                <i class="fas fa-trophy"></i>
-                            </button>
-                            <button class="btn btn-sm btn-outline-danger" data-title="${escapeHtml(t.title || "")}" onclick="softDeleteTournament(${t.tournamentId}, this.dataset.title)" type="button" title="Xóa mềm">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-light border tournament-action-btn dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" title="Các thao tác khác">
+                                    <i class="fas fa-ellipsis-h"></i><span>Thêm</span>
+                                </button>
+                                <div class="dropdown-menu dropdown-menu-right">
+                                    <button class="dropdown-item" onclick="gotoRounds(${t.tournamentId})" type="button"><i class="fas fa-layer-group"></i><span>Các vòng đấu</span></button>
+                                    <button class="dropdown-item" onclick="gotoBracket(${t.tournamentId})" type="button"><i class="fas fa-project-diagram"></i><span>Sơ đồ thi đấu</span></button>
+                                    ${relayAction}
+                                    <button class="dropdown-item" onclick="gotoPrizeSetup(${t.tournamentId})" type="button"><i class="fas fa-trophy"></i><span>Thiết lập giải thưởng</span></button>
+                                    <div class="dropdown-divider"></div>
+                                    <button class="dropdown-item text-danger" data-title="${escapeHtml(t.title || "")}" onclick="softDeleteTournament(${t.tournamentId}, this.dataset.title)" type="button"><i class="fas fa-trash-alt text-danger"></i><span>Xóa giải đấu</span></button>
+                                </div>
+                            </div>
                         </div>
                     </td>
                 </tr>
@@ -927,6 +1494,11 @@
             clearError();
 
             document.getElementById("tournamentType").value = "";
+            document.getElementById("tournamentMode").value = "STANDARD";
+            document.getElementById("tournamentMode").disabled = false;
+            if (document.getElementById("relayTeamSize")) document.getElementById("relayTeamSize").value = "6";
+            if (document.getElementById("relayTargetScore")) document.getElementById("relayTargetScore").value = "40";
+            syncTournamentModeUI();
             document.getElementById("organizer").value = "";
             document.getElementById("creatorName").value = "";
             document.getElementById("zaloLink").value = "";
@@ -960,7 +1532,7 @@
 
             clearPageError();
             const body = document.getElementById("tournamentsBody");
-            body.innerHTML = `<tr><td colspan="11" class="text-center text-muted">Đang tải...</td></tr>`;
+            body.innerHTML = `<tr><td colspan="7" class="tournament-list-message text-center text-muted">Đang tải...</td></tr>`;
 
             try {
                 const res = await axios.get(API_BASE, { params: getTournamentListParams() });
@@ -981,14 +1553,14 @@
                 }
 
                 if (!items.length) {
-                    body.innerHTML = `<tr><td colspan="11" class="text-center text-muted">Không có giải đấu</td></tr>`;
+                    body.innerHTML = `<tr><td colspan="7" class="tournament-list-message text-center text-muted">Không có giải đấu</td></tr>`;
                 } else {
                     body.innerHTML = items.map(rowHtml).join("");
                 }
 
                 renderTournamentPaging();
             } catch (e) {
-                body.innerHTML = `<tr><td colspan="11" class="text-center text-danger">Tải dữ liệu thất bại</td></tr>`;
+                body.innerHTML = `<tr><td colspan="7" class="tournament-list-message text-center text-danger">Tải dữ liệu thất bại</td></tr>`;
                 showPageError(e?.response?.data?.message || e?.message || "Tải dữ liệu thất bại.");
                 renderTournamentPaging();
             } finally {
@@ -1053,18 +1625,28 @@
             loadTournaments(false);
         }
 
-        function openCreate() {
+        function openCreate(isRelay = false) {
             resetForm();
             document.getElementById("mode").value = "create";
             document.getElementById("editingId").value = "";
 
-            document.getElementById("modalTitle").textContent = "Tạo giải đấu";
+            if (isRelay && relayFeatureEnabled) {
+                document.getElementById("tournamentMode").value = "RELAY";
+                syncTournamentModeUI();
+            }
+
+            document.getElementById("modalTitle").textContent = isRelay ? "Tạo giải tiếp sức" : "Tạo giải đấu";
             setSubmitText("Tạo mới");
 
             $("#modalTournament").modal("show");
         }
 
         function fillForm(t) {
+            document.getElementById("tournamentMode").value = t.isRelay ? "RELAY" : "STANDARD";
+            document.getElementById("tournamentMode").disabled = true;
+            if (document.getElementById("relayTeamSize") && t.relayTeamSize) document.getElementById("relayTeamSize").value = String(t.relayTeamSize);
+            if (document.getElementById("relayTargetScore") && t.relayTargetScore) document.getElementById("relayTargetScore").value = String(t.relayTargetScore);
+            syncTournamentModeUI();
             document.getElementById("title").value = t.title || "";
             document.getElementById("status").value = (t.status || "DRAFT").toUpperCase();
             document.getElementById("tournamentType").value = composeTournamentTypeValue(t.gameType, t.genderCategory);
@@ -1147,6 +1729,12 @@
 
             fd.append("title", document.getElementById("title").value.trim());
             fd.append("status", document.getElementById("status").value);
+            const isRelay = relayFeatureEnabled && document.getElementById("tournamentMode").value === "RELAY";
+            fd.append("isRelay", String(isRelay));
+            if (isRelay) {
+                fd.append("relayTeamSize", document.getElementById("relayTeamSize").value || "6");
+                fd.append("relayTargetScore", document.getElementById("relayTargetScore").value || "40");
+            }
             fd.append("gameType", parsedTournamentType.gameType);
             fd.append("genderCategory", parsedTournamentType.genderCategory);
             fd.append("expectedTeams", document.getElementById("expectedTeams").value || "0");
@@ -1216,7 +1804,13 @@
             loadTournaments();
 
             document.getElementById("btnFilter").addEventListener("click", () => loadTournaments(true));
-            document.getElementById("btnOpenCreate").addEventListener("click", () => openCreate());
+            document.getElementById("btnOpenCreate").addEventListener("click", () => openCreate(false));
+            document.getElementById("btnOpenCreateRelay")?.addEventListener("click", () => openCreate(true));
+            document.getElementById("tournamentMode").addEventListener("change", syncTournamentModeUI);
+            document.querySelectorAll(".tournament-limit-input").forEach(input => {
+                input.addEventListener("input", () => clampTournamentLimit(input));
+                input.addEventListener("change", () => clampTournamentLimit(input));
+            });
 
             document.getElementById("statusFilter").addEventListener("change", () => loadTournaments(true));
 
@@ -1280,9 +1874,14 @@
                         });
                         await loadTournaments(false);
                     } else {
-                        await axios.post(API_BASE, fd, {
+                        const createResponse = await axios.post(API_BASE, fd, {
                             headers: { "Content-Type": "multipart/form-data" }
                         });
+                        if (createResponse.data?.isRelay && createResponse.data?.tournamentId) {
+                            saveTournamentListState();
+                            window.location.href = `/RelaySetup/Index?tournamentId=${createResponse.data.tournamentId}`;
+                            return;
+                        }
                         await loadTournaments(true);
                     }
 

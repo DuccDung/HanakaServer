@@ -160,12 +160,20 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>window.HanakaApiLoading?.installAxios(window.axios);</script>
+    <script src="~/js/public-realtime.js" asp-append-version="true"></script>
     <script>
         (() => {
             const $id = (id) => document.getElementById(id);
             const API = `/api/referee/matches`;
 
             let CACHE = { items: [] };
+            let SCORE_BASELINE = null;
+            let SCORE_SAVE_BUSY = false;
+            let PENDING_REALTIME_RELOAD = false;
+            let REALTIME_RELOAD_TIMER = null;
+            let REMOVE_REALTIME_LISTENER = null;
+            const REALTIME_TOURNAMENT_IDS = new Set();
 
             const esc = (s) => String(s || "")
                 .replaceAll("&", "&amp;")
@@ -305,15 +313,115 @@
                 box.innerHTML = items.map(cardHtml).join("");
             }
 
-            async function load() {
+            async function load(options = {}) {
                 hideErr();
                 try {
-                    const res = await axios.get(API);
+                    const res = await axios.get(API, {
+                        hanakaLoading: options.silent ? "silent" : undefined
+                    });
                     CACHE.items = res.data?.items || [];
+                    syncRealtimeTournamentSubscriptions();
                     render();
+                    syncOpenScoreModalFromCache();
                 } catch (err) {
                     showErr(err?.response?.data?.message || err?.message || "Tải dữ liệu thất bại.");
                 }
+            }
+
+            function captureScoreState() {
+                return {
+                    matchId: Number($id("scoreMatchId").value || 0),
+                    scoreTeam1: Number($id("score1").value || 0),
+                    scoreTeam2: Number($id("score2").value || 0),
+                    note: ($id("scoreNote").value || "").trim(),
+                    isCompleted: !!$id("isCompleted").checked
+                };
+            }
+
+            function syncOpenScoreModalFromCache() {
+                if (!$("#modalScore").hasClass("show") || SCORE_SAVE_BUSY || isScoreDirty()) return;
+                const matchId = Number($id("scoreMatchId").value || 0);
+                const match = (CACHE.items || []).find(item => Number(item.matchId) === matchId);
+                if (!match) return;
+                $id("scoreTeam1Name").textContent = match.team1Text || "Đội 1";
+                $id("scoreTeam2Name").textContent = match.team2Text || "Đội 2";
+                $id("score1").value = String(match.scoreTeam1 ?? 0);
+                $id("score2").value = String(match.scoreTeam2 ?? 0);
+                $id("scoreNote").value = "";
+                $id("isCompleted").checked = !!match.isCompleted;
+                SCORE_BASELINE = captureScoreState();
+            }
+
+            function isScoreDirty() {
+                if (!SCORE_BASELINE || !$("#modalScore").hasClass("show")) return false;
+                const current = captureScoreState();
+                return Object.keys(current).some(key => current[key] !== SCORE_BASELINE[key]);
+            }
+
+            function syncRealtimeTournamentSubscriptions() {
+                const realtime = window.HanakaPublicRealtime;
+                if (!realtime) return;
+                const nextIds = new Set((CACHE.items || [])
+                    .map(item => Number(item.tournamentId || 0))
+                    .filter(id => Number.isFinite(id) && id > 0));
+                REALTIME_TOURNAMENT_IDS.forEach(id => {
+                    if (!nextIds.has(id)) {
+                        realtime.unsubscribeTournament(id);
+                        REALTIME_TOURNAMENT_IDS.delete(id);
+                    }
+                });
+                nextIds.forEach(id => {
+                    if (!REALTIME_TOURNAMENT_IDS.has(id)) {
+                        REALTIME_TOURNAMENT_IDS.add(id);
+                        realtime.subscribeTournament(id);
+                    }
+                });
+            }
+
+            function scheduleRealtimeReload() {
+                window.clearTimeout(REALTIME_RELOAD_TIMER);
+                if (SCORE_SAVE_BUSY || isScoreDirty()) {
+                    PENDING_REALTIME_RELOAD = true;
+                    return;
+                }
+                REALTIME_RELOAD_TIMER = window.setTimeout(() => load({ silent: true }), 180);
+            }
+
+            function initRealtime() {
+                const realtime = window.HanakaPublicRealtime;
+                if (!realtime) return;
+                REMOVE_REALTIME_LISTENER = realtime.on(event => {
+                    const type = String(event?.type || "");
+                    if (type === "__public_socket_open__" && event?.reconnected) {
+                        scheduleRealtimeReload();
+                        return;
+                    }
+                    const payload = event?.payload || {};
+                    if (!REALTIME_TOURNAMENT_IDS.has(Number(payload.tournamentId || payload.TournamentId || 0))) return;
+                    if (type !== "tournament.match.score.updated" && type !== "tournament.bracket.updated") return;
+
+                    const activeMatchId = Number($id("scoreMatchId").value || 0);
+                    const eventMatchId = Number(payload.matchId || payload.MatchId || 0);
+                    if (type === "tournament.match.score.updated"
+                        && $("#modalScore").hasClass("show")
+                        && activeMatchId === eventMatchId
+                        && (SCORE_SAVE_BUSY || isScoreDirty())) {
+                        PENDING_REALTIME_RELOAD = true;
+                        if (!SCORE_SAVE_BUSY) {
+                            showFormErr("Tỷ số vừa được cập nhật ở phiên khác. Dữ liệu bạn đang nhập được giữ nguyên.");
+                        }
+                        return;
+                    }
+                    scheduleRealtimeReload();
+                });
+
+                window.addEventListener("pagehide", event => {
+                    if (event.persisted) return;
+                    window.clearTimeout(REALTIME_RELOAD_TIMER);
+                    REMOVE_REALTIME_LISTENER?.();
+                    REALTIME_TOURNAMENT_IDS.forEach(id => realtime.unsubscribeTournament(id));
+                    REALTIME_TOURNAMENT_IDS.clear();
+                }, { once: true });
             }
 
             window.openScore = (matchId) => {
@@ -334,6 +442,7 @@
                 $id("score2").value = String(m.scoreTeam2 ?? 0);
                 $id("scoreNote").value = "";
                 $id("isCompleted").checked = !!m.isCompleted || true;
+                SCORE_BASELINE = captureScoreState();
 
                 $("#modalScore").modal("show");
             };
@@ -351,6 +460,7 @@
                 const btn = $id("btnSubmitScore");
                 btn.disabled = true;
                 btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Đang lưu...`;
+                SCORE_SAVE_BUSY = true;
 
                 try {
                     const res = await axios.put(`${API}/${matchId}/score`, {
@@ -358,6 +468,12 @@
                         scoreTeam2: s2,
                         isCompleted: completed,
                         note: note || null
+                    }, {
+                        hanakaLoading: {
+                            mode: "section",
+                            target: "#modalScore .modal-content",
+                            message: "Đang lưu tỷ số..."
+                        }
                     });
 
                     $("#modalScore").modal("hide");
@@ -381,12 +497,28 @@
                 } catch (err) {
                     showFormErr(err?.response?.data?.message || err?.message || "Chấm điểm thất bại.");
                 } finally {
+                    SCORE_SAVE_BUSY = false;
                     btn.disabled = false;
                     btn.innerHTML = `<i class="fas fa-check"></i> Lưu điểm`;
+                    if (PENDING_REALTIME_RELOAD) {
+                        PENDING_REALTIME_RELOAD = false;
+                        scheduleRealtimeReload();
+                    }
                 }
             });
 
-            document.addEventListener("DOMContentLoaded", load);
+            $("#modalScore").on("hidden.bs.modal", () => {
+                SCORE_BASELINE = null;
+                if (PENDING_REALTIME_RELOAD) {
+                    PENDING_REALTIME_RELOAD = false;
+                    scheduleRealtimeReload();
+                }
+            });
+
+            document.addEventListener("DOMContentLoaded", () => {
+                initRealtime();
+                load();
+            });
         })();
     </script>
 }

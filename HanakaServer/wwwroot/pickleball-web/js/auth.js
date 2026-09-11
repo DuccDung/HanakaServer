@@ -502,12 +502,9 @@
 
     async function getSession() {
         try {
-            return await requestJson("/api/web-auth/me", {
-                method: "GET",
-                headers: { Accept: "application/json" }
-            });
+            return await window.HanakaWebSession.read();
         } catch (error) {
-            return { isAuthenticated: false };
+            return null;
         }
     }
 

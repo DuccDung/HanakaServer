@@ -29,11 +29,12 @@ public sealed class AdminBracketTemplatesController : ControllerBase
         [FromQuery] string? search,
         [FromQuery] string? status,
         [FromQuery] string? formatType,
+        [FromQuery] string? participantMode,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken ct = default)
     {
-        var result = await _service.ListAsync(search, status, formatType, page, pageSize, ct);
+        var result = await _service.ListAsync(search, status, formatType, participantMode, page, pageSize, ct);
         return Ok(result);
     }
 
@@ -277,11 +278,12 @@ public sealed class AdminBracketTemplatesController : ControllerBase
         if (result.Success)
             return created ? StatusCode(StatusCodes.Status201Created, new { data = result.Data, result.Message }) : Ok(new { data = result.Data, result.Message });
 
-        var payload = new { code = result.ErrorCode, message = result.Message };
+        var payload = new { code = result.ErrorCode, message = result.Message, issues = result.Issues };
         return result.ErrorCode switch
         {
             "TEMPLATE_NOT_FOUND" or "VERSION_NOT_FOUND" => NotFound(payload),
             "CONCURRENCY_CONFLICT" or "TEMPLATE_CODE_DUPLICATE" or "DRAFT_EXISTS" or "TEMPLATE_IN_USE"
+                or "PARTICIPANT_MODE_LOCKED"
                 or "ROUND_KEY_DUPLICATE" or "GROUP_KEY_DUPLICATE" or "MATCH_KEY_DUPLICATE"
                 or "ROUND_IN_USE" or "GROUP_IN_USE" or "MATCH_IN_USE" => Conflict(payload),
             _ => BadRequest(payload)

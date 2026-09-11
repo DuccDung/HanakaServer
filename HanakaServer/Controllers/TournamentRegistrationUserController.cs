@@ -2,9 +2,11 @@
 using System.Security.Claims;
 using System.Text.Json;
 using HanakaServer.Data;
+using HanakaServer.Dtos.Relay;
 using HanakaServer.Helpers;
 using HanakaServer.Models;
 using HanakaServer.Services;
+using HanakaServer.Services.Relay;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -23,23 +25,29 @@ public class TournamentRegistrationUserController : ControllerBase
     private readonly IConfiguration _config;
     private readonly IWebHostEnvironment _env;
     private readonly RealtimeHub _realtimeHub;
+    private readonly RelayLegacyWriteGuard? _relayGuard;
 
     public TournamentRegistrationUserController(
         PickleballDbContext db,
         IConfiguration config,
         IWebHostEnvironment env,
-        RealtimeHub realtimeHub)
+        RealtimeHub realtimeHub,
+        RelayLegacyWriteGuard? relayGuard = null)
     {
         _db = db;
         _config = config;
         _env = env;
         _realtimeHub = realtimeHub;
+        _relayGuard = relayGuard;
     }
 
     [HttpGet("tournaments/{tournamentId:long}/me")]
     public async Task<IActionResult> GetMyTournamentRegistrationState(long tournamentId, CancellationToken ct)
     {
         var userId = GetUserIdFromToken();
+
+        if (_relayGuard?.Enabled == true && await _relayGuard.IsRelayTournamentAsync(tournamentId, ct))
+            return await GetMyRelayTournamentRegistrationState(tournamentId, userId, ct);
 
         var tournament = await _db.Tournaments
             .AsNoTracking()
@@ -257,6 +265,345 @@ public class TournamentRegistrationUserController : ControllerBase
         });
 
         return Ok(new { items });
+    }
+
+    [HttpGet("tournaments/{tournamentId:long}/relay/member-search")]
+    public async Task<IActionResult> SearchRelayMember(
+        long tournamentId,
+        [FromQuery] string? query,
+        [FromQuery] int pageSize = 10,
+        CancellationToken ct = default)
+    {
+        if (_relayGuard?.Enabled != true)
+            return NotFound(new { message = "Chức năng đăng ký đội tiếp sức chưa được bật." });
+
+        var currentUserId = GetUserIdFromToken();
+        query = (query ?? string.Empty).Trim();
+        pageSize = Math.Clamp(pageSize, 1, 20);
+        var isExactUserId = long.TryParse(query, out var exactUserId) && exactUserId > 0;
+
+        if (!isExactUserId && query.Length < 2)
+            return Ok(new { items = Array.Empty<object>() });
+
+        var tournamentExists = await (
+            from tournament in _db.Tournaments.AsNoTracking()
+            join settings in _db.RelayTournamentSettings.AsNoTracking()
+                on tournament.TournamentId equals settings.TournamentId
+            where tournament.TournamentId == tournamentId && !tournament.Remove && tournament.Status != "DRAFT"
+            select tournament.TournamentId)
+            .AnyAsync(ct);
+
+        if (!tournamentExists)
+            return NotFound(new { message = "Không tìm thấy giải tiếp sức." });
+
+        var rows = await _db.Users
+            .AsNoTracking()
+            .Where(x => x.IsActive && x.UserId != currentUserId)
+            .Where(x =>
+                x.FullName.Contains(query) ||
+                (x.Phone != null && x.Phone.Contains(query)) ||
+                x.UserId.ToString().Contains(query))
+            .OrderByDescending(x => isExactUserId && x.UserId == exactUserId)
+            .ThenByDescending(x => x.Verified)
+            .ThenBy(x => x.FullName)
+            .Take(pageSize)
+            .Select(x => new
+            {
+                x.UserId,
+                x.FullName,
+                x.AvatarUrl,
+                x.Phone,
+                x.City,
+                x.Verified,
+                x.RatingDouble,
+                LatestRatingDouble = _db.UserRatingHistories
+                    .Where(r => r.UserId == x.UserId)
+                    .OrderByDescending(r => r.RatedAt)
+                    .ThenByDescending(r => r.RatingHistoryId)
+                    .Select(r => r.RatingDouble)
+                    .FirstOrDefault(),
+                IsRegistered = _db.RelayTeamMembers.Any(member =>
+                    member.UserId == x.UserId && member.Team.TournamentId == tournamentId)
+                    || _db.RelayTeamReserveMembers.Any(member =>
+                        member.UserId == x.UserId && member.Team.TournamentId == tournamentId)
+                    || _db.RelayTeams.Any(team =>
+                        team.TournamentId == tournamentId && team.CaptainUserId == x.UserId)
+                    || _db.TournamentRegistrations.Any(registration =>
+                        registration.TournamentId == tournamentId
+                        && (registration.Player1UserId == x.UserId || registration.Player2UserId == x.UserId))
+            })
+            .ToListAsync(ct);
+
+        return Ok(new
+        {
+            items = rows.Select(x => new
+            {
+                x.UserId,
+                x.FullName,
+                AvatarUrl = ToAbsoluteUrl(x.AvatarUrl),
+                PhoneMasked = MaskPhone(x.Phone),
+                x.City,
+                x.Verified,
+                RatingDouble = x.LatestRatingDouble ?? x.RatingDouble ?? 0m,
+                x.IsRegistered,
+                CanSelect = !x.IsRegistered
+            })
+        });
+    }
+
+    [HttpPost("tournaments/{tournamentId:long}/relay")]
+    public async Task<IActionResult> RegisterRelayTeam(
+        long tournamentId,
+        [FromBody] CreateRelayUserRegistrationRequest? request,
+        CancellationToken ct)
+    {
+        if (_relayGuard?.Enabled != true)
+            return NotFound(new { message = "Chức năng đăng ký đội tiếp sức chưa được bật." });
+
+        var captainUserId = GetUserIdFromToken();
+        var teamName = (request?.TeamName ?? string.Empty).Trim();
+        var requestedMembers = request?.Members ?? [];
+        var requestedReserves = request?.ReserveMembers ?? [];
+
+        if (teamName.Length is < 1 or > 150)
+            return BadRequest(new { code = "TEAM_INVALID", message = "Tên đội tiếp sức phải có từ 1 đến 150 ký tự." });
+
+        await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
+        try
+        {
+            var tournament = await LoadTournamentForUpdateAsync(tournamentId, ct);
+            if (tournament == null)
+                return NotFound(new { message = "Không tìm thấy giải đấu." });
+
+            var settings = await _db.RelayTournamentSettings
+                .SingleOrDefaultAsync(x => x.TournamentId == tournamentId, ct);
+            if (settings == null)
+                return BadRequest(new { code = "RELAY_NOT_CONFIGURED", message = "Giải chưa có cấu hình tiếp sức." });
+
+            if (settings.TeamSize is not (4 or 6 or 8))
+                return BadRequest(new { code = "LINEUP_SIZE_INVALID", message = "Quy mô đội tiếp sức không hợp lệ." });
+
+            if (tournament.RegistrationLockedAt.HasValue)
+                return Conflict(new { code = "REGISTRATION_LOCKED", message = "Danh sách đăng ký đã được khóa để xếp bracket." });
+
+            var registrationWindow = ValidateTournamentRegistrationWindow(tournament.Status, tournament.RegisterDeadline);
+            if (!registrationWindow.CanRegister)
+                return BadRequest(new { code = "REGISTRATION_CLOSED", message = registrationWindow.Reason });
+
+            var expectedPositions = Enumerable.Range(2, settings.TeamSize - 1).ToArray();
+            var submittedPositions = requestedMembers.Select(x => x.Position).OrderBy(x => x).ToArray();
+            if (requestedMembers.Count != settings.TeamSize - 1 || !submittedPositions.SequenceEqual(expectedPositions))
+            {
+                return BadRequest(new
+                {
+                    code = "LINEUP_SIZE_INVALID",
+                    message = $"Đội tiếp sức phải có đúng {settings.TeamSize} thành viên, gồm cả người đăng ký."
+                });
+            }
+
+            var requestedUserIds = requestedMembers.Select(x => x.UserId).ToArray();
+            if (requestedUserIds.Any(x => x <= 0)
+                || requestedUserIds.Contains(captainUserId)
+                || requestedUserIds.Distinct().Count() != requestedUserIds.Length)
+            {
+                return BadRequest(new { code = "LINEUP_DUPLICATE_USER", message = "Danh sách thành viên có tài khoản bị trùng hoặc không hợp lệ." });
+            }
+
+            var allUserIds = new[] { captainUserId }.Concat(requestedUserIds).ToArray();
+            var userMap = await LoadUserSnapshotsAsync(allUserIds, ct);
+            if (userMap.Count != settings.TeamSize)
+                return BadRequest(new { code = "USER_NOT_FOUND", message = "Có thành viên không tồn tại hoặc tài khoản đã ngừng hoạt động." });
+
+            var duplicateMemberUserId = await (
+                from member in _db.RelayTeamMembers.AsNoTracking()
+                join existingTeam in _db.RelayTeams.AsNoTracking()
+                    on member.RegistrationId equals existingTeam.RegistrationId
+                where existingTeam.TournamentId == tournamentId
+                      && member.UserId.HasValue
+                      && allUserIds.Contains(member.UserId.Value)
+                select member.UserId ?? 0)
+                .FirstOrDefaultAsync(ct);
+
+            var duplicateCaptainUserId = await _db.RelayTeams
+                .AsNoTracking()
+                .Where(x => x.TournamentId == tournamentId
+                            && x.CaptainUserId.HasValue
+                            && allUserIds.Contains(x.CaptainUserId.Value))
+                .Select(x => x.CaptainUserId ?? 0)
+                .FirstOrDefaultAsync(ct);
+
+            if (duplicateMemberUserId > 0 || duplicateCaptainUserId > 0)
+            {
+                var duplicateUserId = duplicateMemberUserId > 0 ? duplicateMemberUserId : duplicateCaptainUserId;
+                return Conflict(new
+                {
+                    code = "ATHLETE_ALREADY_REGISTERED",
+                    message = $"Tài khoản {duplicateUserId} đã thuộc một đội khác trong giải này."
+                });
+            }
+
+            var hasLegacyRegistration = await _db.TournamentRegistrations.AsNoTracking().AnyAsync(x =>
+                x.TournamentId == tournamentId
+                && ((x.Player1UserId.HasValue && allUserIds.Contains(x.Player1UserId.Value))
+                    || (x.Player2UserId.HasValue && allUserIds.Contains(x.Player2UserId.Value))), ct);
+            if (hasLegacyRegistration)
+                return Conflict(new { code = "ATHLETE_ALREADY_REGISTERED", message = "Có thành viên đã đăng ký trong giải này." });
+
+            if (requestedReserves.Any(x => x.UserId <= 0))
+                return BadRequest(new { code = "RESERVE_INVALID", message = "Thành viên dự bị phải có tài khoản hợp lệ." });
+            var reserves = await RelayReserveMembers.ResolveAsync(_db,
+                requestedReserves.Select(x => new RelayReserveMemberInput(x.Position, x.UserId, null)).ToList(), ct);
+            await RelayReserveMembers.ValidateAssignmentsAsync(_db, tournamentId, null,
+                allUserIds.Select(x => (long?)x), reserves.Select(x => x.UserId), ct);
+
+            var registrationCount = await _db.TournamentRegistrations
+                .CountAsync(x => x.TournamentId == tournamentId && !x.IsVirtualTeam, ct);
+            if (registrationCount >= tournament.ExpectedTeams)
+                return Conflict(new { code = "CAPACITY_FULL", message = "Giải đấu đã đủ số đội đăng ký." });
+
+            var orderedMembers = new List<(int Position, UserRegistrationSnapshot User)>
+            {
+                (1, userMap[captainUserId])
+            };
+            orderedMembers.AddRange(requestedMembers
+                .OrderBy(x => x.Position)
+                .Select(x => (x.Position, userMap[x.UserId])));
+
+            var lineup = orderedMembers.Select(x => new RelayMemberInput(
+                x.Position,
+                x.User.UserId,
+                x.User.FullName,
+                x.User.AvatarUrl)).ToList();
+            RelayLineupService.ValidateMembers(lineup, settings.TeamSize, requireComplete: true);
+
+            var maxIndex = await _db.TournamentRegistrations
+                .Where(x => x.TournamentId == tournamentId)
+                .MaxAsync(x => (int?)x.RegIndex, ct) ?? 0;
+            var nextIndex = maxIndex + 1;
+            var now = DateTime.UtcNow;
+            var first = orderedMembers[0].User;
+            var second = orderedMembers[1].User;
+            var registration = new TournamentRegistration
+            {
+                TournamentId = tournamentId,
+                RegIndex = nextIndex,
+                RegCode = $"{tournamentId}-{nextIndex:0000}",
+                RegTime = now,
+                RegTimeRaw = now.ToString("o"),
+                Player1UserId = first.UserId,
+                Player1Name = first.FullName,
+                Player1Avatar = first.AvatarUrl,
+                Player1Level = first.RatingDouble,
+                Player1Verified = first.Verified,
+                Player2UserId = second.UserId,
+                Player2Name = second.FullName,
+                Player2Avatar = second.AvatarUrl,
+                Player2Level = second.RatingDouble,
+                Player2Verified = second.Verified,
+                Points = 0m,
+                Paid = false,
+                WaitingPair = false,
+                Success = true,
+                CreatedAt = now
+            };
+
+            _db.TournamentRegistrations.Add(registration);
+            await _db.SaveChangesAsync(ct);
+
+            var team = new RelayTeam
+            {
+                RegistrationId = registration.RegistrationId,
+                TournamentId = tournamentId,
+                TeamName = teamName,
+                CaptainUserId = captainUserId,
+                Version = 1
+            };
+            foreach (var member in orderedMembers)
+            {
+                team.Members.Add(new RelayTeamMember
+                {
+                    RegistrationId = registration.RegistrationId,
+                    Position = member.Position,
+                    UserId = member.User.UserId,
+                    DisplayName = member.User.FullName,
+                    AvatarUrl = member.User.AvatarUrl
+                });
+            }
+            foreach (var reserve in reserves) team.ReserveMembers.Add(reserve);
+            _db.RelayTeams.Add(team);
+
+            await _db.SaveChangesAsync(ct);
+
+            var notifications = orderedMembers
+                .Where(x => x.User.UserId != captainUserId)
+                .Select(x => BuildNotification(
+                    x.User.UserId,
+                    "RELAY_TEAM_ADDED",
+                    "Đã được thêm vào đội tiếp sức",
+                    $"{first.FullName} đã thêm bạn vào đội {teamName} tại giải {tournament.Title}.",
+                    "RELAY_TEAM",
+                    registration.RegistrationId,
+                    new
+                    {
+                        tournament.TournamentId,
+                        tournament.Title,
+                        registration.RegistrationId,
+                        registration.RegCode,
+                        team.TeamName,
+                        CaptainUserId = captainUserId,
+                        MemberPosition = x.Position
+                    }))
+                .ToList();
+            _db.UserNotifications.AddRange(notifications);
+
+            await _db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+
+            foreach (var notification in notifications)
+            {
+                try
+                {
+                    await SendTournamentNotificationAsync(
+                        notification.UserId,
+                        notification,
+                        tournamentId,
+                        pairRequestId: 0,
+                        CancellationToken.None);
+                }
+                catch
+                {
+                    // Registration is already committed; the persisted inbox remains the source of truth.
+                }
+            }
+
+            return Ok(new
+            {
+                ok = true,
+                message = "Đã lập và chốt đội tiếp sức thành công.",
+                registrationId = registration.RegistrationId,
+                registration.RegCode,
+                team.TeamName,
+                teamSize = settings.TeamSize,
+                pairCount = settings.TeamSize / 2,
+                paid = false
+            });
+        }
+        catch (RelayRuleException ex)
+        {
+            await tx.RollbackAsync(CancellationToken.None);
+            return StatusCode(ex.Code == "ATHLETE_ALREADY_REGISTERED" ? 409 : 400,
+                new { code = ex.Code, message = ex.Message });
+        }
+        catch (DbUpdateException)
+        {
+            await tx.RollbackAsync(CancellationToken.None);
+            return Conflict(new
+            {
+                code = "RELAY_REGISTRATION_CONFLICT",
+                message = "Đội hình vừa thay đổi hoặc có thành viên đã được đội khác đăng ký. Vui lòng tải lại và thử lại."
+            });
+        }
     }
 
     [HttpPost("tournaments/{tournamentId:long}/single")]
@@ -1048,6 +1395,9 @@ public class TournamentRegistrationUserController : ControllerBase
             long registrationId,
             CancellationToken ct)
     {
+        if (_relayGuard != null && await _relayGuard.IsRelayTournamentAsync(tournament.TournamentId, ct))
+            return (false, "Giải tiếp sức cần đăng ký cả đội; không sử dụng lời mời ghép đôi.", null, null);
+
         if (tournament.RegistrationLockedAt.HasValue)
             return (false, "Danh sách đăng ký đã được khóa để xếp bracket.", null, null);
 
@@ -1097,6 +1447,201 @@ public class TournamentRegistrationUserController : ControllerBase
         return (true, "", registration, targetUser);
     }
 
+    private async Task<IActionResult> GetMyRelayTournamentRegistrationState(
+        long tournamentId,
+        long userId,
+        CancellationToken ct)
+    {
+        var tournament = await _db.Tournaments
+            .AsNoTracking()
+            .Where(x => x.TournamentId == tournamentId && !x.Remove && x.Status != "DRAFT")
+            .Select(x => new
+            {
+                x.TournamentId,
+                x.Title,
+                x.Status,
+                x.StatusText,
+                x.GameType,
+                x.GenderCategory,
+                x.ExpectedTeams,
+                x.RegisterDeadline,
+                x.StartTime,
+                x.RegistrationLockedAt,
+                x.RegistrationFeeAmount,
+                x.RegistrationFeeCurrency
+            })
+            .FirstOrDefaultAsync(ct);
+        if (tournament == null)
+            return NotFound(new { message = "Không tìm thấy giải đấu." });
+
+        var settings = await _db.RelayTournamentSettings
+            .AsNoTracking()
+            .SingleOrDefaultAsync(x => x.TournamentId == tournamentId, ct);
+        if (settings == null)
+            return NotFound(new { message = "Không tìm thấy cấu hình giải tiếp sức." });
+
+        var me = await LoadUserSnapshotAsync(userId, ct);
+        if (me == null)
+            return NotFound(new { message = "Không tìm thấy người dùng." });
+
+        var team = await _db.RelayTeams
+            .AsNoTracking()
+            .Include(x => x.Members)
+            .Include(x => x.ReserveMembers).AsSplitQuery()
+            .Where(x => x.TournamentId == tournamentId
+                        && (x.CaptainUserId == userId || x.Members.Any(member => member.UserId == userId)
+                            || x.ReserveMembers.Any(member => member.UserId == userId)))
+            .OrderByDescending(x => x.RegistrationId)
+            .FirstOrDefaultAsync(ct);
+
+        TournamentRegistration? registration = null;
+        if (team != null)
+        {
+            registration = await _db.TournamentRegistrations
+                .AsNoTracking()
+                .SingleOrDefaultAsync(x => x.RegistrationId == team.RegistrationId, ct);
+        }
+
+        var hasLegacyRegistration = team == null && await _db.TournamentRegistrations
+            .AsNoTracking()
+            .AnyAsync(x => x.TournamentId == tournamentId
+                           && (x.Player1UserId == userId || x.Player2UserId == userId), ct);
+
+        var registeredCount = await _db.TournamentRegistrations
+            .AsNoTracking()
+            .CountAsync(x => x.TournamentId == tournamentId && !x.IsVirtualTeam, ct);
+        var capacityLeft = Math.Max(0, tournament.ExpectedTeams - registeredCount);
+        var registrationWindow = ValidateTournamentRegistrationWindow(tournament.Status, tournament.RegisterDeadline);
+
+        var canRegister = team == null
+                          && !hasLegacyRegistration
+                          && registrationWindow.CanRegister
+                          && !tournament.RegistrationLockedAt.HasValue
+                          && capacityLeft > 0;
+        var reason = team != null
+            ? "Bạn đã thuộc một đội trong giải này."
+            : hasLegacyRegistration
+                ? "Bạn đã có đăng ký trong giải này."
+            : tournament.RegistrationLockedAt.HasValue
+                ? "Danh sách đăng ký đã được khóa để xếp bracket."
+                : !registrationWindow.CanRegister
+                    ? registrationWindow.Reason
+                    : capacityLeft <= 0
+                        ? "Giải đã đủ số đội đăng ký."
+                        : "";
+
+        object? existingRegistration = null;
+        if (team != null && registration != null)
+        {
+            var memberUserIds = team.Members.Select(x => x.UserId).Concat(team.ReserveMembers.Select(x => x.UserId))
+                .Where(x => x.HasValue)
+                .Select(x => x!.Value)
+                .Distinct()
+                .ToArray();
+            var memberUsers = await LoadUserSnapshotsAsync(memberUserIds, ct);
+
+            existingRegistration = new
+            {
+                registration.RegistrationId,
+                registration.RegIndex,
+                registration.RegCode,
+                registration.RegTime,
+                registration.Success,
+                registration.WaitingPair,
+                registration.Paid,
+                registration.PaidAt,
+                registration.PaymentAmount,
+                IsRelay = true,
+                team.TeamName,
+                team.CaptainUserId,
+                IsCaptain = team.CaptainUserId == userId,
+                TeamSize = settings.TeamSize,
+                PairCount = settings.TeamSize / 2,
+                RosterComplete = team.Members.Count == settings.TeamSize
+                                 && team.Members.Select(x => x.Position).OrderBy(x => x)
+                                     .SequenceEqual(Enumerable.Range(1, settings.TeamSize)),
+                IsReady = team.Members.Count == settings.TeamSize
+                          && team.Members.Select(x => x.Position).OrderBy(x => x)
+                              .SequenceEqual(Enumerable.Range(1, settings.TeamSize)),
+                // Kept for older app versions; it now mirrors readiness rather than immutability.
+                LineupLocked = team.Members.Count == settings.TeamSize,
+                team.LineupLockedAtUtc,
+                team.Version,
+                ReserveMembers = team.ReserveMembers.OrderBy(x => x.Position).Select(member =>
+                {
+                    var user = member.UserId.HasValue && memberUsers.TryGetValue(member.UserId.Value, out var found) ? found : null;
+                    return new
+                    {
+                        member.Position, member.UserId,
+                        DisplayName = user?.FullName ?? member.DisplayName,
+                        AvatarUrl = ToAbsoluteUrl(user?.AvatarUrl ?? member.AvatarUrl),
+                        RatingDouble = user?.RatingDouble ?? 0m
+                    };
+                }).ToArray(),
+                Members = team.Members.OrderBy(x => x.Position).Select(member =>
+                {
+                    var memberUser = member.UserId.HasValue
+                                     && memberUsers.TryGetValue(member.UserId.Value, out var found)
+                        ? found
+                        : null;
+                    return new
+                    {
+                        member.Position,
+                        PairNumber = (member.Position + 1) / 2,
+                        member.UserId,
+                        member.DisplayName,
+                        AvatarUrl = ToAbsoluteUrl(memberUser?.AvatarUrl ?? member.AvatarUrl),
+                        RatingDouble = memberUser?.RatingDouble ?? 0m,
+                        IsCaptain = member.UserId == team.CaptainUserId
+                    };
+                }).ToArray()
+            };
+        }
+
+        return Ok(new
+        {
+            isRelay = true,
+            tournament = new
+            {
+                tournament.TournamentId,
+                tournament.Title,
+                tournament.Status,
+                tournament.StatusText,
+                tournament.GameType,
+                tournament.GenderCategory,
+                TournamentTypeCode = "RELAY_TEAM",
+                TournamentTypeLabel = "Đồng đội tiếp sức",
+                tournament.ExpectedTeams,
+                tournament.RegisterDeadline,
+                tournament.StartTime,
+                tournament.RegistrationFeeAmount,
+                tournament.RegistrationFeeCurrency,
+                CapacityLeft = capacityLeft
+            },
+            relay = new
+            {
+                settings.TeamSize,
+                PairCount = settings.TeamSize / 2,
+                settings.IsEnabled
+            },
+            me = new
+            {
+                me.UserId,
+                me.FullName,
+                AvatarUrl = me.AvatarUrlAbsolute,
+                me.Verified,
+                me.City,
+                me.RatingSingle,
+                me.RatingDouble
+            },
+            existingRegistration,
+            pendingSent = Array.Empty<object>(),
+            pendingReceived = Array.Empty<object>(),
+            canRegister,
+            reason
+        });
+    }
+
     private async Task<Tournament?> LoadTournamentForUpdateAsync(long tournamentId, CancellationToken ct)
     {
         return await _db.Tournaments
@@ -1110,6 +1655,9 @@ public class TournamentRegistrationUserController : ControllerBase
         bool requireCapacity,
         CancellationToken ct)
     {
+        if (_relayGuard != null && await _relayGuard.IsRelayTournamentAsync(tournament.TournamentId, ct))
+            return (false, "Giải tiếp sức cần đăng ký cả đội; không sử dụng đăng ký đơn hoặc ghép đôi.");
+
         if (tournament.RegistrationLockedAt.HasValue)
             return (false, "Danh sách đăng ký đã được khóa để xếp bracket.");
 
@@ -1235,6 +1783,50 @@ public class TournamentRegistrationUserController : ControllerBase
             RatingSingle = user.LatestRating?.RatingSingle ?? user.RatingSingle ?? 0m,
             RatingDouble = user.LatestRating?.RatingDouble ?? user.RatingDouble ?? 0m
         };
+    }
+
+    private async Task<Dictionary<long, UserRegistrationSnapshot>> LoadUserSnapshotsAsync(
+        IEnumerable<long> userIds,
+        CancellationToken ct)
+    {
+        var ids = userIds.Where(x => x > 0).Distinct().ToArray();
+        if (ids.Length == 0)
+            return [];
+
+        var users = await _db.Users
+            .AsNoTracking()
+            .Where(x => ids.Contains(x.UserId) && x.IsActive)
+            .Select(x => new
+            {
+                x.UserId,
+                x.FullName,
+                x.AvatarUrl,
+                x.Verified,
+                x.City,
+                x.RatingSingle,
+                x.RatingDouble,
+                LatestRating = _db.UserRatingHistories
+                    .Where(r => r.UserId == x.UserId)
+                    .OrderByDescending(r => r.RatedAt)
+                    .ThenByDescending(r => r.RatingHistoryId)
+                    .Select(r => new { r.RatingSingle, r.RatingDouble })
+                    .FirstOrDefault()
+            })
+            .ToListAsync(ct);
+
+        return users.ToDictionary(
+            x => x.UserId,
+            x => new UserRegistrationSnapshot
+            {
+                UserId = x.UserId,
+                FullName = x.FullName,
+                AvatarUrl = x.AvatarUrl,
+                AvatarUrlAbsolute = ToAbsoluteUrl(x.AvatarUrl),
+                Verified = x.Verified,
+                City = x.City,
+                RatingSingle = x.LatestRating?.RatingSingle ?? x.RatingSingle ?? 0m,
+                RatingDouble = x.LatestRating?.RatingDouble ?? x.RatingDouble ?? 0m
+            });
     }
 
     private async Task<List<object>> LoadPairRequestsAsync(long tournamentId, long userId, bool sent, CancellationToken ct)
@@ -1463,6 +2055,10 @@ public class TournamentRegistrationUserController : ControllerBase
             path = uri.AbsolutePath;
         }
 
+        var suffixIndex = path.IndexOfAny(['?', '#']);
+        if (suffixIndex >= 0)
+            path = path[..suffixIndex];
+
         var normalizedPath = path.TrimStart('/');
 
         if (!normalizedPath.StartsWith("uploads/", StringComparison.OrdinalIgnoreCase))
@@ -1532,6 +2128,18 @@ public class TournamentRegistrationUserController : ControllerBase
             return null;
 
         return text.Length <= maxLength ? text : text[..maxLength];
+    }
+
+    private static string? MaskPhone(string? phone)
+    {
+        var normalized = phone?.Trim();
+        if (string.IsNullOrWhiteSpace(normalized))
+            return null;
+
+        if (normalized.Length <= 4)
+            return new string('*', normalized.Length);
+
+        return new string('*', normalized.Length - 4) + normalized[^4..];
     }
 
     private static object ToUserBrief(UserRegistrationSnapshot user)

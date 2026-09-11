@@ -29,7 +29,13 @@
             <option value="">Tất cả thể thức</option>
             <option value="SINGLE_ELIMINATION">Loại trực tiếp</option>
             <option value="GROUP_KNOCKOUT">Vòng bảng + loại trực tiếp</option>
+            <option value="DOUBLE_ELIMINATION">Nhánh thắng/thua</option>
             <option value="CUSTOM">Tùy chỉnh</option>
+        </select>
+        <select class="form-control" id="btParticipantMode" aria-label="Lọc đối tượng thi đấu">
+            <option value="">Tất cả đối tượng</option>
+            <option value="STANDARD">Đơn/đôi thông thường</option>
+            <option value="RELAY_TEAM">Đội tiếp sức</option>
         </select>
         <select class="form-control" id="btStatus" aria-label="Lọc trạng thái">
             <option value="">Tất cả trạng thái</option>
@@ -63,6 +69,7 @@
                     <tr>
                         <th>Template</th>
                         <th>Thể thức</th>
+                        <th>Đối tượng</th>
                         <th>Quy mô</th>
                         <th>Version</th>
                         <th>Trạng thái</th>
@@ -126,6 +133,44 @@
                         <label for="createDescription">Mô tả</label>
                         <textarea class="form-control" id="createDescription" rows="2" maxlength="1000" placeholder="Phạm vi sử dụng và lưu ý vận hành..."></textarea>
                     </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <label for="createParticipantMode">Đối tượng thi đấu <span class="text-danger">*</span></label>
+                            <select class="form-control" id="createParticipantMode" required>
+                                <option value="STANDARD">Đơn/đôi thông thường</option>
+                                <option value="RELAY_TEAM">Đội tiếp sức</option>
+                            </select>
+                            <small class="form-text text-muted">Với tiếp sức, mỗi seed trong sơ đồ là một đội chính.</small>
+                        </div>
+                        <div class="form-group col-md-6">
+                            <label for="createFormatType">Thể thức sơ đồ <span class="text-danger">*</span></label>
+                            <select class="form-control" id="createFormatType" required>
+                                <option value="CUSTOM">Tùy chỉnh</option>
+                                <option value="SINGLE_ELIMINATION">Loại trực tiếp</option>
+                                <option value="GROUP_KNOCKOUT">Vòng bảng + loại trực tiếp</option>
+                                <option value="DOUBLE_ELIMINATION">Nhánh thắng/thua</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-4">
+                            <label for="createMinimumTeams">Số đội tối thiểu <span class="text-danger">*</span></label>
+                            <input class="form-control" id="createMinimumTeams" type="number" min="2" max="1024" value="2" required />
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="createSeedCapacity">Số đội tối đa <span class="text-danger">*</span></label>
+                            <input class="form-control" id="createSeedCapacity" type="number" min="2" max="1024" value="2" required />
+                        </div>
+                        <div class="form-group col-md-4">
+                            <label for="createSeedingMethod">Cách xếp mặc định</label>
+                            <select class="form-control" id="createSeedingMethod">
+                                <option value="REGISTRATION_ORDER">Theo đăng ký</option>
+                                <option value="RANDOM">Ngẫu nhiên</option>
+                                <option value="MANUAL">Admin sắp xếp</option>
+                                <option value="RANKING">Theo trình</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button>
@@ -161,6 +206,14 @@
                             <input class="form-control" id="editTemplateName" maxlength="150" required autocomplete="off" />
                         </div>
                     </div>
+                    <div class="form-group">
+                        <label for="editParticipantMode">Đối tượng thi đấu</label>
+                        <select class="form-control" id="editParticipantMode">
+                            <option value="STANDARD">Đơn/đôi thông thường</option>
+                            <option value="RELAY_TEAM">Đội tiếp sức</option>
+                        </select>
+                        <small class="form-text text-muted" data-participant-mode-help>Chỉ đổi được trước khi template được xuất bản hoặc áp dụng.</small>
+                    </div>
                     <div class="form-row">
                         <div class="form-group col-md-6">
                             <label for="editMinimumTeams">Số đội tối thiểu <span class="text-danger">*</span></label>
@@ -170,6 +223,7 @@
                         <div class="form-group col-md-6">
                             <label for="editSeedCapacity">Số đội tối đa <span class="text-danger">*</span></label>
                             <input class="form-control" id="editSeedCapacity" type="number" min="2" max="1024" required />
+                            <small class="text-muted" data-capacity-help></small>
                             <small class="form-text text-muted">Nhiều hơn số này thì không được áp dụng template.</small>
                         </div>
                     </div>

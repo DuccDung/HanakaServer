@@ -42,6 +42,14 @@
 .tbs-team-row strong { font-size: .77rem; }
 .tbs-team-row small { color: #7b8595; font-size: .65rem; }
 .tbs-paid { background: #eaf8f3; border-radius: 999px; color: #117d65; font-size: .62rem; font-weight: 800; padding: .25rem .42rem; }
+.tbs-paid.is-unpaid { background: #fff3dc; color: #8b5900; }
+.tbs-payment-filter { background: #f8f9fc; border: 1px solid #e3e7f0; border-radius: 12px; margin: 1rem 0; padding: 1rem; }
+.tbs-payment-filter label { align-items: center; cursor: pointer; display: flex; gap: .6rem; margin-bottom: .4rem; }
+.tbs-payment-filter input { accent-color: #6071d9; height: 18px; width: 18px; flex-shrink: 0; }
+.tbs-payment-filter p, .tbs-payment-preview { color: #68738a; font-size: .85rem; margin-bottom: .5rem; }
+.tbs-payment-summary { display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; font-size: .85rem; }
+.tbs-team-row.is-excluded { background: #fffaf1; border-left: 3px solid #d69b36; }
+.tbs-team-row small.tbs-excluded-label { color: #8b5900; font-weight: 600; }
 .tbs-reg-time { color: #7b8595; font-size: .65rem; }
 .tbs-step-actions { align-items: center; border-top: 1px solid #edf0f4; display: flex; justify-content: space-between; margin-top: 1rem; padding-top: 1rem; }
 .tbs-step-actions .btn { border-radius: 9px; font-size: .76rem; font-weight: 750; }
@@ -156,3 +164,4 @@
 @media (max-width: 991.98px) { .tbs-preview-summary { grid-template-columns: repeat(3,1fr); } .tbs-active-card { grid-template-columns: 48px 1fr; } .tbs-active-card__actions { grid-column: 1 / -1; } }
 @media (max-width: 767.98px) { .tbs-hero { align-items: flex-start; flex-direction: column; gap: .8rem; } .tbs-steps button { grid-template-columns: 28px; text-align: center; } .tbs-steps button > span { grid-row: auto; height: 28px; width: 28px; } .tbs-steps button strong, .tbs-steps button small { display: none; } .tbs-steps > i { margin: 0 .3rem; } .tbs-template-grid { grid-template-columns: 1fr; } .tbs-team-row { grid-template-columns: 32px 1fr auto; } .tbs-reg-time { display: none; } }
 @media (max-width: 575.98px) { .tbs-step-panel { padding: 1rem; } .tbs-section-head { flex-direction: column; gap: .65rem; } .tbs-lock-card { grid-template-columns: 38px 1fr; } .tbs-lock-card .btn { grid-column: 1 / -1; } .tbs-seeding-methods { grid-template-columns: 1fr; } .tbs-placement-confirm-grid, .tbs-apply-summary { grid-template-columns: 1fr; } .tbs-placement-confirm-grid > span.is-wide { grid-column: auto; } .tbs-seed-toolbar { align-items: stretch; flex-direction: column; gap: .5rem; } .tbs-seed-tools .input-group { flex: 1; width: auto; } .tbs-preview-summary { grid-template-columns: repeat(2,1fr); } .tbs-step-actions { gap: .5rem; } .tbs-step-actions .btn { flex: 1; } .tbs-active-card__actions { flex-direction: column; } }
+[data-setup-error], [data-apply-modal-error] { white-space: pre-line; }

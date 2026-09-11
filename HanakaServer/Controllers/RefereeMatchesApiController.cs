@@ -1,8 +1,10 @@
 ﻿using System.Security.Claims;
 using HanakaServer.Data;
+using HanakaServer.Helpers;
 using HanakaServer.Models;
 using HanakaServer.Models.Dto;
 using HanakaServer.Services;
+using HanakaServer.Services.Relay;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -20,19 +22,25 @@ namespace HanakaServer.Controllers
         private readonly TournamentUserNotificationService _tournamentNotificationService;
         private readonly ITournamentBracketPropagationService _bracketPropagationService;
         private readonly ILogger<RefereeMatchesApiController> _logger;
+        private readonly RelayLegacyWriteGuard? _relayGuard;
+        private readonly RelayMatchLineupSnapshotService? _relayLineupSnapshots;
 
         public RefereeMatchesApiController(
             PickleballDbContext db,
             PublicRealtimeHub publicRealtimeHub,
             TournamentUserNotificationService tournamentNotificationService,
             ITournamentBracketPropagationService bracketPropagationService,
-            ILogger<RefereeMatchesApiController> logger)
+            ILogger<RefereeMatchesApiController> logger,
+            RelayLegacyWriteGuard? relayGuard = null,
+            RelayMatchLineupSnapshotService? relayLineupSnapshots = null)
         {
             _db = db;
             _publicRealtimeHub = publicRealtimeHub;
             _tournamentNotificationService = tournamentNotificationService;
             _bracketPropagationService = bracketPropagationService;
             _logger = logger;
+            _relayGuard = relayGuard;
+            _relayLineupSnapshots = relayLineupSnapshots;
         }
 
         private long? GetCurrentUserId()
@@ -67,6 +75,7 @@ namespace HanakaServer.Controllers
             var currentUserId = GetCurrentUserId();
             if (!currentUserId.HasValue)
                 return Unauthorized(new { message = "Không xác định được user hiện tại." });
+            var canViewVirtualTeams = User.IsInRole("Admin");
 
             var matches = await (
      from m in _db.TournamentGroupMatches.AsNoTracking()
@@ -97,10 +106,10 @@ namespace HanakaServer.Controllers
          GroupName = g.GroupName,
 
          m.Team1RegistrationId,
-         Team1Text = BuildTeamText(t.GameType ?? "DOUBLE", r1),
+         Team1Text = BuildTeamText(t.GameType ?? "DOUBLE", r1, canViewVirtualTeams),
 
          m.Team2RegistrationId,
-         Team2Text = BuildTeamText(t.GameType ?? "DOUBLE", r2),
+         Team2Text = BuildTeamText(t.GameType ?? "DOUBLE", r2, canViewVirtualTeams),
 
          m.StartAt,
          m.AddressText,
@@ -145,6 +154,30 @@ namespace HanakaServer.Controllers
                 .GroupBy(x => x.MatchId)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
+            var relayTournamentIds = new HashSet<long>();
+            var relayTeamNames = new Dictionary<long, string>();
+            var relaySnapshotNames = new Dictionary<(long MatchId, int Side), string>();
+            if (_relayGuard?.Enabled == true)
+            {
+                var tournamentIds = matches.Select(x => x.TournamentId).Distinct().ToArray();
+                relayTournamentIds = (await _db.RelayTournamentSettings.AsNoTracking()
+                    .Where(x => tournamentIds.Contains(x.TournamentId))
+                    .Select(x => x.TournamentId).ToListAsync()).ToHashSet();
+                var registrationIds = matches
+                    .Where(x => relayTournamentIds.Contains(x.TournamentId))
+                    .SelectMany(x => new[] { x.Team1RegistrationId, x.Team2RegistrationId })
+                    .Where(x => x.HasValue).Select(x => x!.Value).Distinct().ToArray();
+                relayTeamNames = await _db.RelayTeams.AsNoTracking()
+                    .Where(x => registrationIds.Contains(x.RegistrationId))
+                    .ToDictionaryAsync(x => x.RegistrationId, x => x.TeamName);
+                var relayMatchIds = matches.Where(x => relayTournamentIds.Contains(x.TournamentId))
+                    .Select(x => x.MatchId).ToArray();
+                relaySnapshotNames = (await _db.RelayMatchLineupSnapshots.AsNoTracking()
+                    .Where(x => relayMatchIds.Contains(x.MatchId))
+                    .Select(x => new { x.MatchId, x.Side, x.TeamName })
+                    .ToListAsync()).ToDictionary(x => (x.MatchId, x.Side), x => x.TeamName);
+            }
+
             var items = matches.Select(m => new
             {
                 m.MatchId,
@@ -155,9 +188,17 @@ namespace HanakaServer.Controllers
                 m.RoundLabel,
                 m.GroupName,
                 m.Team1RegistrationId,
-                m.Team1Text,
+                Team1Text = relaySnapshotNames.TryGetValue((m.MatchId, 1), out var snapshotTeam1)
+                    ? snapshotTeam1
+                    : m.Team1RegistrationId.HasValue
+                      && relayTeamNames.TryGetValue(m.Team1RegistrationId.Value, out var relayTeam1)
+                        ? relayTeam1 : m.Team1Text,
                 m.Team2RegistrationId,
-                m.Team2Text,
+                Team2Text = relaySnapshotNames.TryGetValue((m.MatchId, 2), out var snapshotTeam2)
+                    ? snapshotTeam2
+                    : m.Team2RegistrationId.HasValue
+                      && relayTeamNames.TryGetValue(m.Team2RegistrationId.Value, out var relayTeam2)
+                        ? relayTeam2 : m.Team2Text,
                 m.StartAt,
                 m.AddressText,
                 m.CourtText,
@@ -167,6 +208,7 @@ namespace HanakaServer.Controllers
                 m.IsCompleted,
                 m.WinnerRegistrationId,
                 m.WinnerTeam,
+                IsRelay = relayTournamentIds.Contains(m.TournamentId),
                 CanEditScore = CanScoreMatchToday(m.StartAt),
                 ScoreHistories = historyMap.ContainsKey(m.MatchId)
                                 ? historyMap[m.MatchId].Cast<object>().ToList()
@@ -228,6 +270,17 @@ namespace HanakaServer.Controllers
             var wasCompleted = m.IsCompleted;
             var previousWinnerRegistrationId = m.WinnerRegistrationId;
 
+            try
+            {
+                if (_relayLineupSnapshots != null)
+                    await _relayLineupSnapshots.EnsureForMatchAsync(m, HttpContext.RequestAborted);
+            }
+            catch (RelayRuleException ex)
+            {
+                await tx.RollbackAsync();
+                return BadRequest(new { code = ex.Code, message = ex.Message });
+            }
+
             // update current score
             m.ScoreTeam1 = dto.ScoreTeam1;
             m.ScoreTeam2 = dto.ScoreTeam2;
@@ -253,6 +306,7 @@ namespace HanakaServer.Controllers
 
             await _db.SaveChangesAsync();
             await tx.CommitAsync();
+            using var postCommit = CancellationCleanup.CreatePostCommitTokenSource();
 
             try
             {
@@ -280,12 +334,14 @@ namespace HanakaServer.Controllers
 
             if (m.IsCompleted)
             {
+                var bracketPropagationSucceeded = false;
                 try
                 {
                     if (!wasCompleted || previousWinnerRegistrationId != m.WinnerRegistrationId)
-                        await _bracketPropagationService.PropagateFromMatchAsync(m.MatchId, HttpContext.RequestAborted);
+                        await _bracketPropagationService.PropagateFromMatchAsync(m.MatchId, postCommit.Token);
 
-                    await _bracketPropagationService.PropagateFromGroupAsync(m.TournamentRoundGroupId, HttpContext.RequestAborted);
+                    await _bracketPropagationService.PropagateFromGroupAsync(m.TournamentRoundGroupId, postCommit.Token);
+                    bracketPropagationSucceeded = true;
                 }
                 catch (Exception ex)
                 {
@@ -293,13 +349,36 @@ namespace HanakaServer.Controllers
                         "Bracket propagation failed after referee saved match {MatchId}. Run bracket reconcile to retry.",
                         m.MatchId);
                 }
+
+                if (bracketPropagationSucceeded)
+                {
+                    try
+                    {
+                        await _publicRealtimeHub.BroadcastBracketUpdatedAsync(m.TournamentId, new
+                        {
+                            m.TournamentId,
+                            SourceMatchId = m.MatchId,
+                            m.TournamentRoundGroupId,
+                            Reason = !wasCompleted
+                                ? "MATCH_COMPLETED"
+                                : previousWinnerRegistrationId != m.WinnerRegistrationId
+                                    ? "WINNER_CHANGED"
+                                    : "SCORE_UPDATED",
+                            UpdatedAt = DateTime.UtcNow
+                        });
+                    }
+                    catch
+                    {
+                        // Realtime broadcast must not break the scoring response after propagation succeeded.
+                    }
+                }
             }
 
             if (m.IsCompleted && (!wasCompleted || previousWinnerRegistrationId != m.WinnerRegistrationId))
             {
                 try
                 {
-                    await _tournamentNotificationService.NotifyMatchWinnerAsync(m.MatchId);
+                    await _tournamentNotificationService.NotifyMatchWinnerAsync(m.MatchId, postCommit.Token);
                 }
                 catch
                 {
@@ -339,8 +418,11 @@ namespace HanakaServer.Controllers
             });
         }
 
-        private static string BuildTeamText(string gameType, TournamentRegistration r)
+        private static string BuildTeamText(string gameType, TournamentRegistration r, bool canViewVirtualTeams)
         {
+            if (r.IsVirtualTeam && !canViewVirtualTeams)
+                return "Chờ cập nhật";
+
             gameType = (gameType ?? "DOUBLE").Trim().ToUpperInvariant();
 
             if (gameType == "SINGLE")

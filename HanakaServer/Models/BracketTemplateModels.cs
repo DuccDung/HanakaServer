@@ -7,6 +7,7 @@ public sealed class BracketTemplate
     public string TemplateName { get; set; } = null!;
     public string? Description { get; set; }
     public string FormatType { get; set; } = BracketTemplateFormatTypes.Custom;
+    public string ParticipantMode { get; set; } = BracketTemplateParticipantModes.Standard;
     public string Status { get; set; } = BracketTemplateStatuses.Draft;
     public long? CurrentPublishedVersionId { get; set; }
     public long? CreatedByUserId { get; set; }
@@ -130,6 +131,7 @@ public sealed class TournamentBracketApplication
     public int EligibleRegistrationCount { get; set; }
     public int SeedCapacity { get; set; }
     public int ByeCount { get; set; }
+    public int VirtualTeamCount { get; set; }
     public string PreviewHash { get; set; } = null!;
     public long? AppliedByUserId { get; set; }
     public long? RevertedByUserId { get; set; }
@@ -148,6 +150,7 @@ public sealed class TournamentBracketApplication
     public User? AppliedByUser { get; set; }
     public User? RevertedByUser { get; set; }
     public ICollection<TournamentBracketSeedAssignment> SeedAssignments { get; set; } = new List<TournamentBracketSeedAssignment>();
+    public ICollection<TournamentRegistration> VirtualRegistrations { get; set; } = new List<TournamentRegistration>();
     public ICollection<TournamentRoundMap> GeneratedRounds { get; set; } = new List<TournamentRoundMap>();
     public ICollection<TournamentRoundGroup> GeneratedGroups { get; set; } = new List<TournamentRoundGroup>();
     public ICollection<TournamentGroupMatch> GeneratedMatches { get; set; } = new List<TournamentGroupMatch>();
@@ -187,6 +190,12 @@ public static class BracketTemplateFormatTypes
     public const string Custom = "CUSTOM";
 }
 
+public static class BracketTemplateParticipantModes
+{
+    public const string Standard = "STANDARD";
+    public const string RelayTeam = "RELAY_TEAM";
+}
+
 public static class BracketRoundTypes
 {
     public const string GroupStage = "GROUP_STAGE";
@@ -221,6 +230,7 @@ public static class BracketSeedingMethods
     public const string Manual = "MANUAL";
     public const string Ranking = "RANKING";
     public const string Bye = "BYE";
+    public const string Virtual = "VIRTUAL";
 }
 
 public static class BracketApplicationStatuses

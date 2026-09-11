@@ -76,6 +76,66 @@ public sealed class BracketGenerationAndSeedingTests
     }
 
     [Fact]
+    public void Registration_order_can_fill_missing_positions_with_named_virtual_teams()
+    {
+        var registrations = Registrations(6);
+
+        var result = TournamentBracketApplicationService.BuildSeeds(
+            registrations,
+            8,
+            BracketSeedingMethods.RegistrationOrder,
+            null,
+            [],
+            fillMissingWithVirtualTeams: true);
+
+        Assert.True(result.Success);
+        Assert.All(result.Data!.Seeds.Take(6), x =>
+        {
+            Assert.False(x.IsBye);
+            Assert.False(x.IsVirtualTeam);
+        });
+        var virtualSeeds = result.Data.Seeds.Skip(6).ToList();
+        Assert.Equal(2, virtualSeeds.Count);
+        Assert.All(virtualSeeds, x =>
+        {
+            Assert.True(x.IsVirtualTeam);
+            Assert.False(x.IsBye);
+            Assert.Null(x.RegistrationId);
+            Assert.Null(x.Player1UserId);
+            Assert.Null(x.Player2UserId);
+        });
+        Assert.Equal(new[] { "Nguyễn Minh Anh", "Trần Quốc Bảo" }, virtualSeeds.Select(x => x.TeamName));
+    }
+
+    [Fact]
+    public void Virtual_team_name_pool_uses_one_hundred_unique_human_names_without_numeric_suffixes()
+    {
+        var result = TournamentBracketApplicationService.BuildSeeds(
+            [],
+            101,
+            BracketSeedingMethods.RegistrationOrder,
+            null,
+            [],
+            fillMissingWithVirtualTeams: true);
+
+        Assert.True(result.Success);
+        var firstHundredNames = result.Data!.Seeds.Take(100).Select(x => x.TeamName).ToList();
+        Assert.Equal(100, firstHundredNames.Distinct(StringComparer.Ordinal).Count());
+        Assert.All(firstHundredNames, name => Assert.DoesNotMatch(@"-\d+$", name!));
+        Assert.Equal("Nguyễn Minh Anh", firstHundredNames[0]);
+        Assert.Equal("Hồ Quỳnh Anh", firstHundredNames[29]);
+        Assert.Equal("Nguyễn Đức Long", firstHundredNames[30]);
+        Assert.Equal("Hồ Khánh Ly", firstHundredNames[99]);
+        Assert.Equal("Nguyễn Minh Anh", result.Data.Seeds[100].TeamName);
+        Assert.All(result.Data.Seeds, seed =>
+        {
+            Assert.True(seed.IsVirtualTeam);
+            Assert.Null(seed.Player1UserId);
+            Assert.Null(seed.Player2UserId);
+        });
+    }
+
+    [Fact]
     public void Random_seeding_is_reproducible_with_same_random_seed()
     {
         var registrations = Registrations(8);

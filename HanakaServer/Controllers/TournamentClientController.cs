@@ -3,6 +3,7 @@ using HanakaServer.Dtos;
 using HanakaServer.Helpers;
 using HanakaServer.Models;
 using HanakaServer.Services;
+using HanakaServer.Services.Relay;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,11 +15,13 @@ namespace HanakaServer.Controllers
     {
         private readonly PickleballDbContext _db;
         private readonly ITournamentStandingsService _standingsService;
+        private readonly RelayTeamReader? _relayTeams;
 
-        public TournamentClientController(PickleballDbContext db, ITournamentStandingsService standingsService)
+        public TournamentClientController(PickleballDbContext db, ITournamentStandingsService standingsService, RelayTeamReader? relayTeams = null)
         {
             _db = db;
             _standingsService = standingsService;
+            _relayTeams = relayTeams;
         }
 
         /// <summary>
@@ -28,6 +31,7 @@ namespace HanakaServer.Controllers
         [HttpGet("{tournamentId:long}/rounds-with-matches")]
         public async Task<IActionResult> GetRoundsWithMatches(long tournamentId)
         {
+            var canViewVirtualTeams = User.IsInRole("Admin");
             var tournament = await _db.Tournaments
                 .AsNoTracking()
                 .Where(x => x.TournamentId == tournamentId && !x.Remove)
@@ -173,6 +177,7 @@ namespace HanakaServer.Controllers
                 {
                     RegistrationId = x.RegistrationId,
                     TournamentId = x.TournamentId,
+                    IsVirtualTeam = x.IsVirtualTeam,
                     RegCode = x.RegCode,
                     RegIndex = x.RegIndex,
                     Player1Name = x.Player1Name,
@@ -232,10 +237,10 @@ namespace HanakaServer.Controllers
                                 Team1RegistrationId = m.Team1RegistrationId,
                                 Team1 = team1Reg == null
                                     ? BuildTbdTeamDto(m.Team1SourceType, m.Team1SourceMatchId, m.Team1SourceGroupId, m.Team1SourceRank, sourceGroupMap)
-                                    : BuildTeamDto(tournament.GameType, team1Reg),
+                                    : BuildTeamDto(tournament.GameType, team1Reg, canViewVirtualTeams),
                                 Team1Text = team1Reg == null
                                     ? BuildSourceText(m.Team1SourceType, m.Team1SourceMatchId, m.Team1SourceGroupId, m.Team1SourceRank, sourceGroupMap)
-                                    : BuildTeamDto(tournament.GameType, team1Reg).DisplayName,
+                                    : BuildTeamDto(tournament.GameType, team1Reg, canViewVirtualTeams).DisplayName,
                                 Team1SourceType = m.Team1SourceType,
                                 Team1SourceMatchId = m.Team1SourceMatchId,
                                 Team1SourceGroupId = m.Team1SourceGroupId,
@@ -246,10 +251,10 @@ namespace HanakaServer.Controllers
                                 Team2RegistrationId = m.Team2RegistrationId,
                                 Team2 = team2Reg == null
                                     ? BuildTbdTeamDto(m.Team2SourceType, m.Team2SourceMatchId, m.Team2SourceGroupId, m.Team2SourceRank, sourceGroupMap)
-                                    : BuildTeamDto(tournament.GameType, team2Reg),
+                                    : BuildTeamDto(tournament.GameType, team2Reg, canViewVirtualTeams),
                                 Team2Text = team2Reg == null
                                     ? BuildSourceText(m.Team2SourceType, m.Team2SourceMatchId, m.Team2SourceGroupId, m.Team2SourceRank, sourceGroupMap)
-                                    : BuildTeamDto(tournament.GameType, team2Reg).DisplayName,
+                                    : BuildTeamDto(tournament.GameType, team2Reg, canViewVirtualTeams).DisplayName,
                                 Team2SourceType = m.Team2SourceType,
                                 Team2SourceMatchId = m.Team2SourceMatchId,
                                 Team2SourceGroupId = m.Team2SourceGroupId,
@@ -268,7 +273,7 @@ namespace HanakaServer.Controllers
                                 CompletionReason = m.CompletionReason,
                                 WinnerRegistrationId = m.WinnerRegistrationId,
                                 WinnerTeam = GetWinnerTeam(m.WinnerRegistrationId, m.Team1RegistrationId, m.Team2RegistrationId),
-                                Winner = winnerReg == null ? null : BuildTeamDto(tournament.GameType, winnerReg),
+                                Winner = winnerReg == null ? null : BuildTeamDto(tournament.GameType, winnerReg, canViewVirtualTeams),
 
                                 CreatedAt = m.CreatedAt,
                                 UpdatedAt = m.UpdatedAt
@@ -300,6 +305,7 @@ namespace HanakaServer.Controllers
                 Rounds = roundDtos
             };
 
+            await EnrichRelayTeamsAsync(tournamentId, groupDtos.SelectMany(x => x.Matches));
             return Ok(response);
         }
 
@@ -310,6 +316,7 @@ namespace HanakaServer.Controllers
         [HttpGet("matches/{matchId:long}")]
         public async Task<IActionResult> GetMatchDetail(long matchId)
         {
+            var canViewVirtualTeams = User.IsInRole("Admin");
             var match = await _db.TournamentGroupMatches
                 .AsNoTracking()
                 .Where(x => x.MatchId == matchId)
@@ -440,6 +447,7 @@ namespace HanakaServer.Controllers
                 {
                     RegistrationId = x.RegistrationId,
                     TournamentId = x.TournamentId,
+                    IsVirtualTeam = x.IsVirtualTeam,
                     RegCode = x.RegCode,
                     RegIndex = x.RegIndex,
                     Player1Name = x.Player1Name,
@@ -521,10 +529,10 @@ namespace HanakaServer.Controllers
                     Team1RegistrationId = match.Team1RegistrationId,
                     Team1 = team1Reg == null
                         ? BuildTbdTeamDto(match.Team1SourceType, match.Team1SourceMatchId, match.Team1SourceGroupId, match.Team1SourceRank, sourceGroupMap)
-                        : BuildTeamDto(tournament.GameType, team1Reg),
+                        : BuildTeamDto(tournament.GameType, team1Reg, canViewVirtualTeams),
                     Team1Text = team1Reg == null
                         ? BuildSourceText(match.Team1SourceType, match.Team1SourceMatchId, match.Team1SourceGroupId, match.Team1SourceRank, sourceGroupMap)
-                        : BuildTeamDto(tournament.GameType, team1Reg).DisplayName,
+                        : BuildTeamDto(tournament.GameType, team1Reg, canViewVirtualTeams).DisplayName,
                     Team1SourceType = match.Team1SourceType,
                     Team1SourceMatchId = match.Team1SourceMatchId,
                     Team1SourceGroupId = match.Team1SourceGroupId,
@@ -535,10 +543,10 @@ namespace HanakaServer.Controllers
                     Team2RegistrationId = match.Team2RegistrationId,
                     Team2 = team2Reg == null
                         ? BuildTbdTeamDto(match.Team2SourceType, match.Team2SourceMatchId, match.Team2SourceGroupId, match.Team2SourceRank, sourceGroupMap)
-                        : BuildTeamDto(tournament.GameType, team2Reg),
+                        : BuildTeamDto(tournament.GameType, team2Reg, canViewVirtualTeams),
                     Team2Text = team2Reg == null
                         ? BuildSourceText(match.Team2SourceType, match.Team2SourceMatchId, match.Team2SourceGroupId, match.Team2SourceRank, sourceGroupMap)
-                        : BuildTeamDto(tournament.GameType, team2Reg).DisplayName,
+                        : BuildTeamDto(tournament.GameType, team2Reg, canViewVirtualTeams).DisplayName,
                     Team2SourceType = match.Team2SourceType,
                     Team2SourceMatchId = match.Team2SourceMatchId,
                     Team2SourceGroupId = match.Team2SourceGroupId,
@@ -557,14 +565,41 @@ namespace HanakaServer.Controllers
                     CompletionReason = match.CompletionReason,
                     WinnerRegistrationId = match.WinnerRegistrationId,
                     WinnerTeam = GetWinnerTeam(match.WinnerRegistrationId, match.Team1RegistrationId, match.Team2RegistrationId),
-                    Winner = winnerReg == null ? null : BuildTeamDto(tournament.GameType, winnerReg),
+                    Winner = winnerReg == null ? null : BuildTeamDto(tournament.GameType, winnerReg, canViewVirtualTeams),
 
                     CreatedAt = match.CreatedAt,
                     UpdatedAt = match.UpdatedAt
                 }
             };
 
+            await EnrichRelayTeamsAsync(match.TournamentId, [response.Match]);
             return Ok(response);
+        }
+
+        private async Task EnrichRelayTeamsAsync(long tournamentId, IEnumerable<TournamentMatchClientDto> matches)
+        {
+            if (_relayTeams == null) return;
+            var rows = matches.ToArray();
+            var teams = await _relayTeams.ReadForMatchesAsync(tournamentId,
+                rows.Select(x => new RelayMatchTeamReference(x.MatchId, x.Team1RegistrationId, x.Team2RegistrationId)));
+            foreach (var match in rows)
+            {
+                Apply(match.Team1, 1);
+                Apply(match.Team2, 2);
+                if (match.WinnerRegistrationId == match.Team1RegistrationId)
+                    Apply(match.Winner, 1);
+                else if (match.WinnerRegistrationId == match.Team2RegistrationId)
+                    Apply(match.Winner, 2);
+                if (match.Team1?.Relay != null) match.Team1Text = match.Team1.DisplayName;
+                if (match.Team2?.Relay != null) match.Team2Text = match.Team2.DisplayName;
+                void Apply(TournamentTeamDto? team, int side)
+                {
+                    if (team == null || !teams.TryGetValue((match.MatchId, side), out var relay)) return;
+                    team.DisplayName = relay.TeamName;
+                    team.Relay = relay.Lineup;
+                    // Player1/Player2 remain actual legacy player data for old clients.
+                }
+            }
         }
 
         private static void ApplyTournamentType(TournamentClientDto tournament)
@@ -575,9 +610,32 @@ namespace HanakaServer.Controllers
             tournament.TournamentTypeLabel = tournamentType.TournamentTypeLabel;
         }
 
-        private static TournamentTeamDto BuildTeamDto(string? gameType, TournamentRegistrationLiteDto reg)
+        private static TournamentTeamDto BuildTeamDto(
+            string? gameType,
+            TournamentRegistrationLiteDto reg,
+            bool canViewVirtualTeams)
         {
             gameType = (gameType ?? "DOUBLE").Trim().ToUpperInvariant();
+
+            if (reg.IsVirtualTeam && !canViewVirtualTeams)
+            {
+                return new TournamentTeamDto
+                {
+                    RegistrationId = reg.RegistrationId,
+                    TournamentId = reg.TournamentId,
+                    RegCode = "",
+                    RegIndex = 0,
+                    DisplayName = "Chờ cập nhật",
+                    IsSingle = gameType == "SINGLE",
+                    Player1 = new TournamentPlayerDto { Name = "Chờ cập nhật" },
+                    Player2 = null,
+                    Points = 0,
+                    Paid = false,
+                    WaitingPair = false,
+                    Success = false,
+                    CreatedAt = DateTime.MinValue
+                };
+            }
 
             var displayName = gameType == "SINGLE"
                 ? (reg.Player1Name ?? "").Trim()
@@ -762,8 +820,11 @@ namespace HanakaServer.Controllers
 
             foreach (var g in groups)
             {
-                var ordered = (await _standingsService.GetGroupStandingsAsync(g.TournamentRoundGroupId))
-                    .Select(x => new GroupStandingRowDto
+                var publicRows = (await _standingsService.GetGroupStandingsAsync(g.TournamentRoundGroupId))
+                    .Where(x => !x.IsVirtualTeam)
+                    .ToList();
+                var ordered = publicRows
+                    .Select((x, index) => new GroupStandingRowDto
                     {
                         RegistrationId = x.RegistrationId,
                         TeamName = x.TeamName,
@@ -773,7 +834,7 @@ namespace HanakaServer.Controllers
                         ScoreDiff = x.ScoreDiff,
                         ScoreFor = x.ScoreFor,
                         ScoreAgainst = x.ScoreAgainst,
-                        Rank = x.Rank
+                        Rank = index + 1
                     })
                     .ToList();
 
@@ -956,6 +1017,8 @@ namespace HanakaServer.Controllers
 
     public class TournamentTeamDto
     {
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public HanakaServer.Dtos.Relay.RelayBracketTeamDto? Relay { get; set; }
         public long RegistrationId { get; set; }
         public long TournamentId { get; set; }
         public string RegCode { get; set; } = null!;
@@ -987,6 +1050,7 @@ namespace HanakaServer.Controllers
     {
         public long RegistrationId { get; set; }
         public long TournamentId { get; set; }
+        public bool IsVirtualTeam { get; set; }
         public string RegCode { get; set; } = null!;
         public int RegIndex { get; set; }
 

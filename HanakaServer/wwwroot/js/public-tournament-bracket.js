@@ -65,11 +65,12 @@
         }).format(date);
     }
 
-    async function fetchJson(url) {
+    async function fetchJson(url, loading) {
         const response = await fetch(url, {
             headers: { Accept: "application/json" },
             cache: "no-store",
-            credentials: "same-origin"
+            credentials: "same-origin",
+            hanakaLoading: loading
         });
 
         if (!response.ok) {
@@ -1277,6 +1278,9 @@
         let pinching = false;
         let pinchStartDistance = 0;
         let pinchStartScale = scale;
+        let realtimeReloadTimer = 0;
+        let removeRealtimeListener = null;
+        let loadRequestId = 0;
 
         function setError(message) {
             if (!errorBox) {
@@ -1550,7 +1554,7 @@
             });
         }
 
-        async function load() {
+        async function load(loadOptions) {
             if (!tournamentId) {
                 setError("Thiếu tournamentId để tải sơ đồ.");
                 return;
@@ -1558,18 +1562,153 @@
 
             setError("");
             setLoading(true);
+            const requestId = ++loadRequestId;
 
             try {
-                latestPayload = await fetchJson("/api/tournaments/" + tournamentId + "/rounds-with-matches");
+                const payload = await fetchJson(
+                    "/api/tournaments/" + tournamentId + "/rounds-with-matches",
+                    loadOptions && loadOptions.silent ? "silent" : undefined
+                );
+                if (requestId !== loadRequestId) return;
+                latestPayload = payload;
                 render(latestPayload);
             } catch (error) {
+                if (requestId !== loadRequestId) return;
                 setError(error?.message || "Tải sơ đồ thất bại.");
                 if (board) {
                     board.innerHTML = '<div class="public-bracket__loading">Không tải được sơ đồ giải đấu.</div>';
                 }
             } finally {
-                setLoading(false);
+                if (requestId === loadRequestId) setLoading(false);
             }
+        }
+
+        function patchLatestPayloadScore(payload) {
+            const matchId = toNumber(payload?.matchId || payload?.MatchId);
+            if (!latestPayload || matchId <= 0) {
+                return;
+            }
+
+            function visit(value) {
+                if (!value || typeof value !== "object") {
+                    return;
+                }
+
+                const isMatchRecord = Object.prototype.hasOwnProperty.call(value, "scoreTeam1")
+                    || Object.prototype.hasOwnProperty.call(value, "ScoreTeam1")
+                    || Object.prototype.hasOwnProperty.call(value, "isCompleted")
+                    || Object.prototype.hasOwnProperty.call(value, "IsCompleted");
+                if (isMatchRecord && toNumber(value.matchId || value.MatchId) === matchId) {
+                    value.scoreTeam1 = payload.scoreTeam1 ?? payload.ScoreTeam1 ?? null;
+                    value.scoreTeam2 = payload.scoreTeam2 ?? payload.ScoreTeam2 ?? null;
+                    value.isCompleted = !!(payload.isCompleted ?? payload.IsCompleted);
+                    value.winnerRegistrationId = payload.winnerRegistrationId ?? payload.WinnerRegistrationId ?? null;
+                    value.updatedAt = payload.updatedAt ?? payload.UpdatedAt ?? value.updatedAt;
+                }
+
+                if (Array.isArray(value)) {
+                    value.forEach(visit);
+                    return;
+                }
+
+                Object.keys(value).forEach(function (key) {
+                    visit(value[key]);
+                });
+            }
+
+            visit(latestPayload);
+        }
+
+        function patchVisibleMatchScore(payload) {
+            const matchId = toNumber(payload?.matchId || payload?.MatchId);
+            if (!board || matchId <= 0) {
+                return false;
+            }
+
+            const card = qs('[data-match-id="' + matchId + '"]', board);
+            if (!card) {
+                return false;
+            }
+
+            const completed = !!(payload.isCompleted ?? payload.IsCompleted);
+            const winnerSide = toNumber(payload.winnerSide ?? payload.WinnerSide ?? payload.winnerTeam ?? payload.WinnerTeam);
+            card.classList.toggle("is-completed", completed);
+
+            [1, 2].forEach(function (slotNumber) {
+                const team = qs('[data-slot="' + slotNumber + '"]', card);
+                if (!team) return;
+                const score = qs(".pb-match__score", team);
+                const name = qs(".pb-match__name", team);
+                const scoreValue = slotNumber === 1
+                    ? (payload.scoreTeam1 ?? payload.ScoreTeam1)
+                    : (payload.scoreTeam2 ?? payload.ScoreTeam2);
+                const isWinner = completed && winnerSide === slotNumber;
+                if (score) {
+                    score.textContent = formatScore(scoreValue);
+                    score.classList.toggle("is-winner", isWinner);
+                }
+                name?.classList.toggle("is-winner", isWinner);
+            });
+
+            patchLatestPayloadScore(payload);
+            return true;
+        }
+
+        async function reloadPreservingViewport() {
+            const scrollLeft = viewport?.scrollLeft || 0;
+            const scrollTop = viewport?.scrollTop || 0;
+            const previousScale = scale;
+            await load({ silent: true });
+            window.requestAnimationFrame(function () {
+                scale = previousScale;
+                updateSurfaceSize();
+                if (viewport) {
+                    viewport.scrollLeft = scrollLeft;
+                    viewport.scrollTop = scrollTop;
+                }
+            });
+        }
+
+        function scheduleRealtimeReload() {
+            window.clearTimeout(realtimeReloadTimer);
+            realtimeReloadTimer = window.setTimeout(function () {
+                reloadPreservingViewport().catch(function () { });
+            }, 180);
+        }
+
+        function initRealtime() {
+            const realtime = window.HanakaPublicRealtime;
+            if (!realtime || tournamentId <= 0) {
+                return;
+            }
+
+            realtime.subscribeTournament(tournamentId);
+            removeRealtimeListener = realtime.on(function (event) {
+                const type = trimToEmpty(event?.type);
+                const payload = event?.payload || {};
+                if (type === "__public_socket_open__" && event?.reconnected) {
+                    scheduleRealtimeReload();
+                    return;
+                }
+                if (Number(payload.tournamentId || payload.TournamentId) !== tournamentId) {
+                    return;
+                }
+                if (type === "tournament.match.score.updated") {
+                    patchVisibleMatchScore(payload);
+                } else if (type === "tournament.bracket.updated") {
+                    scheduleRealtimeReload();
+                }
+            });
+
+            window.addEventListener("pagehide", function (event) {
+                if (event.persisted) return;
+                window.clearTimeout(realtimeReloadTimer);
+                if (removeRealtimeListener) {
+                    removeRealtimeListener();
+                    removeRealtimeListener = null;
+                }
+                realtime.unsubscribeTournament(tournamentId);
+            }, { once: true });
         }
 
         const rerender = debounce(function () {
@@ -1579,6 +1718,7 @@
         }, 140);
 
         initGestures();
+        initRealtime();
         window.addEventListener("resize", rerender);
 
         const api = {

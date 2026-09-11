@@ -6,14 +6,17 @@ using HanakaServer.Data;
 using HanakaServer.Dtos.Brackets;
 using HanakaServer.Helpers;
 using HanakaServer.Models;
+using HanakaServer.Options;
+using HanakaServer.Services.Relay;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace HanakaServer.Services.Brackets;
 
 public interface ITournamentBracketApplicationService
 {
-    Task<IReadOnlyList<BracketTemplateListItemDto>> GetApplicableTemplatesAsync(long tournamentId, CancellationToken ct);
-    Task<BracketOperationResult<IReadOnlyList<TournamentBracketSeedDto>>> GetEligibleRegistrationsAsync(long tournamentId, CancellationToken ct);
+    Task<IReadOnlyList<BracketTemplateListItemDto>> GetApplicableTemplatesAsync(long tournamentId, CancellationToken ct, bool excludeUnpaidTeams = false);
+    Task<BracketOperationResult<TournamentBracketRegistrationListDto>> GetEligibleRegistrationsAsync(long tournamentId, CancellationToken ct);
     Task<BracketOperationResult<TournamentBracketPreviewDto>> PreviewAsync(long tournamentId, TournamentBracketPreviewRequest request, CancellationToken ct);
     Task<BracketOperationResult<TournamentBracketApplicationDto>> ApplyAsync(long tournamentId, ApplyTournamentBracketRequest request, long? userId, CancellationToken ct);
     Task<TournamentBracketApplicationDto?> GetActiveApplicationAsync(long tournamentId, CancellationToken ct);
@@ -26,24 +29,131 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
 {
     internal const long JavaScriptMaxSafeInteger = 9_007_199_254_740_991L;
 
+    private static readonly string[] VirtualTeamDisplayNames =
+    [
+        "Nguyễn Minh Anh",
+        "Trần Quốc Bảo",
+        "Lê Hoàng Nam",
+        "Phạm Tuấn Kiệt",
+        "Hoàng Gia Huy",
+        "Võ Đức Anh",
+        "Đặng Minh Quân",
+        "Bùi Anh Tuấn",
+        "Đỗ Thành Công",
+        "Hồ Quang Huy",
+        "Nguyễn Thanh Tùng",
+        "Trần Nhật Minh",
+        "Lê Đức Thịnh",
+        "Phạm Quốc Khánh",
+        "Hoàng Minh Đức",
+        "Võ Thành Đạt",
+        "Đặng Trung Kiên",
+        "Bùi Quốc Việt",
+        "Đỗ Anh Khoa",
+        "Hồ Minh Phúc",
+        "Nguyễn Ngọc Anh",
+        "Trần Thu Hà",
+        "Lê Khánh Linh",
+        "Phạm Mai Anh",
+        "Hoàng Bảo Ngọc",
+        "Võ Thanh Hương",
+        "Đặng Minh Trang",
+        "Bùi Thu Phương",
+        "Đỗ Ngọc Mai",
+        "Hồ Quỳnh Anh",
+        "Nguyễn Đức Long",
+        "Trần Minh Khang",
+        "Lê Quốc Trung",
+        "Phạm Anh Dũng",
+        "Hoàng Nhật Huy",
+        "Võ Minh Khôi",
+        "Đặng Quốc Hùng",
+        "Bùi Thanh Sơn",
+        "Đỗ Gia Bảo",
+        "Hồ Tuấn Anh",
+        "Nguyễn Hải Đăng",
+        "Trần Đức Mạnh",
+        "Lê Quang Vinh",
+        "Phạm Thành Nam",
+        "Hoàng Quốc Cường",
+        "Võ Anh Duy",
+        "Đặng Minh Hoàng",
+        "Bùi Đức Tài",
+        "Đỗ Quốc An",
+        "Hồ Thanh Bình",
+        "Nguyễn Thùy Linh",
+        "Trần Ngọc Hân",
+        "Lê Phương Anh",
+        "Phạm Thanh Thảo",
+        "Hoàng Thu Trang",
+        "Võ Ngọc Diệp",
+        "Đặng Khánh Vy",
+        "Bùi Minh Châu",
+        "Đỗ Hải Yến",
+        "Hồ Thanh Trúc",
+        "Nguyễn Quỳnh Như",
+        "Trần Bảo Trâm",
+        "Lê Ngọc Ánh",
+        "Phạm Tú Uyên",
+        "Hoàng Diệu Linh",
+        "Võ Thu Hoài",
+        "Đặng Phương Thảo",
+        "Bùi Mỹ Duyên",
+        "Đỗ Thanh Vân",
+        "Hồ Ngọc Lan",
+        "Nguyễn Quốc Đạt",
+        "Trần Minh Triết",
+        "Lê Thành Luân",
+        "Phạm Đức Huy",
+        "Hoàng Anh Khoa",
+        "Võ Quốc Thái",
+        "Đặng Tuấn Vũ",
+        "Bùi Minh Nhật",
+        "Đỗ Thành Trung",
+        "Hồ Gia Khánh",
+        "Nguyễn Kim Ngân",
+        "Trần Mai Phương",
+        "Lê Thảo Nhi",
+        "Phạm Ngọc Trinh",
+        "Hoàng Khánh An",
+        "Võ Bảo Yến",
+        "Đặng Thùy Dương",
+        "Bùi Ngọc Huyền",
+        "Đỗ Minh Thư",
+        "Hồ Phương Linh",
+        "Nguyễn Anh Thư",
+        "Trần Gia Hân",
+        "Lê Minh Ngọc",
+        "Phạm Hà My",
+        "Hoàng Tú Anh",
+        "Võ Quỳnh Trang",
+        "Đặng Bảo Châu",
+        "Bùi Thanh Mai",
+        "Đỗ Ngọc Trâm",
+        "Hồ Khánh Ly"
+    ];
+
     private readonly PickleballDbContext _db;
     private readonly IBracketTemplateService _templateService;
     private readonly IBracketTemplateValidationService _validator;
     private readonly ILogger<TournamentBracketApplicationService> _logger;
+    private readonly RelayBracketAdapter _relay;
 
     public TournamentBracketApplicationService(
         PickleballDbContext db,
         IBracketTemplateService templateService,
         IBracketTemplateValidationService validator,
-        ILogger<TournamentBracketApplicationService> logger)
+        ILogger<TournamentBracketApplicationService> logger,
+        IOptions<RelayOptions>? relayOptions = null)
     {
         _db = db;
         _templateService = templateService;
         _validator = validator;
         _logger = logger;
+        _relay = new RelayBracketAdapter(db, relayOptions?.Value.AdminPreviewEnabled == true);
     }
 
-    public async Task<IReadOnlyList<BracketTemplateListItemDto>> GetApplicableTemplatesAsync(long tournamentId, CancellationToken ct)
+    public async Task<IReadOnlyList<BracketTemplateListItemDto>> GetApplicableTemplatesAsync(long tournamentId, CancellationToken ct, bool excludeUnpaidTeams = false)
     {
         var tournament = await _db.Tournaments.AsNoTracking()
             .Where(x => x.TournamentId == tournamentId && !x.Remove)
@@ -52,10 +162,15 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
         if (tournament == null)
             return [];
 
-        var teamCount = await EligibleRegistrationsQuery(tournamentId, tournament.RegistrationFeeAmount)
+        var relaySettings = await _relay.GetSettingsAsync(tournamentId, ct);
+        var participantMode = relaySettings == null
+            ? BracketTemplateParticipantModes.Standard
+            : BracketTemplateParticipantModes.RelayTeam;
+        var teamCount = await FilterPayment(await EligibleRegistrationsQueryAsync(tournamentId, ct),
+                tournament.RegistrationFeeAmount, excludeUnpaidTeams)
             .CountAsync(ct);
         var page = await _templateService.ListAsync(
-            null, BracketTemplateStatuses.Published, null, 1, 100, ct);
+            null, BracketTemplateStatuses.Published, null, participantMode, 1, 100, ct);
         foreach (var template in page.Items)
         {
             template.EligibleTeamCount = teamCount;
@@ -74,28 +189,44 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
                 template.IsApplicable = false;
                 template.InapplicableReason = $"Sức chứa tối đa {template.SeedCapacity.Value} đội, hiện có {teamCount}.";
             }
+            if (template.IsApplicable && template.CurrentPublishedVersionId.HasValue)
+            {
+                var graph = await _templateService.GetGraphAsync(template.CurrentPublishedVersionId.Value, ct);
+                var validation = graph == null ? null : _validator.ValidateForUse(graph);
+                if (validation == null || !validation.IsValid)
+                {
+                    template.IsApplicable = false;
+                    template.InapplicableReason = validation?.Issues.First(x => x.Severity == "ERROR").Message
+                        ?? "Không tìm thấy cấu trúc phiên bản đã xuất bản.";
+                }
+            }
         }
 
         return page.Items;
     }
 
-    public async Task<BracketOperationResult<IReadOnlyList<TournamentBracketSeedDto>>> GetEligibleRegistrationsAsync(
+    public async Task<BracketOperationResult<TournamentBracketRegistrationListDto>> GetEligibleRegistrationsAsync(
         long tournamentId,
         CancellationToken ct)
     {
         var tournament = await _db.Tournaments.AsNoTracking()
             .FirstOrDefaultAsync(x => x.TournamentId == tournamentId && !x.Remove, ct);
         if (tournament == null)
-            return BracketOperationResult<IReadOnlyList<TournamentBracketSeedDto>>.Fail("TOURNAMENT_NOT_FOUND", "Không tìm thấy giải đấu.");
+            return BracketOperationResult<TournamentBracketRegistrationListDto>.Fail("TOURNAMENT_NOT_FOUND", "Không tìm thấy giải đấu.");
 
-        var registrations = await EligibleRegistrationsQuery(tournamentId, tournament.RegistrationFeeAmount)
+        var registrations = await (await EligibleRegistrationsQueryAsync(tournamentId, ct))
             .OrderBy(x => x.RegTime ?? x.CreatedAt)
             .ThenBy(x => x.RegIndex)
             .ThenBy(x => x.RegistrationId)
             .ToListAsync(ct);
 
-        return BracketOperationResult<IReadOnlyList<TournamentBracketSeedDto>>.Ok(
-            registrations.Select((x, index) => MapRegistrationSeed(x, index + 1, index + 1, false, false)).ToList());
+        var seeds = registrations.Select((x, index) => MapRegistrationSeed(x, index + 1, index + 1, false, false)).ToList();
+        await _relay.EnrichAsync(tournamentId, seeds, ct);
+        return BracketOperationResult<TournamentBracketRegistrationListDto>.Ok(new()
+        {
+            Items = seeds,
+            RegistrationFeeAmount = tournament.RegistrationFeeAmount
+        });
     }
 
     public async Task<BracketOperationResult<TournamentBracketPreviewDto>> PreviewAsync(
@@ -119,13 +250,37 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
         if (template == null || template.Status == BracketTemplateStatuses.Archived)
             return BracketOperationResult<TournamentBracketPreviewDto>.Fail("TEMPLATE_UNAVAILABLE", "Template không còn khả dụng.");
 
+        var relaySettings = await _relay.GetSettingsAsync(tournamentId, ct);
+        var requiredParticipantMode = relaySettings == null
+            ? BracketTemplateParticipantModes.Standard
+            : BracketTemplateParticipantModes.RelayTeam;
+        if (!string.Equals(template.ParticipantMode, requiredParticipantMode, StringComparison.Ordinal))
+        {
+            var expectedLabel = requiredParticipantMode == BracketTemplateParticipantModes.RelayTeam
+                ? "đội tiếp sức"
+                : "đơn/đôi thông thường";
+            return BracketOperationResult<TournamentBracketPreviewDto>.Fail(
+                "TEMPLATE_PARTICIPANT_MODE_MISMATCH",
+                $"Template này không dành cho giải {expectedLabel}.");
+        }
+
         var allSuccessfulCount = await _db.TournamentRegistrations.AsNoTracking()
-            .CountAsync(x => x.TournamentId == tournamentId && x.Success, ct);
-        var registrations = await EligibleRegistrationsQuery(tournamentId, tournament.RegistrationFeeAmount)
+            .CountAsync(x => x.TournamentId == tournamentId && !x.IsVirtualTeam && x.Success, ct);
+        var eligibleQuery = await EligibleRegistrationsQueryAsync(tournamentId, ct);
+        var excludedUnpaidCount = request.ExcludeUnpaidTeams && tournament.RegistrationFeeAmount > 0
+            ? await eligibleQuery.CountAsync(x => !x.Paid, ct) : 0;
+        var registrations = await FilterPayment(eligibleQuery, tournament.RegistrationFeeAmount, request.ExcludeUnpaidTeams)
             .OrderBy(x => x.RegTime ?? x.CreatedAt)
             .ThenBy(x => x.RegIndex)
             .ThenBy(x => x.RegistrationId)
             .ToListAsync(ct);
+
+        if (relaySettings != null && request.FillMissingWithVirtualTeams)
+        {
+            return BracketOperationResult<TournamentBracketPreviewDto>.Fail(
+                "RELAY_VIRTUAL_TEAM_UNSUPPORTED",
+                "Giải tiếp sức chỉ hỗ trợ đội thật có đội hình đầy đủ; hãy giữ vị trí thiếu ở dạng BYE.");
+        }
 
         var teamCountValidation = ValidateTeamCount(
             registrations.Count,
@@ -134,23 +289,30 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
         if (!teamCountValidation.Success)
             return BracketOperationResult<TournamentBracketPreviewDto>.Fail(teamCountValidation.ErrorCode!, teamCountValidation.Message!);
 
-        var validation = _validator.Validate(graph);
+        var validation = _validator.ValidateForUse(graph);
         if (!validation.IsValid)
-            return BracketOperationResult<TournamentBracketPreviewDto>.Fail("GRAPH_INVALID", "Template có lỗi cấu trúc và không thể áp dụng.");
-
+            return BracketOperationResult<TournamentBracketPreviewDto>.Fail("GRAPH_INVALID",
+                validation.Issues.First(x => x.Severity == "ERROR").Message, validation.Issues);
         var seedingMethod = Normalize(request.SeedingMethod);
         if (string.IsNullOrWhiteSpace(seedingMethod))
             seedingMethod = graph.DefaultSeedingMethod;
         if (!IsSeedingMethod(seedingMethod))
             return BracketOperationResult<TournamentBracketPreviewDto>.Fail("SEEDING_INVALID", "Phương pháp seed không hợp lệ.");
 
-        var seedResult = BuildSeeds(registrations, graph.SeedCapacity, seedingMethod, request.RandomSeed, request.SeedAssignments);
+        var seedResult = BuildSeeds(
+            registrations,
+            graph.SeedCapacity,
+            seedingMethod,
+            request.RandomSeed,
+            request.SeedAssignments,
+            request.FillMissingWithVirtualTeams);
         if (!seedResult.Success)
             return BracketOperationResult<TournamentBracketPreviewDto>.Fail(seedResult.ErrorCode!, seedResult.Message!);
 
         var seeds = seedResult.Data!.Seeds;
+        await _relay.EnrichAsync(tournamentId, seeds, ct);
         var randomSeed = seedResult.Data.RandomSeed;
-        var hash = ComputePreviewHash(tournamentId, graph, seedingMethod, randomSeed, seeds);
+        var hash = ComputePreviewHash(tournamentId, graph, seedingMethod, randomSeed, seeds, request.ExcludeUnpaidTeams);
         var seedByNumber = seeds.ToDictionary(x => x.SeedNumber);
 
         var doubleByeMatch = graph.Rounds
@@ -171,7 +333,9 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             {
                 Severity = "WARNING",
                 Code = "REGISTRATION_EXCLUDED",
-                Message = $"Có {allSuccessfulCount - registrations.Count} đăng ký thành công chưa đủ điều kiện thanh toán nên không được đưa vào bracket."
+                Message = $"Có {allSuccessfulCount - registrations.Count} đăng ký không được đưa vào sơ đồ: "
+                    + $"{excludedUnpaidCount} đội bị loại do chưa thanh toán, "
+                    + $"{Math.Max(0, allSuccessfulCount - registrations.Count - excludedUnpaidCount)} đăng ký chưa đủ điều kiện đội hình hoặc đang chờ ghép cặp."
             });
         }
         if (!tournament.RegistrationLockedAt.HasValue)
@@ -223,13 +387,17 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             BracketTemplateVersionId = graph.BracketTemplateVersionId,
             TemplateName = template.TemplateName,
             TemplateCode = template.TemplateCode,
+            ParticipantMode = template.ParticipantMode,
             VersionNumber = graph.VersionNumber,
             SeedingMethod = seedingMethod,
             RandomSeed = randomSeed,
             EligibleRegistrationCount = registrations.Count,
             ExcludedRegistrationCount = Math.Max(0, allSuccessfulCount - registrations.Count),
+            ExcludeUnpaidTeams = request.ExcludeUnpaidTeams,
+            ExcludedUnpaidRegistrationCount = excludedUnpaidCount,
             SeedCapacity = graph.SeedCapacity,
             ByeCount = seeds.Count(x => x.IsBye),
+            VirtualTeamCount = seeds.Count(x => x.IsVirtualTeam),
             RoundCount = graph.Rounds.Count,
             GroupCount = graph.Rounds.Sum(x => x.Groups.Count),
             MatchCount = graph.Rounds.Sum(x => x.Groups.Sum(g => g.Matches.Count)),
@@ -251,7 +419,7 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
         var stopwatch = Stopwatch.StartNew();
         var previewResult = await PreviewAsync(tournamentId, request, ct);
         if (!previewResult.Success)
-            return BracketOperationResult<TournamentBracketApplicationDto>.Fail(previewResult.ErrorCode!, previewResult.Message!);
+            return BracketOperationResult<TournamentBracketApplicationDto>.Fail(previewResult.ErrorCode!, previewResult.Message!, previewResult.Issues);
         var preview = previewResult.Data!;
 
         if (string.IsNullOrWhiteSpace(request.PreviewHash)
@@ -311,8 +479,19 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct)
             : null;
         TournamentBracketApplication? application = null;
+        var transactionCommitted = false;
         try
         {
+            // Re-read the graph within the transaction as well as the registrations.
+            // A concurrent edit must not make the saved bracket differ from preview.
+            graph = await _templateService.GetGraphAsync(request.BracketTemplateVersionId, ct);
+            if (graph == null || graph.Status != BracketTemplateStatuses.Published
+                || !_validator.ValidateForUse(graph).IsValid
+                || ComputePreviewHash(tournamentId, graph, preview.SeedingMethod, preview.RandomSeed,
+                    preview.Seeds, request.ExcludeUnpaidTeams) != preview.PreviewHash)
+                return BracketOperationResult<TournamentBracketApplicationDto>.Fail("PREVIEW_CHANGED",
+                    "Cấu trúc mẫu đã thay đổi; vui lòng xem trước lại.");
+
             var concurrentExisting = await _db.TournamentBracketApplications.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.TournamentId == tournamentId && x.IsActive, ct);
             if (concurrentExisting != null)
@@ -331,6 +510,24 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             if (await _db.TournamentRoundMaps.AnyAsync(x => x.TournamentId == tournamentId, ct))
                 return BracketOperationResult<TournamentBracketApplicationDto>.Fail("RUNTIME_STRUCTURE_EXISTS", "Giải đã có vòng/bảng/trận. MVP không tự động ghi đè dữ liệu hiện tại.");
 
+            {
+                // Recheck payment eligibility and lineups for every tournament inside the application transaction.
+                var currentTournament = await _db.Tournaments.AsNoTracking().Where(x => x.TournamentId == tournamentId && !x.Remove)
+                    .Select(x => new { x.RegistrationFeeAmount, x.RegistrationLockedAt }).SingleOrDefaultAsync(ct);
+                if (currentTournament?.RegistrationLockedAt == null)
+                    return BracketOperationResult<TournamentBracketApplicationDto>.Fail("PREVIEW_CHANGED", "Trạng thái giải hoặc khóa đăng ký đã thay đổi; vui lòng tạo lại bản xem trước.");
+                var currentRegistrations = await FilterPayment(await EligibleRegistrationsQueryAsync(tournamentId, ct),
+                        currentTournament.RegistrationFeeAmount, request.ExcludeUnpaidTeams)
+                    .OrderBy(x => x.RegTime ?? x.CreatedAt).ThenBy(x => x.RegIndex).ThenBy(x => x.RegistrationId).ToListAsync(ct);
+                var currentSeeds = BuildSeeds(currentRegistrations, graph.SeedCapacity, preview.SeedingMethod,
+                    preview.RandomSeed, request.SeedAssignments, request.FillMissingWithVirtualTeams);
+                if (!currentSeeds.Success || currentRegistrations.Count != preview.EligibleRegistrationCount)
+                    return BracketOperationResult<TournamentBracketApplicationDto>.Fail("PREVIEW_CHANGED", "Danh sách đội đã thay đổi; vui lòng tạo lại bản xem trước.");
+                await _relay.EnrichAsync(tournamentId, currentSeeds.Data!.Seeds, ct);
+                if (ComputePreviewHash(tournamentId, graph, preview.SeedingMethod, preview.RandomSeed, currentSeeds.Data.Seeds, request.ExcludeUnpaidTeams) != preview.PreviewHash)
+                    return BracketOperationResult<TournamentBracketApplicationDto>.Fail("PREVIEW_CHANGED", "Đội hình hoặc thông tin đội đã thay đổi; vui lòng tạo lại bản xem trước.");
+            }
+
             var now = DateTime.UtcNow;
             application = new TournamentBracketApplication
             {
@@ -344,6 +541,7 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
                 EligibleRegistrationCount = preview.EligibleRegistrationCount,
                 SeedCapacity = preview.SeedCapacity,
                 ByeCount = preview.ByeCount,
+                VirtualTeamCount = preview.VirtualTeamCount,
                 PreviewHash = preview.PreviewHash,
                 AppliedByUserId = userId,
                 CreatedAt = now,
@@ -351,6 +549,13 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             };
             _db.TournamentBracketApplications.Add(application);
             await _db.SaveChangesAsync(ct);
+
+            await PersistVirtualTeamsAsync(
+                tournamentId,
+                application.TournamentBracketApplicationId,
+                preview.Seeds,
+                now,
+                ct);
 
             var appliedRegistrationIds = preview.Seeds
                 .Where(x => x.RegistrationId.HasValue)
@@ -369,7 +574,11 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
                     RegistrationId = seed.RegistrationId,
                     IsBye = seed.IsBye,
                     InputOrder = seed.InputOrder,
-                    AssignmentMethod = seed.IsBye ? BracketSeedingMethods.Bye : preview.SeedingMethod,
+                    AssignmentMethod = seed.IsBye
+                        ? BracketSeedingMethods.Bye
+                        : seed.IsVirtualTeam
+                            ? BracketSeedingMethods.Virtual
+                            : preview.SeedingMethod,
                     IsManuallyAdjusted = seed.IsManuallyAdjusted,
                     RegistrationCodeSnapshot = registration?.RegCode,
                     Player1NameSnapshot = registration?.Player1Name,
@@ -377,6 +586,7 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
                     CreatedAt = now
                 });
             }
+            _relay.AddSnapshots(application.TournamentBracketApplicationId, preview.Seeds);
             await _db.SaveChangesAsync(ct);
 
             var roundByKey = new Dictionary<string, TournamentRoundMap>(StringComparer.OrdinalIgnoreCase);
@@ -477,14 +687,16 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             await _db.SaveChangesAsync(ct);
             if (transaction != null)
                 await transaction.CommitAsync(ct);
+            transactionCommitted = true;
 
             _logger.LogInformation(
-                "Bracket application {ApplicationId} applied to tournament {TournamentId} from template {TemplateId}/version {VersionId}: {RegistrationCount} registrations, {RoundCount} rounds, {GroupCount} groups, {MatchCount} matches, {ByeCount} byes in {ElapsedMs} ms.",
+                "Bracket application {ApplicationId} applied to tournament {TournamentId} from template {TemplateId}/version {VersionId}: {RegistrationCount} registrations, {VirtualTeamCount} virtual teams, {RoundCount} rounds, {GroupCount} groups, {MatchCount} matches, {ByeCount} byes in {ElapsedMs} ms.",
                 application.TournamentBracketApplicationId,
                 tournamentId,
                 preview.BracketTemplateId,
                 preview.BracketTemplateVersionId,
                 preview.EligibleRegistrationCount,
+                preview.VirtualTeamCount,
                 preview.RoundCount,
                 preview.GroupCount,
                 preview.MatchCount,
@@ -494,9 +706,22 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             var dto = await GetApplicationDtoAsync(application.TournamentBracketApplicationId, ct);
             return BracketOperationResult<TournamentBracketApplicationDto>.Ok(dto!, "Đã áp dụng bracket và sinh cấu trúc giải.");
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            if (!transactionCommitted)
+            {
+                await CancellationCleanup.TryRollbackAsync(
+                    transaction,
+                    _logger,
+                    $"apply bracket for tournament {tournamentId}");
+            }
+
+            _db.ChangeTracker.Clear();
+            throw;
+        }
         catch (Exception ex)
         {
-            if (transaction != null)
+            if (transaction != null && !transactionCommitted)
                 await transaction.RollbackAsync(ct);
             _db.ChangeTracker.Clear();
 
@@ -585,6 +810,7 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
         await using var transaction = _db.Database.IsRelational()
             ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct)
             : null;
+        var transactionCommitted = false;
         var application = await _db.TournamentBracketApplications
             .FirstOrDefaultAsync(x => x.TournamentId == tournamentId && x.IsActive, ct);
         if (application == null)
@@ -613,7 +839,9 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
         var hasStarted = scheduledStarts.Any(x => NormalizeScheduleToLocal(x) <= nowLocal);
         var hasHistory = await _db.TournamentMatchScoreHistories.AsNoTracking()
             .AnyAsync(x => generatedMatchIds.Contains(x.MatchId), ct);
-        if (hasPlayed || hasStarted || hasHistory)
+        var hasRelayState = await _relay.GetSettingsAsync(tournamentId, ct) != null
+            && await _db.RelayMatchStates.AsNoTracking().AnyAsync(x => generatedMatchIds.Contains(x.MatchId), ct);
+        if (hasPlayed || hasStarted || hasHistory || hasRelayState)
             return BracketOperationResult<bool>.Fail("TOURNAMENT_ALREADY_STARTED", "Không thể reset vì giải đã có trận bắt đầu, kết quả hoặc lịch sử điểm.");
 
         var hasExternalMatchDependency = await _db.TournamentGroupMatches.AsNoTracking()
@@ -696,32 +924,125 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             await _db.SaveChangesAsync(ct);
             if (transaction != null)
                 await transaction.CommitAsync(ct);
+            transactionCommitted = true;
             _logger.LogInformation(
                 "Bracket application {ApplicationId} reset for tournament {TournamentId} by user {UserId}; removed {MatchCount} matches and {GroupCount} groups. Reason: {Reason}",
                 application.TournamentBracketApplicationId, tournamentId, userId, generatedMatchIds.Count, generatedGroupIds.Count, reason);
             return BracketOperationResult<bool>.Ok(true, "Đã reset bracket. Seed snapshot và lịch sử application được giữ lại.");
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            if (!transactionCommitted)
+            {
+                await CancellationCleanup.TryRollbackAsync(
+                    transaction,
+                    _logger,
+                    $"reset bracket for tournament {tournamentId}");
+            }
+
+            _db.ChangeTracker.Clear();
+            throw;
+        }
         catch (Exception ex)
         {
-            if (transaction != null)
+            if (transaction != null && !transactionCommitted)
                 await transaction.RollbackAsync(ct);
             _logger.LogError(ex, "Reset bracket failed for tournament {TournamentId}.", tournamentId);
             return BracketOperationResult<bool>.Fail("RESET_FAILED", "Reset bracket thất bại; dữ liệu đã được rollback.");
         }
     }
 
-    private IQueryable<TournamentRegistration> EligibleRegistrationsQuery(long tournamentId, decimal registrationFee)
+    private async Task PersistVirtualTeamsAsync(
+        long tournamentId,
+        long applicationId,
+        IReadOnlyList<TournamentBracketSeedDto> seeds,
+        DateTime now,
+        CancellationToken ct)
+    {
+        var virtualSeeds = seeds
+            .Where(x => x.IsVirtualTeam)
+            .OrderBy(x => x.SeedNumber)
+            .ToList();
+        if (virtualSeeds.Count == 0)
+            return;
+        if (virtualSeeds.Any(x => x.RegistrationId.HasValue))
+            throw new InvalidOperationException("Virtual seed must not have a registration before apply.");
+
+        var nextRegIndex = (await _db.TournamentRegistrations
+            .Where(x => x.TournamentId == tournamentId)
+            .MaxAsync(x => (int?)x.RegIndex, ct) ?? 0) + 1;
+        var registrations = new List<TournamentRegistration>(virtualSeeds.Count);
+        for (var index = 0; index < virtualSeeds.Count; index++)
+        {
+            var seed = virtualSeeds[index];
+            var teamName = string.IsNullOrWhiteSpace(seed.TeamName)
+                ? CreateVirtualTeamName(index + 1)
+                : seed.TeamName.Trim();
+            var registration = new TournamentRegistration
+            {
+                TournamentId = tournamentId,
+                ExternalId = $"BRACKET-{applicationId}-SEED-{seed.SeedNumber}",
+                RegIndex = nextRegIndex + index,
+                RegCode = $"VIRTUAL-A{applicationId}-S{seed.SeedNumber:0000}",
+                RegTimeRaw = now.ToString("O"),
+                RegTime = now,
+                Player1Name = teamName,
+                Player1Level = 0,
+                Player1Verified = false,
+                Player1UserId = null,
+                Player2Name = null,
+                Player2Level = 0,
+                Player2Verified = false,
+                Player2UserId = null,
+                Points = 0,
+                BtCode = "VIRTUAL",
+                Paid = false,
+                PaidAt = null,
+                PaymentAmount = null,
+                WaitingPair = false,
+                Success = false,
+                IsVirtualTeam = true,
+                VirtualBracketApplicationId = applicationId,
+                CreatedAt = now
+            };
+            registrations.Add(registration);
+            _db.TournamentRegistrations.Add(registration);
+        }
+
+        await _db.SaveChangesAsync(ct);
+
+        for (var index = 0; index < virtualSeeds.Count; index++)
+        {
+            var seed = virtualSeeds[index];
+            var registration = registrations[index];
+            seed.RegistrationId = registration.RegistrationId;
+            seed.RegCode = registration.RegCode;
+            seed.Player1Name = registration.Player1Name;
+            seed.Player2Name = null;
+            seed.Player1UserId = null;
+            seed.Player2UserId = null;
+            seed.Paid = false;
+            seed.RegisteredAt = registration.RegTime;
+        }
+    }
+
+    private static IQueryable<TournamentRegistration> FilterPayment(
+        IQueryable<TournamentRegistration> query, decimal registrationFee, bool excludeUnpaidTeams) =>
+        excludeUnpaidTeams && registrationFee > 0 ? query.Where(x => x.Paid) : query;
+
+    private async Task<IQueryable<TournamentRegistration>> EligibleRegistrationsQueryAsync(long tournamentId, CancellationToken ct)
     {
         var query = _db.TournamentRegistrations.AsNoTracking()
             .Where(x => x.TournamentId == tournamentId
+                        && !x.IsVirtualTeam
                         && x.Success
-                        && !x.WaitingPair
-                        && x.Player1Name != null
+                        && !x.WaitingPair);
+        var relaySettings = await _relay.GetSettingsAsync(tournamentId, ct);
+        query = relaySettings != null ? _relay.FilterEligible(query, relaySettings)
+            : query.Where(x => x.Player1Name != null
                         && x.Player1Name != ""
                         && ((x.Tournament.GameType != null && x.Tournament.GameType.ToUpper() == "SINGLE")
                             || (x.Player2Name != null && x.Player2Name != "")));
-        if (registrationFee > 0)
-            query = query.Where(x => x.Paid);
         return query;
     }
 
@@ -783,7 +1104,8 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
         int capacity,
         string method,
         long? requestedRandomSeed,
-        IReadOnlyList<ManualSeedAssignmentRequest> manualAssignments)
+        IReadOnlyList<ManualSeedAssignmentRequest> manualAssignments,
+        bool fillMissingWithVirtualTeams = false)
     {
         var ordered = registrations.ToList();
         var inputOrderById = registrations
@@ -838,17 +1160,21 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             if (assignedIds.Any(x => !registrationById.ContainsKey(x)) || assignedIds.Count != registrations.Count)
                 return BracketOperationResult<SeedBuildResult>.Fail("MANUAL_SEED_INCOMPLETE", "Seed thủ công phải chứa đúng một lần tất cả đội đủ điều kiện.");
 
+            var virtualTeamNumber = 0;
             for (var seedNumber = 1; seedNumber <= capacity; seedNumber++)
             {
                 assignmentBySeed.TryGetValue(seedNumber, out var registrationId);
                 registrationById.TryGetValue(registrationId ?? 0, out var registration);
                 seeds.Add(registration == null
-                    ? CreateByeSeed(seedNumber)
+                    ? fillMissingWithVirtualTeams
+                        ? CreateVirtualSeed(seedNumber, ++virtualTeamNumber)
+                        : CreateByeSeed(seedNumber)
                     : MapRegistrationSeed(registration, seedNumber, inputOrderById[registration.RegistrationId], true, false));
             }
         }
         else
         {
+            var virtualTeamNumber = 0;
             for (var seedNumber = 1; seedNumber <= capacity; seedNumber++)
             {
                 if (seedNumber <= ordered.Count)
@@ -859,7 +1185,9 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
                         false,
                         false));
                 else
-                    seeds.Add(CreateByeSeed(seedNumber));
+                    seeds.Add(fillMissingWithVirtualTeams
+                        ? CreateVirtualSeed(seedNumber, ++virtualTeamNumber)
+                        : CreateByeSeed(seedNumber));
             }
         }
 
@@ -893,6 +1221,7 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             SeedNumber = seedNumber,
             RegistrationId = registration.RegistrationId,
             IsBye = isBye,
+            IsVirtualTeam = registration.IsVirtualTeam,
             InputOrder = inputOrder,
             IsManuallyAdjusted = manuallyAdjusted,
             RegCode = registration.RegCode,
@@ -915,6 +1244,23 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
         IsBye = true,
         TeamName = "BYE"
     };
+
+    private static TournamentBracketSeedDto CreateVirtualSeed(int seedNumber, int virtualTeamNumber)
+    {
+        var teamName = CreateVirtualTeamName(virtualTeamNumber);
+        return new TournamentBracketSeedDto
+        {
+            SeedNumber = seedNumber,
+            IsVirtualTeam = true,
+            TeamName = teamName,
+            Player1Name = teamName
+        };
+    }
+
+    private static string CreateVirtualTeamName(int virtualTeamNumber)
+    {
+        return VirtualTeamDisplayNames[(virtualTeamNumber - 1) % VirtualTeamDisplayNames.Length];
+    }
 
     private static List<TournamentBracketPreviewRoundDto> BuildPreviewRounds(
         BracketTemplateGraphDto graph,
@@ -967,6 +1313,7 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
                 SeedNumber = slot.SeedNumber,
                 RegistrationId = seed.RegistrationId,
                 IsBye = seed.IsBye,
+                IsVirtualTeam = seed.IsVirtualTeam,
                 DisplayText = seed.IsBye ? $"Seed {slot.SeedNumber}: BYE" : $"Seed {slot.SeedNumber}: {seed.TeamName}"
             };
         }
@@ -1021,7 +1368,8 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
         BracketTemplateGraphDto graph,
         string method,
         long? randomSeed,
-        IEnumerable<TournamentBracketSeedDto> seeds)
+        IEnumerable<TournamentBracketSeedDto> seeds,
+        bool excludeUnpaidTeams)
     {
         var canonical = string.Join('|', new[]
         {
@@ -1034,7 +1382,9 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             string.Join(';', seeds.OrderBy(x => x.SeedNumber)
                 .Select(x => string.Join(':',
                     x.SeedNumber,
-                    x.RegistrationId?.ToString() ?? "BYE",
+                    x.RegistrationId?.ToString() ?? (x.IsVirtualTeam ? "VIRTUAL" : "BYE"),
+                    x.IsBye,
+                    x.IsVirtualTeam,
                     x.Player1UserId?.ToString() ?? "",
                     x.Player2UserId?.ToString() ?? "",
                     x.Player1Name ?? "",
@@ -1043,6 +1393,11 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
                     x.Paid,
                     x.RegisteredAt?.Ticks ?? 0)))
         });
+        // Preserve default hashes; an explicit payment filter must invalidate a preview even if all teams paid.
+        if (excludeUnpaidTeams) canonical += "|EXCLUDE_UNPAID";
+        // Relay names/lineup versions also invalidate a stale preview.
+        var relayInputs = seeds.Where(x => x.Relay != null).OrderBy(x => x.SeedNumber).Select(RelayBracketAdapter.HashInput).ToArray();
+        if (relayInputs.Length > 0) canonical += "|RELAY|" + string.Join('|', relayInputs);
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
     }
 
@@ -1054,9 +1409,11 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
     {
         var sourceType = slot.SourceType;
         long? registrationId = null;
-        if (sourceType == BracketTemplateSourceTypes.Seed && slot.SeedNumber.HasValue)
+        if (sourceType == BracketTemplateSourceTypes.Seed)
         {
-            var seed = seedByNumber[slot.SeedNumber.Value];
+            if (!slot.SeedNumber.HasValue || !seedByNumber.TryGetValue(slot.SeedNumber.Value, out var seed)
+                || (!seed.IsBye && !seed.RegistrationId.HasValue))
+                throw new InvalidOperationException("Vị trí đội đầu vào chưa được gán đăng ký hoặc BYE hợp lệ.");
             sourceType = seed.IsBye ? MatchSourceTypes.Bye : MatchSourceTypes.Registration;
             registrationId = seed.RegistrationId;
         }
@@ -1206,7 +1563,10 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             throw new InvalidOperationException("Runtime health check found a match from another tournament.");
 
         var missingSource = matches.Any(x =>
-            (x.Team1SourceType is MatchSourceTypes.WinnerMatch or MatchSourceTypes.LoserMatch && !x.Team1SourceMatchId.HasValue)
+            !MatchSourceTypes.IsValid(x.Team1SourceType) || !MatchSourceTypes.IsValid(x.Team2SourceType)
+            || (x.Team1SourceType == MatchSourceTypes.Registration && !x.Team1RegistrationId.HasValue)
+            || (x.Team2SourceType == MatchSourceTypes.Registration && !x.Team2RegistrationId.HasValue)
+            || (x.Team1SourceType is MatchSourceTypes.WinnerMatch or MatchSourceTypes.LoserMatch && !x.Team1SourceMatchId.HasValue)
             || (x.Team2SourceType is MatchSourceTypes.WinnerMatch or MatchSourceTypes.LoserMatch && !x.Team2SourceMatchId.HasValue)
             || (x.Team1SourceType == MatchSourceTypes.GroupRank && (!x.Team1SourceGroupId.HasValue || !x.Team1SourceRank.HasValue))
             || (x.Team2SourceType == MatchSourceTypes.GroupRank && (!x.Team2SourceGroupId.HasValue || !x.Team2SourceRank.HasValue)));
@@ -1271,11 +1631,12 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             .Include(x => x.AppliedByUser)
             .Include(x => x.RevertedByUser)
             .Include(x => x.SeedAssignments.OrderBy(s => s.SeedNumber))
+                .ThenInclude(x => x.Registration)
             .FirstOrDefaultAsync(x => x.TournamentBracketApplicationId == applicationId, ct);
         if (app == null)
             return null;
 
-        return new TournamentBracketApplicationDto
+        var dto = new TournamentBracketApplicationDto
         {
             TournamentBracketApplicationId = app.TournamentBracketApplicationId,
             TournamentId = app.TournamentId,
@@ -1283,6 +1644,7 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             BracketTemplateVersionId = app.BracketTemplateVersionId,
             TemplateName = app.BracketTemplate.TemplateName,
             TemplateCode = app.BracketTemplate.TemplateCode,
+            ParticipantMode = app.BracketTemplate.ParticipantMode,
             VersionNumber = app.BracketTemplateVersion.VersionNumber,
             Status = app.Status,
             IsActive = app.IsActive,
@@ -1291,6 +1653,7 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
             EligibleRegistrationCount = app.EligibleRegistrationCount,
             SeedCapacity = app.SeedCapacity,
             ByeCount = app.ByeCount,
+            VirtualTeamCount = app.VirtualTeamCount,
             CreatedAt = app.CreatedAt,
             AppliedAt = app.AppliedAt,
             AppliedByName = app.AppliedByUser?.FullName,
@@ -1305,6 +1668,7 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
                 SeedNumber = seed.SeedNumber,
                 RegistrationId = seed.RegistrationId,
                 IsBye = seed.IsBye,
+                IsVirtualTeam = seed.Registration?.IsVirtualTeam == true,
                 InputOrder = seed.InputOrder,
                 IsManuallyAdjusted = seed.IsManuallyAdjusted,
                 RegCode = seed.RegistrationCodeSnapshot,
@@ -1317,6 +1681,8 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
                         : $"{seed.Player1NameSnapshot}/{seed.Player2NameSnapshot}"
             }).ToList()
         };
+        await _relay.RestoreSnapshotsAsync(applicationId, dto.Seeds, ct);
+        return dto;
     }
 
     private async Task TryRecordFailedApplicationAsync(
@@ -1340,6 +1706,7 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
                 EligibleRegistrationCount = preview.EligibleRegistrationCount,
                 SeedCapacity = preview.SeedCapacity,
                 ByeCount = preview.ByeCount,
+                VirtualTeamCount = preview.VirtualTeamCount,
                 PreviewHash = preview.PreviewHash,
                 AppliedByUserId = userId,
                 CreatedAt = DateTime.UtcNow,
@@ -1350,6 +1717,10 @@ public sealed class TournamentBracketApplicationService : ITournamentBracketAppl
                     : exception.GetBaseException().Message
             });
             await _db.SaveChangesAsync(ct);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception logException)
         {

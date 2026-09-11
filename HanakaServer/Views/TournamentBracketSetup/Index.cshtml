@@ -60,12 +60,17 @@
         <div class="tbs-step-panel" data-step="1">
             <div class="tbs-section-head">
                 <div><span class="tbs-eyebrow">BƯỚC 01</span><h2>Chốt danh sách đội đủ điều kiện</h2><p>Bracket chỉ dùng snapshot đội tại thời điểm preview. Sau khi khóa, user không thể đăng ký hoặc ghép cặp mới.</p></div>
-                <div class="tbs-count-badge"><strong data-eligible-count>0</strong><span>đội hợp lệ</span></div>
+                <div class="tbs-count-badge"><strong data-eligible-count>0</strong><span>đội đưa vào sơ đồ</span></div>
             </div>
             <div class="tbs-lock-card">
                 <div class="tbs-lock-card__icon"><i class="fas fa-user-lock"></i></div>
                 <div><h3 data-lock-title>Khóa danh sách đăng ký</h3><p data-lock-description>Kiểm tra danh sách trước khi tiếp tục.</p></div>
                 <button class="btn btn-primary" type="button" data-action="toggle-lock"><i class="fas fa-lock mr-2"></i>Khóa đăng ký</button>
+            </div>
+            <div class="tbs-payment-filter">
+                <label for="excludeUnpaidTeams"><input type="checkbox" id="excludeUnpaidTeams" /> <strong>Loại đội chưa thanh toán</strong></label>
+                <p data-payment-description>Mặc định đưa cả đội đã thanh toán và chưa thanh toán vào sơ đồ.</p>
+                <div class="tbs-payment-summary" data-payment-summary role="status" aria-live="polite"></div>
             </div>
             <div class="tbs-team-list" data-eligible-list></div>
             <div class="tbs-step-actions"><span></span><button class="btn btn-primary" type="button" data-action="next" data-next="2">Chọn template<i class="fas fa-arrow-right ml-2"></i></button></div>
@@ -104,6 +109,7 @@
                 <div class="tbs-preview-token"><span>Preview checksum</span><code data-preview-hash>—</code></div>
             </div>
             <div class="tbs-preview-summary" data-preview-summary></div>
+            <p class="tbs-payment-preview" data-preview-payment-summary></p>
             <div class="tbs-validation d-none" data-preview-validation></div>
             <div class="tbs-preview-scroll"><div class="tbs-preview-board" data-preview-board></div></div>
             <label class="tbs-confirm"><input type="checkbox" id="confirmBracketApply" /><span><strong>Tôi đã kiểm tra danh sách đội đấu và đường đi tiếp.</strong><small>Tôi hiểu thao tác này sẽ sao chép nguyên cấu trúc template vào giải.</small></span></label>
@@ -158,6 +164,32 @@
             <div class="modal-content tbs-reset-modal">
                 <div class="modal-header"><div><span class="tbs-eyebrow">APPLICATION SNAPSHOT</span><h2 class="modal-title" id="teamPlacementSnapshotTitle">Danh sách đội đấu đã áp dụng</h2></div><button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span>&times;</span></button></div>
                 <div class="modal-body p-0"><div class="table-responsive"><table class="table mb-0"><thead><tr><th>Vị trí</th><th>Đội / cặp</th><th>Mã đăng ký</th><th>Cách xếp</th></tr></thead><tbody data-placement-snapshot-rows></tbody></table></div></div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="virtualTeamConfirmModal" tabindex="-1" role="dialog" aria-labelledby="virtualTeamConfirmTitle" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content tbs-reset-modal">
+                <div class="modal-header">
+                    <div><span class="tbs-eyebrow">VỊ TRÍ CÒN THIẾU</span><h2 class="modal-title" id="virtualTeamConfirmTitle">Tạo đội ảo cho bracket?</h2></div>
+                    <button class="close" type="button" data-dismiss="modal" aria-label="Đóng"><span>&times;</span></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-warning mb-3">
+                        Bracket còn thiếu <strong data-virtual-missing-count>0</strong> đội. Bạn có muốn tạo đội ảo vào đúng các seed đang trống không?
+                    </div>
+                    <div class="tbs-placement-confirm-grid">
+                        <span>Đội thật<strong data-virtual-real-count>0</strong></span>
+                        <span>Sức chứa bracket<strong data-virtual-capacity>0</strong></span>
+                        <span class="is-wide">Đội ảo sẽ tạo<strong data-virtual-create-count>0</strong></span>
+                    </div>
+                    <p class="text-muted mt-3 mb-0">Đội ảo không liên kết user. Chỉ trang quản trị hiển thị tên đội ảo; phía người dùng sẽ nhận trạng thái “Chờ cập nhật”.</p>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-light" type="button" data-dismiss="modal">Hủy</button>
+                    <button class="btn btn-outline-secondary" id="keepBracketBye" type="button">Giữ BYE</button>
+                    <button class="btn btn-primary" id="createVirtualBracketTeams" type="button"><i class="fas fa-user-plus mr-2"></i>Tạo đội ảo</button>
+                </div>
             </div>
         </div>
     </div>

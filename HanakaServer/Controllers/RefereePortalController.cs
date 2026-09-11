@@ -18,5 +18,13 @@ namespace HanakaServer.Controllers
         {
             return View();
         }
+
+        [Authorize(Roles = "REFEREE,Admin")]
+        [HttpGet]
+        public IActionResult RelayMatch(long id)
+        {
+            if (id <= 0) return NotFound();
+            return LocalRedirect($"/RefereePortal/Matches/{id}");
+        }
     }
 }

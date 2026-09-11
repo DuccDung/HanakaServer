@@ -4,6 +4,7 @@ using System.Net.WebSockets;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace HanakaServer.Services
 {
@@ -11,14 +12,17 @@ namespace HanakaServer.Services
     {
         private readonly RealtimeHub _hub;
         private readonly IServiceScopeFactory _scopeFactory;
+        private readonly ILogger<WebSocketHandler> _logger;
         private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
 
         public WebSocketHandler(
             RealtimeHub hub,
-            IServiceScopeFactory scopeFactory)
+            IServiceScopeFactory scopeFactory,
+            ILogger<WebSocketHandler>? logger = null)
         {
             _hub = hub;
             _scopeFactory = scopeFactory;
+            _logger = logger ?? NullLogger<WebSocketHandler>.Instance;
         }
 
         public async Task HandleAsync(WebSocket ws, string userId, CancellationToken ct)
@@ -43,8 +47,16 @@ namespace HanakaServer.Services
                     await HandleClientMessageAsync(socketId, userId, ws, msg, ct);
                 }
             }
-            catch
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
+            }
+            catch (WebSocketException ex)
+            {
+                _logger.LogDebug(ex, "WebSocket {SocketId} for user {UserId} disconnected.", socketId, userId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "WebSocket {SocketId} for user {UserId} receive loop failed.", socketId, userId);
             }
             finally
             {
@@ -53,7 +65,14 @@ namespace HanakaServer.Services
                     if (ws.State == WebSocketState.Open)
                         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None);
                 }
-                catch { }
+                catch (Exception ex) when (ex is OperationCanceledException or WebSocketException)
+                {
+                    _logger.LogDebug(ex, "WebSocket {SocketId} was already closed during cleanup.", socketId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "WebSocket {SocketId} cleanup failed.", socketId);
+                }
 
                 await _hub.RemoveSocketAsync(socketId);
             }
@@ -79,7 +98,7 @@ namespace HanakaServer.Services
                         && clubEl.TryGetInt64(out var clubId)
                         && clubId > 0)
                     {
-                        var canJoin = await CanAccessClubChatAsync(clubId, userId);
+                        var canJoin = await CanAccessClubChatAsync(clubId, userId, ct);
                         if (!canJoin)
                         {
                             await SendAsync(ws, new
@@ -121,7 +140,7 @@ namespace HanakaServer.Services
                         && clubEl3.TryGetInt64(out var clubId3)
                         && clubId3 > 0)
                     {
-                        var canJoin = await CanAccessClubChatAsync(clubId3, userId);
+                        var canJoin = await CanAccessClubChatAsync(clubId3, userId, ct);
                         if (!canJoin) return;
 
                         var isTyping = false;
@@ -131,7 +150,7 @@ namespace HanakaServer.Services
                             isTyping = typingEl.GetBoolean();
                         }
 
-                        var fullName = await GetUserFullNameAsync(userId);
+                        var fullName = await GetUserFullNameAsync(userId, ct);
                         await _hub.SendTypingToClubAsync(clubId3, userId, fullName, isTyping);
                     }
                     break;
@@ -140,7 +159,7 @@ namespace HanakaServer.Services
                     if (TryReadRoomId(doc.RootElement, out var directRoomId)
                         && directRoomId > 0)
                     {
-                        var canJoin = await CanAccessDirectRoomAsync(directRoomId, userId);
+                        var canJoin = await CanAccessDirectRoomAsync(directRoomId, userId, ct);
                         if (!canJoin)
                         {
                             await SendAsync(ws, new
@@ -183,7 +202,7 @@ namespace HanakaServer.Services
                     if (TryReadRoomId(doc.RootElement, out var directRoomId3)
                         && directRoomId3 > 0)
                     {
-                        var canJoin = await CanAccessDirectRoomAsync(directRoomId3, userId);
+                        var canJoin = await CanAccessDirectRoomAsync(directRoomId3, userId, ct);
                         if (!canJoin) return;
 
                         var isTyping = false;
@@ -193,14 +212,14 @@ namespace HanakaServer.Services
                             isTyping = directTypingEl.GetBoolean();
                         }
 
-                        var fullName = await GetUserFullNameAsync(userId);
+                        var fullName = await GetUserFullNameAsync(userId, ct);
                         await _hub.SendTypingToDirectRoomAsync(directRoomId3, userId, fullName, isTyping);
                     }
                     break;
             }
         }
 
-        private async Task<bool> CanAccessClubChatAsync(long clubId, string userId)
+        private async Task<bool> CanAccessClubChatAsync(long clubId, string userId, CancellationToken ct)
         {
             if (!long.TryParse(userId, out var uid))
                 return false;
@@ -213,10 +232,10 @@ namespace HanakaServer.Services
                 x.UserId == uid &&
                 x.IsActive &&
                 x.User.IsActive &&
-                x.Club.IsActive);
+                x.Club.IsActive, ct);
         }
 
-        private async Task<bool> CanAccessDirectRoomAsync(long roomId, string userId)
+        private async Task<bool> CanAccessDirectRoomAsync(long roomId, string userId, CancellationToken ct)
         {
             if (!long.TryParse(userId, out var uid))
                 return false;
@@ -227,10 +246,10 @@ namespace HanakaServer.Services
             return await db.DirectChatRooms.AnyAsync(x =>
                 x.DirectChatRoomId == roomId &&
                 x.IsActive &&
-                (x.User1Id == uid || x.User2Id == uid));
+                (x.User1Id == uid || x.User2Id == uid), ct);
         }
 
-        private async Task<string> GetUserFullNameAsync(string userId)
+        private async Task<string> GetUserFullNameAsync(string userId, CancellationToken ct)
         {
             if (!long.TryParse(userId, out var uid))
                 return "Thành viên";
@@ -241,7 +260,7 @@ namespace HanakaServer.Services
             var fullName = await db.Users
                 .Where(x => x.UserId == uid)
                 .Select(x => x.FullName)
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(ct);
 
             return string.IsNullOrWhiteSpace(fullName) ? "Thành viên" : fullName;
         }

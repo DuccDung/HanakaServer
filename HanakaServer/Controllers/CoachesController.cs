@@ -332,6 +332,18 @@ namespace HanakaServer.Controllers
                 })
                 .ToListAsync();
 
+            foreach (var history in ratingHistory)
+            {
+                var attribution = RatingHistoryAttribution.ForPublicDisplay(
+                    history.Note,
+                    history.RatedByUserId,
+                    history.RatedByName);
+
+                history.Note = attribution.Note;
+                history.RatedByUserId = attribution.RatedByUserId;
+                history.RatedByName = attribution.RatedByName;
+            }
+
             var userAchievements = await _db.UserAchievements
                 .AsNoTracking()
                 .Where(x => x.UserId == row.UserId)

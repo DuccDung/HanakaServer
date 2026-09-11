@@ -1,23 +1,27 @@
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace HanakaServer.Services
 {
     public class PublicWebSocketHandler
     {
         private readonly PublicRealtimeHub _hub;
-        private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+        private readonly ILogger<PublicWebSocketHandler> _logger;
 
-        public PublicWebSocketHandler(PublicRealtimeHub hub)
+        public PublicWebSocketHandler(
+            PublicRealtimeHub hub,
+            ILogger<PublicWebSocketHandler>? logger = null)
         {
             _hub = hub;
+            _logger = logger ?? NullLogger<PublicWebSocketHandler>.Instance;
         }
 
         public async Task HandleAsync(WebSocket ws, CancellationToken ct)
         {
             var socketId = _hub.AddSocket(ws);
-            await SendAsync(ws, new { type = "hello.public" }, ct);
+            await _hub.SendToSocketAsync(socketId, new { type = "hello.public" });
 
             var buffer = new byte[8 * 1024];
 
@@ -38,11 +42,19 @@ namespace HanakaServer.Services
                         continue;
                     }
 
-                    await HandleClientMessageAsync(socketId, ws, message, ct);
+                    await HandleClientMessageAsync(socketId, message);
                 }
             }
-            catch
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
+            }
+            catch (WebSocketException ex)
+            {
+                _logger.LogDebug(ex, "Public WebSocket {SocketId} disconnected.", socketId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Public WebSocket {SocketId} receive loop failed.", socketId);
             }
             finally
             {
@@ -53,15 +65,20 @@ namespace HanakaServer.Services
                         await ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "bye", CancellationToken.None);
                     }
                 }
-                catch
+                catch (Exception ex) when (ex is OperationCanceledException or WebSocketException)
                 {
+                    _logger.LogDebug(ex, "Public WebSocket {SocketId} was already closed during cleanup.", socketId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Public WebSocket {SocketId} cleanup failed.", socketId);
                 }
 
                 await _hub.RemoveSocketAsync(socketId);
             }
         }
 
-        private async Task HandleClientMessageAsync(string socketId, WebSocket ws, string json, CancellationToken ct)
+        private async Task HandleClientMessageAsync(string socketId, string json)
         {
             using var doc = JsonDocument.Parse(json);
 
@@ -75,14 +92,14 @@ namespace HanakaServer.Services
             switch (type)
             {
                 case "ping":
-                    await SendAsync(ws, new { type = "pong" }, ct);
+                    await _hub.SendToSocketAsync(socketId, new { type = "pong" });
                     break;
 
                 case "tournament.subscribe":
                     if (TryGetPositiveInt64(doc.RootElement, "tournamentId", out var tournamentId))
                     {
                         _hub.SubscribeTournament(socketId, tournamentId);
-                        await SendAsync(ws, new { type = "tournament.subscribed", tournamentId }, ct);
+                        await _hub.SendToSocketAsync(socketId, new { type = "tournament.subscribed", tournamentId });
                     }
                     break;
 
@@ -90,7 +107,7 @@ namespace HanakaServer.Services
                     if (TryGetPositiveInt64(doc.RootElement, "tournamentId", out var unsubscribeTournamentId))
                     {
                         _hub.UnsubscribeTournament(socketId, unsubscribeTournamentId);
-                        await SendAsync(ws, new { type = "tournament.unsubscribed", tournamentId = unsubscribeTournamentId }, ct);
+                        await _hub.SendToSocketAsync(socketId, new { type = "tournament.unsubscribed", tournamentId = unsubscribeTournamentId });
                     }
                     break;
 
@@ -98,7 +115,7 @@ namespace HanakaServer.Services
                     if (TryGetPositiveInt64(doc.RootElement, "matchId", out var matchId))
                     {
                         _hub.SubscribeMatch(socketId, matchId);
-                        await SendAsync(ws, new { type = "match.subscribed", matchId }, ct);
+                        await _hub.SendToSocketAsync(socketId, new { type = "match.subscribed", matchId });
                     }
                     break;
 
@@ -106,25 +123,25 @@ namespace HanakaServer.Services
                     if (TryGetPositiveInt64(doc.RootElement, "matchId", out var unsubscribeMatchId))
                     {
                         _hub.UnsubscribeMatch(socketId, unsubscribeMatchId);
-                        await SendAsync(ws, new { type = "match.unsubscribed", matchId = unsubscribeMatchId }, ct);
+                        await _hub.SendToSocketAsync(socketId, new { type = "match.unsubscribed", matchId = unsubscribeMatchId });
                     }
                     break;
 
                 case "videos.subscribe":
                     _hub.SubscribeVideosFeed(socketId);
-                    await SendAsync(ws, new { type = "videos.subscribed" }, ct);
+                    await _hub.SendToSocketAsync(socketId, new { type = "videos.subscribed" });
                     break;
 
                 case "videos.unsubscribe":
                     _hub.UnsubscribeVideosFeed(socketId);
-                    await SendAsync(ws, new { type = "videos.unsubscribed" }, ct);
+                    await _hub.SendToSocketAsync(socketId, new { type = "videos.unsubscribed" });
                     break;
 
                 case "payment.subscribe":
                     if (TryGetNonEmptyString(doc.RootElement, "transactionCode", out var transactionCode))
                     {
                         _hub.SubscribePayment(socketId, transactionCode);
-                        await SendAsync(ws, new { type = "payment.subscribed", transactionCode }, ct);
+                        await _hub.SendToSocketAsync(socketId, new { type = "payment.subscribed", transactionCode });
                     }
                     break;
 
@@ -132,7 +149,7 @@ namespace HanakaServer.Services
                     if (TryGetNonEmptyString(doc.RootElement, "transactionCode", out var unsubscribeTransactionCode))
                     {
                         _hub.UnsubscribePayment(socketId, unsubscribeTransactionCode);
-                        await SendAsync(ws, new { type = "payment.unsubscribed", transactionCode = unsubscribeTransactionCode }, ct);
+                        await _hub.SendToSocketAsync(socketId, new { type = "payment.unsubscribed", transactionCode = unsubscribeTransactionCode });
                     }
                     break;
             }
@@ -173,10 +190,5 @@ namespace HanakaServer.Services
             return sb.ToString();
         }
 
-        private static Task SendAsync(WebSocket ws, object obj, CancellationToken ct)
-        {
-            var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(obj, JsonOpts));
-            return ws.SendAsync(bytes, WebSocketMessageType.Text, true, ct);
-        }
     }
 }

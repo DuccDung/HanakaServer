@@ -9,6 +9,10 @@
     const rows = $("[data-template-rows]");
     const loading = $("[data-loading]");
     const errorBox = $("[data-library-error]");
+    const initialParticipantMode = new URLSearchParams(location.search).get("participantMode");
+    if (["STANDARD", "RELAY_TEAM"].includes(initialParticipantMode)) {
+        $("#btParticipantMode").value = initialParticipantMode;
+    }
 
     function escapeHtml(value) {
         return String(value ?? "").replace(/[&<>'"]/g, (char) => ({
@@ -20,8 +24,13 @@
         return ({
             SINGLE_ELIMINATION: "Loại trực tiếp",
             GROUP_KNOCKOUT: "Vòng bảng + knockout",
+            DOUBLE_ELIMINATION: "Nhánh thắng/thua",
             CUSTOM: "Tùy chỉnh"
         })[value] || value || "—";
+    }
+
+    function participantModeLabel(value) {
+        return ({ STANDARD: "Đơn/đôi", RELAY_TEAM: "Đội tiếp sức" })[value] || value || "—";
     }
 
     function statusBadge(value) {
@@ -76,6 +85,7 @@
                     ${item.description ? `<small>${escapeHtml(item.description)}</small>` : ""}
                 </td>
                 <td><span class="bt-format"><i class="fas fa-sitemap"></i>${escapeHtml(formatType(item.formatType))}</span></td>
+                <td><span class="bt-participant bt-participant--${item.participantMode === "RELAY_TEAM" ? "relay" : "standard"}"><i class="fas ${item.participantMode === "RELAY_TEAM" ? "fa-people-carry" : "fa-user-friends"}"></i>${escapeHtml(participantModeLabel(item.participantMode))}</span></td>
                 <td>${escapeHtml(capacity)}</td>
                 <td>${item.currentVersionNumber ? `<strong>v${item.currentVersionNumber}</strong>` : '<span class="text-muted">Draft</span>'}</td>
                 <td>${statusBadge(item.status)}</td>
@@ -112,6 +122,7 @@
             const params = new URLSearchParams({
                 search: $("#btSearch").value.trim(),
                 formatType: $("#btFormat").value,
+                participantMode: $("#btParticipantMode").value,
                 status: $("#btStatus").value,
                 page: state.page,
                 pageSize: state.pageSize
@@ -213,8 +224,21 @@
         document.getElementById("editTemplateRowVersion").value = item.rowVersion || "";
         document.getElementById("editTemplateCode").value = item.templateCode || "";
         document.getElementById("editTemplateName").value = item.templateName || "";
+        const participantMode = document.getElementById("editParticipantMode");
+        participantMode.value = item.participantMode || "STANDARD";
+        const modeLocked = Boolean(item.currentPublishedVersionId) || Number(item.applicationCount || 0) > 0;
+        participantMode.disabled = modeLocked;
+        document.querySelector("[data-participant-mode-help]").textContent = modeLocked
+            ? "Đối tượng thi đấu đã khóa vì template đã được xuất bản hoặc áp dụng."
+            : "Chỉ đổi được trước khi template được xuất bản hoặc áp dụng.";
         document.getElementById("editMinimumTeams").value = item.minimumTeams ?? 2;
         document.getElementById("editSeedCapacity").value = item.seedCapacity ?? 2;
+        const capacityLocked = Boolean(item.currentPublishedVersionId);
+        document.getElementById("editMinimumTeams").disabled = capacityLocked;
+        document.getElementById("editSeedCapacity").disabled = capacityLocked;
+        document.querySelector("[data-capacity-help]").textContent = capacityLocked
+            ? "Để đổi sức chứa, chọn Tạo phiên bản mới rồi chỉnh cấu trúc trong trình thiết kế. Phiên bản đã xuất bản được giữ nguyên."
+            : "Sức chứa cần khớp với các vị trí đội đầu vào trước khi xuất bản.";
         const editError = document.querySelector("[data-edit-error]");
         editError.textContent = "";
         editError.classList.add("d-none");
@@ -255,7 +279,7 @@
         clearTimeout(searchTimer);
         searchTimer = setTimeout(() => { state.page = 1; load(); }, 350);
     });
-    [$("#btFormat"), $("#btStatus")].forEach((control) => control.addEventListener("change", () => { state.page = 1; load(); }));
+    [$("#btFormat"), $("#btParticipantMode"), $("#btStatus")].forEach((control) => control.addEventListener("change", () => { state.page = 1; load(); }));
     $("#btPageSize").addEventListener("change", (event) => { state.pageSize = Number(event.target.value); state.page = 1; load(); });
 
     root.addEventListener("click", async (event) => {
@@ -317,8 +341,19 @@
             const payload = {
                 templateCode: codeInput.value.trim(),
                 templateName: nameInput.value.trim(),
-                description: document.getElementById("createDescription").value.trim() || null
+                description: document.getElementById("createDescription").value.trim() || null,
+                participantMode: document.getElementById("createParticipantMode").value,
+                formatType: document.getElementById("createFormatType").value,
+                minimumTeams: Number(document.getElementById("createMinimumTeams").value),
+                seedCapacity: Number(document.getElementById("createSeedCapacity").value),
+                defaultSeedingMethod: document.getElementById("createSeedingMethod").value
             };
+            if (!Number.isInteger(payload.minimumTeams) || !Number.isInteger(payload.seedCapacity)
+                || payload.minimumTeams < 2 || payload.minimumTeams > 1024
+                || payload.seedCapacity < 2 || payload.seedCapacity > 1024
+                || payload.minimumTeams > payload.seedCapacity) {
+                throw new Error("Số đội tối thiểu/tối đa phải từ 2 đến 1024 và tối thiểu không lớn hơn tối đa.");
+            }
             const result = await api("/api/admin/bracket-templates", { method: "POST", body: JSON.stringify(payload) });
             const version = pickVersion(result.data);
             location.href = `/BracketTemplates/Editor?templateId=${result.data.bracketTemplateId}&versionId=${version.bracketTemplateVersionId}`;
@@ -363,6 +398,7 @@
                 method: "PUT",
                 body: JSON.stringify({
                     templateName,
+                    participantMode: document.getElementById("editParticipantMode").value,
                     minimumTeams,
                     seedCapacity,
                     rowVersion: document.getElementById("editTemplateRowVersion").value

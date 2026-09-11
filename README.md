@@ -1,291 +1,147 @@
 # HanakaServer
 
-HanakaServer la backend monolith cho Hanaka Sport/Pickleball. Project phuc vu dong thoi public web, mobile API, admin web, referee portal va realtime WebSocket.
+HanakaServer là backend monolith của hệ thống Hanaka Sport/Pickleball. Một ứng dụng phục vụ đồng thời REST API cho mobile, public web, admin web, cổng trọng tài, cổng đánh giá trình và các kết nối WebSocket realtime.
 
-## Stack
+Tài liệu này hướng dẫn chạy dự án. Ngữ cảnh kỹ thuật và trạng thái chức năng hiện tại được duy trì tại [`HanakaServer/context.md`](HanakaServer/context.md).
 
-- ASP.NET Core Web MVC/API, target `net9.0`
-- Razor Views cho admin, public web va referee portal
-- Entity Framework Core + SQL Server
-- Cookie authentication cho web/admin/referee portal
-- JWT Bearer authentication cho mobile API va WebSocket
-- WebSocket realtime cho chat/thong bao
-- MailKit/MimeKit + SMTP cho email/OTP
-- Static assets trong `wwwroot`, giao dien admin dua tren Bootstrap/SB Admin 2
+> Cập nhật gần nhất: 06/09/2026. Các tài liệu task, handoff và test report cũ đã được hợp nhất vào `context.md` rồi xóa để tránh nhiều nguồn thông tin mâu thuẫn.
 
-## Cau Truc Chinh
+## Công nghệ
 
-- `HanakaServer/Program.cs`: cau hinh DI, auth, route, CORS, WebSocket.
-- `HanakaServer/Data/PickleballDbContext.cs`: EF Core DbContext va mapping database.
-- `HanakaServer/Models`: entity model map voi SQL Server.
-- `HanakaServer/Dtos`: request/response DTO.
-- `HanakaServer/Controllers`: API va MVC controller, phan lon business logic dang nam o day.
-- `HanakaServer/Service`: auth flow, OTP/email, realtime, notification, hosted service.
-- `HanakaServer/Views`: Razor views cho admin/public/referee.
-- `HanakaServer/wwwroot`: css/js/vendor, uploads va static files.
-- `HanakaServer/context.md`: ghi chu doc code chi tiet hon ve nghiep vu va technical debt.
+- ASP.NET Core MVC/API, target `net10.0`.
+- Razor Views cho public web, admin, referee portal và rating portal.
+- Entity Framework Core 10 + SQL Server.
+- Cookie authentication cho web; JWT Bearer cho mobile/API và WebSocket đã xác thực.
+- Hai WebSocket hub tự quản lý kết nối trong tiến trình.
+- MailKit/MimeKit cho email và OTP; HTTP client cho nhà cung cấp OTP và SePay.
+- xUnit, EF Core InMemory và SQL LocalDB cho test.
+- Docker multi-stage dùng .NET 10.
 
-## Cau Hinh Quan Trong
+## Solution
 
-File chinh: `HanakaServer/appsettings.json`
+```text
+HanakaServer.sln
+├── HanakaServer/          Ứng dụng web/API chính
+└── HanakaServer.Tests/    Test server, bracket, realtime và relay
+```
 
-- `ConnectionStrings:PickleballDb`: SQL Server connection string.
-- `Jwt`: issuer/audience/key/thoi gian song access token.
-- `PublicBaseUrl`: base URL dung de build absolute URL cho anh/file public.
-- `Otp`: thoi gian het han OTP.
-- `Email`, `Support`, `Smtp`: cau hinh email ho tro va gui OTP.
+Các thư mục quan trọng:
 
-Luu y bao mat: file `appsettings.json` hien co connection string va SMTP credential dang de plaintext. Khi deploy that su, nen dua cac gia tri nay sang environment variables, user secrets, secret manager hoac cau hinh rieng khong commit.
+- `HanakaServer/Program.cs`: dependency injection, auth, CORS, route và WebSocket.
+- `HanakaServer/Controllers`: API controller và MVC controller.
+- `HanakaServer/Service`: auth, OTP, payment, bracket, standings, realtime và relay.
+- `HanakaServer/Data`: EF Core DbContext và mapping theo partial class.
+- `HanakaServer/Models`: entity ánh xạ SQL Server.
+- `HanakaServer/Dtos`: request/response contract.
+- `HanakaServer/Views`: Razor views.
+- `HanakaServer/wwwroot`: static assets và thư mục upload.
+- `database/migrations`, `database/updates`: script SQL được quản lý thủ công.
+- `artifacts`: log và đầu ra kiểm chứng cục bộ; không phải mã nguồn.
 
-## Chay Local
+## Cấu hình an toàn
 
-Yeu cau:
+Ứng dụng đọc cấu hình từ `appsettings*.json`, user secrets và environment variables theo cơ chế chuẩn của ASP.NET Core.
 
-- .NET SDK 9.x
-- SQL Server co database tuong ung voi schema hien tai
-- Connection string hop le trong `appsettings.json` hoac environment variable
+Các key quan trọng:
 
-Lenh chay:
+- `ConnectionStrings:PickleballDb`
+- `Jwt:Issuer`, `Jwt:Audience`, `Jwt:Key`, `Jwt:AccessTokenMinutes`
+- `PublicBaseUrl`
+- `Otp`, `AbenlaOtp`
+- `Email`, `Support`, `Smtp`
+- `SePay`
+- `Relay:AdminPreviewEnabled`
+
+Không thêm secret thật vào source. Với environment variables, dùng dạng:
 
 ```powershell
-dotnet restore
+$env:ConnectionStrings__PickleballDb = '<connection-string>'
+$env:Jwt__Key = '<long-random-secret>'
+$env:Smtp__Pass = '<smtp-secret>'
+```
+
+File cấu hình hiện tại từng chứa credential plaintext. Phải xoay các credential đó và chuyển chúng sang secret store trước khi triển khai.
+
+## Chạy local
+
+Yêu cầu:
+
+- .NET SDK và ASP.NET Core Runtime 9.x.
+- SQL Server với schema phù hợp.
+- Cấu hình kết nối và secret hợp lệ.
+
+```powershell
+dotnet restore HanakaServer.sln
 dotnet run --project .\HanakaServer\HanakaServer.csproj
 ```
 
-Neu gap loi:
+Launch profile mặc định:
 
-```text
-System.Net.Sockets.SocketException: The requested address is not valid in its context
+- HTTP: `http://localhost:5062`
+- HTTPS: `https://localhost:7156`
+
+## Route và xác thực
+
+- `/`: public Pickleball web.
+- Route MVC mặc định: `/{controller=Home}/{action=Login}/{id?}`.
+- `/RefereePortal/{action=Login}/{id?}`: cổng trọng tài.
+- `/ws`: WebSocket yêu cầu JWT.
+- `/ws-public`: WebSocket công khai.
+
+Cookie scheme là mặc định cho MVC. JWT Bearer được chỉ định trên các API mobile/client. Các policy chính:
+
+- `AdminOnly`
+- `RefereeOnly`
+- `RatingAssessorOnly`
+
+## Nhóm chức năng
+
+- Auth, OTP, quên mật khẩu, profile và rating.
+- CLB, chat CLB, chat trực tiếp, notification và moderation.
+- Giải đấu, đăng ký đơn/đôi, tìm partner và lời mời ghép đôi.
+- Thanh toán đăng ký giải qua SePay.
+- Vòng đấu, bảng đấu, trận, lịch, trọng tài, điểm và standings.
+- Thư viện bracket template, draft/publish, generator, seeding, apply/reset/reconcile.
+- Public web/API cho giải, sân, HLV, trọng tài, banner, video và bracket.
+- Thể thức đồng đội tiếp sức có luồng tạo riêng trong trang quản trị giải, cấu hình đội 4/6/8 người, điểm đích, roster và bracket theo feature flag.
+
+## Database
+
+DbContext có mapping database-first lớn trong `PickleballDbContext.cs`; bracket template và relay được tách sang partial file.
+
+Không tự động chạy script lên database cấu hình thật. Đọc từng script, sao lưu và thử trên database riêng trước. Với relay, thứ tự bắt buộc là:
+
+1. Schema bracket template hiện hữu.
+2. `database/updates/20260906_add_relay_foundation.sql`.
+3. `database/updates/20260906_relay_informational_timer_configurable_target.sql`.
+4. `database/updates/20260906_add_relay_bracket_snapshots.sql`.
+5. `database/updates/20260906_add_bracket_template_participant_mode.sql`.
+6. `database/updates/20260907_optimize_public_relay_registrations.sql`.
+7. `database/updates/20260908_remove_relay_lineup_lock_and_add_match_snapshots.sql`.
+8. Chỉ bật `Relay__AdminPreviewEnabled` sau khi các script trên đã chạy thành công.
+
+Không bật `RelayTournamentSettings.IsEnabled` trực tiếp bằng SQL. Dùng thao tác kích hoạt trên trang chuẩn bị relay để hệ thống kiểm tra cấu hình và các đội hình đầy đủ.
+
+## Kiểm thử
+
+Chạy test thông thường:
+
+```powershell
+dotnet test HanakaServer.sln --no-restore
 ```
 
-kiem tra `HanakaServer/Properties/launchSettings.json`. Project dang bind vao IP LAN co dinh, vi du `192.168.1.101`. Neu may hien tai khong co IP nay, doi ve:
+SQL integration tests dùng database LocalDB riêng và cần bật rõ ràng:
 
-```json
-"applicationUrl": "http://localhost:5062"
+```powershell
+$env:HANAKA_RELAY_SQL_TESTS = '1'
+dotnet test HanakaServer.sln --no-restore
 ```
 
-hoac dung `0.0.0.0` neu can cho may khac trong LAN truy cap.
+Dự án đã được nâng lên .NET 10 và kiểm chứng trực tiếp bằng runtime .NET 10. Log lịch sử trong `artifacts` có thể vẫn chứa đường dẫn build `net9.0`; đây không phải cấu hình chạy hiện tại.
 
-## Routing Va Entry Points
+## Quy tắc duy trì tài liệu
 
-Trong `Program.cs`:
-
-- `/` -> `PickleballWebController.Index`, public web.
-- `/{controller=Home}/{action=Login}/{id?}` -> route MVC mac dinh cho admin.
-- `/RefereePortal/{action=Login}/{id?}` -> referee portal.
-- `/ws-public` -> public WebSocket.
-- `/ws` -> authenticated WebSocket, dung JWT.
-
-Auth:
-
-- Cookie mac dinh: web/admin/referee portal, cookie name `Hanaka.Auth`.
-- JWT Bearer: mobile API va WebSocket; token co the gui bang `Authorization: Bearer ...`, query `access_token` cho WebSocket, hoac cookie web auth rieng.
-- Authorization policies:
-  - `AdminOnly`: role `Admin`
-  - `RefereeOnly`: role `REFEREE` hoac `Admin`
-
-## Module Nghiep Vu
-
-### Auth Va User
-
-File lien quan:
-
-- `Controllers/AuthsController.cs`
-- `Controllers/WebAuthApiController.cs`
-- `Controllers/UsersController.cs`
-- `Service/AppAuthService.cs`
-- `Service/UserOtpService.cs`
-- `Service/OtpEmailService.cs`
-
-Chuc nang:
-
-- Dang ky, OTP, quen mat khau, dang nhap JWT.
-- Web auth API cho public web.
-- Lay/sua profile, upload avatar, doi mat khau, self-rating, rating history, achievements.
-- Dong bo mot phan thong tin user sang coach/referee shadow profile.
-
-### Club Va Realtime Chat
-
-File lien quan:
-
-- `Controllers/ClubsController.cs`
-- `Service/RealtimeHub.cs`
-- `Service/WebSocketHandler.cs`
-
-Chuc nang:
-
-- Tao CLB, cover, join/approve/remove member.
-- Challenge mode, danh sach CLB, members, pending members.
-- Chat room theo CLB, upload media, delete message.
-- Push realtime qua WebSocket: message created/deleted, typing, notification, session revoked.
-
-### Tournament
-
-File lien quan:
-
-- `Controllers/PublicTournamentsController.cs`
-- `Controllers/TournamentClientController.cs`
-- `Controllers/TournamentRegistrationUserController.cs`
-- `Controllers/AdminTournamentsApiController.cs`
-- `Controllers/AdminRegistrationsController.cs`
-- `Controllers/AdminTournamentRoundsController.cs`
-- `Controllers/AdminTournamentRoundGroupsController.cs`
-- `Controllers/AdminTournamentGroupMatchesController.cs`
-- `Controllers/AdminTournamentPrizesController.cs`
-
-Model chinh:
-
-- `Tournament`
-- `TournamentRegistration`
-- `TournamentPairRequest`
-- `TournamentRound`
-- `TournamentRoundMap`
-- `TournamentRoundGroup`
-- `TournamentGroupMatch`
-- `TournamentPrize`
-- `TournamentMatchScoreHistory`
-
-Chuc nang:
-
-- Public list/detail tournament, registrations, rule, schedule, standings.
-- User JWT dang ky giai single/waiting, tim partner, gui/accept/reject/cancel pair request.
-- Admin CRUD tournament, registration, round map, group, match, score, prize.
-- Luu lich su diem tran dau.
-
-### Referee
-
-File lien quan:
-
-- `Controllers/RefereeAuthApiController.cs`
-- `Controllers/RefereeMatchesApiController.cs`
-- `Controllers/RefereePortalController.cs`
-- `Views/RefereePortal/Matches.cshtml`
-
-Chuc nang:
-
-- Login/logout referee.
-- Lay danh sach tran duoc phan cong.
-- Cap nhat diem tran dau va winner.
-- Role chap nhan: `REFEREE` hoac `Admin`.
-
-### Admin
-
-File lien quan:
-
-- `Controllers/HomeController.cs`
-- `Controllers/DashboardController.cs`
-- `Controllers/Admin*Controller.cs`
-- `Views/Home/*.cshtml`
-
-Chuc nang:
-
-- Admin login, dashboard.
-- Quan ly users, tournaments, registrations, rounds, groups, matches, prizes.
-- Quan ly banners, courts, coaches, referees, links.
-- Moderation queue.
-
-Luu y: `HomeController` co hard-code admin account trong source. Nen thay bang user DB/identity flow truoc khi van hanh nghiem tuc.
-
-### Public Web
-
-File lien quan:
-
-- `Controllers/Web/PickleballWebController.cs`
-- `Controllers/Web/PickleballWebAuthController.cs`
-- `Views/PickleballWeb`
-- `wwwroot/pickleball-web`
-
-Chuc nang:
-
-- Home public, club, coach, court, referee, exchange, tournament, match.
-- Web login/register/forgot password/account.
-- Giao dien Razor + JS/CSS, goi lai API backend.
-
-### Moderation
-
-File lien quan:
-
-- `Controllers/ModerationController.cs`
-- `Controllers/AdminModerationController.cs`
-
-Chuc nang:
-
-- User report/block/unblock.
-- Admin review report, hide message, eject/reinstate user.
-- Lien ket voi chat realtime de day thong bao/ngat session khi can.
-
-## API Route Nhanh
-
-Public/mobile:
-
-- `POST /api/Auths/register`
-- `POST /api/Auths/login`
-- `GET /api/Users/me`
-- `GET /api/public/tournaments`
-- `GET /api/public/tournaments/{id}`
-- `GET /api/public/tournaments/{id}/registrations`
-- `GET /api/tournaments/{id}/rounds-with-matches`
-- `GET /api/tournaments/{id}/rule`
-- `GET /api/Clubs`
-- `GET /api/Clubs/{id}`
-- `GET /api/coaches`
-- `GET /api/referees`
-- `GET /api/public/courts`
-- `GET /api/public/banners`
-
-Tournament registration user flow:
-
-- `GET /api/tournament-registrations/tournaments/{tournamentId}/me`
-- `GET /api/tournament-registrations/tournaments/{tournamentId}/partner-search`
-- `POST /api/tournament-registrations/tournaments/{tournamentId}/single`
-- `POST /api/tournament-registrations/tournaments/{tournamentId}/waiting`
-- `POST /api/tournament-registrations/tournaments/{tournamentId}/pair-requests`
-- `POST /api/tournament-registrations/pair-requests/{pairRequestId}/accept`
-- `POST /api/tournament-registrations/pair-requests/{pairRequestId}/reject`
-- `POST /api/tournament-registrations/pair-requests/{pairRequestId}/cancel`
-
-Admin:
-
-- `GET/POST/PUT/DELETE /api/admin/tournaments`
-- `GET/POST/PUT/DELETE /api/admin/tournaments/{tournamentId}/registrations`
-- `GET/POST/PUT/DELETE /api/admin/tournaments/{tournamentId}/round-maps`
-- `GET/POST/PUT/DELETE /api/admin/round-maps/{roundMapId}/groups`
-- `GET/POST/PUT/DELETE /api/admin/groups/{groupId}/matches`
-- `GET/POST/PUT/DELETE /api/admin/users`
-- `GET/POST/PUT/DELETE /api/admin/banners`
-- `GET/POST/PUT/DELETE /api/admin/courts`
-- `GET/POST/PUT/DELETE /api/admin/coaches`
-- `GET/POST/PUT/DELETE /api/admin/referees`
-
-Referee:
-
-- `POST /api/referee-auth/login`
-- `GET /api/referee-auth/me`
-- `GET /api/referee/matches`
-- `PUT /api/referee/matches/{matchId}/score`
-
-## Upload Paths
-
-- Avatar: `wwwroot/uploads/avatars`
-- Club cover: `wwwroot/uploads/clubs`
-- Club message media: `wwwroot/uploads/club-messages`
-- Tournament banner: `wwwroot/uploads/tournaments`
-
-## Development Notes
-
-- Khong thay thu muc EF migrations trong repo; DbContext co ve database-first/scaffolded.
-- Business logic dang tap trung nhieu trong controller. Khi sua nghiep vu, doc controller theo module truoc.
-- `UserRatingHistories` duoc xem nhu source of truth moi cho rating, trong khi `Users.RatingSingle/RatingDouble` van ton tai nhu cache/legacy.
-- Nhieu API tra URL anh bang cach ghep relative path voi `PublicBaseUrl`.
-- Project co nhieu vai tro trong mot app, nen can can than khi sua auth/routing vi co the anh huong ca admin, public web, mobile va referee.
-- Working tree hien co the co thay doi san trong source; truoc khi refactor lon nen kiem tra `git status`.
-
-## Tai Lieu Noi Bo
-
-Doc them `HanakaServer/context.md` de xem ghi chu chi tiet ve:
-
-- luong tournament/registration
-- club chat realtime
-- referee scoring
-- moderation
-- cac technical debt va diem can canh bao
+- `README.md` chỉ chứa hướng dẫn vào dự án và vận hành cơ bản.
+- `HanakaServer/context.md` là nguồn ngữ cảnh kỹ thuật duy nhất.
+- Không tạo lại các file `Task_*.md`, handoff hoặc test report rời rạc ở thư mục gốc.
+- Khi chức năng hoặc schema thay đổi, cập nhật `context.md` trong cùng thay đổi mã nguồn.

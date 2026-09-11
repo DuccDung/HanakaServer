@@ -8,6 +8,7 @@ using HanakaServer.Models;
 using HanakaServer.Options;
 using HanakaServer.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace HanakaServer.Services.Payments;
 
@@ -21,19 +22,22 @@ public sealed class TournamentRegistrationPaymentService
     private readonly SepaySettingsProvider _settingsProvider;
     private readonly PublicRealtimeHub _publicRealtimeHub;
     private readonly ILogger<TournamentRegistrationPaymentService> _logger;
+    private readonly RelayOptions _relayOptions;
 
     public TournamentRegistrationPaymentService(
         PickleballDbContext db,
         SepayGatewayClient sepayGatewayClient,
         SepaySettingsProvider settingsProvider,
         PublicRealtimeHub publicRealtimeHub,
-        ILogger<TournamentRegistrationPaymentService> logger)
+        ILogger<TournamentRegistrationPaymentService> logger,
+        IOptions<RelayOptions> relayOptions)
     {
         _db = db;
         _sepayGatewayClient = sepayGatewayClient;
         _settingsProvider = settingsProvider;
         _publicRealtimeHub = publicRealtimeHub;
         _logger = logger;
+        _relayOptions = relayOptions.Value;
     }
 
     public async Task<TournamentPaymentServiceResult> CreateOrReuseCheckoutAsync(
@@ -78,7 +82,10 @@ public sealed class TournamentRegistrationPaymentService
                 .Include(item => item.Tournament)
                 .FirstOrDefaultAsync(item => item.RegistrationId == registrationId, cancellationToken);
 
-            if (registration is null || registration.Tournament.Remove || registration.Tournament.Status == "DRAFT")
+            if (registration is null
+                || registration.IsVirtualTeam
+                || registration.Tournament.Remove
+                || registration.Tournament.Status == "DRAFT")
             {
                 return TournamentPaymentServiceResult.Fail("Không tìm thấy đăng ký giải đấu.", StatusCodes.Status404NotFound);
             }
@@ -88,9 +95,35 @@ public sealed class TournamentRegistrationPaymentService
                 return TournamentPaymentServiceResult.Fail("Đăng ký không thuộc giải đấu này.", StatusCodes.Status404NotFound);
             }
 
-            if (!registration.Success || registration.WaitingPair)
+            RelayTeam? relayTeam = null;
+            var isRelay = false;
+            if (_relayOptions.AdminPreviewEnabled)
             {
-                return TournamentPaymentServiceResult.Fail("Chỉ đội đã ghép cặp thành công mới có thể thanh toán.");
+                isRelay = await _db.RelayTournamentSettings
+                    .AnyAsync(item => item.TournamentId == registration.TournamentId, cancellationToken);
+                if (isRelay)
+                {
+                    relayTeam = await _db.RelayTeams.AsNoTracking()
+                        .SingleOrDefaultAsync(item => item.RegistrationId == registration.RegistrationId, cancellationToken);
+                    if (relayTeam is null)
+                    {
+                        return TournamentPaymentServiceResult.Fail(
+                            "Đăng ký đội tiếp sức chưa có thông tin đội.", StatusCodes.Status409Conflict);
+                    }
+                }
+            }
+
+            if (userId.HasValue && !isRelay && !BelongsToRegistration(registration, userId.Value))
+            {
+                return TournamentPaymentServiceResult.Fail(
+                    "Bạn không có quyền thanh toán cho đăng ký này.", StatusCodes.Status403Forbidden);
+            }
+
+            if (!registration.Success || (!isRelay && registration.WaitingPair))
+            {
+                return TournamentPaymentServiceResult.Fail(isRelay
+                    ? "Đội tiếp sức chưa được xác nhận đăng ký."
+                    : "Chỉ đội đã ghép cặp thành công mới có thể thanh toán.");
             }
 
             var feeAmount = NormalizeAmount(registration.Tournament.RegistrationFeeAmount);
@@ -106,7 +139,7 @@ public sealed class TournamentRegistrationPaymentService
             {
                 if (existingPayment is not null)
                 {
-                    var paidResponse = MapCheckoutResponse(existingPayment, registration, reusedExistingPayment: true);
+                    var paidResponse = MapCheckoutResponse(existingPayment, registration, reusedExistingPayment: true, relayTeam?.TeamName);
                     await transaction.CommitAsync(cancellationToken);
                     return TournamentPaymentServiceResult.Ok(paidResponse, "Đăng ký đã thanh toán.");
                 }
@@ -123,7 +156,7 @@ public sealed class TournamentRegistrationPaymentService
                 }
                 else
                 {
-                    var reusableResponse = MapCheckoutResponse(existingPayment, registration, reusedExistingPayment: true);
+                    var reusableResponse = MapCheckoutResponse(existingPayment, registration, reusedExistingPayment: true, relayTeam?.TeamName);
                     await transaction.CommitAsync(cancellationToken);
                     return TournamentPaymentServiceResult.Ok(reusableResponse, "Đã tải lại mã thanh toán hiện có.");
                 }
@@ -194,7 +227,7 @@ public sealed class TournamentRegistrationPaymentService
             await transaction.CommitAsync(cancellationToken);
 
             return TournamentPaymentServiceResult.Ok(
-                MapCheckoutResponse(payment, registration, reusedExistingPayment: false),
+                MapCheckoutResponse(payment, registration, reusedExistingPayment: false, relayTeam?.TeamName),
                 "Đã tạo mã thanh toán.");
         });
     }
@@ -215,9 +248,18 @@ public sealed class TournamentRegistrationPaymentService
                 .ThenInclude(item => item.Tournament)
             .FirstOrDefaultAsync(item => item.TransactionCode == normalizedCode, cancellationToken);
 
-        return payment is null
-            ? null
-            : MapCheckoutResponse(payment, payment.Registration, reusedExistingPayment: true);
+        if (payment is null) return null;
+
+        string? relayTeamName = null;
+        if (_relayOptions.AdminPreviewEnabled)
+        {
+            relayTeamName = await _db.RelayTeams.AsNoTracking()
+                .Where(item => item.RegistrationId == payment.RegistrationId)
+                .Select(item => item.TeamName)
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+
+        return MapCheckoutResponse(payment, payment.Registration, reusedExistingPayment: true, relayTeamName);
     }
 
     public async Task<TournamentPaymentStatusResponse?> GetStatusAsync(
@@ -471,7 +513,8 @@ public sealed class TournamentRegistrationPaymentService
     private TournamentPaymentCheckoutResponse MapCheckoutResponse(
         TournamentRegistrationPayment payment,
         TournamentRegistration registration,
-        bool reusedExistingPayment)
+        bool reusedExistingPayment,
+        string? relayTeamName = null)
     {
         var now = DateTime.UtcNow;
         var isPaid = string.Equals(payment.Status, "paid", StringComparison.OrdinalIgnoreCase) || registration.Paid;
@@ -479,7 +522,9 @@ public sealed class TournamentRegistrationPaymentService
         var status = isPaid ? "paid" : isExpired ? "expired" : payment.Status;
         var tournament = registration.Tournament;
         var currency = NormalizeCurrency(payment.Currency);
-        var teamName = BuildTeamName(registration);
+        var teamName = string.IsNullOrWhiteSpace(relayTeamName)
+            ? BuildTeamName(registration)
+            : relayTeamName.Trim();
 
         return new TournamentPaymentCheckoutResponse
         {

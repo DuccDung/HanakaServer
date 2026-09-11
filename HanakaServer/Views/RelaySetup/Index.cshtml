@@ -1,0 +1,59 @@
+@model long
+@{
+    Layout = "_AdminLayout";
+    ViewData["Title"] = "Chuẩn bị đội tiếp sức";
+}
+<div id="relay-setup" data-tournament-id="@Model">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-0" id="relay-title">Chuẩn bị đội tiếp sức</h1>
+        <div>
+            <a class="btn btn-outline-secondary" href="/BracketTemplates/Index?participantMode=RELAY_TEAM">Thư viện sơ đồ tiếp sức</a>
+            <a class="btn btn-outline-primary" href="/TournamentBracketSetup/Index?tournamentId=@Model">Áp dụng sơ đồ</a>
+        </div>
+    </div>
+    <div class="alert alert-info">Mỗi đăng ký đại diện cho một đội. Đội đủ thành viên hợp lệ sẽ sẵn sàng sử dụng ngay; admin vẫn có thể chỉnh sửa trong quá trình giải.</div>
+    <div id="relay-message" role="status" aria-live="polite"></div>
+    <section class="card mb-3">
+        <div class="card-body">
+            <h2 class="h5">Cấu hình giải</h2>
+            <form id="relay-settings-form">
+                <div class="form-row">
+                    <div class="form-group col-md-3">
+                        <label for="relay-team-size">Số người mỗi đội</label>
+                        <select id="relay-team-size" class="form-control"><option value="4">4 người · 2 cặp</option><option value="6" selected>6 người · 3 cặp</option><option value="8">8 người · 4 cặp</option></select>
+                    </div>
+                    <div class="form-group col-md-3">
+                        <label for="relay-target-score">Điểm đích</label>
+                        <input id="relay-target-score" class="form-control" type="number" min="1" step="1" value="40" required />
+                    </div>
+                    <div class="form-group col-md-6">
+                        <label>Đồng hồ mỗi lượt</label>
+                        <p class="form-control-plaintext mb-0">10 phút · chỉ hiển thị, không khóa chấm điểm và không tự chuyển cặp</p>
+                    </div>
+                </div>
+                <button class="btn btn-primary" type="submit">Lưu cấu hình</button>
+                <button id="relay-activate" class="btn btn-success ml-2" type="button">Kích hoạt thi đấu tiếp sức</button>
+                <span id="relay-active-state" class="ml-2 font-weight-bold"></span>
+            </form>
+        </div>
+    </section>
+    <section class="card">
+        <div class="card-body">
+            <h2 class="h5">Đội hình của đăng ký</h2>
+            <p class="text-muted">Chọn một đăng ký để bổ sung đội hình. Thay đổi trong khi giải diễn ra chỉ áp dụng cho các trận chưa bắt đầu chấm điểm.</p>
+            <form id="relay-team-form">
+                <div class="form-row">
+                    <div class="form-group col-md-4"><label for="relay-registration">Đăng ký</label><select id="relay-registration" class="form-control"><option value="">Chọn đăng ký</option></select></div>
+                    <div class="form-group col-md-4"><label for="relay-team-name">Tên đội chính</label><input id="relay-team-name" class="form-control" maxlength="150" required /></div>
+                    <div class="form-group col-md-4"><label for="relay-captain">Mã tài khoản đội trưởng (nếu có)</label><input id="relay-captain" class="form-control" type="number" min="1" step="1" /></div>
+                </div>
+                <p id="relay-ready-state" class="font-weight-bold"></p>
+                <div class="table-responsive">
+                    <table class="table table-sm"><thead><tr><th>Cặp</th><th>Thứ tự người</th><th>Họ tên vận động viên</th><th>Mã tài khoản (nếu có)</th></tr></thead><tbody id="relay-members"></tbody></table>
+                </div>
+                <button id="relay-save-team" class="btn btn-primary" type="submit">Lưu đội hình</button>
+            </form>
+        </div>
+    </section>
+</div>
+<script src="~/js/relay-setup.js" asp-append-version="true"></script>

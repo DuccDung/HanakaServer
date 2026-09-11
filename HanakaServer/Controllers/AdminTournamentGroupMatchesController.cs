@@ -2,6 +2,7 @@
 using HanakaServer.Helpers;
 using HanakaServer.Models;
 using HanakaServer.Services;
+using HanakaServer.Services.Relay;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -19,19 +20,25 @@ namespace HanakaServer.Controllers
         private readonly ITournamentBracketPropagationService _bracketPropagationService;
         private readonly ITournamentStandingsService _standingsService;
         private readonly ILogger<AdminTournamentGroupMatchesController> _logger;
+        private readonly RelayLegacyWriteGuard? _relayGuard;
+        private readonly RelayMatchLineupSnapshotService? _relayLineupSnapshots;
 
         public AdminTournamentGroupMatchesController(
             PickleballDbContext db,
             TournamentUserNotificationService tournamentNotificationService,
             ITournamentBracketPropagationService bracketPropagationService,
             ITournamentStandingsService standingsService,
-            ILogger<AdminTournamentGroupMatchesController> logger)
+            ILogger<AdminTournamentGroupMatchesController> logger,
+            RelayLegacyWriteGuard? relayGuard = null,
+            RelayMatchLineupSnapshotService? relayLineupSnapshots = null)
         {
             _db = db;
             _tournamentNotificationService = tournamentNotificationService;
             _bracketPropagationService = bracketPropagationService;
             _standingsService = standingsService;
             _logger = logger;
+            _relayGuard = relayGuard;
+            _relayLineupSnapshots = relayLineupSnapshots;
         }
 
         // GET /api/admin/groups/{groupId}/matches
@@ -143,6 +150,14 @@ namespace HanakaServer.Controllers
                     x.Player2Name
                 })
                 .ToDictionaryAsync(x => x.RegistrationId, x => x);
+            var relayTeamNames = await _db.RelayTeams.AsNoTracking()
+                .Where(x => registrationIds.Contains(x.RegistrationId))
+                .ToDictionaryAsync(x => x.RegistrationId, x => x.TeamName);
+            var itemMatchIds = itemsRaw.Select(x => x.MatchId).ToArray();
+            var relaySnapshotNames = (await _db.RelayMatchLineupSnapshots.AsNoTracking()
+                .Where(x => itemMatchIds.Contains(x.MatchId))
+                .Select(x => new { x.MatchId, x.Side, x.TeamName })
+                .ToListAsync()).ToDictionary(x => (x.MatchId, x.Side), x => x.TeamName);
 
             var sourceGroupIds = itemsRaw
                 .SelectMany(x => new[] { x.Team1SourceGroupId, x.Team2SourceGroupId })
@@ -188,7 +203,9 @@ namespace HanakaServer.Controllers
                     m.CompletionReason,
                     m.Team1RegistrationId,
                     Team1Text = m.Team1RegistrationId.HasValue && registrations.TryGetValue(m.Team1RegistrationId.Value, out var team1Reg)
-                        ? BuildTeamText(t.GameType ?? "DOUBLE", team1Reg.Player1Name, team1Reg.Player2Name)
+                        ? BuildTeamText(t.GameType ?? "DOUBLE", team1Reg.Player1Name, team1Reg.Player2Name,
+                            relaySnapshotNames.GetValueOrDefault((m.MatchId, 1))
+                                ?? relayTeamNames.GetValueOrDefault(m.Team1RegistrationId.Value))
                         : BuildSourceText(m.Team1SourceType, m.Team1SourceMatchId, m.Team1SourceGroupId, m.Team1SourceRank, sourceGroupMap),
                     m.Team1SourceType,
                     m.Team1SourceMatchId,
@@ -198,7 +215,9 @@ namespace HanakaServer.Controllers
                     Team1Resolved = m.Team1RegistrationId.HasValue,
                     m.Team2RegistrationId,
                     Team2Text = m.Team2RegistrationId.HasValue && registrations.TryGetValue(m.Team2RegistrationId.Value, out var team2Reg)
-                        ? BuildTeamText(t.GameType ?? "DOUBLE", team2Reg.Player1Name, team2Reg.Player2Name)
+                        ? BuildTeamText(t.GameType ?? "DOUBLE", team2Reg.Player1Name, team2Reg.Player2Name,
+                            relaySnapshotNames.GetValueOrDefault((m.MatchId, 2))
+                                ?? relayTeamNames.GetValueOrDefault(m.Team2RegistrationId.Value))
                         : BuildSourceText(m.Team2SourceType, m.Team2SourceMatchId, m.Team2SourceGroupId, m.Team2SourceRank, sourceGroupMap),
                     m.Team2SourceType,
                     m.Team2SourceMatchId,
@@ -646,6 +665,14 @@ namespace HanakaServer.Controllers
                 .Where(x => registrationIds.Contains(x.RegistrationId))
                 .Select(x => new { x.RegistrationId, x.Player1Name, x.Player2Name })
                 .ToDictionaryAsync(x => x.RegistrationId, x => x);
+            var relayTeamNamesForPreviousRounds = await _db.RelayTeams.AsNoTracking()
+                .Where(x => registrationIds.Contains(x.RegistrationId))
+                .ToDictionaryAsync(x => x.RegistrationId, x => x.TeamName);
+            var previousMatchIds = matches.Select(x => x.MatchId).ToArray();
+            var relaySnapshotNamesForPreviousRounds = (await _db.RelayMatchLineupSnapshots.AsNoTracking()
+                .Where(x => previousMatchIds.Contains(x.MatchId))
+                .Select(x => new { x.MatchId, x.Side, x.TeamName })
+                .ToListAsync()).ToDictionary(x => (x.MatchId, x.Side), x => x.TeamName);
 
             var previousRounds = rounds.Select(round => new
             {
@@ -675,7 +702,15 @@ namespace HanakaServer.Controllers
                                         team1?.Player1Name,
                                         team1?.Player2Name,
                                         team2?.Player1Name,
-                                        team2?.Player2Name),
+                                        team2?.Player2Name,
+                                        m.Team1RegistrationId.HasValue
+                                            ? relaySnapshotNamesForPreviousRounds.GetValueOrDefault((m.MatchId, 1))
+                                                ?? relayTeamNamesForPreviousRounds.GetValueOrDefault(m.Team1RegistrationId.Value)
+                                            : null,
+                                        m.Team2RegistrationId.HasValue
+                                            ? relaySnapshotNamesForPreviousRounds.GetValueOrDefault((m.MatchId, 2))
+                                                ?? relayTeamNamesForPreviousRounds.GetValueOrDefault(m.Team2RegistrationId.Value)
+                                            : null),
                                     m.IsCompleted
                                 };
                             })
@@ -798,11 +833,17 @@ namespace HanakaServer.Controllers
         [HttpPut("{matchId:long}")]
         public async Task<IActionResult> Update(long groupId, long matchId, [FromBody] UpdateMatchDto dto)
         {
+            await using var relayTransaction = _relayGuard?.Enabled == true
+                ? await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable) : null;
+            if (_relayGuard != null) await _relayGuard.LockMatchAsync(matchId);
             var m = await _db.TournamentGroupMatches
                 .FirstOrDefaultAsync(x => x.MatchId == matchId && x.TournamentRoundGroupId == groupId);
 
             if (m == null)
                 return NotFound(new { message = "Không tìm thấy trận đấu." });
+
+            if (_relayGuard != null && await _relayGuard.HasMatchStateAsync(matchId))
+                return Conflict(new { code = "RELAY_MATCH_STARTED", message = "Trận tiếp sức đã bắt đầu; không thể sửa cấu hình trận qua luồng cũ." });
 
             var isGeneratedMatch = m.BracketApplicationId.HasValue;
             if (isGeneratedMatch
@@ -903,6 +944,7 @@ namespace HanakaServer.Controllers
             try
             {
                 await _db.SaveChangesAsync();
+                if (relayTransaction != null) await relayTransaction.CommitAsync();
             }
             catch (DbUpdateException ex)
             {
@@ -921,11 +963,15 @@ namespace HanakaServer.Controllers
         {
             await using var tx = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
 
+            if (_relayGuard != null) await _relayGuard.LockMatchAsync(matchId);
             var m = await _db.TournamentGroupMatches
                 .FirstOrDefaultAsync(x => x.MatchId == matchId && x.TournamentRoundGroupId == groupId);
 
             if (m == null)
                 return NotFound(new { message = "Không tìm thấy trận đấu." });
+
+            if (_relayGuard != null && await _relayGuard.HasMatchStateAsync(matchId))
+                return Conflict(new { code = "RELAY_MATCH_STARTED", message = "Không thể xóa trận tiếp sức đã có lịch sử lượt." });
 
             if (m.BracketApplicationId.HasValue)
             {
@@ -1033,6 +1079,17 @@ namespace HanakaServer.Controllers
             var wasCompleted = m.IsCompleted;
             var previousWinnerRegistrationId = m.WinnerRegistrationId;
 
+            try
+            {
+                if (_relayLineupSnapshots != null)
+                    await _relayLineupSnapshots.EnsureForMatchAsync(m, HttpContext.RequestAborted);
+            }
+            catch (RelayRuleException ex)
+            {
+                await tx.RollbackAsync();
+                return BadRequest(new { code = ex.Code, message = ex.Message });
+            }
+
             m.ScoreTeam1 = dto.ScoreTeam1;
             m.ScoreTeam2 = dto.ScoreTeam2;
             m.IsCompleted = dto.IsCompleted;
@@ -1046,15 +1103,16 @@ namespace HanakaServer.Controllers
 
             await _db.SaveChangesAsync();
             await tx.CommitAsync();
+            using var postCommit = CancellationCleanup.CreatePostCommitTokenSource();
 
             if (m.IsCompleted)
             {
                 try
                 {
                     if (!wasCompleted || previousWinnerRegistrationId != m.WinnerRegistrationId)
-                        await _bracketPropagationService.PropagateFromMatchAsync(m.MatchId, HttpContext.RequestAborted);
+                        await _bracketPropagationService.PropagateFromMatchAsync(m.MatchId, postCommit.Token);
 
-                    await _bracketPropagationService.PropagateFromGroupAsync(groupId, HttpContext.RequestAborted);
+                    await _bracketPropagationService.PropagateFromGroupAsync(groupId, postCommit.Token);
                 }
                 catch (Exception ex)
                 {
@@ -1069,7 +1127,7 @@ namespace HanakaServer.Controllers
             {
                 try
                 {
-                    await _tournamentNotificationService.NotifyMatchWinnerAsync(m.MatchId);
+                    await _tournamentNotificationService.NotifyMatchWinnerAsync(m.MatchId, postCommit.Token);
                 }
                 catch
                 {
@@ -1134,6 +1192,35 @@ namespace HanakaServer.Controllers
 
                 if (!registration.Success)
                     return (false, $"Đội {slotNumber} chưa được duyệt thành công.", null);
+
+                var relaySettings = await _db.RelayTournamentSettings.AsNoTracking()
+                    .SingleOrDefaultAsync(x => x.TournamentId == tournamentId, ct);
+                if (relaySettings != null)
+                {
+                    var relayTeam = await _db.RelayTeams.AsNoTracking()
+                        .Where(x => x.RegistrationId == registration.RegistrationId)
+                        .Select(x => new
+                        {
+                            MemberCount = _db.RelayTeamMembers.Count(m => m.RegistrationId == x.RegistrationId),
+                            ValidPositionCount = _db.RelayTeamMembers.Count(m =>
+                                m.RegistrationId == x.RegistrationId
+                                && m.Position >= 1
+                                && m.Position <= relaySettings.TeamSize),
+                            ValidNameCount = _db.RelayTeamMembers.Count(m =>
+                                m.RegistrationId == x.RegistrationId
+                                && m.DisplayName.Trim() != "")
+                        })
+                        .SingleOrDefaultAsync(ct);
+                    if (relayTeam == null
+                        || relayTeam.MemberCount != relaySettings.TeamSize
+                        || relayTeam.ValidPositionCount != relaySettings.TeamSize
+                        || relayTeam.ValidNameCount != relaySettings.TeamSize)
+                    {
+                        return (false,
+                            $"Đội {slotNumber} phải đủ {relaySettings.TeamSize} vận động viên hợp lệ trước khi xếp trận.",
+                            null);
+                    }
+                }
 
                 return (true, null, new MatchSlotResolved
                 {
@@ -1361,20 +1448,29 @@ namespace HanakaServer.Controllers
             string? team1Player1Name,
             string? team1Player2Name,
             string? team2Player1Name,
-            string? team2Player2Name)
+            string? team2Player2Name,
+            string? relayTeam1Name = null,
+            string? relayTeam2Name = null)
         {
-            var team1Text = string.IsNullOrWhiteSpace(team1Player1Name)
+            var team1Text = string.IsNullOrWhiteSpace(team1Player1Name) && string.IsNullOrWhiteSpace(relayTeam1Name)
                 ? "TBD"
-                : BuildTeamText(gameType ?? "DOUBLE", team1Player1Name, team1Player2Name);
-            var team2Text = string.IsNullOrWhiteSpace(team2Player1Name)
+                : BuildTeamText(gameType ?? "DOUBLE", team1Player1Name, team1Player2Name, relayTeam1Name);
+            var team2Text = string.IsNullOrWhiteSpace(team2Player1Name) && string.IsNullOrWhiteSpace(relayTeam2Name)
                 ? "TBD"
-                : BuildTeamText(gameType ?? "DOUBLE", team2Player1Name, team2Player2Name);
+                : BuildTeamText(gameType ?? "DOUBLE", team2Player1Name, team2Player2Name, relayTeam2Name);
 
             return $"Trận #{matchId} - {team1Text} vs {team2Text}";
         }
 
-        private static string BuildTeamText(string gameType, string? player1Name, string? player2Name)
+        private static string BuildTeamText(
+            string gameType,
+            string? player1Name,
+            string? player2Name,
+            string? relayTeamName = null)
         {
+            if (!string.IsNullOrWhiteSpace(relayTeamName))
+                return relayTeamName.Trim();
+
             gameType = (gameType ?? "DOUBLE").Trim().ToUpperInvariant();
 
             if (gameType == "SINGLE")

@@ -127,6 +127,117 @@
         }).format(date);
     }
 
+    function formatTournamentFee(amount, currency) {
+        const value = Number(amount);
+        if (!Number.isFinite(value) || value <= 0) {
+            return "Miễn phí";
+        }
+
+        const currencyCode = trimToEmpty(currency).toUpperCase() || "VND";
+        return `${new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(value)} ${currencyCode}`;
+    }
+
+    function tournamentStatusInfo(item) {
+        const rawStatus = trimToEmpty(item?.status).toUpperCase();
+        const registeredCount = toCount(item?.registeredCount);
+        const expectedTeams = toCount(item?.expectedTeams);
+        const deadline = parseDate(item?.registerDeadline);
+        const suppliedText = trimToEmpty(item?.statusText) || trimToEmpty(item?.stateText);
+
+        if (rawStatus === "OPEN" && expectedTeams > 0 && registeredCount >= expectedTeams) {
+            return { text: "Đã đủ đội", className: "is-full", canRegister: false };
+        }
+
+        if (rawStatus === "OPEN" && deadline && deadline < new Date()) {
+            return { text: "Hết hạn đăng ký", className: "is-closed", canRegister: false };
+        }
+
+        if (rawStatus === "OPEN") {
+            return { text: suppliedText || "Đang mở đăng ký", className: "is-open", canRegister: true };
+        }
+
+        if (rawStatus === "ACTIVE" || rawStatus === "ONGOING") {
+            return { text: suppliedText || "Đang diễn ra", className: "is-active", canRegister: false };
+        }
+
+        if (rawStatus === "COMPLETED" || rawStatus === "FINISHED") {
+            return { text: suppliedText || "Đã kết thúc", className: "is-finished", canRegister: false };
+        }
+
+        if (rawStatus === "CLOSED") {
+            return { text: suppliedText || "Đã đóng đăng ký", className: "is-closed", canRegister: false };
+        }
+
+        return { text: suppliedText || rawStatus || "Đang cập nhật", className: "is-neutral", canRegister: false };
+    }
+
+    function tournamentTypeText(item) {
+        if (item?.isRelay) {
+            const details = ["Đội tiếp sức"];
+            const teamSize = toCount(item.relayTeamSize);
+            const targetScore = toCount(item.relayTargetScore);
+            if (teamSize > 0) details.push(`${teamSize} người`);
+            if (targetScore > 0) details.push(`đích ${targetScore}`);
+            return details.join(" · ");
+        }
+
+        const explicitLabel = trimToEmpty(item?.tournamentTypeLabel);
+        if (explicitLabel) {
+            return explicitLabel;
+        }
+
+        const gameType = trimToEmpty(item?.gameType).toUpperCase();
+        const gender = trimToEmpty(item?.genderCategory).toUpperCase();
+        const gameLabel = gameType === "SINGLE" ? "Đơn" : "Đôi";
+        const genderLabels = { MEN: "Nam", WOMEN: "Nữ", MIXED: "Nam Nữ", OPEN: "Mở rộng" };
+        return `${gameLabel} ${genderLabels[gender] || "Mở rộng"}`;
+    }
+
+    function tournamentDescription(item) {
+        const content = trimToEmpty(item?.content)
+            .replace(/<[^>]*>/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+        return content || "Xem thông tin, thể lệ và danh sách đăng ký của giải đấu.";
+    }
+
+    function tournamentMediaMarkup(item, statusInfo) {
+        const imageUrl = normalizeAvatarUrl(item?.bannerUrl);
+        const title = trimToEmpty(item?.title) || "Giải đấu Hanaka Sport";
+        const imageMarkup = imageUrl
+            ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(title)}" loading="lazy" data-tournament-image>`
+            : "";
+
+        return [
+            '<div class="data-card__media tournament-card__media">',
+            '<div class="tournament-card__fallback" aria-hidden="true">',
+            '<span class="tournament-card__fallback-icon"><ion-icon name="trophy-outline"></ion-icon></span>',
+            '<span>Hanaka Sport</span>',
+            "</div>",
+            imageMarkup,
+            '<div class="tournament-card__media-overlay">',
+            `<span class="tournament-card__status ${escapeHtml(statusInfo.className)}">${escapeHtml(statusInfo.text)}</span>`,
+            item?.isRelay ? '<span class="tournament-card__relay"><ion-icon name="git-compare-outline"></ion-icon> Tiếp sức</span>' : "",
+            "</div>",
+            "</div>"
+        ].join("");
+    }
+
+    function bindTournamentImageFallbacks(container) {
+        qsa("[data-tournament-image]", container).forEach(function (image) {
+            function showFallback() {
+                image.hidden = true;
+                image.closest(".tournament-card__media")?.classList.add("is-image-fallback");
+            }
+
+            image.addEventListener("error", showFallback, { once: true });
+            if (image.complete && image.naturalWidth === 0) {
+                showFallback();
+            }
+        });
+    }
+
     function buildSafeHref(value, fallback) {
         const href = trimToEmpty(value);
 
@@ -189,7 +300,8 @@
     async function fetchJson(url) {
         const response = await fetch(url, {
             headers: { Accept: "application/json" },
-            cache: "no-store"
+            cache: "no-store",
+            hanakaLoading: "silent"
         });
 
         if (!response.ok) {
@@ -461,29 +573,46 @@
         }
 
         container.innerHTML = list.map(function (item) {
-            const status = trimToEmpty(item.statusText) || trimToEmpty(item.stateText) || trimToEmpty(item.status) || "Public";
-            const dateText = formatDate(item.startTime || item.createdAt);
-            const location = [trimToEmpty(item.locationText), trimToEmpty(item.areaText)].filter(Boolean).join(" · ") || "Hanaka Sport";
-            const description = trimToEmpty(item.content) || `Tối đa ${toCount(item.expectedTeams)} đội và ${toCount(item.matchesCount)} trận.`;
+            const statusInfo = tournamentStatusInfo(item);
+            const registeredCount = toCount(item.registeredCount);
+            const expectedTeams = toCount(item.expectedTeams);
+            const progress = expectedTeams > 0 ? Math.min(100, Math.round((registeredCount / expectedTeams) * 100)) : 0;
+            const location = [trimToEmpty(item.locationText), trimToEmpty(item.areaText)].filter(Boolean).join(" · ") || "Địa điểm đang cập nhật";
+            const organizer = trimToEmpty(item.organizer) || "Hanaka Sport";
+            const formatText = trimToEmpty(item.formatText) || trimToEmpty(item.playoffType) || "Theo thể lệ giải";
+            const teamCountText = expectedTeams > 0 ? `${registeredCount}/${expectedTeams} đội` : `${registeredCount} đội`;
+            const detailHref = buildSafeHref(`/PickleballWeb/Tournament/${item.tournamentId}`, "/PickleballWeb/Tournaments");
 
             return [
-                `<a class="data-card tournament-card" href="${escapeHtml(buildSafeHref(`/PickleballWeb/Tournament/${item.tournamentId}`, "/PickleballWeb/Tournaments"))}">`,
-                `<div class="data-card__media">${mediaMarkup(item.bannerUrl, item.title || "Giải đấu Hanaka Sport", "Giải đấu Hanaka Sport")}</div>`,
-                '<div class="data-card__body">',
-                '<div class="meta-row">',
-                `<span class="badge">${escapeHtml(status)}</span>`,
-                `<span class="muted">${escapeHtml(dateText)}</span>`,
-                "</div>",
+                `<a class="data-card tournament-card" href="${escapeHtml(detailHref)}" aria-label="Xem giải ${escapeHtml(trimToEmpty(item.title) || "Hanaka Sport")}">`,
+                tournamentMediaMarkup(item, statusInfo),
+                '<div class="data-card__body tournament-card__body">',
+                '<div class="tournament-card__organizer"><ion-icon name="shield-checkmark-outline"></ion-icon><span>' + escapeHtml(organizer) + "</span></div>",
                 `<h3>${escapeHtml(trimToEmpty(item.title) || "Giải đấu Hanaka Sport")}</h3>`,
-                `<p>${escapeHtml(description)}</p>`,
-                '<div class="inline-meta">',
-                `<span>${escapeHtml(location)}</span>`,
-                `<span>${escapeHtml(`${toCount(item.expectedTeams)} đội`)}</span>`,
+                `<p class="tournament-card__description">${escapeHtml(tournamentDescription(item))}</p>`,
+                '<div class="tournament-card__details">',
+                '<div class="tournament-card__detail"><ion-icon name="calendar-outline"></ion-icon><span><small>Ngày thi đấu</small><strong>' + escapeHtml(formatDate(item.startTime || item.createdAt)) + "</strong></span></div>",
+                '<div class="tournament-card__detail"><ion-icon name="time-outline"></ion-icon><span><small>Hạn đăng ký</small><strong>' + escapeHtml(formatDate(item.registerDeadline)) + "</strong></span></div>",
+                '<div class="tournament-card__detail is-wide"><ion-icon name="location-outline"></ion-icon><span><small>Địa điểm</small><strong>' + escapeHtml(location) + "</strong></span></div>",
+                "</div>",
+                '<div class="tournament-card__tags">',
+                '<span><ion-icon name="tennisball-outline"></ion-icon>' + escapeHtml(tournamentTypeText(item)) + "</span>",
+                '<span><ion-icon name="layers-outline"></ion-icon>' + escapeHtml(formatText) + "</span>",
+                "</div>",
+                '<div class="tournament-card__capacity">',
+                '<div class="tournament-card__capacity-row"><span>Đội đăng ký</span><strong>' + escapeHtml(teamCountText) + "</strong></div>",
+                '<div class="tournament-card__progress" aria-hidden="true"><span style="width:' + progress + '%"></span></div>',
+                "</div>",
+                '<div class="tournament-card__footer">',
+                '<div class="tournament-card__fee"><small>Phí đăng ký</small><strong>' + escapeHtml(formatTournamentFee(item.registrationFeeAmount, item.registrationFeeCurrency)) + "</strong></div>",
+                '<span class="tournament-card__action ' + (statusInfo.canRegister ? "is-register" : "") + '"><span>' + (statusInfo.canRegister ? "Đăng ký ngay" : "Xem chi tiết") + '</span><ion-icon name="arrow-forward-outline"></ion-icon></span>',
                 "</div>",
                 "</div>",
                 "</a>"
             ].join("");
         }).join("");
+
+        bindTournamentImageFallbacks(container);
     }
 
     function renderCourts(items, total) {
@@ -822,10 +951,15 @@
                 avatarLink.setAttribute("aria-label", trimToEmpty(session.user.fullName) || "Tài khoản");
                 avatarLink.title = trimToEmpty(session.user.fullName) || "Tài khoản";
                 setAvatarImage(session.user.avatarUrl, session.user.fullName);
-            } else {
+            } else if (session && session.isAuthenticated === false) {
                 avatarLink.href = "/PickleballWeb/Login?returnUrl=" + encodeURIComponent("/PickleballWeb/Account");
                 avatarLink.setAttribute("aria-label", "Đăng nhập");
                 avatarLink.title = "Đăng nhập";
+                setAvatarFallback();
+            } else {
+                avatarLink.href = "/PickleballWeb/Account";
+                avatarLink.setAttribute("aria-label", "Tài khoản");
+                avatarLink.title = "Tài khoản";
                 setAvatarFallback();
             }
         }
@@ -847,14 +981,14 @@
 
     async function loadAuthSession() {
         try {
-            const payload = await requestJson("/api/web-auth/me", {
-                method: "GET",
-                headers: { Accept: "application/json" }
+            const payload = await window.HanakaWebSession.read({
+                hanakaLoading: "silent"
             });
 
             state.session = payload;
         } catch (error) {
-            state.session = { isAuthenticated: false };
+            // Keep the last confirmed identity; a failed read does not sign the user out.
+            if (window.HanakaWebSession.isAborted(error)) return;
         }
 
         updateAuthEntry();

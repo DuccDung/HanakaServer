@@ -38,7 +38,44 @@ public sealed class BracketTemplateValidationServiceTests
 
         var result = _validator.Validate(graph);
 
-        Assert.DoesNotContain(result.Issues, x => x.Code == "INITIAL_TEAM_POSITION_REQUIRED");
+        Assert.True(result.IsValid);
+        Assert.Contains(result.Issues, x => x.Code == "INITIAL_TEAM_POSITION_REQUIRED" && x.Severity == "WARNING");
+        var ready = _validator.ValidateForUse(graph);
+        Assert.False(ready.IsValid);
+        var issue = Assert.Single(ready.Issues, x => x.Code == "INITIAL_TEAM_POSITION_REQUIRED");
+        Assert.Equal(graph.Rounds[0].Groups[0].Matches[0].MatchKey, issue.MatchKey);
+        Assert.Equal((byte)1, issue.SlotNumber);
+    }
+
+    [Fact]
+    public void Published_positions_must_fit_and_cover_capacity()
+    {
+        var graph = ValidKnockout();
+        graph.SeedCapacity = 3;
+        graph.MinimumTeams = 2;
+        var result = _validator.ValidateForUse(graph);
+        Assert.Contains(result.Issues, x => x.Code == "SEED_EXCEEDS_CAPACITY" && x.Severity == "ERROR");
+        Assert.Contains(result.Issues, x => x.Code == "INITIAL_POSITION_CAPACITY_MISMATCH");
+        graph.SeedCapacity = 8;
+        Assert.Contains(_validator.ValidateForUse(graph).Issues, x => x.Code == "SEED_POSITION_UNUSED" && x.Severity == "ERROR");
+    }
+
+    [Fact]
+    public void Repeated_round_robin_appearances_do_not_inflate_team_capacity()
+    {
+        var graph = ValidGroupToKnockout();
+        graph.SeedCapacity = 6;
+        var groups = graph.Rounds[0].Groups;
+        for (var g = 0; g < 2; g++)
+        {
+            var first = 1 + 3 * g;
+            groups[g].Matches = [
+                Match($"G{g}-1", 0, Seed(1, first), Seed(2, first + 1)),
+                Match($"G{g}-2", 1, Seed(1, first), Seed(2, first + 2)),
+                Match($"G{g}-3", 2, Seed(1, first + 1), Seed(2, first + 2))];
+        }
+        var result = _validator.ValidateForUse(graph);
+        Assert.True(result.IsValid, string.Join("; ", result.Issues.Where(x => x.Severity == "ERROR").Select(x => x.Message)));
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 ﻿using HanakaServer.Data;
 using HanakaServer.Dtos;
 using HanakaServer.Helpers;
+using HanakaServer.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,8 @@ namespace HanakaServer.Controllers
         private readonly PickleballDbContext _db;
         private readonly IWebHostEnvironment _env;
         private readonly IConfiguration _config;
+
+        private bool RelayFeatureEnabled => _config.GetValue<bool>("Relay:AdminPreviewEnabled");
 
         public AdminTournamentsApiController(PickleballDbContext db, IWebHostEnvironment env, IConfiguration config)
         {
@@ -64,6 +67,9 @@ namespace HanakaServer.Controllers
             return string.IsNullOrWhiteSpace(value) ? "VND" : value;
         }
 
+        private static bool IsValidTournamentLimit(decimal? value) =>
+            !value.HasValue || value.Value is >= 0m and <= 99.99m;
+
         private IQueryable<HanakaServer.Models.Tournament> ActiveTournamentsQuery(bool asNoTracking = false)
         {
             var query = asNoTracking
@@ -104,7 +110,7 @@ namespace HanakaServer.Controllers
             return (true, normalizedGameType, normalizedGenderCategory, null);
         }
 
-        private TournamentListItemDto MapToDto(HanakaServer.Models.Tournament t)
+        private TournamentListItemDto MapToDto(HanakaServer.Models.Tournament t, RelayTournamentSettings? relay = null)
         {
             var tournamentType = TournamentTypeHelper.Resolve(t.GameType, t.GenderCategory);
 
@@ -119,6 +125,12 @@ namespace HanakaServer.Controllers
                 GenderCategory = tournamentType.GenderCategory,
                 TournamentTypeCode = tournamentType.TournamentTypeCode,
                 TournamentTypeLabel = tournamentType.TournamentTypeLabel,
+                IsRelay = relay != null,
+                RelayTeamSize = relay?.TeamSize,
+                RelayPairCount = relay?.TeamSize / 2,
+                RelayTargetScore = relay?.TargetScore,
+                RelayIsEnabled = relay?.IsEnabled ?? false,
+                RelayVersion = relay?.Version,
                 ExpectedTeams = t.ExpectedTeams,
                 LocationText = t.LocationText,
                 AreaText = t.AreaText,
@@ -192,7 +204,16 @@ namespace HanakaServer.Controllers
                 })
                 .ToListAsync();
 
-            var items = raw.Select(MapToDto);
+            var relayByTournamentId = new Dictionary<long, RelayTournamentSettings>();
+            if (RelayFeatureEnabled && raw.Count > 0)
+            {
+                var tournamentIds = raw.Select(x => x.TournamentId).ToArray();
+                relayByTournamentId = await _db.RelayTournamentSettings.AsNoTracking()
+                    .Where(x => tournamentIds.Contains(x.TournamentId))
+                    .ToDictionaryAsync(x => x.TournamentId);
+            }
+
+            var items = raw.Select(t => MapToDto(t, relayByTournamentId.GetValueOrDefault(t.TournamentId)));
 
             return Ok(new { page, pageSize, total, items });
         }
@@ -205,7 +226,11 @@ namespace HanakaServer.Controllers
                 .FirstOrDefaultAsync(x => x.TournamentId == id);
             if (t == null) return NotFound(new { message = "Không tìm thấy giải đấu." });
 
-            return Ok(MapToDto(t));
+            var relay = RelayFeatureEnabled
+                ? await _db.RelayTournamentSettings.AsNoTracking().SingleOrDefaultAsync(x => x.TournamentId == id)
+                : null;
+
+            return Ok(MapToDto(t, relay));
         }
 
         // POST: /api/admin/tournaments (multipart/form-data)
@@ -222,6 +247,19 @@ namespace HanakaServer.Controllers
             var tournamentType = ResolveTournamentType(req.GameType, req.GenderCategory);
             if (!tournamentType.Ok)
                 return BadRequest(new { message = tournamentType.Message });
+
+            if (!IsValidTournamentLimit(req.SingleLimit) || !IsValidTournamentLimit(req.DoubleLimit))
+                return BadRequest(new { message = "Giới hạn đơn và giới hạn đôi phải nằm trong khoảng từ 0 đến 99.99." });
+
+            if (req.IsRelay && !RelayFeatureEnabled)
+                return BadRequest(new { message = "Chức năng giải tiếp sức chưa được bật." });
+
+            var relayTeamSize = req.RelayTeamSize ?? 6;
+            var relayTargetScore = req.RelayTargetScore ?? 40;
+            if (req.IsRelay && relayTeamSize is not (4 or 6 or 8))
+                return BadRequest(new { message = "Quy mô đội tiếp sức chỉ được chọn 4, 6 hoặc 8 người." });
+            if (req.IsRelay && relayTargetScore <= 0)
+                return BadRequest(new { message = "Điểm đích của giải tiếp sức phải lớn hơn 0." });
 
             var status = Upper(req.Status, "DRAFT");
 
@@ -283,10 +321,43 @@ namespace HanakaServer.Controllers
             };
 
             _db.Tournaments.Add(t);
-            await _db.SaveChangesAsync();
+
+            RelayTournamentSettings? relay = null;
+            Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction = null;
+            try
+            {
+                if (_db.Database.IsRelational())
+                    transaction = await _db.Database.BeginTransactionAsync();
+
+                await _db.SaveChangesAsync();
+
+                if (req.IsRelay)
+                {
+                    relay = new RelayTournamentSettings
+                    {
+                        TournamentId = t.TournamentId,
+                        TeamSize = relayTeamSize,
+                        TargetScore = relayTargetScore,
+                        LegDurationSeconds = 600,
+                        DeadlinePolicy = null,
+                        IsEnabled = false,
+                        Version = 1
+                    };
+                    _db.RelayTournamentSettings.Add(relay);
+                    await _db.SaveChangesAsync();
+                }
+
+                if (transaction != null)
+                    await transaction.CommitAsync();
+            }
+            finally
+            {
+                if (transaction != null)
+                    await transaction.DisposeAsync();
+            }
 
             //  trả full dto để UI prepend/update table
-            return Ok(MapToDto(t));
+            return Ok(MapToDto(t, relay));
         }
 
         // PUT: /api/admin/tournaments/{id} (multipart/form-data)
@@ -297,6 +368,9 @@ namespace HanakaServer.Controllers
             var t = await ActiveTournamentsQuery()
                 .FirstOrDefaultAsync(x => x.TournamentId == id);
             if (t == null) return NotFound(new { message = "Không tìm thấy giải đấu." });
+
+            if (!IsValidTournamentLimit(req.SingleLimit) || !IsValidTournamentLimit(req.DoubleLimit))
+                return BadRequest(new { message = "Giới hạn đơn và giới hạn đôi phải nằm trong khoảng từ 0 đến 99.99." });
 
             if (!string.IsNullOrWhiteSpace(req.Title))
                 t.Title = req.Title.Trim();

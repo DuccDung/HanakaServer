@@ -33,6 +33,7 @@ public sealed class BracketTemplatesController : Controller
                 x.BracketTemplateId,
                 x.TemplateCode,
                 x.TemplateName,
+                x.ParticipantMode,
                 VersionId = versionId ?? x.Versions
                     .OrderByDescending(v => v.Status == "DRAFT")
                     .ThenByDescending(v => v.VersionNumber)
@@ -53,6 +54,7 @@ public sealed class BracketTemplatesController : Controller
         ViewBag.TemplateId = template.BracketTemplateId;
         ViewBag.TemplateCode = template.TemplateCode;
         ViewBag.TemplateName = template.TemplateName;
+        ViewBag.ParticipantMode = template.ParticipantMode;
         ViewBag.VersionId = template.VersionId.Value;
         return View();
     }

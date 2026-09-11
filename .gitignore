@@ -3,3 +3,8 @@ bin/
 obj/
 *.user
 *.suo
+artifacts/
+.edge-webp-profile-*/
+.build-tmp/
+.temp_*/
+.dotnet_home/

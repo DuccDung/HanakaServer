@@ -107,14 +107,18 @@
     }
 
     async function fetchJson(url, options) {
+        const method = options?.method || "GET";
         const init = {
-            method: options?.method || "GET",
+            method: method,
             headers: {
                 Accept: "application/json",
                 ...(options?.headers || {})
             },
             credentials: "same-origin",
-            cache: "no-store"
+            cache: "no-store",
+            hanakaLoading: options?.hanakaLoading === undefined && method.toUpperCase() === "GET"
+                ? "silent"
+                : options?.hanakaLoading
         };
 
         if (options?.body !== undefined) {

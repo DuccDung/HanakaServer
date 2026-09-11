@@ -459,27 +459,19 @@
         return payload;
     }
 
-    async function fetchWebSession() {
-        try {
-            return await requestJson("/api/web-auth/me", {
-                method: "GET",
-                headers: {
-                    Accept: "application/json"
-                }
-            });
-        } catch (error) {
-            return {
-                isAuthenticated: false
-            };
-        }
+    async function fetchWebSession(loading) {
+        return window.HanakaWebSession.read({
+            hanakaLoading: loading === undefined ? "silent" : loading
+        });
     }
 
-    async function fetchCurrentProfile() {
+    async function fetchCurrentProfile(loading) {
         return requestJson("/api/users/me", {
             method: "GET",
             headers: {
                 Accept: "application/json"
-            }
+            },
+            hanakaLoading: loading === undefined ? "silent" : loading
         });
     }
 
@@ -488,7 +480,8 @@
             method: "GET",
             headers: {
                 Accept: "application/json"
-            }
+            },
+            hanakaLoading: "silent"
         });
     }
 
@@ -549,7 +542,7 @@
     function initAccountPage(root) {
         var state = {
             booting: true,
-            isAuthenticated: false,
+            isAuthenticated: null,
             loading: false,
             avatarUploading: false,
             deleting: false,
@@ -716,6 +709,10 @@
                 return "Đang tải";
             }
 
+            if (state.isAuthenticated === null) {
+                return "Chưa kiểm tra được phiên đăng nhập";
+            }
+
             if (!state.isAuthenticated) {
                 return "Chưa đăng nhập";
             }
@@ -726,6 +723,11 @@
         function requireLogin(message, redirectUrl) {
             if (state.isAuthenticated) {
                 return false;
+            }
+
+            if (state.isAuthenticated === null) {
+                showError(window.HanakaWebSession.unavailableMessage);
+                return true;
             }
 
             window.alert(message || "Vui lòng đăng nhập để tiếp tục.");
@@ -809,7 +811,7 @@
             refs.ratingDouble.textContent = formatRatingScore(state.form.ratingDouble);
             refs.ratingUpdated.textContent = state.isAuthenticated
                 ? (state.form.ratingUpdatedAt ? "Cập nhật " + formatDateTimeDDMMYYYY(state.form.ratingUpdatedAt) : "Chưa có lịch sử điểm trình")
-                : "Đăng nhập để xem điểm trình";
+                : state.isAuthenticated === null ? "Chưa tải được điểm trình" : "Đăng nhập để xem điểm trình";
             refs.ratingToggleText.textContent = state.ratingHistoryOpen ? "Ẩn lịch sử" : "Xem lịch sử";
             refs.ratingToggleIcon.setAttribute("name", state.ratingHistoryOpen ? "chevron-up" : "chevron-down");
 
@@ -827,7 +829,7 @@
             refs.genderText.textContent = state.form.gender || "Chọn giới tính";
             refs.provinceText.textContent = state.form.province || "Chọn tỉnh/thành";
             refs.avatarHint.textContent = !state.isAuthenticated
-                ? "Đăng nhập để cập nhật ảnh"
+                ? (state.isAuthenticated === null ? "Chưa tải được tài khoản" : "Đăng nhập để cập nhật ảnh")
                 : profileLocked
                     ? "Tài khoản đã xác thực, không thể đổi thông tin hồ sơ"
                     : "Chạm để đổi ảnh đại diện";
@@ -893,12 +895,24 @@
                 render();
             }
 
-            var session = await fetchWebSession();
+            var session;
+            try {
+                session = await fetchWebSession(silent ? "silent" : undefined);
+            } catch (error) {
+                if (requestId !== state.requestId) return;
+                state.booting = false;
+                if (!window.HanakaWebSession.isAborted(error)) {
+                    showError(window.HanakaWebSession.unavailableMessage);
+                }
+                render();
+                return;
+            }
             if (requestId !== state.requestId) {
                 return;
             }
 
             state.isAuthenticated = !!(session && session.isAuthenticated);
+            showError("");
 
             if (!state.isAuthenticated) {
                 clearProfile();
@@ -924,7 +938,7 @@
             }
 
             try {
-                var profile = await fetchCurrentProfile();
+                var profile = await fetchCurrentProfile(silent ? "silent" : undefined);
                 if (requestId !== state.requestId) {
                     return;
                 }
@@ -1319,7 +1333,7 @@
     function initChangePasswordPage(root) {
         var state = {
             checking: true,
-            authenticated: false,
+            authenticated: null,
             submitting: false,
             avatarRenderFailed: false,
             profile: createEmptyProfile(),
@@ -1381,6 +1395,12 @@
                 return;
             }
 
+            if (state.authenticated === null) {
+                refs.profileName.textContent = "Chưa tải được tài khoản";
+                refs.profileEmail.textContent = "Vui lòng tải lại để kiểm tra phiên đăng nhập";
+                return;
+            }
+
             if (!state.authenticated) {
                 refs.profileName.textContent = "Chưa đăng nhập";
                 refs.profileEmail.textContent = "Vui lòng đăng nhập để đổi mật khẩu";
@@ -1423,12 +1443,25 @@
                 renderProfile();
             }
 
-            var session = await fetchWebSession();
+            var session;
+            try {
+                session = await fetchWebSession(silent ? "silent" : undefined);
+            } catch (error) {
+                if (requestId !== state.requestId) return;
+                state.checking = false;
+                if (!window.HanakaWebSession.isAborted(error)) {
+                    showError(window.HanakaWebSession.unavailableMessage);
+                }
+                renderProfile();
+                syncButton();
+                return;
+            }
             if (requestId !== state.requestId) {
                 return;
             }
 
             state.authenticated = !!(session && session.isAuthenticated);
+            showError("");
 
             if (!state.authenticated) {
                 applyProfile(null);
@@ -1450,7 +1483,7 @@
             }
 
             try {
-                var profile = await fetchCurrentProfile();
+                var profile = await fetchCurrentProfile(silent ? "silent" : undefined);
                 if (requestId !== state.requestId) {
                     return;
                 }

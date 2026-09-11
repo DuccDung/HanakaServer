@@ -137,7 +137,656 @@
         font-weight: 800;
     }
 
+    .match-schedule-modal .modal-dialog {
+        max-width: 1180px;
+    }
+
+    .match-schedule-modal .modal-content {
+        min-height: min(760px, calc(100vh - 3.5rem));
+        border: 0;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 24px 70px rgba(28, 35, 55, .28);
+    }
+
+    .match-schedule-modal .modal-header {
+        align-items: flex-start;
+        padding: 1.1rem 1.25rem;
+        border-bottom: 1px solid #e3e6f0;
+        background: #fff;
+    }
+
+    .match-schedule-modal .modal-title {
+        color: #3a3b45;
+        font-weight: 800;
+    }
+
+    .match-schedule-subtitle {
+        margin-top: .2rem;
+        color: #6e7891;
+        font-size: .82rem;
+        line-height: 1.45;
+    }
+
+    .match-schedule-mode-switch {
+        display: inline-flex;
+        gap: .25rem;
+        margin-top: .75rem;
+        padding: .22rem;
+        border: 1px solid #dfe3ec;
+        border-radius: 10px;
+        background: #f8f9fc;
+    }
+
+    .match-schedule-mode-switch .btn {
+        min-height: 44px;
+        padding: .45rem .8rem;
+        border: 0;
+        border-radius: 8px;
+        color: #6e7891;
+        font-size: .76rem;
+        font-weight: 800;
+        box-shadow: none;
+    }
+
+    .match-schedule-mode-switch .btn.is-active {
+        background: #4e73df;
+        color: #fff;
+        box-shadow: 0 3px 9px rgba(78, 115, 223, .2);
+    }
+
+    .match-schedule-loading,
+    .match-schedule-empty {
+        display: flex;
+        min-height: 520px;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .65rem;
+        padding: 2rem;
+        color: #6e7891;
+        text-align: center;
+    }
+
+    .match-schedule-loading i,
+    .match-schedule-empty i {
+        font-size: 1.8rem;
+        color: #36b9cc;
+    }
+
+    .match-schedule-workspace {
+        display: grid;
+        grid-template-columns: minmax(310px, 360px) minmax(0, 1fr);
+        min-height: 620px;
+    }
+
+    .match-schedule-sidebar {
+        min-width: 0;
+        border-right: 1px solid #e3e6f0;
+        background: #f8f9fc;
+    }
+
+    .match-schedule-sidebar-head {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        padding: 1rem;
+        border-bottom: 1px solid #e3e6f0;
+        background: #f8f9fc;
+    }
+
+    .match-schedule-search {
+        position: relative;
+    }
+
+    .match-schedule-search i {
+        position: absolute;
+        top: 50%;
+        left: .85rem;
+        color: #858796;
+        transform: translateY(-50%);
+        pointer-events: none;
+    }
+
+    .match-schedule-search .form-control {
+        min-height: 44px;
+        padding-left: 2.4rem;
+        border-radius: 10px;
+        font-size: .9rem;
+    }
+
+    .match-schedule-list-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        margin-top: .65rem;
+        color: #6e7891;
+        font-size: .75rem;
+        font-weight: 700;
+    }
+
+    .match-schedule-bulk-selection {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto auto;
+        align-items: center;
+        gap: .4rem;
+        margin-top: .7rem;
+        padding-top: .7rem;
+        border-top: 1px solid #e3e6f0;
+    }
+
+    .match-schedule-bulk-selection strong {
+        color: #4e73df;
+        font-size: .75rem;
+    }
+
+    .match-schedule-bulk-selection .btn {
+        min-height: 44px;
+        padding: .35rem .55rem;
+        border-radius: 8px;
+        font-size: .7rem;
+        font-weight: 800;
+    }
+
+    .match-schedule-list {
+        display: grid;
+        gap: .6rem;
+        max-height: 548px;
+        padding: .8rem;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
+
+    .match-schedule-item {
+        width: 100%;
+        padding: .8rem;
+        border: 1px solid #dfe3ec;
+        border-radius: 12px;
+        background: #fff;
+        color: #5a5c69;
+        text-align: left;
+        transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+    }
+
+    .match-schedule-item:hover,
+    .match-schedule-item:focus {
+        border-color: #8ed9e4;
+        outline: 0;
+        box-shadow: 0 0 0 3px rgba(54, 185, 204, .13);
+    }
+
+    .match-schedule-item.is-active {
+        border-color: #36b9cc;
+        background: #f0fcfe;
+        box-shadow: 0 0 0 3px rgba(54, 185, 204, .12);
+    }
+
+    .match-schedule-item.is-bulk-selected {
+        border-color: #4e73df;
+        background: #f3f6ff;
+        box-shadow: 0 0 0 3px rgba(78, 115, 223, .11);
+    }
+
+    .match-schedule-bulk-check {
+        display: inline-flex;
+        width: 22px;
+        height: 22px;
+        flex: 0 0 22px;
+        align-items: center;
+        justify-content: center;
+        margin-right: .4rem;
+        border: 2px solid #b7b9cc;
+        border-radius: 6px;
+        background: #fff;
+        color: transparent;
+        font-size: .68rem;
+    }
+
+    .match-schedule-item.is-bulk-selected .match-schedule-bulk-check {
+        border-color: #4e73df;
+        background: #4e73df;
+        color: #fff;
+    }
+
+    .match-schedule-list-empty {
+        display: flex;
+        min-height: 180px;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .4rem;
+        padding: 1rem;
+        color: #858796;
+        text-align: center;
+    }
+
+    .match-schedule-list-empty i {
+        margin-bottom: .2rem;
+        color: #b7b9cc;
+        font-size: 1.35rem;
+    }
+
+    .match-schedule-list-empty span {
+        font-size: .76rem;
+        line-height: 1.45;
+    }
+
+    .match-schedule-item-top,
+    .match-schedule-item-line {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .65rem;
+    }
+
+    .match-schedule-item-id {
+        color: #4e73df;
+        font-size: .76rem;
+        font-weight: 900;
+    }
+
+    .match-schedule-item-round {
+        color: #858796;
+        font-size: .7rem;
+        font-weight: 700;
+    }
+
+    .match-schedule-item-teams {
+        margin: .45rem 0;
+        color: #3a3b45;
+        font-size: .82rem;
+        font-weight: 800;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+    }
+
+    .match-schedule-item-line {
+        align-items: flex-start;
+        justify-content: flex-start;
+        color: #6e7891;
+        font-size: .72rem;
+        line-height: 1.4;
+    }
+
+    .match-schedule-item-line + .match-schedule-item-line {
+        margin-top: .22rem;
+    }
+
+    .match-schedule-item-line i {
+        width: 14px;
+        margin-top: .15rem;
+        color: #36b9cc;
+        text-align: center;
+    }
+
+    .match-schedule-editor {
+        min-width: 0;
+        padding: 1.25rem;
+        background: #fff;
+    }
+
+    .match-schedule-no-selection {
+        display: flex;
+        min-height: 520px;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .55rem;
+        color: #858796;
+        text-align: center;
+    }
+
+    .match-schedule-no-selection i {
+        font-size: 2rem;
+        color: #b7b9cc;
+    }
+
+    .match-schedule-summary {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        border: 1px solid #d9eaf0;
+        border-radius: 12px;
+        background: #f5fcfd;
+    }
+
+    .match-schedule-summary-kicker {
+        color: #138496;
+        font-size: .72rem;
+        font-weight: 900;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+
+    .match-schedule-summary h6 {
+        margin: .3rem 0 .2rem;
+        color: #3a3b45;
+        font-weight: 900;
+        line-height: 1.4;
+        overflow-wrap: anywhere;
+    }
+
+    .match-schedule-summary small {
+        color: #6e7891;
+        line-height: 1.45;
+    }
+
+    .match-schedule-score {
+        align-self: center;
+        min-width: 84px;
+        padding: .55rem .7rem;
+        border-radius: 10px;
+        background: #3a3b45;
+        color: #fff;
+        font-size: 1.3rem;
+        font-weight: 900;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .match-schedule-form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    .match-schedule-form .form-group {
+        margin-bottom: 1rem;
+    }
+
+    .match-schedule-form label {
+        color: #4d5568;
+        font-size: .78rem;
+        font-weight: 800;
+    }
+
+    .match-schedule-form .form-control {
+        min-height: 46px;
+        border-color: #d6dae4;
+        border-radius: 9px;
+        color: #3a3b45;
+        font-size: .92rem;
+    }
+
+    .match-schedule-form textarea.form-control {
+        min-height: 86px;
+        resize: vertical;
+    }
+
+    .match-schedule-referee-note {
+        display: flex;
+        align-items: flex-start;
+        gap: .55rem;
+        margin-top: .5rem;
+        color: #6e7891;
+        font-size: .75rem;
+        line-height: 1.45;
+    }
+
+    .match-schedule-referee-note i {
+        margin-top: .15rem;
+        color: #36b9cc;
+    }
+
+    .match-schedule-form-actions {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .65rem;
+        margin-top: .25rem;
+        padding-top: 1rem;
+        border-top: 1px solid #eaecf4;
+    }
+
+    .match-schedule-form-actions .btn {
+        min-height: 44px;
+        min-width: 112px;
+        border-radius: 9px;
+        font-weight: 800;
+    }
+
+    .match-schedule-status {
+        flex: 1 1 auto;
+        min-width: 0;
+        color: #1c7c54;
+        font-size: .78rem;
+        font-weight: 800;
+        line-height: 1.4;
+    }
+
+    .match-schedule-bulk-form {
+        max-width: 760px;
+        margin: 0 auto;
+    }
+
+    .match-schedule-bulk-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        padding: 1rem;
+        border: 1px solid #d9e4ff;
+        border-radius: 12px;
+        background: #f5f7ff;
+    }
+
+    .match-schedule-bulk-summary strong {
+        display: block;
+        color: #3a3b45;
+        font-size: .95rem;
+    }
+
+    .match-schedule-bulk-summary span {
+        display: block;
+        margin-top: .25rem;
+        color: #6e7891;
+        font-size: .75rem;
+        line-height: 1.4;
+    }
+
+    .match-schedule-bulk-summary .btn {
+        min-height: 44px;
+        flex: 0 0 auto;
+        border-radius: 9px;
+        font-size: .75rem;
+        font-weight: 800;
+    }
+
+    .match-schedule-bulk-all {
+        margin-bottom: .75rem;
+        padding: .75rem .85rem;
+        border: 1px dashed #9db3f2;
+        border-radius: 10px;
+        background: #f8faff;
+    }
+
+    .match-schedule-bulk-field {
+        margin-bottom: .65rem;
+        padding: .8rem;
+        border: 1px solid #e1e4ec;
+        border-radius: 11px;
+        background: #fafbfe;
+        transition: border-color .16s ease, background-color .16s ease;
+    }
+
+    .match-schedule-bulk-field.is-enabled {
+        border-color: #a9baed;
+        background: #fff;
+    }
+
+    .match-schedule-bulk-field-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .75rem;
+        margin-bottom: .65rem;
+    }
+
+    .match-schedule-bulk-field-head strong {
+        color: #4d5568;
+        font-size: .8rem;
+    }
+
+    .match-schedule-bulk-field .form-control {
+        min-height: 44px;
+        border-radius: 8px;
+    }
+
+    .match-schedule-bulk-field textarea.form-control {
+        min-height: 72px;
+        resize: vertical;
+    }
+
+    .match-schedule-bulk-field-help {
+        display: block;
+        margin-top: .4rem;
+        color: #858796;
+        font-size: .7rem;
+        line-height: 1.4;
+    }
+
+    .match-schedule-bulk-confirm {
+        margin: 1rem 0;
+        padding: .8rem .9rem .8rem 2.35rem;
+        border: 1px solid #f0d89b;
+        border-radius: 10px;
+        background: #fffaf0;
+    }
+
+    .match-schedule-bulk-confirm label {
+        color: #66501d;
+        font-size: .76rem;
+        font-weight: 800;
+        line-height: 1.45;
+    }
+
+    .match-schedule-bulk-field-head .custom-control,
+    .match-schedule-bulk-all.custom-control,
+    .match-schedule-bulk-confirm.custom-control {
+        display: flex;
+        min-height: 44px;
+        align-items: center;
+    }
+
+    .match-schedule-bulk-field-head .custom-control-label::before,
+    .match-schedule-bulk-field-head .custom-control-label::after,
+    .match-schedule-bulk-all .custom-control-label::before,
+    .match-schedule-bulk-all .custom-control-label::after,
+    .match-schedule-bulk-confirm .custom-control-label::before,
+    .match-schedule-bulk-confirm .custom-control-label::after {
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    .match-schedule-modal :focus-visible {
+        outline: 3px solid rgba(54, 185, 204, .28);
+        outline-offset: 2px;
+    }
+
+    @@media (max-width: 991.98px) {
+        .match-schedule-modal .modal-dialog {
+            max-width: calc(100% - 1.5rem);
+        }
+
+        .match-schedule-workspace {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .match-schedule-sidebar {
+            border-right: 0;
+            border-bottom: 1px solid #e3e6f0;
+        }
+
+        .match-schedule-list {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            max-height: 280px;
+        }
+
+        .match-schedule-no-selection {
+            min-height: 320px;
+        }
+    }
+
     @@media (max-width: 575.98px) {
+        .match-schedule-modal .modal-dialog {
+            width: 100%;
+            max-width: none;
+            min-height: 100dvh;
+            margin: 0;
+        }
+
+        .match-schedule-modal .modal-content {
+            min-height: 100dvh;
+            border-radius: 0;
+        }
+
+        .match-schedule-modal .modal-header,
+        .match-schedule-editor {
+            padding: 1rem;
+        }
+
+        .match-schedule-loading,
+        .match-schedule-empty {
+            min-height: 70dvh;
+        }
+
+        .match-schedule-list {
+            grid-template-columns: minmax(0, 1fr);
+            max-height: 250px;
+        }
+
+        .match-schedule-form-grid,
+        .match-schedule-summary {
+            grid-template-columns: minmax(0, 1fr);
+        }
+
+        .match-schedule-score {
+            justify-self: start;
+        }
+
+        .match-schedule-form-actions {
+            flex-wrap: wrap;
+        }
+
+        .match-schedule-status {
+            flex-basis: 100%;
+        }
+
+        .match-schedule-form-actions .btn {
+            flex: 1 1 calc(50% - .4rem);
+        }
+
+        .match-schedule-mode-switch {
+            display: flex;
+            width: 100%;
+        }
+
+        .match-schedule-mode-switch .btn {
+            min-height: 44px;
+            flex: 1 1 0;
+        }
+
+        .match-schedule-bulk-selection {
+            grid-template-columns: 1fr 1fr;
+        }
+
+        .match-schedule-bulk-selection strong {
+            grid-column: 1 / -1;
+        }
+
+        .match-schedule-bulk-summary {
+            align-items: stretch;
+            flex-direction: column;
+        }
+
+        .match-schedule-bulk-summary .btn {
+            width: 100%;
+        }
+
         .round-delete-summary {
             grid-template-columns: repeat(2, minmax(0, 1fr));
         }
@@ -156,6 +805,16 @@
                 flex: 1 1 calc(50% - 4px);
             }
     }
+
+    @@media (prefers-reduced-motion: reduce) {
+        .match-schedule-modal *,
+        .match-schedule-modal *::before,
+        .match-schedule-modal *::after {
+            transition-duration: .01ms !important;
+            animation-duration: .01ms !important;
+            animation-iteration-count: 1 !important;
+        }
+    }
 </style>
 
 <div class="container-fluid" id="pageRoot" data-tournament-id="@tid">
@@ -170,6 +829,9 @@
         <div class="d-flex flex-wrap round-page-toolbar">
             <button class="btn btn-sm btn-primary shadow-sm" type="button" id="btnOpenCreate">
                 <i class="fas fa-plus fa-sm text-white-50"></i> Tạo vòng đấu
+            </button>
+            <button class="btn btn-sm btn-outline-primary" type="button" id="btnOpenMatchSchedule">
+                <i class="fas fa-calendar-alt"></i> Lịch đấu &amp; trọng tài
             </button>
             <a class="btn btn-sm btn-outline-info" href="@bracketUrl">
                 <i class="fas fa-sitemap"></i> Xem sơ đồ
@@ -315,15 +977,265 @@
     </div>
 </div>
 
+<!-- Modal quản lý lịch thi đấu và trọng tài của toàn giải -->
+<div class="modal fade match-schedule-modal" id="modalMatchSchedule" tabindex="-1" role="dialog" aria-labelledby="matchScheduleTitle" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="matchScheduleTitle">Lịch thi đấu &amp; trọng tài</h5>
+                    <div class="match-schedule-subtitle">
+                        Chọn một trận bất kỳ trong giải để cập nhật giờ thi đấu, sân, địa chỉ và trọng tài.
+                    </div>
+                    <div class="match-schedule-mode-switch" role="group" aria-label="Chế độ cập nhật lịch thi đấu">
+                        <button class="btn is-active" type="button" id="btnScheduleModeSingle" aria-pressed="true">
+                            <i class="fas fa-edit mr-1" aria-hidden="true"></i>Sửa từng trận
+                        </button>
+                        <button class="btn" type="button" id="btnScheduleModeBulk" aria-pressed="false">
+                            <i class="fas fa-layer-group mr-1" aria-hidden="true"></i>Cập nhật hàng loạt
+                        </button>
+                    </div>
+                </div>
+                <button class="close" type="button" data-dismiss="modal" aria-label="Đóng">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+
+            <div class="modal-body p-0">
+                <div class="match-schedule-loading" id="matchScheduleLoading" role="status" aria-live="polite">
+                    <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                    <strong>Đang tải các trận trong giải...</strong>
+                </div>
+
+                <div class="match-schedule-empty d-none" id="matchScheduleEmpty">
+                    <i class="far fa-calendar-times" aria-hidden="true"></i>
+                    <strong>Giải chưa có trận đấu</strong>
+                    <span>Hãy tạo bảng và trận đấu trước khi cấu hình lịch thi đấu.</span>
+                </div>
+
+                <div class="match-schedule-workspace d-none" id="matchScheduleWorkspace">
+                    <aside class="match-schedule-sidebar" aria-label="Danh sách trận đấu">
+                        <div class="match-schedule-sidebar-head">
+                            <div class="match-schedule-search">
+                                <i class="fas fa-search" aria-hidden="true"></i>
+                                <label class="sr-only" for="matchScheduleSearch">Tìm trận đấu</label>
+                                <input class="form-control" id="matchScheduleSearch" type="search" autocomplete="off"
+                                       placeholder="Tìm mã trận, đội, vòng, bảng..." />
+                            </div>
+                            <div class="match-schedule-list-meta">
+                                <span id="matchScheduleCount">0 trận</span>
+                                <span id="matchScheduleSummary"></span>
+                            </div>
+                            <div class="match-schedule-bulk-selection d-none" id="matchScheduleBulkSelection">
+                                <strong id="bulkSelectedMatchCount">Đã chọn 0 trận</strong>
+                                <button class="btn btn-outline-primary" type="button" id="btnBulkSelectVisible">
+                                    Chọn đang hiển thị
+                                </button>
+                                <button class="btn btn-light" type="button" id="btnBulkClearSelection">
+                                    Bỏ chọn
+                                </button>
+                            </div>
+                        </div>
+                        <div class="match-schedule-list" id="matchScheduleList"></div>
+                    </aside>
+
+                    <section class="match-schedule-editor" aria-label="Chỉnh sửa lịch trận đấu">
+                        <div class="match-schedule-no-selection" id="matchScheduleNoSelection">
+                            <i class="fas fa-hand-pointer" aria-hidden="true"></i>
+                            <strong>Chọn một trận để chỉnh sửa</strong>
+                            <span>Thông tin của trận sẽ hiển thị tại khu vực này.</span>
+                        </div>
+
+                        <form class="match-schedule-form d-none" id="matchScheduleForm">
+                            <input type="hidden" id="scheduleMatchId" />
+                            <input type="hidden" id="scheduleGroupId" />
+
+                            <div class="match-schedule-summary">
+                                <div>
+                                    <div class="match-schedule-summary-kicker" id="scheduleMatchContext">Trận đấu</div>
+                                    <h6 id="scheduleMatchTeams">—</h6>
+                                    <small id="scheduleMatchState">—</small>
+                                </div>
+                                <div class="match-schedule-score" id="scheduleMatchScore" aria-label="Tỷ số hiện tại">0 – 0</div>
+                            </div>
+
+                            <div class="alert alert-danger d-none" id="matchScheduleFormErr" role="alert" aria-live="assertive"></div>
+
+                            <div class="match-schedule-form-grid">
+                                <div class="form-group">
+                                    <label for="scheduleStartDate">Ngày thi đấu *</label>
+                                    <input class="form-control" id="scheduleStartDate" type="date" required />
+                                </div>
+                                <div class="form-group">
+                                    <label for="scheduleStartTime">Giờ bắt đầu *</label>
+                                    <input class="form-control" id="scheduleStartTime" type="time" step="60" required />
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="scheduleCourtText">Sân thi đấu</label>
+                                <input class="form-control" id="scheduleCourtText" maxlength="250"
+                                       placeholder="Ví dụ: Cụm 8 sân - Sân số 5" />
+                            </div>
+
+                            <div class="form-group">
+                                <label for="scheduleAddressText">Địa chỉ</label>
+                                <textarea class="form-control" id="scheduleAddressText" maxlength="500"
+                                          placeholder="Nhập địa chỉ thi đấu đầy đủ"></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="scheduleRefereeUserId">Trọng tài</label>
+                                <select class="form-control" id="scheduleRefereeUserId"></select>
+                                <div class="match-schedule-referee-note">
+                                    <i class="fas fa-shield-alt" aria-hidden="true"></i>
+                                    <span>Chỉ hiển thị trọng tài đã xác minh và có tài khoản đang hoạt động.</span>
+                                </div>
+                            </div>
+
+                            <div class="match-schedule-form-actions">
+                                <div class="match-schedule-status" id="matchScheduleSaveStatus" role="status" aria-live="polite"></div>
+                                <button class="btn btn-light" type="button" data-dismiss="modal">Đóng</button>
+                                <button class="btn btn-primary" type="submit" id="btnSaveMatchSchedule">
+                                    <i class="fas fa-save mr-1" aria-hidden="true"></i>Lưu thay đổi
+                                </button>
+                            </div>
+                        </form>
+
+                        <form class="match-schedule-bulk-form d-none" id="bulkMatchScheduleForm">
+                            <div class="match-schedule-bulk-summary">
+                                <div>
+                                    <strong id="bulkScheduleTitle">Cập nhật cùng lúc nhiều trận</strong>
+                                    <span>Chọn trận bên trái, sau đó bật đúng những thông tin cần ghi đè.</span>
+                                </div>
+                                <button class="btn btn-outline-primary" type="button" id="btnBulkCopyCurrent">
+                                    <i class="far fa-copy mr-1" aria-hidden="true"></i>
+                                    <span id="bulkCopyCurrentText">Dùng dữ liệu trận đang mở</span>
+                                </button>
+                            </div>
+
+                            <div class="alert alert-info py-2" role="note">
+                                <i class="fas fa-info-circle mr-1" aria-hidden="true"></i>
+                                Trường không được bật sẽ giữ nguyên dữ liệu riêng của từng trận.
+                            </div>
+                            <div class="alert alert-danger d-none" id="bulkScheduleFormErr" role="alert" aria-live="assertive"></div>
+
+                            <div class="match-schedule-bulk-all custom-control custom-checkbox">
+                                <input class="custom-control-input" id="bulkUseAllFields" type="checkbox" />
+                                <label class="custom-control-label font-weight-bold" for="bulkUseAllFields">
+                                    Cập nhật full: giờ đấu, sân, địa chỉ và trọng tài
+                                </label>
+                            </div>
+
+                            <fieldset class="match-schedule-bulk-field" id="bulkStartAtField">
+                                <div class="match-schedule-bulk-field-head">
+                                    <strong>Ngày và giờ thi đấu</strong>
+                                    <div class="custom-control custom-checkbox">
+                                        <input class="custom-control-input bulk-field-toggle" id="bulkUseStartAt" type="checkbox"
+                                               data-controls="bulkStartDate,bulkStartTime" />
+                                        <label class="custom-control-label" for="bulkUseStartAt">Ghi đè</label>
+                                    </div>
+                                </div>
+                                <div class="match-schedule-form-grid">
+                                    <div>
+                                        <label class="sr-only" for="bulkStartDate">Ngày thi đấu áp dụng hàng loạt</label>
+                                        <input class="form-control" id="bulkStartDate" type="date" disabled />
+                                    </div>
+                                    <div>
+                                        <label class="sr-only" for="bulkStartTime">Giờ thi đấu áp dụng hàng loạt</label>
+                                        <input class="form-control" id="bulkStartTime" type="time" step="60" disabled />
+                                    </div>
+                                </div>
+                            </fieldset>
+
+                            <fieldset class="match-schedule-bulk-field" id="bulkCourtField">
+                                <div class="match-schedule-bulk-field-head">
+                                    <strong>Sân thi đấu</strong>
+                                    <div class="custom-control custom-checkbox">
+                                        <input class="custom-control-input bulk-field-toggle" id="bulkUseCourt" type="checkbox"
+                                               data-controls="bulkCourtText" />
+                                        <label class="custom-control-label" for="bulkUseCourt">Ghi đè</label>
+                                    </div>
+                                </div>
+                                <label class="sr-only" for="bulkCourtText">Sân thi đấu áp dụng hàng loạt</label>
+                                <input class="form-control" id="bulkCourtText" maxlength="250" disabled
+                                       placeholder="Ví dụ: Cụm 8 sân - Sân số 5" />
+                                <small class="match-schedule-bulk-field-help">Để trống sẽ xóa sân hiện tại của các trận đã chọn.</small>
+                            </fieldset>
+
+                            <fieldset class="match-schedule-bulk-field" id="bulkAddressField">
+                                <div class="match-schedule-bulk-field-head">
+                                    <strong>Địa chỉ</strong>
+                                    <div class="custom-control custom-checkbox">
+                                        <input class="custom-control-input bulk-field-toggle" id="bulkUseAddress" type="checkbox"
+                                               data-controls="bulkAddressText" />
+                                        <label class="custom-control-label" for="bulkUseAddress">Ghi đè</label>
+                                    </div>
+                                </div>
+                                <label class="sr-only" for="bulkAddressText">Địa chỉ áp dụng hàng loạt</label>
+                                <textarea class="form-control" id="bulkAddressText" maxlength="500" disabled
+                                          placeholder="Nhập địa chỉ thi đấu đầy đủ"></textarea>
+                                <small class="match-schedule-bulk-field-help">Để trống sẽ xóa địa chỉ hiện tại của các trận đã chọn.</small>
+                            </fieldset>
+
+                            <fieldset class="match-schedule-bulk-field" id="bulkRefereeField">
+                                <div class="match-schedule-bulk-field-head">
+                                    <strong>Trọng tài</strong>
+                                    <div class="custom-control custom-checkbox">
+                                        <input class="custom-control-input bulk-field-toggle" id="bulkUseReferee" type="checkbox"
+                                               data-controls="bulkRefereeUserId" />
+                                        <label class="custom-control-label" for="bulkUseReferee">Ghi đè</label>
+                                    </div>
+                                </div>
+                                <label class="sr-only" for="bulkRefereeUserId">Trọng tài áp dụng hàng loạt</label>
+                                <select class="form-control" id="bulkRefereeUserId" disabled></select>
+                                <small class="match-schedule-bulk-field-help">Áp dụng cùng một trọng tài đã xác minh cho các trận được chọn.</small>
+                            </fieldset>
+
+                            <div class="match-schedule-bulk-confirm custom-control custom-checkbox">
+                                <input class="custom-control-input" id="bulkScheduleConfirm" type="checkbox" />
+                                <label class="custom-control-label" id="bulkScheduleConfirmLabel" for="bulkScheduleConfirm">
+                                    Tôi xác nhận cập nhật các trận đã chọn.
+                                </label>
+                            </div>
+
+                            <div class="match-schedule-form-actions">
+                                <div class="match-schedule-status" id="bulkScheduleStatus" role="status" aria-live="polite"></div>
+                                <button class="btn btn-light" type="button" data-dismiss="modal">Đóng</button>
+                                <button class="btn btn-primary" type="submit" id="btnSaveBulkSchedule">
+                                    <i class="fas fa-layer-group mr-1" aria-hidden="true"></i>Áp dụng hàng loạt
+                                </button>
+                            </div>
+                        </form>
+                    </section>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>window.HanakaApiLoading?.installAxios(window.axios);</script>
+    <script src="~/js/public-realtime.js" asp-append-version="true"></script>
     <script>
         (() => {
           const $id = (id) => document.getElementById(id);
           const root = $id("pageRoot");
           const TOURNAMENT_ID = Number(root?.dataset?.tournamentId || 0);
           const API = `/api/admin/tournaments/${TOURNAMENT_ID}/round-maps`;
+          const MATCH_SCHEDULE_API = `/api/admin/tournaments/${TOURNAMENT_ID}/match-schedules`;
+          const BULK_MATCH_SCHEDULE_API = `/api/admin/tournaments/${TOURNAMENT_ID}/match-schedules/bulk`;
+          const REFEREE_LIST_API = `/api/admin/referees?verified=TRUE&page=1&pageSize=100`;
           let deleteRoundSummary = null;
+          let matchScheduleItems = [];
+          let verifiedReferees = [];
+          let selectedScheduleMatchId = null;
+          let matchScheduleQuery = "";
+          let scheduleEditorMode = "single";
+          const bulkSelectedMatchIds = new Set();
+          let realtimeScheduleTimer = null;
+          let removeRealtimeListener = null;
 
           const parseDateTimeValue = (value) => {
             if(!value) return null;
@@ -368,6 +1280,12 @@
             return `${dd}/${mm}/${yyyy} ${hh}:${mi}`;
           };
 
+          const formatDateInputValue = (date) =>
+            `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+
+          const formatTimeInputValue = (date) =>
+            `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+
           const esc = (s) => String(s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;");
           const escAttr = (s) => esc(s).replaceAll('"',"&quot;").replaceAll("'","&#39;");
 
@@ -402,6 +1320,501 @@
             const box = $id("formErr");
             box.classList.add("d-none");
             box.textContent = "";
+          }
+
+          function normalizeSearchText(value){
+            return String(value || "")
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/đ/g, "d")
+              .replace(/Đ/g, "D")
+              .toLowerCase()
+              .trim();
+          }
+
+          function showMatchScheduleError(message){
+            const box = $id("matchScheduleFormErr");
+            box.textContent = message || "Không thể lưu thông tin trận đấu.";
+            box.classList.remove("d-none");
+          }
+
+          function hideMatchScheduleError(){
+            const box = $id("matchScheduleFormErr");
+            box.classList.add("d-none");
+            box.textContent = "";
+          }
+
+          function showBulkScheduleError(message){
+            const box = $id("bulkScheduleFormErr");
+            box.textContent = message || "Không thể cập nhật hàng loạt.";
+            box.classList.remove("d-none");
+          }
+
+          function hideBulkScheduleError(){
+            const box = $id("bulkScheduleFormErr");
+            box.classList.add("d-none");
+            box.textContent = "";
+          }
+
+          function setMatchScheduleLoading(isLoading, message){
+            const loading = $id("matchScheduleLoading");
+            if(isLoading){
+              loading.innerHTML = `
+                <i class="fas fa-spinner fa-spin" aria-hidden="true"></i>
+                <strong>${esc(message || "Đang tải các trận trong giải...")}</strong>`;
+              loading.classList.remove("d-none");
+            }else{
+              loading.classList.add("d-none");
+            }
+          }
+
+          function showMatchScheduleLoadError(message){
+            const loading = $id("matchScheduleLoading");
+            loading.innerHTML = `
+              <i class="fas fa-exclamation-circle text-danger" aria-hidden="true"></i>
+              <strong>${esc(message || "Không thể tải danh sách trận đấu.")}</strong>
+              <button class="btn btn-sm btn-outline-primary mt-2" type="button" id="btnRetryMatchSchedule">
+                <i class="fas fa-redo mr-1" aria-hidden="true"></i>Thử lại
+              </button>`;
+            loading.classList.remove("d-none");
+            $id("btnRetryMatchSchedule")?.addEventListener("click", loadMatchScheduleEditor);
+          }
+
+          function getSelectedScheduleMatch(){
+            return matchScheduleItems.find(x => Number(x.matchId) === Number(selectedScheduleMatchId)) || null;
+          }
+
+          function getVisibleScheduleItems(){
+            const query = normalizeSearchText(matchScheduleQuery);
+            if(!query) return matchScheduleItems;
+
+            return matchScheduleItems.filter(item => normalizeSearchText([
+              item.matchId,
+              `tran ${item.matchId}`,
+              item.roundKey,
+              item.roundLabel,
+              item.groupName,
+              item.team1Text,
+              item.team2Text,
+              item.courtText,
+              item.addressText,
+              item.refereeName,
+              item.refereePhone
+            ].filter(Boolean).join(" ")).includes(query));
+          }
+
+          function scheduleItemHtml(item){
+            const matchId = Number(item.matchId || 0);
+            const isBulkMode = scheduleEditorMode === "bulk";
+            const isActive = !isBulkMode && matchId === Number(selectedScheduleMatchId);
+            const isBulkSelected = isBulkMode && bulkSelectedMatchIds.has(matchId);
+            const context = [item.roundLabel || item.roundKey, item.groupName].filter(Boolean).join(" · ");
+            const schedule = item.startAt ? fmt(item.startAt) : "Chưa xếp lịch";
+            const venue = [item.courtText, item.addressText].filter(Boolean).join(" · ") || "Chưa có sân / địa chỉ";
+            const referee = item.refereeName || "Chưa phân công trọng tài";
+
+            return `
+              <button class="match-schedule-item${isActive ? " is-active" : ""}${isBulkSelected ? " is-bulk-selected" : ""}" type="button"
+                      data-match-id="${matchId}" aria-pressed="${isActive || isBulkSelected ? "true" : "false"}">
+                <span class="match-schedule-item-top">
+                  <strong class="match-schedule-item-id">
+                    ${isBulkMode ? `<span class="match-schedule-bulk-check" aria-hidden="true"><i class="fas fa-check"></i></span>` : ""}
+                    Trận #${matchId}
+                  </strong>
+                  <small class="match-schedule-item-round">${esc(context || "Trận đấu")}</small>
+                </span>
+                <span class="match-schedule-item-teams">${esc(item.team1Text || "Chưa xác định")} <b>vs</b> ${esc(item.team2Text || "Chưa xác định")}</span>
+                <span class="match-schedule-item-line ${item.startAt ? "" : "text-warning"}">
+                  <i class="far fa-clock" aria-hidden="true"></i>${esc(schedule)}
+                </span>
+                <span class="match-schedule-item-line">
+                  <i class="fas fa-map-marker-alt" aria-hidden="true"></i>${esc(venue)}
+                </span>
+                <span class="match-schedule-item-line">
+                  <i class="fas fa-user-shield" aria-hidden="true"></i>${esc(referee)}
+                </span>
+              </button>`;
+          }
+
+          function renderMatchScheduleList(){
+            const visibleItems = getVisibleScheduleItems();
+            const total = matchScheduleItems.length;
+            $id("matchScheduleCount").textContent = matchScheduleQuery
+              ? `${visibleItems.length}/${total} trận`
+              : `${total} trận`;
+
+            const list = $id("matchScheduleList");
+            if(!visibleItems.length){
+              list.innerHTML = `
+                <div class="match-schedule-list-empty">
+                  <i class="fas fa-search" aria-hidden="true"></i>
+                  <strong>Không tìm thấy trận phù hợp</strong>
+                  <span>Thử tìm theo mã trận, tên đội, vòng hoặc trọng tài.</span>
+                </div>`;
+              updateBulkSelectionState();
+              return;
+            }
+
+            list.innerHTML = visibleItems.map(scheduleItemHtml).join("");
+            updateBulkSelectionState();
+          }
+
+          function updateBulkSelectionState(){
+            const count = bulkSelectedMatchIds.size;
+            const visibleCount = getVisibleScheduleItems().length;
+            $id("bulkSelectedMatchCount").textContent = `Đã chọn ${count} trận`;
+            $id("bulkScheduleTitle").textContent = count
+              ? `Sẽ cập nhật ${count} trận đã chọn`
+              : "Cập nhật cùng lúc nhiều trận";
+            $id("bulkScheduleConfirmLabel").textContent = count
+              ? `Tôi xác nhận ghi đè các trường đã bật trên ${count} trận.`
+              : "Hãy chọn trận trước khi xác nhận cập nhật.";
+            $id("btnBulkSelectVisible").textContent = matchScheduleQuery
+              ? `Chọn ${visibleCount} trận lọc`
+              : `Chọn tất cả ${visibleCount}`;
+            $id("btnSaveBulkSchedule").innerHTML = `
+              <i class="fas fa-layer-group mr-1" aria-hidden="true"></i>Áp dụng cho ${count} trận`;
+          }
+
+          function updateMatchScheduleStats(){
+            const scheduledCount = matchScheduleItems.filter(x => Boolean(x.startAt)).length;
+            const assignedCount = matchScheduleItems.filter(x => Boolean(x.refereeUserId)).length;
+            $id("matchScheduleSummary").textContent = `${scheduledCount} có lịch · ${assignedCount} có trọng tài`;
+          }
+
+          function fillRefereeOptions(match){
+            const select = $id("scheduleRefereeUserId");
+            const selectedId = Number(match?.refereeUserId || 0);
+            let options = [...verifiedReferees];
+
+            if(selectedId && !options.some(x => Number(x.userId) === selectedId)){
+              options.unshift({
+                userId: selectedId,
+                fullName: match.refereeName || `Trọng tài #${selectedId}`,
+                phone: match.refereePhone || ""
+              });
+            }
+
+            options.sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || ""), "vi"));
+            select.innerHTML = [
+              `<option value="">${match?.isGeneratedMatch ? "Chưa phân công" : "Chọn trọng tài"}</option>`,
+              ...options.map(item => {
+                const userId = Number(item.userId || 0);
+                const label = [item.fullName || `Trọng tài #${userId}`, item.phone].filter(Boolean).join(" · ");
+                return `<option value="${userId}"${userId === selectedId ? " selected" : ""}>${esc(label)}</option>`;
+              })
+            ].join("");
+          }
+
+          function fillBulkRefereeOptions(selectedId = 0, currentMatch = null){
+            const select = $id("bulkRefereeUserId");
+            let options = [...verifiedReferees];
+            const normalizedSelectedId = Number(selectedId || 0);
+
+            if(normalizedSelectedId && !options.some(x => Number(x.userId) === normalizedSelectedId)){
+              options.unshift({
+                userId: normalizedSelectedId,
+                fullName: currentMatch?.refereeName || `Trọng tài #${normalizedSelectedId}`,
+                phone: currentMatch?.refereePhone || ""
+              });
+            }
+
+            options.sort((a, b) => String(a.fullName || "").localeCompare(String(b.fullName || ""), "vi"));
+            select.innerHTML = [
+              `<option value="">Chọn trọng tài áp dụng chung</option>`,
+              ...options.map(item => {
+                const userId = Number(item.userId || 0);
+                const label = [item.fullName || `Trọng tài #${userId}`, item.phone].filter(Boolean).join(" · ");
+                return `<option value="${userId}"${userId === normalizedSelectedId ? " selected" : ""}>${esc(label)}</option>`;
+              })
+            ].join("");
+          }
+
+          function updateBulkFieldState(toggle){
+            const controls = String(toggle.dataset.controls || "")
+              .split(",")
+              .map(x => x.trim())
+              .filter(Boolean);
+            controls.forEach(id => {
+              const control = $id(id);
+              if(control) control.disabled = !toggle.checked;
+            });
+
+            toggle.closest(".match-schedule-bulk-field")?.classList.toggle("is-enabled", toggle.checked);
+
+            const toggles = Array.from(document.querySelectorAll(".bulk-field-toggle"));
+            const checkedCount = toggles.filter(x => x.checked).length;
+            const allToggle = $id("bulkUseAllFields");
+            allToggle.checked = checkedCount === toggles.length;
+            allToggle.indeterminate = checkedCount > 0 && checkedCount < toggles.length;
+          }
+
+          function setBulkFieldEnabled(toggleId, enabled){
+            const toggle = $id(toggleId);
+            toggle.checked = Boolean(enabled);
+            updateBulkFieldState(toggle);
+          }
+
+          function resetBulkScheduleForm(){
+            ["bulkStartDate", "bulkStartTime", "bulkCourtText", "bulkAddressText"].forEach(id => {
+              $id(id).value = "";
+            });
+            fillBulkRefereeOptions();
+            document.querySelectorAll(".bulk-field-toggle").forEach(toggle => {
+              toggle.checked = false;
+              updateBulkFieldState(toggle);
+            });
+            $id("bulkUseAllFields").checked = false;
+            $id("bulkUseAllFields").indeterminate = false;
+            $id("bulkScheduleConfirm").checked = false;
+            $id("bulkScheduleStatus").textContent = "";
+            hideBulkScheduleError();
+            updateBulkSelectionState();
+          }
+
+          function copyCurrentMatchToBulkForm(){
+            const match = getSelectedScheduleMatch();
+            if(!match){
+              showBulkScheduleError("Chưa có trận nguồn để sao chép dữ liệu.");
+              return;
+            }
+
+            hideBulkScheduleError();
+            const startAt = parseDateTimeValue(match.startAt);
+            $id("bulkStartDate").value = startAt ? formatDateInputValue(startAt) : "";
+            $id("bulkStartTime").value = startAt ? formatTimeInputValue(startAt) : "";
+            $id("bulkCourtText").value = match.courtText || "";
+            $id("bulkAddressText").value = match.addressText || "";
+            fillBulkRefereeOptions(Number(match.refereeUserId || 0), match);
+
+            setBulkFieldEnabled("bulkUseStartAt", Boolean(startAt));
+            setBulkFieldEnabled("bulkUseCourt", true);
+            setBulkFieldEnabled("bulkUseAddress", true);
+            setBulkFieldEnabled("bulkUseReferee", Boolean(match.refereeUserId));
+            $id("bulkScheduleConfirm").checked = false;
+            $id("bulkScheduleStatus").textContent = startAt
+              ? `Đã lấy dữ liệu từ trận #${match.matchId}.`
+              : `Đã lấy sân và địa chỉ từ trận #${match.matchId}; trận nguồn chưa có giờ đấu.`;
+          }
+
+          function setScheduleEditorMode(mode){
+            scheduleEditorMode = mode === "bulk" ? "bulk" : "single";
+            const isBulk = scheduleEditorMode === "bulk";
+            const singleButton = $id("btnScheduleModeSingle");
+            const bulkButton = $id("btnScheduleModeBulk");
+
+            singleButton.classList.toggle("is-active", !isBulk);
+            singleButton.setAttribute("aria-pressed", String(!isBulk));
+            bulkButton.classList.toggle("is-active", isBulk);
+            bulkButton.setAttribute("aria-pressed", String(isBulk));
+            $id("matchScheduleBulkSelection").classList.toggle("d-none", !isBulk);
+            $id("bulkMatchScheduleForm").classList.toggle("d-none", !isBulk);
+            $id("matchScheduleForm").classList.toggle("d-none", isBulk || !getSelectedScheduleMatch());
+            $id("matchScheduleNoSelection").classList.toggle("d-none", isBulk || Boolean(getSelectedScheduleMatch()));
+
+            hideMatchScheduleError();
+            hideBulkScheduleError();
+            $id("matchScheduleSaveStatus").textContent = "";
+            $id("bulkScheduleStatus").textContent = "";
+
+            const currentMatch = getSelectedScheduleMatch();
+            $id("bulkCopyCurrentText").textContent = currentMatch
+              ? `Dùng dữ liệu trận #${currentMatch.matchId}`
+              : "Dùng dữ liệu trận đang mở";
+            renderMatchScheduleList();
+
+            window.setTimeout(() => {
+              (isBulk ? $id("btnBulkSelectVisible") : $id("scheduleStartDate"))?.focus();
+            }, 0);
+          }
+
+          function setBulkScheduleSaving(isSaving){
+            const form = $id("bulkMatchScheduleForm");
+            const button = $id("btnSaveBulkSchedule");
+            form.querySelectorAll("input, textarea, select, button").forEach(control => {
+              control.disabled = isSaving;
+            });
+            ["btnScheduleModeSingle", "btnScheduleModeBulk", "btnBulkSelectVisible", "btnBulkClearSelection", "matchScheduleSearch"]
+              .forEach(id => { $id(id).disabled = isSaving; });
+            document.querySelectorAll("#matchScheduleList .match-schedule-item").forEach(buttonItem => {
+              buttonItem.disabled = isSaving;
+            });
+
+            if(isSaving){
+              button.innerHTML = `<i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>Đang cập nhật...`;
+            }else{
+              document.querySelectorAll(".bulk-field-toggle").forEach(updateBulkFieldState);
+              updateBulkSelectionState();
+            }
+          }
+
+          function selectScheduleMatch(matchId, options = {}){
+            const match = matchScheduleItems.find(x => Number(x.matchId) === Number(matchId));
+            if(!match) return;
+
+            selectedScheduleMatchId = Number(match.matchId);
+            hideMatchScheduleError();
+            if(!options.preserveStatus) $id("matchScheduleSaveStatus").textContent = "";
+
+            $id("scheduleMatchId").value = String(match.matchId);
+            $id("scheduleGroupId").value = String(match.tournamentRoundGroupId);
+            $id("scheduleMatchContext").textContent = [
+              `Trận #${match.matchId}`,
+              match.roundLabel || match.roundKey,
+              match.groupName
+            ].filter(Boolean).join(" · ");
+            $id("scheduleMatchTeams").textContent = `${match.team1Text || "Chưa xác định"} vs ${match.team2Text || "Chưa xác định"}`;
+            $id("scheduleMatchState").textContent = match.isCompleted ? "Trận đã kết thúc" : "Trận chưa kết thúc";
+            $id("scheduleMatchScore").textContent = `${Number(match.scoreTeam1 || 0)} – ${Number(match.scoreTeam2 || 0)}`;
+
+            const startAt = parseDateTimeValue(match.startAt);
+            $id("scheduleStartDate").value = startAt ? formatDateInputValue(startAt) : "";
+            $id("scheduleStartTime").value = startAt ? formatTimeInputValue(startAt) : "";
+            $id("scheduleCourtText").value = match.courtText || "";
+            $id("scheduleAddressText").value = match.addressText || "";
+            fillRefereeOptions(match);
+            $id("bulkCopyCurrentText").textContent = `Dùng dữ liệu trận #${match.matchId}`;
+
+            $id("matchScheduleNoSelection").classList.add("d-none");
+            $id("matchScheduleForm").classList.toggle("d-none", scheduleEditorMode !== "single");
+            renderMatchScheduleList();
+
+            if(options.focusForm){
+              $id("scheduleStartDate").focus();
+            }
+          }
+
+          async function loadMatchScheduleEditor(){
+            setMatchScheduleLoading(true);
+            $id("matchScheduleWorkspace").classList.add("d-none");
+            $id("matchScheduleEmpty").classList.add("d-none");
+            hideMatchScheduleError();
+
+            try{
+              const [scheduleResponse, refereeResponse] = await Promise.all([
+                axios.get(MATCH_SCHEDULE_API),
+                axios.get(REFEREE_LIST_API)
+              ]);
+
+              const scheduleData = scheduleResponse.data || {};
+              matchScheduleItems = Array.isArray(scheduleData.items) ? scheduleData.items : [];
+              verifiedReferees = (refereeResponse.data?.items || []).filter(item =>
+                item?.userId && item?.verified && item?.userIsActive
+              );
+              const availableIds = new Set(matchScheduleItems.map(x => Number(x.matchId)));
+              Array.from(bulkSelectedMatchIds).forEach(id => {
+                if(!availableIds.has(id)) bulkSelectedMatchIds.delete(id);
+              });
+              fillBulkRefereeOptions();
+
+              setMatchScheduleLoading(false);
+              if(!matchScheduleItems.length){
+                selectedScheduleMatchId = null;
+                $id("matchScheduleEmpty").classList.remove("d-none");
+                return;
+              }
+
+              updateMatchScheduleStats();
+              $id("matchScheduleWorkspace").classList.remove("d-none");
+              renderMatchScheduleList();
+
+              const preservedMatch = matchScheduleItems.some(x => Number(x.matchId) === Number(selectedScheduleMatchId));
+              selectScheduleMatch(preservedMatch ? selectedScheduleMatchId : matchScheduleItems[0].matchId);
+            }catch(err){
+              showMatchScheduleLoadError(err?.response?.data?.message || err?.message || "Không thể tải danh sách trận đấu.");
+            }
+          }
+
+          function updateSelectedScheduleRealtimeFields(match){
+            if(!match || Number(match.matchId) !== Number(selectedScheduleMatchId)) return;
+            $id("scheduleMatchContext").textContent = [
+              `Trận #${match.matchId}`,
+              match.roundLabel || match.roundKey,
+              match.groupName
+            ].filter(Boolean).join(" · ");
+            $id("scheduleMatchTeams").textContent = `${match.team1Text || "Chưa xác định"} vs ${match.team2Text || "Chưa xác định"}`;
+            $id("scheduleMatchState").textContent = match.isCompleted ? "Trận đã kết thúc" : "Trận chưa kết thúc";
+            $id("scheduleMatchScore").textContent = `${Number(match.scoreTeam1 || 0)} – ${Number(match.scoreTeam2 || 0)}`;
+          }
+
+          function patchRealtimeScheduleScore(payload){
+            const matchId = Number(payload?.matchId || payload?.MatchId || 0);
+            const match = matchScheduleItems.find(item => Number(item.matchId) === matchId);
+            if(!match) return;
+            match.scoreTeam1 = Number(payload?.scoreTeam1 ?? payload?.ScoreTeam1 ?? 0);
+            match.scoreTeam2 = Number(payload?.scoreTeam2 ?? payload?.ScoreTeam2 ?? 0);
+            match.isCompleted = !!(payload?.isCompleted ?? payload?.IsCompleted);
+            match.winnerRegistrationId = payload?.winnerRegistrationId ?? payload?.WinnerRegistrationId ?? null;
+            match.winnerTeam = payload?.winnerTeam ?? payload?.WinnerTeam ?? null;
+            renderMatchScheduleList();
+            updateMatchScheduleStats();
+            updateSelectedScheduleRealtimeFields(match);
+          }
+
+          function scheduleRealtimeScheduleRefresh(){
+            if(!$("#modalMatchSchedule").hasClass("show")) return;
+            window.clearTimeout(realtimeScheduleTimer);
+            realtimeScheduleTimer = window.setTimeout(async () => {
+              realtimeScheduleTimer = null;
+              try{
+                const response = await axios.get(MATCH_SCHEDULE_API, {
+                  hanakaLoading: "silent"
+                });
+                const items = Array.isArray(response.data?.items) ? response.data.items : [];
+                matchScheduleItems = items;
+                const availableIds = new Set(items.map(item => Number(item.matchId)));
+                Array.from(bulkSelectedMatchIds).forEach(id => {
+                  if(!availableIds.has(id)) bulkSelectedMatchIds.delete(id);
+                });
+                if(selectedScheduleMatchId && !availableIds.has(Number(selectedScheduleMatchId))){
+                  selectedScheduleMatchId = items[0]?.matchId || null;
+                }
+                updateMatchScheduleStats();
+                renderMatchScheduleList();
+                updateSelectedScheduleRealtimeFields(getSelectedScheduleMatch());
+              }catch(_error){
+                // Keep the current editor values; the next realtime event or manual reload will retry.
+              }
+            }, 180);
+          }
+
+          function initRealtime(){
+            const realtime = window.HanakaPublicRealtime;
+            if(!realtime || TOURNAMENT_ID <= 0) return;
+            realtime.subscribeTournament(TOURNAMENT_ID);
+            removeRealtimeListener = realtime.on(event => {
+              const type = String(event?.type || "");
+              if(type === "__public_socket_open__" && event?.reconnected){
+                scheduleRealtimeScheduleRefresh();
+                return;
+              }
+              const payload = event?.payload || {};
+              if(Number(payload.tournamentId || payload.TournamentId || 0) !== TOURNAMENT_ID) return;
+              if(type === "tournament.match.score.updated"){
+                patchRealtimeScheduleScore(payload);
+              }else if(type === "tournament.bracket.updated"){
+                scheduleRealtimeScheduleRefresh();
+              }
+            });
+
+            window.addEventListener("pagehide", event => {
+              if(event.persisted) return;
+              window.clearTimeout(realtimeScheduleTimer);
+              removeRealtimeListener?.();
+              removeRealtimeListener = null;
+              realtime.unsubscribeTournament(TOURNAMENT_ID);
+            }, { once: true });
+          }
+
+          function setMatchScheduleSaving(isSaving){
+            const form = $id("matchScheduleForm");
+            const button = $id("btnSaveMatchSchedule");
+            form.querySelectorAll("input, textarea, select, button").forEach(control => {
+              control.disabled = isSaving;
+            });
+            button.innerHTML = isSaving
+              ? `<i class="fas fa-spinner fa-spin mr-1" aria-hidden="true"></i>Đang lưu...`
+              : `<i class="fas fa-save mr-1" aria-hidden="true"></i>Lưu thay đổi`;
           }
 
           function parseTrailingNumber(value){
@@ -602,6 +2015,254 @@
           }
 
           $id("btnOpenCreate").addEventListener("click", openCreate);
+          $id("btnOpenMatchSchedule").addEventListener("click", () => {
+            matchScheduleQuery = "";
+            $id("matchScheduleSearch").value = "";
+            $id("matchScheduleSaveStatus").textContent = "";
+            bulkSelectedMatchIds.clear();
+            resetBulkScheduleForm();
+            setScheduleEditorMode("single");
+            $("#modalMatchSchedule").modal("show");
+            loadMatchScheduleEditor();
+          });
+
+          $id("btnScheduleModeSingle").addEventListener("click", () => setScheduleEditorMode("single"));
+          $id("btnScheduleModeBulk").addEventListener("click", () => setScheduleEditorMode("bulk"));
+
+          $id("matchScheduleSearch").addEventListener("input", (event) => {
+            matchScheduleQuery = event.target.value || "";
+            renderMatchScheduleList();
+          });
+
+          $id("matchScheduleList").addEventListener("click", (event) => {
+            const button = event.target.closest(".match-schedule-item");
+            if(!button) return;
+            const matchId = Number(button.dataset.matchId || 0);
+            if(scheduleEditorMode === "bulk"){
+              if(bulkSelectedMatchIds.has(matchId)){
+                bulkSelectedMatchIds.delete(matchId);
+              }else{
+                bulkSelectedMatchIds.add(matchId);
+              }
+              $id("bulkScheduleConfirm").checked = false;
+              $id("bulkScheduleStatus").textContent = "";
+              renderMatchScheduleList();
+              return;
+            }
+
+            selectScheduleMatch(matchId, {
+              focusForm: window.matchMedia("(max-width: 991.98px)").matches
+            });
+          });
+
+          $id("btnBulkSelectVisible").addEventListener("click", () => {
+            getVisibleScheduleItems().forEach(item => bulkSelectedMatchIds.add(Number(item.matchId)));
+            $id("bulkScheduleConfirm").checked = false;
+            $id("bulkScheduleStatus").textContent = "";
+            renderMatchScheduleList();
+          });
+
+          $id("btnBulkClearSelection").addEventListener("click", () => {
+            bulkSelectedMatchIds.clear();
+            $id("bulkScheduleConfirm").checked = false;
+            $id("bulkScheduleStatus").textContent = "";
+            renderMatchScheduleList();
+          });
+
+          document.querySelectorAll(".bulk-field-toggle").forEach(toggle => {
+            toggle.addEventListener("change", () => {
+              updateBulkFieldState(toggle);
+              $id("bulkScheduleConfirm").checked = false;
+              $id("bulkScheduleStatus").textContent = "";
+            });
+          });
+
+          ["bulkStartDate", "bulkStartTime", "bulkCourtText", "bulkAddressText", "bulkRefereeUserId"].forEach(id => {
+            $id(id).addEventListener("input", () => {
+              $id("bulkScheduleConfirm").checked = false;
+              $id("bulkScheduleStatus").textContent = "";
+            });
+          });
+
+          $id("bulkUseAllFields").addEventListener("change", (event) => {
+            const enabled = event.target.checked;
+            document.querySelectorAll(".bulk-field-toggle").forEach(toggle => {
+              toggle.checked = enabled;
+              updateBulkFieldState(toggle);
+            });
+            $id("bulkScheduleConfirm").checked = false;
+            $id("bulkScheduleStatus").textContent = "";
+          });
+
+          $id("btnBulkCopyCurrent").addEventListener("click", copyCurrentMatchToBulkForm);
+
+          $id("matchScheduleForm").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            hideMatchScheduleError();
+            $id("matchScheduleSaveStatus").textContent = "";
+
+            const match = getSelectedScheduleMatch();
+            if(!match){
+              showMatchScheduleError("Vui lòng chọn trận cần chỉnh sửa.");
+              return;
+            }
+
+            const startDate = $id("scheduleStartDate").value;
+            const startTime = $id("scheduleStartTime").value;
+            if(!startDate || !startTime){
+              showMatchScheduleError("Vui lòng nhập đầy đủ ngày và giờ bắt đầu.");
+              (!startDate ? $id("scheduleStartDate") : $id("scheduleStartTime")).focus();
+              return;
+            }
+
+            const refereeUserId = Number($id("scheduleRefereeUserId").value || 0) || null;
+            if(!match.isGeneratedMatch && !refereeUserId){
+              showMatchScheduleError("Trận đấu thủ công bắt buộc phải có trọng tài.");
+              $id("scheduleRefereeUserId").focus();
+              return;
+            }
+            if(match.refereeUserId && !refereeUserId){
+              showMatchScheduleError("Không thể bỏ phân công trọng tài tại đây. Hãy chọn một trọng tài khác.");
+              $id("scheduleRefereeUserId").focus();
+              return;
+            }
+
+            const startAt = `${startDate}T${startTime}:00`;
+            const courtText = $id("scheduleCourtText").value.trim();
+            const addressText = $id("scheduleAddressText").value.trim();
+
+            setMatchScheduleSaving(true);
+            try{
+              await axios.put(
+                `/api/admin/groups/${Number(match.tournamentRoundGroupId)}/matches/${Number(match.matchId)}`,
+                {
+                  startAtSet: true,
+                  startAt,
+                  courtText,
+                  addressText,
+                  refereeUserId
+                }
+              );
+
+              const selectedReferee = verifiedReferees.find(x => Number(x.userId) === refereeUserId);
+              match.startAt = startAt;
+              match.courtText = courtText || null;
+              match.addressText = addressText || null;
+              match.refereeUserId = refereeUserId;
+              match.refereeName = refereeUserId
+                ? (selectedReferee?.fullName || match.refereeName || `Trọng tài #${refereeUserId}`)
+                : null;
+              match.refereePhone = refereeUserId
+                ? (selectedReferee?.phone || match.refereePhone || null)
+                : null;
+
+              updateMatchScheduleStats();
+              $id("matchScheduleSaveStatus").textContent = `Đã lưu trận #${match.matchId} · ${fmt(startAt)}`;
+              selectScheduleMatch(match.matchId, { preserveStatus: true });
+            }catch(err){
+              showMatchScheduleError(err?.response?.data?.message || err?.message || "Lưu thông tin trận đấu thất bại.");
+            }finally{
+              setMatchScheduleSaving(false);
+            }
+          });
+
+          $id("bulkMatchScheduleForm").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            hideBulkScheduleError();
+            $id("bulkScheduleStatus").textContent = "";
+
+            const matchIds = Array.from(bulkSelectedMatchIds).sort((a, b) => a - b);
+            if(!matchIds.length){
+              showBulkScheduleError("Hãy chọn ít nhất một trận ở danh sách bên trái.");
+              $id("btnBulkSelectVisible").focus();
+              return;
+            }
+
+            const startAtSet = $id("bulkUseStartAt").checked;
+            const courtTextSet = $id("bulkUseCourt").checked;
+            const addressTextSet = $id("bulkUseAddress").checked;
+            const refereeUserIdSet = $id("bulkUseReferee").checked;
+            if(!startAtSet && !courtTextSet && !addressTextSet && !refereeUserIdSet){
+              showBulkScheduleError("Hãy bật ít nhất một thông tin cần ghi đè.");
+              $id("bulkUseAllFields").focus();
+              return;
+            }
+
+            const startDate = $id("bulkStartDate").value;
+            const startTime = $id("bulkStartTime").value;
+            if(startAtSet && (!startDate || !startTime)){
+              showBulkScheduleError("Vui lòng nhập đầy đủ ngày và giờ áp dụng chung.");
+              (!startDate ? $id("bulkStartDate") : $id("bulkStartTime")).focus();
+              return;
+            }
+
+            const refereeUserId = Number($id("bulkRefereeUserId").value || 0) || null;
+            if(refereeUserIdSet && !refereeUserId){
+              showBulkScheduleError("Vui lòng chọn trọng tài áp dụng chung.");
+              $id("bulkRefereeUserId").focus();
+              return;
+            }
+
+            if(!$id("bulkScheduleConfirm").checked){
+              showBulkScheduleError(`Vui lòng xác nhận trước khi ghi đè dữ liệu của ${matchIds.length} trận.`);
+              $id("bulkScheduleConfirm").focus();
+              return;
+            }
+
+            const startAt = startAtSet ? `${startDate}T${startTime}:00` : null;
+            const courtText = $id("bulkCourtText").value.trim();
+            const addressText = $id("bulkAddressText").value.trim();
+            setBulkScheduleSaving(true);
+
+            try{
+              const response = await axios.put(BULK_MATCH_SCHEDULE_API, {
+                matchIds,
+                startAtSet,
+                startAt,
+                courtTextSet,
+                courtText,
+                addressTextSet,
+                addressText,
+                refereeUserIdSet,
+                refereeUserId
+              });
+
+              const selectedReferee = verifiedReferees.find(x => Number(x.userId) === refereeUserId);
+              matchScheduleItems
+                .filter(match => bulkSelectedMatchIds.has(Number(match.matchId)))
+                .forEach(match => {
+                  if(startAtSet) match.startAt = startAt;
+                  if(courtTextSet) match.courtText = courtText || null;
+                  if(addressTextSet) match.addressText = addressText || null;
+                  if(refereeUserIdSet){
+                    match.refereeUserId = refereeUserId;
+                    match.refereeName = selectedReferee?.fullName || `Trọng tài #${refereeUserId}`;
+                    match.refereePhone = selectedReferee?.phone || null;
+                  }
+                });
+
+              updateMatchScheduleStats();
+              renderMatchScheduleList();
+              $id("bulkScheduleConfirm").checked = false;
+              $id("bulkScheduleStatus").textContent = `Đã cập nhật thành công ${Number(response.data?.updatedCount || matchIds.length)} trận.`;
+            }catch(err){
+              showBulkScheduleError(err?.response?.data?.message || err?.message || "Cập nhật hàng loạt thất bại.");
+            }finally{
+              setBulkScheduleSaving(false);
+            }
+          });
+
+          $("#modalMatchSchedule").on("shown.bs.modal", () => {
+            $id("matchScheduleSearch").focus();
+          });
+
+          $("#modalMatchSchedule").on("hidden.bs.modal", () => {
+            hideMatchScheduleError();
+            hideBulkScheduleError();
+            $id("matchScheduleSaveStatus").textContent = "";
+            $id("bulkScheduleStatus").textContent = "";
+          });
+
           $id("body").addEventListener("click", (event) => {
             const editBtn = event.target.closest(".js-edit-round");
             if(editBtn){
@@ -727,7 +2388,10 @@
             }
           });
 
-          document.addEventListener("DOMContentLoaded", load);
+          document.addEventListener("DOMContentLoaded", () => {
+            initRealtime();
+            load();
+          });
         })();
     </script>
 }

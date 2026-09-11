@@ -1338,6 +1338,12 @@
 
     function render() {
         if (!state.graph) return;
+        document.getElementById("bteMinimumTeams").value = state.graph.minimumTeams;
+        document.getElementById("bteSeedCapacity").value = state.graph.seedCapacity;
+        document.getElementById("bteSeedingMethod").value = state.graph.defaultSeedingMethod;
+        document.getElementById("bteAllowBye").checked = state.graph.allowBye;
+        root.querySelectorAll("[data-version-settings] input, [data-version-settings] select")
+            .forEach(control => control.disabled = state.readOnly);
         roundsHost.innerHTML = state.graph.rounds.map(renderRound).join("");
         applyAdvanceAuditState();
         syncFollowingActions();
@@ -1356,6 +1362,12 @@
 
     function collectGraph() {
         if (!state.graph) return null;
+        if (!state.readOnly) {
+            state.graph.minimumTeams = readNumber(document.getElementById("bteMinimumTeams"));
+            state.graph.seedCapacity = readNumber(document.getElementById("bteSeedCapacity"));
+            state.graph.defaultSeedingMethod = document.getElementById("bteSeedingMethod").value;
+            state.graph.allowBye = document.getElementById("bteAllowBye").checked;
+        }
         state.graph.rounds = [...roundsHost.querySelectorAll(":scope > [data-round-index]")].map((roundEl) => ({
             roundKey: roundEl.querySelector("[data-round-field='roundKey']").value.trim().toUpperCase(),
             roundLabel: roundEl.querySelector("[data-round-field='roundLabel']").value.trim(),

@@ -12,6 +12,7 @@
 
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="~/css/api-loading.css" asp-append-version="true" rel="stylesheet" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -797,6 +798,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="~/js/api-loading.js" asp-append-version="true"></script>
     <script>
         (() => {
             const $id = (id) => document.getElementById(id);
@@ -811,6 +813,21 @@
                 const box = $id("errBox");
                 box.classList.add("d-none");
                 box.textContent = "";
+            }
+
+            function getSafeReturnUrl() {
+                const value = new URLSearchParams(window.location.search).get("returnUrl");
+                if (!value || !value.startsWith("/") || value.startsWith("//") || value.includes("\\")) {
+                    return null;
+                }
+
+                try {
+                    const url = new URL(value, window.location.origin);
+                    if (url.origin !== window.location.origin) return null;
+                    return `${url.pathname}${url.search}${url.hash}`;
+                } catch {
+                    return null;
+                }
             }
 
             $id("togglePassword").addEventListener("click", () => {
@@ -848,7 +865,9 @@
                         rememberMe
                     });
 
-                    window.location.href = res.data?.redirectUrl || "/RefereePortal/Matches";
+                    window.location.href = getSafeReturnUrl()
+                        || res.data?.redirectUrl
+                        || "/RefereePortal/Matches";
                 } catch (err) {
                     showErr(err?.response?.data?.message || err?.message || "Đăng nhập thất bại.");
                 } finally {
