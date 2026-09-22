@@ -5,6 +5,7 @@ namespace HanakaServer.Data;
 
 public partial class PickleballDbContext
 {
+    public DbSet<RelayMatchScore> RelayMatchScores { get; set; }
     public DbSet<RelayTournamentSettings> RelayTournamentSettings { get; set; }
     public DbSet<RelayTeam> RelayTeams { get; set; }
     public DbSet<RelayTeamMember> RelayTeamMembers { get; set; }
@@ -17,6 +18,15 @@ public partial class PickleballDbContext
 
     private static void ConfigureRelay(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<RelayMatchScore>(e =>
+        {
+            e.ToTable("RelayMatchScores", t => t.HasCheckConstraint("CK_RelayMatchScores_Values",
+                "[Part1Team1] >= 0 AND [Part1Team2] >= 0 AND [Part2Team1] >= 0 AND [Part2Team2] >= 0 AND [Part3Team1] >= 0 AND [Part3Team2] >= 0 AND [Version] > 0"));
+            e.HasKey(x => x.MatchId);
+            e.Property(x => x.MatchId).ValueGeneratedNever();
+            e.Property(x => x.Version).IsConcurrencyToken();
+            e.HasOne<TournamentGroupMatch>().WithMany().HasForeignKey(x => x.MatchId).OnDelete(DeleteBehavior.Cascade);
+        });
         modelBuilder.Entity<RelayTeamReserveMember>(e =>
         {
             e.ToTable("RelayTeamReserveMembers", t =>

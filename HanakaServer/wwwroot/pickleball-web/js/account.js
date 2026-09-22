@@ -1,4 +1,11 @@
 (function () {
+    function navigateWeb(url, replace, reload) {
+        if (window.HanakaWebActivity) return window.HanakaWebActivity.navigate(url, {replace: !!replace, reload: !!reload});
+        if (reload) window.location.reload();
+        else if (replace) window.location.replace(url);
+        else window.location.href = url;
+    }
+
     var GENDERS = ["Nam", "Nữ", "Khác"];
     var PROVINCES = [
         "An Giang",
@@ -124,11 +131,11 @@
     }
 
     function safeLocalRedirect(url) {
-        window.location.href = isSafeLocalUrl(url) ? url : "/";
+        navigateWeb(isSafeLocalUrl(url) ? url : "/");
     }
 
     function replaceLocalRedirect(url) {
-        window.location.replace(isSafeLocalUrl(url) ? url : "/");
+        navigateWeb(isSafeLocalUrl(url) ? url : "/", true);
     }
 
     function formatDateDDMMYYYY(value) {
@@ -404,10 +411,10 @@
     async function parseResponsePayload(response) {
         var contentType = response.headers.get("content-type") || "";
         if (contentType.indexOf("application/json") >= 0) {
-            return response.json().catch(function () { return null; });
+            return response.json().catch(function (error) { if (response.ok || error?.name === "AbortError" || error?.name === "TimeoutError") throw error; return null; });
         }
 
-        return response.text().catch(function () { return ""; });
+        return response.text().catch(function (error) { if (response.ok || error?.name === "AbortError" || error?.name === "TimeoutError") throw error; return ""; });
     }
 
     function responseMessage(payload, fallback) {
@@ -795,6 +802,8 @@
         }
 
         function render() {
+            window.HanakaWebActivity?.setRegionBusy(root, qs("form", root) || root,
+                !!(state.booting || state.loading || state.avatarUploading || state.deleting), "Đang xử lý tài khoản...");
             var canInteract = state.isAuthenticated &&
                 !state.booting &&
                 !state.loading &&
@@ -1412,6 +1421,7 @@
         }
 
         function syncButton() {
+            window.HanakaWebActivity?.setRegionBusy(root, qs("form", root) || root, !!(state.checking || state.submitting), "Đang xử lý tài khoản...");
             var minLenOk = trimToEmpty(refs.next.value).length >= 8;
             var canSubmit = state.authenticated &&
                 !state.checking &&

@@ -322,8 +322,8 @@
 
         const contentType = response.headers.get("content-type") || "";
         const payload = contentType.includes("application/json")
-            ? await response.json().catch(function () { return null; })
-            : await response.text().catch(function () { return ""; });
+            ? await response.json().catch(function (error) { if (response.ok || error?.name === "AbortError" || error?.name === "TimeoutError") throw error; return null; })
+            : await response.text().catch(function (error) { if (response.ok || error?.name === "AbortError" || error?.name === "TimeoutError") throw error; return ""; });
 
         if (!response.ok) {
             const message = typeof payload === "string"

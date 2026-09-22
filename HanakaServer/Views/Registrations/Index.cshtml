@@ -5,6 +5,12 @@
 }
 
 <style>
+    #createErr,
+    #editErr {
+        white-space: pre-line;
+        overflow-wrap: anywhere;
+    }
+
     .pill {
         border-radius: 999px;
     }
@@ -624,6 +630,7 @@
         display: block;
         min-height: 1.25rem;
         margin-top: .35rem;
+        overflow-wrap: anywhere;
     }
 
     .relay-lineup-list {
@@ -1455,6 +1462,7 @@
                     <button class="btn btn-primary" type="submit" id="btnCreateSubmit">
                         <i class="fas fa-save"></i> Đăng ký
                     </button>
+                    <span class="small text-muted" id="createSubmitStatus" role="status"></span>
                 </div>
             </form>
         </div>
@@ -1822,6 +1830,7 @@
                     <button class="btn btn-primary" type="submit" id="btnEditSubmit">
                         <i class="fas fa-save"></i> Lưu đội
                     </button>
+                    <span class="small text-muted" id="editSubmitStatus" role="status"></span>
                 </div>
             </form>
         </div>
@@ -1875,6 +1884,8 @@
           let RELAY_TEAM_SIZE = 0;
           let RELAY_PAIR_COUNT = 0;
           let EDITING_REG = null;
+          const RELAY_LOOKUPS = new WeakMap();
+          const REGISTRATION_SUBMISSIONS = new Map();
           let LOAD_SEQUENCE = 0;
           let SEARCH_TIMER = null;
           let HAS_AUTO_SELECTED_RELAY_TAB = false;
@@ -2005,20 +2016,20 @@
                   ${reserve ? `<button type="button" class="btn btn-sm btn-link text-danger p-0" data-relay-reserve-clear data-prefix="${prefix}" data-position="${position}">Bỏ chọn</button>` : ""}
                 </div>
                 <div class="form-group mb-2">
-                  <label class="small text-muted mb-1">ID tài khoản</label>
+                  <label class="small text-muted mb-1" for="${prefix}RelayUser${position}">User ID hoặc số điện thoại</label>
                   <div class="input-group input-group-sm">
-                    <input class="form-control" id="${prefix}RelayUser${position}" type="number" min="1" step="1" value="${escAttr(userId)}" placeholder="Nhập User ID" data-relay-user-input data-prefix="${prefix}" data-position="${position}" ${disabled} />
+                    <input class="form-control" id="${prefix}RelayUser${position}" type="text" inputmode="tel" maxlength="64" autocomplete="off" value="${escAttr(userId)}" placeholder="Nhập User ID hoặc SĐT" data-relay-user-input data-prefix="${prefix}" data-position="${position}" data-checked-user-id="${escAttr(userId)}" data-checked-query="${escAttr(userId)}" aria-describedby="${prefix}RelayUserInfo${position}" ${disabled} />
                     <div class="input-group-append">
-                      <button class="btn btn-outline-primary relay-user-check-button" id="${prefix}RelayUserCheck${position}" type="button" data-relay-user-check data-prefix="${prefix}" data-position="${position}" title="Kiểm tra ID tài khoản" ${disabled}>
+                      <button class="btn btn-outline-primary relay-user-check-button" id="${prefix}RelayUserCheck${position}" type="button" data-relay-user-check data-prefix="${prefix}" data-position="${position}" title="Tìm tài khoản bằng User ID hoặc số điện thoại" ${disabled}>
                         <i class="fas fa-check" aria-hidden="true"></i> Kiểm tra
                       </button>
                     </div>
                   </div>
-                  <small class="relay-user-check-status ${userId ? "text-success" : "text-muted"}" id="${prefix}RelayUserInfo${position}" aria-live="polite">${esc(accountStatus)}</small>
+                  <div class="relay-user-check-status small ${userId ? "text-success" : "text-muted"}" id="${prefix}RelayUserInfo${position}" aria-live="polite">${esc(accountStatus)}</div>
                 </div>
                 <div class="form-group mb-0">
                   <label class="small text-muted mb-1">Họ tên nếu là khách</label>
-                  <input class="form-control form-control-sm" id="${prefix}RelayName${position}" maxlength="150" value="${escAttr(displayName)}" placeholder="Chỉ nhập khi VĐV chưa có tài khoản" ${disabled} />
+                  <input class="form-control form-control-sm" id="${prefix}RelayName${position}" maxlength="150" value="${escAttr(userId ? "" : displayName)}" placeholder="Chỉ nhập khi VĐV chưa có tài khoản" ${locked || userId ? "disabled" : ""} />
                 </div>
               </div>`;
           }
@@ -2026,66 +2037,229 @@
           function resetRelayUserCheck(prefix, position){
             const input = $id(`${prefix}RelayUser${position}`);
             const status = $id(`${prefix}RelayUserInfo${position}`);
-            if(input) delete input.dataset.checkedUserId;
+            const pending = input && RELAY_LOOKUPS.get(input);
+            if(pending){
+              RELAY_LOOKUPS.delete(input);
+              pending.controller.abort();
+              window.HanakaApiLoading?.end(pending.loading);
+            }
+            if(input){
+              delete input.dataset.checkedUserId;
+              delete input.dataset.checkedQuery;
+            }
+            const guestName = $id(`${prefix}RelayName${position}`);
+            if(guestName) guestName.disabled = !!input?.disabled;
             if(status){
               status.className = "relay-user-check-status text-muted";
               status.textContent = String(input?.value || "").trim()
-                ? "ID đã thay đổi, vui lòng kiểm tra lại."
+                ? "Thông tin đã thay đổi, vui lòng kiểm tra lại."
                 : "Chưa kiểm tra tài khoản";
             }
           }
 
-          async function checkRelayUser(prefix, position){
+          function selectRelayUser(prefix, position, user){
+            const input = $id(`${prefix}RelayUser${position}`);
+            const status = $id(`${prefix}RelayUserInfo${position}`);
+            if(!input || !status || !Number.isSafeInteger(user?.userId) || user.userId <= 0) return false;
+            input.dataset.checkedUserId = String(user.userId);
+            input.dataset.checkedQuery = input.value.trim();
+            status.className = "relay-user-check-status small text-success";
+            status.textContent = `Đã chọn: ${user.fullName || "Chưa có họ tên"} · ID ${user.userId} · Đơn ${Number(user.ratingSingle || 0).toFixed(2)} · Đôi ${Number(user.ratingDouble || 0).toFixed(2)}`;
+            const guestName = $id(`${prefix}RelayName${position}`);
+            if(guestName){
+              guestName.value = "";
+              guestName.disabled = true;
+            }
+            return true;
+          }
+
+          function resolvedRelayUserId(input){
+            if(!input || !input.value.trim()) return "";
+            const id = input.dataset.checkedUserId;
+            if(input.dataset.checkedQuery !== input.value.trim() || !id || !Number.isSafeInteger(Number(id)) || Number(id) <= 0){
+              throw new Error("Vui lòng kiểm tra và chọn tài khoản đúng với User ID hoặc số điện thoại đã nhập.");
+            }
+            return id;
+          }
+
+          function checkRelayUser(prefix, position){
             const input = $id(`${prefix}RelayUser${position}`);
             const status = $id(`${prefix}RelayUserInfo${position}`);
             const button = $id(`${prefix}RelayUserCheck${position}`);
-            const idRaw = String(input?.value || "").trim();
-            const userId = Number(idRaw);
+            if(!input || !status || !button) return Promise.resolve(false);
+            const query = input.value.trim();
+            const previous = RELAY_LOOKUPS.get(input);
+            if(previous?.query === query && previous.promise) return previous.promise;
+            resetRelayUserCheck(prefix, position);
+            if(!/^[+\d\s().-]+$/.test(query) || !/\d/.test(query) || query.length > 64){
+              status.className = "relay-user-check-status small text-danger";
+              status.textContent = "Vui lòng nhập User ID hoặc số điện thoại hợp lệ.";
+              return Promise.resolve(false);
+            }
 
-            if(!/^\d+$/.test(idRaw) || !Number.isSafeInteger(userId) || userId <= 0){
-              if(input) delete input.dataset.checkedUserId;
-              if(status){
-                status.className = "relay-user-check-status text-danger";
-                status.textContent = "Vui lòng nhập User ID là số nguyên dương.";
+            const state = { query, controller: new AbortController(), loading: null, promise: null, items: [] };
+            RELAY_LOOKUPS.set(input, state);
+            // The shared loader owns the button; Axios runs silently so it does not
+            // create a second loader or an overlay when lookup starts during submit.
+            state.loading = window.HanakaApiLoading?.begin({mode: "button", button}, "GET");
+            status.className = "relay-user-check-status small text-muted";
+            status.textContent = "Đang tìm tài khoản…";
+            const isCurrent = () => input.isConnected && $id(input.id) === input
+              && RELAY_LOOKUPS.get(input) === state && input.value.trim() === query && !state.controller.signal.aborted;
+            state.promise = (async () => {
+              try{
+                const res = await axios.get("/api/admin/users/lookup", {
+                  params: {query}, signal: state.controller.signal, timeout: 15000, hanakaLoading: "silent"
+                });
+                if(!isCurrent()) return false;
+                const items = res.data?.items;
+                if(!Array.isArray(items) || items.some(user => !Number.isSafeInteger(user.userId) || user.userId <= 0)){
+                  throw new Error("Phản hồi tra cứu không hợp lệ. Vui lòng thử lại.");
+                }
+                state.items = items;
+                if(items.length === 0) throw new Error("Không tìm thấy tài khoản đang hoạt động. Hãy kiểm tra lại ID hoặc số điện thoại.");
+                if(items.length === 1) return selectRelayUser(prefix, position, items[0]);
+                status.className = "relay-user-check-status small text-dark";
+                status.innerHTML = `<div class="mb-1">Có nhiều tài khoản phù hợp. Hãy chọn đúng người:</div>` + items.map((user, index) =>
+                  `<button type="button" class="btn btn-sm btn-outline-primary btn-block text-left text-wrap" data-relay-user-pick="${index}" data-prefix="${prefix}" data-position="${position}">${esc(user.fullName)} · ID ${user.userId}<br><small>${esc(user.phone || "")} · Đôi ${Number(user.ratingDouble || 0).toFixed(2)}</small></button>`
+                ).join("");
+                return false;
+              } catch(err){
+                if(isCurrent()){
+                  status.className = "relay-user-check-status small text-danger";
+                  status.textContent = err?.code === "ECONNABORTED"
+                    ? "Tìm tài khoản quá lâu. Vui lòng thử lại."
+                    : err?.response?.data?.message || err?.message || "Không kiểm tra được tài khoản.";
+                }
+                return false;
+              } finally {
+                window.HanakaApiLoading?.end(state.loading);
+                state.promise = null;
               }
-              input?.focus();
-              return;
-            }
+            })();
+            return state.promise;
+          }
 
-            if(button){
-              button.disabled = true;
-              button.innerHTML = `<i class="fas fa-spinner fa-spin" aria-hidden="true"></i> Đang kiểm tra`;
+          async function resolveRelayFormUsers(form){
+            const inputs = [...form.querySelectorAll("[data-relay-user-input]")];
+            const results = await Promise.all(inputs.map(async input => {
+              try { resolvedRelayUserId(input); return true; } catch { /* Resolve the changed input below. */ }
+              const pending = RELAY_LOOKUPS.get(input);
+              if(pending?.query === input.value.trim() && pending.items.length > 1) return false;
+              return await checkRelayUser(input.dataset.prefix, Number(input.dataset.position));
+            }));
+            const failed = inputs.find((input, index) => !results[index]);
+            if(failed){
+              failed.focus();
+              throw new Error("Có vị trí chưa xác định được tài khoản. Vui lòng kiểm tra thông báo và chọn đúng người.");
             }
-            if(status){
-              status.className = "relay-user-check-status text-muted";
-              status.textContent = `Đang kiểm tra User ID ${userId}...`;
-            }
+          }
 
+          function cancelRegistrationForm(form){
+            if(!form) return;
+            const submission = REGISTRATION_SUBMISSIONS.get(form);
+            if(submission){
+              submission.cancelled = true;
+              window.HanakaApiLoading?.end(submission.loading);
+              REGISTRATION_SUBMISSIONS.delete(form);
+              submission.status.textContent = "";
+            }
+            form.querySelectorAll("[data-relay-user-input]").forEach(input =>
+              resetRelayUserCheck(input.dataset.prefix, Number(input.dataset.position)));
+          }
+
+          async function submitRegistrationForm(mode){
+            const create = mode === "create";
+            const form = $id(create ? "formCreate" : "formEditTeam");
+            if(!form || REGISTRATION_SUBMISSIONS.has(form)) return;
+            const button = $id(create ? "btnCreateSubmit" : "btnEditSubmit");
+            const status = $id(`${mode}SubmitStatus`);
+            const state = { cancelled: false, saving: false, status, loading: null };
+            REGISTRATION_SUBMISSIONS.set(form, state);
+            (create ? clearCreateErr : clearEditErr)();
+            state.loading = window.HanakaApiLoading?.begin({mode: "button", button}, "POST");
+            const controls = [];
             try{
-              const res = await axios.get(`/api/admin/users/find/${userId}`);
-              if(String(input?.value || "").trim() !== idRaw) return;
-
-              const user = res.data || {};
-              if(input) input.dataset.checkedUserId = String(user.userId || userId);
-              if(status){
-                const single = Number(user.ratingSingle || 0);
-                const double = Number(user.ratingDouble || 0);
-                status.className = "relay-user-check-status text-success";
-                status.textContent = `Đúng tài khoản: ${user.fullName || "Chưa có họ tên"} · Đơn ${single.toFixed(2)} · Đôi ${double.toFixed(2)}`;
+              if(IS_RELAY){
+                status.textContent = "Đang kiểm tra tài khoản…";
+                await resolveRelayFormUsers(form);
               }
+              if(state.cancelled) return;
+              const fd = create ? buildFormData() : buildEditFormData();
+              state.saving = true;
+              status.textContent = "Đang lưu đăng ký…";
+              form.querySelectorAll("input, select, textarea, button").forEach(control => {
+                if(control === button) return;
+                controls.push([control, control.disabled]);
+                control.disabled = true;
+              });
+              if(create){
+                await axios.post(`/api/admin/tournaments/${TOURNAMENT_ID}/registrations`, fd, {hanakaLoading: "silent"});
+              } else {
+                const id = Number($id("editRegistrationId")?.value || 0);
+                await axios.put(`/api/admin/registrations/${id}/players`, fd, {hanakaLoading: "silent"});
+              }
+              state.saving = false;
+              $(create ? "#modalCreate" : "#modalEditTeam").modal("hide");
+              if(create) window.location.reload();
+              else await load(CURRENT_TAB);
             } catch(err){
-              if(String(input?.value || "").trim() !== idRaw) return;
-
-              if(input) delete input.dataset.checkedUserId;
-              if(status){
-                status.className = "relay-user-check-status text-danger";
-                status.textContent = err?.response?.data?.message || err?.message || "Không kiểm tra được tài khoản.";
+              if(!state.cancelled){
+                const message = err?.response?.data?.message || err?.message || "Không lưu được đăng ký. Vui lòng thử lại.";
+                (create ? showCreateErr : showEditErr)(message);
               }
             } finally {
-              if(button){
-                button.disabled = false;
-                button.innerHTML = `<i class="fas fa-check" aria-hidden="true"></i> Kiểm tra`;
+              controls.forEach(([control, disabled]) => control.disabled = disabled);
+              window.HanakaApiLoading?.end(state.loading);
+              if(REGISTRATION_SUBMISSIONS.get(form) === state){
+                REGISTRATION_SUBMISSIONS.delete(form);
+                status.textContent = "";
               }
+            }
+          }
+
+          function initializeRelayRegistrationInteractions(){
+            document.addEventListener("click", event => {
+              const clear = event.target.closest("[data-relay-reserve-clear]");
+              if(clear){
+                const prefix = clear.dataset.prefix, position = Number(clear.dataset.position);
+                $id(`${prefix}RelayUser${position}`).value = "";
+                $id(`${prefix}RelayName${position}`).value = "";
+                resetRelayUserCheck(prefix, position);
+                return;
+              }
+              const pick = event.target.closest("[data-relay-user-pick]");
+              if(pick){
+                const prefix = pick.dataset.prefix, position = Number(pick.dataset.position);
+                const input = $id(`${prefix}RelayUser${position}`);
+                const state = input && RELAY_LOOKUPS.get(input);
+                if(state && !state.controller.signal.aborted && state.query === input.value.trim()){
+                  selectRelayUser(prefix, position, state.items[Number(pick.dataset.relayUserPick)]);
+                }
+                return;
+              }
+              const button = event.target.closest("[data-relay-user-check]");
+              if(button) checkRelayUser(button.dataset.prefix, Number(button.dataset.position));
+            });
+            document.addEventListener("input", event => {
+              const input = event.target.closest("[data-relay-user-input]");
+              if(input) resetRelayUserCheck(input.dataset.prefix, Number(input.dataset.position));
+            });
+            document.addEventListener("keydown", event => {
+              const input = event.target.closest("[data-relay-user-input]");
+              if(input && event.key === "Enter"){
+                event.preventDefault();
+                checkRelayUser(input.dataset.prefix, Number(input.dataset.position));
+              }
+            });
+            for(const [formId, modalId, mode] of [["formCreate", "modalCreate", "create"], ["formEditTeam", "modalEditTeam", "edit"]]){
+              const form = $id(formId);
+              on(formId, "submit", event => { event.preventDefault(); submitRegistrationForm(mode); });
+              $("#" + modalId).on("hide.bs.modal", event => {
+                if(REGISTRATION_SUBMISSIONS.get(form)?.saving){ event.preventDefault(); return; }
+                cancelRegistrationForm(form);
+              });
+              window.addEventListener("pagehide", () => cancelRegistrationForm(form));
             }
           }
 
@@ -2121,10 +2295,10 @@
           function appendRelayMembers(fd, prefix){
             const seenUserIds = new Set();
             for(let position = 1; position <= RELAY_TEAM_SIZE; position++){
-              const userId = String($id(`${prefix}RelayUser${position}`)?.value || "").trim();
+              const userId = resolvedRelayUserId($id(`${prefix}RelayUser${position}`));
               const displayName = String($id(`${prefix}RelayName${position}`)?.value || "").trim();
               if(!userId && !displayName){
-                throw new Error(`Vận động viên vị trí ${position}: cần nhập ID tài khoản hoặc họ tên khách.`);
+                throw new Error(`Vận động viên vị trí ${position}: cần nhập User ID, số điện thoại hoặc họ tên khách.`);
               }
               if(userId){
                 const parsedId = Number(userId);
@@ -2144,7 +2318,7 @@
             fd.append("relayReserveMembersIncluded", "true");
             let reserveIndex = 0;
             for (let position = 1; position <= 4; position++) {
-              const userId = String($id(`${prefix}ReserveRelayUser${position}`)?.value || "").trim();
+              const userId = resolvedRelayUserId($id(`${prefix}ReserveRelayUser${position}`));
               const displayName = String($id(`${prefix}ReserveRelayName${position}`)?.value || "").trim();
               if (!userId && !displayName) continue;
               if (userId) {
@@ -3742,25 +3916,7 @@
               return;
             }
 
-            document.addEventListener("click", (event) => {
-              const clear = event.target.closest("[data-relay-reserve-clear]");
-              if (clear) {
-                const prefix = clear.dataset.prefix, position = Number(clear.dataset.position);
-                $id(`${prefix}RelayUser${position}`).value = "";
-                $id(`${prefix}RelayName${position}`).value = "";
-                resetRelayUserCheck(prefix, position);
-                return;
-              }
-              const button = event.target.closest("[data-relay-user-check]");
-              if(!button) return;
-              checkRelayUser(button.dataset.prefix, Number(button.dataset.position));
-            });
-
-            document.addEventListener("input", (event) => {
-              const input = event.target.closest("[data-relay-user-input]");
-              if(!input) return;
-              resetRelayUserCheck(input.dataset.prefix, Number(input.dataset.position));
-            });
+            initializeRelayRegistrationInteractions();
 
             on("tabSuccess","click", () => load("SUCCESS"));
             on("tabWaiting","click", () => load("WAITING"));
@@ -3886,63 +4042,6 @@
                 if(box){
                   box.textContent = msg;
                   box.classList.remove("d-none");
-                }
-              }
-            });
-
-            on("formEditTeam","submit", async (e) => {
-              e.preventDefault();
-              clearEditErr();
-
-              const id = Number($id("editRegistrationId")?.value || 0);
-              const btn = $id("btnEditSubmit");
-              if(btn){
-                btn.disabled = true;
-                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
-              }
-
-              try{
-                const fd = buildEditFormData();
-                await axios.put(`/api/admin/registrations/${id}/players`, fd);
-                $("#modalEditTeam").modal("hide");
-                await load(CURRENT_TAB);
-              } catch(err){
-                const msg = err?.response?.data?.message || err?.message || "Cập nhật đội thất bại.";
-                showEditErr(msg);
-              } finally {
-                if(btn){
-                  btn.disabled = false;
-                  btn.innerHTML = `<i class="fas fa-save"></i> Lưu đội`;
-                }
-              }
-            });
-
-            on("formCreate","submit", async (e) => {
-              e.preventDefault();
-              clearCreateErr();
-
-              const btn = $id("btnCreateSubmit");
-              if(btn){
-                btn.disabled = true;
-                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
-              }
-
-              try{
-                const fd = buildFormData();
-
-                await axios.post(`/api/admin/tournaments/${TOURNAMENT_ID}/registrations`, fd, {
-                });
-
-                $("#modalCreate").modal("hide");
-                window.location.reload();
-
-              } catch(err){
-                const msg = err?.response?.data?.message || err?.message || "Tạo đăng ký thất bại.";
-                showCreateErr(msg);
-              } finally {
-                if(btn){
-                  btn.disabled = false;
-                  btn.innerHTML = `<i class="fas fa-save"></i> Đăng ký`;
                 }
               }
             });

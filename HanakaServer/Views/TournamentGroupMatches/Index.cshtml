@@ -672,6 +672,7 @@
         }
     }
 </style>
+<link rel="stylesheet" href="~/css/relay-scoreboard.css" asp-append-version="true" />
 
 <div class="container-fluid" id="pageRoot"
      data-group-id="@groupId"
@@ -1281,6 +1282,8 @@
                 <div class="modal-body">
                     <div id="scoreErr" class="alert alert-danger d-none"></div>
 
+                    <div id="adminRelayScores"></div>
+                    <div id="standardScoreFields">
                     <div class="d-flex justify-content-between mb-2">
                         <div class="font-weight-bold" id="scoreTeam1Name">Đội 1</div>
                         <div class="font-weight-bold" id="scoreTeam2Name">Đội 2</div>
@@ -1297,6 +1300,7 @@
                         </div>
                     </div>
 
+                    </div>
                     <div class="form-group mb-0">
                         <div class="custom-control custom-switch">
                             <input type="checkbox" class="custom-control-input" id="isCompleted" checked />
@@ -1322,6 +1326,7 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script>window.HanakaApiLoading?.installAxios(window.axios);</script>
     <script src="~/js/public-realtime.js" asp-append-version="true"></script>
+    <script src="~/js/relay-scoreboard.js" asp-append-version="true"></script>
     <script src="~/js/admin-tournament-bracket.js" asp-append-version="true"></script>
     <script src="~/js/admin-tournament-bracket-editor.js" asp-append-version="true"></script>
     <script>
@@ -3319,11 +3324,13 @@
             }
 
             function captureScoreModalState() {
+                const match = (CACHE.items || []).find(x => x.matchId === Number($id("scoreMatchId")?.value));
                 return {
                     matchId: Number($id("scoreMatchId")?.value || 0),
                     scoreTeam1: Number($id("score1")?.value || 0),
                     scoreTeam2: Number($id("score2")?.value || 0),
-                    isCompleted: !!$id("isCompleted")?.checked
+                    isCompleted: !!$id("isCompleted")?.checked,
+                    relayParts: match?.isRelay ? JSON.stringify(window.HanakaRelayScoreboard.read($id("adminRelayScores"), match).parts) : null
                 };
             }
 
@@ -3333,7 +3340,8 @@
                 return current.matchId !== SCORE_MODAL_BASELINE.matchId
                     || current.scoreTeam1 !== SCORE_MODAL_BASELINE.scoreTeam1
                     || current.scoreTeam2 !== SCORE_MODAL_BASELINE.scoreTeam2
-                    || current.isCompleted !== SCORE_MODAL_BASELINE.isCompleted;
+                    || current.isCompleted !== SCORE_MODAL_BASELINE.isCompleted
+                    || current.relayParts !== SCORE_MODAL_BASELINE.relayParts;
             }
 
             function applyRealtimeScore(payload) {
@@ -3353,6 +3361,11 @@
                 }
 
                 const match = CACHE.items[idx];
+                if (match.isRelay) {
+                    const scores = payload?.relayScores ?? payload?.RelayScores;
+                    if (!window.HanakaRelayScoreboard.valid(scores) || scores.version < (match.relayScores?.version ?? 0)) return false;
+                    match.relayScores = scores;
+                }
                 match.scoreTeam1 = Number(payload?.scoreTeam1 ?? payload?.ScoreTeam1 ?? 0);
                 match.scoreTeam2 = Number(payload?.scoreTeam2 ?? payload?.ScoreTeam2 ?? 0);
                 match.isCompleted = !!(payload?.isCompleted ?? payload?.IsCompleted);
@@ -3361,6 +3374,11 @@
                 match.updatedAt = payload?.updatedAt ?? payload?.UpdatedAt ?? match.updatedAt;
 
                 if (activeScoreModal) {
+                    if (match.isRelay) {
+                        if (!!document.querySelector("#adminRelayScores .relay-allocation") !== !!match.relayScores?.requiresAllocation) renderAdminRelayScore(match);
+                        else window.HanakaRelayScoreboard.sync($id("adminRelayScores"), match);
+                        $id("isCompleted").disabled = !!match.relayScores?.requiresAllocation;
+                    }
                     $id("score1").value = String(match.scoreTeam1);
                     $id("score2").value = String(match.scoreTeam2);
                     $id("isCompleted").checked = match.isCompleted;
@@ -3499,6 +3517,27 @@
                 }
             };
 
+            function renderAdminRelayScore(m) {
+                const root = $id("adminRelayScores");
+                $id("standardScoreFields").hidden = !!m.isRelay;
+                root.innerHTML = m.isRelay ? window.HanakaRelayScoreboard.render(m, true, "adminRelay") : "";
+                if (!m.isRelay) return;
+                root.querySelectorAll("[data-relay-input]").forEach(input => {
+                    input.addEventListener("input", () => {
+                        input.value = input.value.replace(/[^\d]/g, "");
+                        window.HanakaRelayScoreboard.preview(root, (CACHE.items || []).find(x => x.matchId === m.matchId) || m);
+                    });
+                });
+                root.querySelectorAll("[data-score-target]").forEach(button => button.addEventListener("click", () => {
+                    if (SCORE_SAVE_BUSY) return;
+                    const input = $id(button.dataset.scoreTarget);
+                    input.value = Math.max(0, Number(input.value || 0) + Number(button.dataset.scoreStep));
+                    const current = (CACHE.items || []).find(x => x.matchId === m.matchId) || m;
+                    window.HanakaRelayScoreboard.preview(root, current);
+                    if (!current.relayScores?.requiresAllocation) $id("formScore").requestSubmit();
+                }));
+            }
+
             window.openScore = (matchId) => {
                 hideFormErr("scoreErr");
 
@@ -3515,7 +3554,9 @@
                 $id("scoreTeam2Name").textContent = m.team2Text || "Đội 2";
                 $id("score1").value = String(m.scoreTeam1 ?? 0);
                 $id("score2").value = String(m.scoreTeam2 ?? 0);
-                $id("isCompleted").checked = !!m.isCompleted || true;
+                $id("isCompleted").checked = m.isRelay ? !!m.isCompleted : true;
+                $id("isCompleted").disabled = !!m.relayScores?.requiresAllocation;
+                renderAdminRelayScore(m);
                 SCORE_MODAL_BASELINE = captureScoreModalState();
 
                 $("#modalScore").modal("show");
@@ -3647,28 +3688,41 @@
 
             $id("formScore").addEventListener("submit", async (e) => {
                 e.preventDefault();
+                if (SCORE_SAVE_BUSY) return;
                 hideFormErr("scoreErr");
 
                 const matchId = Number($id("scoreMatchId").value || 0);
                 const s1 = Number($id("score1").value || 0);
                 const s2 = Number($id("score2").value || 0);
                 const completed = !!$id("isCompleted").checked;
+                const match = (CACHE.items || []).find(x => x.matchId === matchId);
+                const relay = match?.isRelay ? window.HanakaRelayScoreboard.read($id("adminRelayScores"), match) : null;
+                if (relay && completed && !match.isCompleted) {
+                    const total = window.HanakaRelayScoreboard.totals(relay.parts);
+                    if (!window.confirm(`Kết thúc trận với tổng điểm ${total.scoreTeam1}–${total.scoreTeam2}?`)) return;
+                }
 
                 SCORE_SAVE_BUSY = true;
+                if (relay) {
+                    $id("formScore").querySelectorAll("input, button").forEach(x => x.disabled = true);
+                    window.HanakaRelayScoreboard.status($id("adminRelayScores"), relay.changedPart, "Đang lưu…", "saving");
+                }
                 try {
                     const res = await axios.put(`${API}/${matchId}/score`, {
                         scoreTeam1: s1,
                         scoreTeam2: s2,
-                        isCompleted: completed
+                        isCompleted: relay?.allocateExisting ? !!match.isCompleted : completed,
+                        relay
                     }, {
-                        hanakaLoading: {
+                        timeout: 15000,
+                        hanakaLoading: relay ? "silent" : {
                             mode: "section",
                             target: "#modalScore .modal-content",
                             message: "Đang lưu tỷ số..."
                         }
                     });
 
-                    $("#modalScore").modal("hide");
+                    if (!relay) $("#modalScore").modal("hide");
 
                     const idx = (CACHE.items || []).findIndex(x => x.matchId === matchId);
                     if (idx >= 0) {
@@ -3677,17 +3731,39 @@
                         CACHE.items[idx].isCompleted = res.data.isCompleted;
                         CACHE.items[idx].winnerRegistrationId = res.data.winnerRegistrationId;
                         CACHE.items[idx].winnerTeam = res.data.winnerTeam;
+                        if (relay) {
+                            if (!window.HanakaRelayScoreboard.valid(res.data.relayScores)) throw new Error("Phản hồi điểm tiếp sức không hợp lệ.");
+                            CACHE.items[idx].relayScores = res.data.relayScores;
+                            if (relay.allocateExisting) renderAdminRelayScore(CACHE.items[idx]);
+                            else window.HanakaRelayScoreboard.sync($id("adminRelayScores"), CACHE.items[idx]);
+                            window.HanakaRelayScoreboard.status($id("adminRelayScores"), relay.changedPart, "Đã lưu", "success");
+                            SCORE_MODAL_BASELINE = captureScoreModalState();
+                        }
                     }
 
                     render();
                     reloadBracketPopupIfOpen();
                 } catch (err) {
+                    if (relay) {
+                        await load({silent: true});
+                        const current = (CACHE.items || []).find(x => x.matchId === matchId);
+                        if (current) {
+                            renderAdminRelayScore(current);
+                            $id("isCompleted").checked = !!current.isCompleted;
+                            SCORE_MODAL_BASELINE = captureScoreModalState();
+                        }
+                    }
                     showFormErr(
                         err?.response?.data?.message || err?.message || "Cập nhật tỷ số thất bại.",
                         "scoreErr"
                     );
                 } finally {
                     SCORE_SAVE_BUSY = false;
+                    if (relay) {
+                        $id("formScore").querySelectorAll("input, button").forEach(x => x.disabled = false);
+                        const current = (CACHE.items || []).find(x => x.matchId === matchId);
+                        $id("isCompleted").disabled = !!current?.relayScores?.requiresAllocation;
+                    }
                 }
             });
 

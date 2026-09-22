@@ -41,6 +41,7 @@ var jwtKey = jwtSection["Key"] ?? throw new Exception("Jwt:Key is missing");
 // Services
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
+builder.Services.AddScoped<MatchCoordinationService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<RelayOptions>(builder.Configuration.GetSection("Relay"));
 builder.Services.AddScoped<RelayAdminService>();
@@ -48,6 +49,7 @@ builder.Services.AddScoped<RelayLineupService>();
 builder.Services.AddScoped<RelayTeamReader>();
 builder.Services.AddScoped<RelayMatchLineupSnapshotService>();
 builder.Services.AddScoped<RelayLegacyWriteGuard>();
+builder.Services.AddScoped<RelayScoringService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddScoped<IOtpEmailService, OtpEmailService>();
 builder.Services.AddScoped<IOtpGenerator, OtpGenerator>();
@@ -101,6 +103,7 @@ builder.Services.AddAuthentication(options =>
         OnRedirectToAccessDenied = CookieAuthenticationResponseHandler.HandleRedirectToAccessDeniedAsync
     };
 })
+.AddCoordinatorPortal()
 .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
@@ -181,6 +184,7 @@ if (!app.Environment.IsDevelopment())
 // Keep this after UseExceptionHandler so it handles cancellation before the
 // general production exception handler sees it.
 app.UseMiddleware<RequestCancellationMiddleware>();
+app.UseMiddleware<MatchConcurrencyMiddleware>();
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();

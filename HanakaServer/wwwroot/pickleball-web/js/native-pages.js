@@ -1,4 +1,11 @@
 (function () {
+    function navigateWeb(url, replace, reload) {
+        if (window.HanakaWebActivity) return window.HanakaWebActivity.navigate(url, {replace: !!replace, reload: !!reload});
+        if (reload) window.location.reload();
+        else if (replace) window.location.replace(url);
+        else window.location.href = url;
+    }
+
     function qs(selector, root) {
         return (root || document).querySelector(selector);
     }
@@ -227,8 +234,8 @@
         var response = await fetch(url, init);
         var contentType = response.headers.get("content-type") || "";
         var payload = contentType.indexOf("application/json") >= 0
-            ? await response.json().catch(function () { return null; })
-            : await response.text().catch(function () { return ""; });
+            ? await response.json().catch(function (error) { if (response.ok || error?.name === "AbortError" || error?.name === "TimeoutError") throw error; return null; })
+            : await response.text().catch(function (error) { if (response.ok || error?.name === "AbortError" || error?.name === "TimeoutError") throw error; return ""; });
 
         if (!response.ok) {
             var message = typeof payload === "string"
@@ -593,7 +600,7 @@
                         await markUserNotificationRead(linkNotificationId);
                     } catch (_error) {
                     }
-                    window.location.href = href;
+                    navigateWeb(href);
                 }
                 return;
             }
@@ -1813,7 +1820,13 @@
 
     function redirectToWebLogin(returnUrl) {
         var target = trimToEmpty(returnUrl) || (window.location.pathname + window.location.search);
-        window.location.href = "/PickleballWeb/Login?returnUrl=" + encodeURIComponent(target);
+        navigateWeb("/PickleballWeb/Login?returnUrl=" + encodeURIComponent(target));
+    }
+
+    function setStableListHtml(target, html) {
+        if (target._webListHtml === html) return;
+        target.innerHTML = html;
+        target._webListHtml = html;
     }
 
     function getCommonRefs(root) {
@@ -1868,6 +1881,7 @@
         if (refs.sentinel) {
             refs.sentinel.hidden = state.loading || !state.hasMore;
         }
+        window.HanakaWebActivity?.setRegionBusy(refs, refs.list?.parentElement, !!state.loading);
     }
 
     function renderClubButton(item) {
@@ -2231,12 +2245,12 @@
 
         function render() {
             refs.list.className = "native-page-list native-page-list--cards";
-            refs.list.innerHTML = state.items.map(function (item) {
+            setStableListHtml(refs.list, state.items.map(function (item) {
                 var clubId = Number(item && item.clubId);
                 return renderClubCard(Object.assign({}, item, {
                     isJoining: Number.isFinite(clubId) && clubId === state.joiningClubId
                 }));
-            }).join("");
+            }).join(""));
             if (filterText) {
                 filterText.textContent = state.query ? ("Từ khóa: " + state.query) : "Tất cả câu lạc bộ";
             }
@@ -2378,6 +2392,7 @@
 
         async function load(reset) {
             if (state.loading) {
+                if (reset) state.reloadRequested = true;
                 return;
             }
 
@@ -2385,6 +2400,7 @@
                 return;
             }
 
+            const queryAtStart = state.query;
             state.loading = true;
             if (reset) {
                 state.error = "";
@@ -2394,6 +2410,7 @@
             try {
                 var nextPage = reset ? 1 : state.page;
                 var payload = await fetchJson("/api/clubs?page=" + nextPage + "&pageSize=" + state.pageSize + "&keyword=" + encodeURIComponent(state.query));
+                if (state.query !== queryAtStart) { state.reloadRequested = true; return; }
                 var nextItems = Array.isArray(payload && payload.items) ? payload.items : [];
 
                 state.total = Number(payload && payload.total) || 0;
@@ -2414,6 +2431,7 @@
             } finally {
                 state.loading = false;
                 render();
+                if (state.reloadRequested) { state.reloadRequested = false; void load(true); }
             }
         }
 
@@ -2479,9 +2497,9 @@
 
         function render() {
             refs.list.className = "native-page-list native-page-list--table";
-            refs.list.innerHTML = state.items.map(function (item, index) {
+            setStableListHtml(refs.list, state.items.map(function (item, index) {
                 return renderTableRow(item, index, options);
-            }).join("");
+            }).join(""));
 
             toggleCommonState(refs, {
                 loading: state.loading,
@@ -2493,6 +2511,7 @@
 
         async function load(reset) {
             if (state.loading) {
+                if (reset) state.reloadRequested = true;
                 return;
             }
 
@@ -2500,6 +2519,7 @@
                 return;
             }
 
+            const queryAtStart = state.query;
             state.loading = true;
             if (reset) {
                 state.error = "";
@@ -2509,6 +2529,7 @@
             try {
                 var nextPage = reset ? 1 : state.page;
                 var payload = await fetchJson(options.endpoint + "?page=" + nextPage + "&pageSize=" + state.pageSize + "&query=" + encodeURIComponent(state.query));
+                if (state.query !== queryAtStart) { state.reloadRequested = true; return; }
                 var nextItems = Array.isArray(payload && payload.items) ? payload.items : [];
 
                 state.total = Number(payload && payload.total) || 0;
@@ -2529,6 +2550,7 @@
             } finally {
                 state.loading = false;
                 render();
+                if (state.reloadRequested) { state.reloadRequested = false; void load(true); }
             }
         }
 
@@ -2587,7 +2609,7 @@
 
         function render() {
             refs.list.className = "native-page-list native-page-list--cards";
-            refs.list.innerHTML = state.items.map(renderCourtCard).join("");
+            setStableListHtml(refs.list, state.items.map(renderCourtCard).join(""));
 
             toggleCommonState(refs, {
                 loading: state.loading,
@@ -2599,6 +2621,7 @@
 
         async function load(reset) {
             if (state.loading) {
+                if (reset) state.reloadRequested = true;
                 return;
             }
 
@@ -2606,6 +2629,7 @@
                 return;
             }
 
+            const queryAtStart = state.query;
             state.loading = true;
             if (reset) {
                 state.error = "";
@@ -2615,6 +2639,7 @@
             try {
                 var nextPage = reset ? 0 : state.page;
                 var payload = await fetchJson("/api/public/courts?page=" + nextPage + "&pageSize=" + state.pageSize + "&query=" + encodeURIComponent(state.query));
+                if (state.query !== queryAtStart) { state.reloadRequested = true; return; }
                 var nextItems = Array.isArray(payload && payload.items) ? payload.items : [];
 
                 state.total = Number(payload && payload.total) || 0;
@@ -2635,6 +2660,7 @@
             } finally {
                 state.loading = false;
                 render();
+                if (state.reloadRequested) { state.reloadRequested = false; void load(true); }
             }
         }
 
@@ -2734,6 +2760,7 @@
 
         async function load(reset) {
             if (state.loading) {
+                if (reset) state.reloadRequested = true;
                 return;
             }
 
@@ -2741,6 +2768,7 @@
                 return;
             }
 
+            const queryAtStart = state.query;
             state.loading = true;
             if (reset) {
                 state.error = "";
@@ -2751,6 +2779,7 @@
                 var nextPage = reset ? 1 : state.page;
                 var status = state.tab === "finished" ? "CLOSED" : "OPEN";
                 var payload = await fetchJson("/api/public/tournaments?page=" + nextPage + "&pageSize=" + state.pageSize + "&status=" + status);
+                if (state.query !== queryAtStart) { state.reloadRequested = true; return; }
                 var nextItems = Array.isArray(payload && payload.items) ? payload.items : [];
 
                 state.total = Number(payload && payload.total) || 0;
@@ -2771,6 +2800,7 @@
             } finally {
                 state.loading = false;
                 render();
+                if (state.reloadRequested) { state.reloadRequested = false; void load(true); }
             }
         }
 
@@ -2836,7 +2866,7 @@
 
         function render() {
             refs.list.className = "native-page-list native-page-list--cards";
-            refs.list.innerHTML = state.items.map(renderChallengeClubCard).join("");
+            setStableListHtml(refs.list, state.items.map(renderChallengeClubCard).join(""));
 
             if (filterText) {
                 filterText.textContent = state.query ? ("Từ khóa: " + state.query) : "Đang hiển thị CLB bật khiêu chiến";
@@ -2852,6 +2882,7 @@
 
         async function load(reset) {
             if (state.loading) {
+                if (reset) state.reloadRequested = true;
                 return;
             }
 
@@ -2859,6 +2890,7 @@
                 return;
             }
 
+            const queryAtStart = state.query;
             state.loading = true;
             if (reset) {
                 state.error = "";
@@ -2868,6 +2900,7 @@
             try {
                 var nextPage = reset ? 1 : state.page;
                 var payload = await fetchJson("/api/clubs/challenging?page=" + nextPage + "&pageSize=" + state.pageSize + "&keyword=" + encodeURIComponent(state.query));
+                if (state.query !== queryAtStart) { state.reloadRequested = true; return; }
                 var nextItems = Array.isArray(payload && payload.items) ? payload.items : [];
 
                 state.total = Number(payload && payload.total) || 0;
@@ -2888,6 +2921,7 @@
             } finally {
                 state.loading = false;
                 render();
+                if (state.reloadRequested) { state.reloadRequested = false; void load(true); }
             }
         }
 
@@ -3016,6 +3050,7 @@
 
         async function load(reset) {
             if (state.loading) {
+                if (reset) state.reloadRequested = true;
                 return;
             }
 
@@ -3023,6 +3058,7 @@
                 return;
             }
 
+            const queryAtStart = state.query;
             state.loading = true;
             if (reset) {
                 state.error = "";
@@ -3032,6 +3068,7 @@
             try {
                 var nextPage = reset ? 1 : state.page + 1;
                 var payload = await fetchJson("/api/public/tournaments?page=" + nextPage + "&pageSize=" + state.pageSize + "&status=ALL&query=" + encodeURIComponent(state.appliedQuery));
+                if (state.query !== queryAtStart) { state.reloadRequested = true; return; }
                 var nextItems = Array.isArray(payload && payload.items) ? payload.items : [];
 
                 state.items = reset ? nextItems : state.items.concat(nextItems);
@@ -3047,6 +3084,7 @@
             } finally {
                 state.loading = false;
                 render();
+                if (state.reloadRequested) { state.reloadRequested = false; void load(true); }
             }
         }
 
@@ -3900,7 +3938,7 @@
                     } catch (_error) {
                     }
 
-                    window.location.href = href;
+                    navigateWeb(href);
                     return;
                 }
 
@@ -4293,6 +4331,7 @@
 
         async function load(reset) {
             if (state.loading) {
+                if (reset) state.reloadRequested = true;
                 return;
             }
 
@@ -4300,6 +4339,7 @@
                 return;
             }
 
+            const queryAtStart = state.query;
             state.loading = true;
             if (reset) {
                 state.error = "";
@@ -4309,6 +4349,7 @@
             try {
                 var nextPage = reset ? 1 : state.page + 1;
                 var payload = await fetchJson("/api/videos/videos?tab=" + encodeURIComponent(state.tab) + "&page=" + nextPage + "&pageSize=" + state.pageSize);
+                if (state.query !== queryAtStart) { state.reloadRequested = true; return; }
                 var nextItems = Array.isArray(payload && payload.items) ? payload.items : [];
 
                 state.items = reset ? nextItems : state.items.concat(nextItems);
@@ -4324,6 +4365,7 @@
             } finally {
                 state.loading = false;
                 render();
+                if (state.reloadRequested) { state.reloadRequested = false; void load(true); }
             }
         }
 
@@ -5164,7 +5206,7 @@
             }
 
             if (item && item.existingRoomId) {
-                window.location.href = "/PickleballWeb/DirectChat/" + item.existingRoomId;
+                navigateWeb("/PickleballWeb/DirectChat/" + item.existingRoomId);
                 return;
             }
 
@@ -5183,7 +5225,7 @@
                     throw new Error("Không mở được phòng chat.");
                 }
 
-                window.location.href = "/PickleballWeb/DirectChat/" + roomId;
+                navigateWeb("/PickleballWeb/DirectChat/" + roomId);
             } catch (error) {
                 state.openingUserId = "";
                 window.alert(error.message || "Không mở được phòng chat.");

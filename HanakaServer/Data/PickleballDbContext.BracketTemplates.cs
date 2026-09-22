@@ -26,6 +26,7 @@ public partial class PickleballDbContext
         ConfigureTournamentBracketSeedAssignment(modelBuilder);
         ConfigureBracketRuntimeExtensions(modelBuilder);
         ConfigureRelay(modelBuilder);
+        ConfigureCoordination(modelBuilder);
     }
 
     private static void ConfigureBracketTemplate(ModelBuilder modelBuilder)

@@ -21,6 +21,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\HanakaServer\HanakaServer.csproj" />
+    <None Include="..\database\updates\20260922_add_match_coordination.sql" Link="Sql\20260922_add_match_coordination.sql" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\database\updates\20260912_add_relay_three_part_scores.sql" Link="Sql\20260912_add_relay_three_part_scores.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\database\updates\20260906_add_relay_foundation.sql" Link="Sql\20260906_add_relay_foundation.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\database\updates\20260906_add_relay_bracket_snapshots.sql" Link="Sql\20260906_add_relay_bracket_snapshots.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\database\updates\20260906_relay_informational_timer_configurable_target.sql" Link="Sql\20260906_relay_informational_timer_configurable_target.sql" CopyToOutputDirectory="PreserveNewest" />

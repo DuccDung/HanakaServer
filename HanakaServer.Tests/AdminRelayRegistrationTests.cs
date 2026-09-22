@@ -259,6 +259,130 @@ public sealed class AdminRelayRegistrationTests
         Assert.Equal(8, await db.RelayTeamMembers.CountAsync());
     }
 
+    [Fact]
+    public async Task Admin_conflict_lists_all_players_teams_and_roles_without_mirrored_duplicates()
+    {
+        await using var db = NewDb();
+        var tournament = await SeedRelayTournamentAsync(db, 4);
+        db.Users.AddRange(Enumerable.Range(99, 3).Select(id => new User
+        {
+            UserId = id, FullName = $"Người chơi {id}", IsActive = true, CreatedAt = DateTime.UtcNow
+        }));
+        await db.SaveChangesAsync();
+        var controller = NewController(db);
+        var teamA = RequestWithAccount("Team A", 99);
+        teamA.RelayCaptainUserId = 99;
+        teamA.RelayReserveMembers = [new() { Position = 3, UserId = 100 }];
+        Assert.IsType<OkObjectResult>(await controller.Create(tournament.TournamentId, teamA));
+        var teamB = RequestWithAccount("Team B", 101);
+        Assert.IsType<OkObjectResult>(await controller.Create(tournament.TournamentId, teamB));
+        var names = await db.RelayTeams.ToDictionaryAsync(x => x.TeamName, x => x.RegistrationId);
+        var codes = await db.TournamentRegistrations.ToDictionaryAsync(x => x.RegistrationId, x => x.RegCode);
+
+        var incoming = RequestWithAccount("Team mới", 99);
+        incoming.RelayReserveMembers = [new() { Position = 1, UserId = 100 }, new() { Position = 2, UserId = 101 }];
+        var error = Assert.IsType<BadRequestObjectResult>(await controller.Create(tournament.TournamentId, incoming));
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(error.Value));
+        Assert.Equal("ATHLETE_ALREADY_REGISTERED", json.RootElement.GetProperty("code").GetString());
+        var message = json.RootElement.GetProperty("message").GetString()!;
+        var lines = message.Split('\n').Skip(1).ToArray();
+        Assert.Equal(3, lines.Length); // User 99 is captain, main member and mirrored Player1, but appears once.
+        Assert.Contains($"Người chơi 99 (User ID #99) — đội “Team A” (mã ĐK {codes[names["Team A"]]}); đội hình chính, vị trí 1.", lines[0]);
+        Assert.Contains($"Người chơi 100 (User ID #100) — đội “Team A” (mã ĐK {codes[names["Team A"]]}); dự bị, vị trí 3.", lines[1]);
+        Assert.Contains($"Người chơi 101 (User ID #101) — đội “Team B” (mã ĐK {codes[names["Team B"]]}); đội hình chính, vị trí 1.", lines[2]);
+        Assert.Equal(2, await db.TournamentRegistrations.CountAsync());
+        Assert.Equal(8, await db.RelayTeamMembers.CountAsync());
+        Assert.Single(await db.RelayTeamReserveMembers.ToListAsync());
+
+        var edit = new UpdateRegistrationPlayersForm
+        {
+            RelayTeamName = "Team B", RelayExpectedVersion = 1, RelayMembers = teamB.RelayMembers,
+            RelayReserveMembersIncluded = true, RelayReserveMembers = [new() { Position = 1, UserId = 99 }]
+        };
+        var editError = Assert.IsType<BadRequestObjectResult>(await controller.UpdatePlayers(names["Team B"], edit));
+        using var editJson = JsonDocument.Parse(JsonSerializer.Serialize(editError.Value));
+        var editMessage = editJson.RootElement.GetProperty("message").GetString()!;
+        Assert.Contains("User ID #99", editMessage);
+        Assert.DoesNotContain("User ID #101", editMessage); // Exclude the team currently being edited.
+        Assert.Equal(1, (await db.RelayTeams.SingleAsync(x => x.TeamName == "Team B")).Version);
+        edit.RelayReserveMembers = [];
+        Assert.IsType<OkObjectResult>(await controller.UpdatePlayers(names["Team B"], edit));
+
+        var otherTournament = await SeedRelayTournamentAsync(db, 4);
+        Assert.IsType<OkObjectResult>(await controller.Create(otherTournament.TournamentId, RequestWithAccount("Team giải khác", 99)));
+    }
+
+    [Theory]
+    [InlineData("captain", "đội trưởng")]
+    [InlineData("legacy1", "VĐV 1 trong đăng ký cũ")]
+    [InlineData("legacy2", "VĐV 2 trong đăng ký cũ")]
+    public async Task Admin_conflict_identifies_captain_only_and_legacy_registration_assignments(string source, string role)
+    {
+        await using var db = NewDb();
+        var tournament = await SeedRelayTournamentAsync(db, 4);
+        db.Users.Add(new User { UserId = 99, FullName = "Tên hiện tại", IsActive = true });
+        db.TournamentRegistrations.Add(new TournamentRegistration
+        {
+            TournamentId = tournament.TournamentId, RegIndex = 1, RegCode = "OLD-001", Player1Name = "Tên snapshot",
+            Player1UserId = source == "legacy1" ? 99 : null,
+            Player2UserId = source == "legacy2" ? 99 : null, Player2Name = "Tên snapshot 2", Success = true
+        });
+        await db.SaveChangesAsync();
+        if (source == "captain")
+        {
+            db.RelayTeams.Add(new RelayTeam
+            {
+                RegistrationId = await db.TournamentRegistrations.Select(x => x.RegistrationId).SingleAsync(),
+                TournamentId = tournament.TournamentId, TeamName = "Team đội trưởng", CaptainUserId = 99
+            });
+            await db.SaveChangesAsync();
+        }
+        var result = Assert.IsType<BadRequestObjectResult>(await NewController(db)
+            .Create(tournament.TournamentId, RequestWithAccount("Team mới", 99)));
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(result.Value));
+        var message = json.RootElement.GetProperty("message").GetString()!;
+        Assert.Contains("Tên hiện tại (User ID #99)", message);
+        Assert.Contains("OLD-001", message);
+        Assert.Contains(role, message);
+        Assert.Single(await db.TournamentRegistrations.ToListAsync());
+    }
+
+    [RelaySqlFact]
+    public async Task Admin_conflict_details_query_real_sql_without_creating_registration()
+    {
+        await using var sandbox = await RelaySqlSandbox.CreateFullSchemaAsync();
+        await using var db = sandbox.CreateDb();
+        var tournament = await SeedRelayTournamentAsync(db, 4);
+        var users = new[]
+        {
+            new User { FullName = "VĐV chính SQL", Phone = "0900090001", IsActive = true, CreatedAt = DateTime.UtcNow },
+            new User { FullName = "VĐV dự bị SQL", Phone = "0900090002", IsActive = true, CreatedAt = DateTime.UtcNow }
+        };
+        db.Users.AddRange(users);
+        await db.SaveChangesAsync();
+        var controller = NewController(db);
+        var existing = RequestWithAccount("Đội SQL đã đăng ký", users[0].UserId);
+        existing.RelayCaptainUserId = users[0].UserId;
+        existing.RelayReserveMembers = [new() { Position = 2, UserId = users[1].UserId }];
+        Assert.IsType<OkObjectResult>(await controller.Create(tournament.TournamentId, existing));
+        db.ChangeTracker.Clear();
+
+        var incoming = RequestWithAccount("Đội SQL mới", users[1].UserId);
+        incoming.RelayReserveMembers = [new() { Position = 1, UserId = users[0].UserId }];
+        var error = Assert.IsType<BadRequestObjectResult>(await controller.Create(tournament.TournamentId, incoming));
+        using var json = JsonDocument.Parse(JsonSerializer.Serialize(error.Value));
+        var lines = json.RootElement.GetProperty("message").GetString()!.Split('\n').Skip(1).ToArray();
+        Assert.Equal(2, lines.Length);
+        Assert.Contains($"VĐV chính SQL (User ID #{users[0].UserId})", lines[0]);
+        Assert.Contains("đội hình chính, vị trí 1", lines[0]);
+        Assert.Contains($"VĐV dự bị SQL (User ID #{users[1].UserId})", lines[1]);
+        Assert.Contains("dự bị, vị trí 2", lines[1]);
+        Assert.All(lines, line => Assert.Contains("Đội SQL đã đăng ký", line));
+        Assert.Single(await db.TournamentRegistrations.ToListAsync());
+        Assert.Equal(4, await db.RelayTeamMembers.CountAsync());
+        Assert.Single(await db.RelayTeamReserveMembers.ToListAsync());
+    }
+
     private static CreateRegistrationForm GuestRequest(string teamName, int teamSize) => new()
     {
         RelayTeamName = teamName,

@@ -29,7 +29,7 @@ namespace HanakaServer.Controllers
         /// Lấy thông tin giải đấu + toàn bộ rounds -> groups -> matches
         /// </summary>
         [HttpGet("{tournamentId:long}/rounds-with-matches")]
-        public async Task<IActionResult> GetRoundsWithMatches(long tournamentId)
+        public async Task<IActionResult> GetRoundsWithMatches(long tournamentId, CancellationToken ct = default)
         {
             var canViewVirtualTeams = User.IsInRole("Admin");
             var tournament = await _db.Tournaments
@@ -65,7 +65,7 @@ namespace HanakaServer.Controllers
                     Content = x.Content,
                     CreatedAt = x.CreatedAt
                 })
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync(ct);
 
             if (tournament == null)
                 return NotFound(new { message = "Không tìm thấy giải đấu." });
@@ -87,7 +87,7 @@ namespace HanakaServer.Controllers
                     x.SortOrder,
                     x.CreatedAt
                 })
-                .ToListAsync();
+                .ToListAsync(ct);
 
             var roundMapIds = roundMaps.Select(x => x.TournamentRoundMapId).ToList();
 
@@ -105,15 +105,13 @@ namespace HanakaServer.Controllers
                     x.SortOrder,
                     x.CreatedAt
                 })
-                .ToListAsync();
+                .ToListAsync(ct);
 
             var groupIds = groups.Select(x => x.TournamentRoundGroupId).ToList();
 
             var matchesRaw = await _db.TournamentGroupMatches
                 .AsNoTracking()
                 .Where(x => x.TournamentId == tournamentId && groupIds.Contains(x.TournamentRoundGroupId))
-                .OrderBy(x => x.StartAt ?? DateTime.MaxValue)
-                .ThenBy(x => x.MatchId)
                 .Select(x => new
                 {
                     x.MatchId,
@@ -140,11 +138,13 @@ namespace HanakaServer.Controllers
                     x.ScoreTeam2,
                     x.IsCompleted,
                     x.CompletionReason,
+                    x.MatchStatus,
+                    x.StateVersion,
                     x.WinnerRegistrationId,
                     x.CreatedAt,
                     x.UpdatedAt
                 })
-                .ToListAsync();
+                .ToListAsync(ct);
 
             var sourceGroupIds = matchesRaw
                 .SelectMany(x => new[] { x.Team1SourceGroupId, x.Team2SourceGroupId })
@@ -156,7 +156,7 @@ namespace HanakaServer.Controllers
             var sourceGroupMap = await _db.TournamentRoundGroups.AsNoTracking()
                 .Where(x => sourceGroupIds.Contains(x.TournamentRoundGroupId))
                 .Select(x => new { x.TournamentRoundGroupId, x.GroupName })
-                .ToDictionaryAsync(x => x.TournamentRoundGroupId, x => x.GroupName);
+                .ToDictionaryAsync(x => x.TournamentRoundGroupId, x => x.GroupName, ct);
 
             var registrationIds = matchesRaw
                 .SelectMany(x => new long?[]
@@ -196,7 +196,7 @@ namespace HanakaServer.Controllers
                     Success = x.Success,
                     CreatedAt = x.CreatedAt
                 })
-                .ToListAsync();
+                .ToListAsync(ct);
 
             var regMap = regs.ToDictionary(x => x.RegistrationId, x => x);
 
@@ -211,6 +211,10 @@ namespace HanakaServer.Controllers
                     CreatedAt = g.CreatedAt,
                     Matches = matchesRaw
                         .Where(m => m.TournamentRoundGroupId == g.TournamentRoundGroupId)
+                        // All matches are already materialized. Sort narrow in-memory references
+                        // instead of asking SQL to grant memory for a sort of wide text projections.
+                        .OrderBy(m => m.StartAt ?? DateTime.MaxValue)
+                        .ThenBy(m => m.MatchId)
                         .Select(m =>
                         {
                             TournamentRegistrationLiteDto? team1Reg = null;
@@ -271,6 +275,8 @@ namespace HanakaServer.Controllers
                                 ScoreTeam2 = m.ScoreTeam2,
                                 IsCompleted = m.IsCompleted,
                                 CompletionReason = m.CompletionReason,
+                                MatchStatus = m.MatchStatus,
+                                StateVersion = m.StateVersion,
                                 WinnerRegistrationId = m.WinnerRegistrationId,
                                 WinnerTeam = GetWinnerTeam(m.WinnerRegistrationId, m.Team1RegistrationId, m.Team2RegistrationId),
                                 Winner = winnerReg == null ? null : BuildTeamDto(tournament.GameType, winnerReg, canViewVirtualTeams),
@@ -346,6 +352,8 @@ namespace HanakaServer.Controllers
                     x.ScoreTeam2,
                     x.IsCompleted,
                     x.CompletionReason,
+                    x.MatchStatus,
+                    x.StateVersion,
                     x.WinnerRegistrationId,
                     x.CreatedAt,
                     x.UpdatedAt
@@ -563,6 +571,8 @@ namespace HanakaServer.Controllers
                     ScoreTeam2 = match.ScoreTeam2,
                     IsCompleted = match.IsCompleted,
                     CompletionReason = match.CompletionReason,
+                    MatchStatus = match.MatchStatus,
+                    StateVersion = match.StateVersion,
                     WinnerRegistrationId = match.WinnerRegistrationId,
                     WinnerTeam = GetWinnerTeam(match.WinnerRegistrationId, match.Team1RegistrationId, match.Team2RegistrationId),
                     Winner = winnerReg == null ? null : BuildTeamDto(tournament.GameType, winnerReg, canViewVirtualTeams),
@@ -1013,6 +1023,8 @@ namespace HanakaServer.Controllers
 
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
+        public string MatchStatus { get; set; } = MatchStatuses.NotStarted;
+        public long StateVersion { get; set; }
     }
 
     public class TournamentTeamDto

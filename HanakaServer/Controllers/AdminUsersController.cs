@@ -368,6 +368,61 @@ namespace HanakaServer.Controllers
             return Ok(new { userId = u.UserId, verified = u.Verified });
         }
 
+        // Exact lookup for registration editors. Keep the existing find/{id} contract
+        // for other admin screens; ambiguous identifiers require an explicit choice.
+        [HttpGet("lookup")]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> Lookup([FromQuery] string? query, CancellationToken ct)
+        {
+            var input = (query ?? string.Empty).Trim();
+            if (input.Length is < 1 or > 64
+                || input.Any(c => !char.IsAsciiDigit(c) && c is not ('+' or ' ' or '-' or '.' or '(' or ')'))
+                || input.Count(c => c == '+') > 1 || (input.Contains('+') && !input.StartsWith('+')))
+                return BadRequest(new { message = "Vui lòng nhập User ID hoặc số điện thoại hợp lệ." });
+
+            var digits = string.Concat(input.Where(char.IsAsciiDigit));
+            var userId = input.All(char.IsAsciiDigit)
+                && long.TryParse(input, out var parsedId) && parsedId > 0 ? parsedId : 0;
+            // Preserve leading zeroes. Compare formatted stored numbers on the server
+            // and include equivalent Vietnamese national/international representations.
+            var phones = new List<string>();
+            if (digits.Length is >= 6 and <= 15)
+            {
+                phones.Add(digits);
+                if (digits.Length == 10 && digits.StartsWith('0'))
+                    phones.Add("84" + digits[1..]);
+                else if (digits.Length == 11 && digits.StartsWith("84", StringComparison.Ordinal))
+                    phones.Add("0" + digits[2..]);
+            }
+            if (userId == 0 && phones.Count == 0)
+                return BadRequest(new { message = "Vui lòng nhập User ID hoặc số điện thoại hợp lệ." });
+
+            var items = await _db.Users.AsNoTracking()
+                .Where(x => x.IsActive && ((userId > 0 && x.UserId == userId)
+                    || (x.Phone != null && phones.Contains(x.Phone.Trim()
+                        .Replace(" ", "").Replace("-", "").Replace(".", "")
+                        .Replace("(", "").Replace(")", "").Replace("+", "")))))
+                .OrderBy(x => x.UserId)
+                .Take(21)
+                .Select(x => new
+                {
+                    x.UserId,
+                    x.FullName,
+                    x.AvatarUrl,
+                    x.Phone,
+                    RatingSingle = _db.UserRatingHistories.Where(r => r.UserId == x.UserId)
+                        .OrderByDescending(r => r.RatedAt).ThenByDescending(r => r.RatingHistoryId)
+                        .Select(r => r.RatingSingle).FirstOrDefault() ?? x.RatingSingle ?? 0m,
+                    RatingDouble = _db.UserRatingHistories.Where(r => r.UserId == x.UserId)
+                        .OrderByDescending(r => r.RatedAt).ThenByDescending(r => r.RatingHistoryId)
+                        .Select(r => r.RatingDouble).FirstOrDefault() ?? x.RatingDouble ?? 0m
+                }).ToListAsync(ct);
+
+            if (items.Count > 20)
+                return Conflict(new { message = "Số điện thoại khớp quá nhiều tài khoản. Vui lòng tìm bằng User ID." });
+            return Ok(new { items });
+        }
+
         //=================================================================
         // GET /api/admin/users/123
         [HttpGet("find/{id:long}")]

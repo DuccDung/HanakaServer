@@ -10,8 +10,10 @@ namespace HanakaServer.Tests;
 
 public class PublicRealtimeHubTests
 {
-    [Fact]
-    public async Task ScoreBroadcast_TargetsTournamentOrMatchSubscribers_WithoutDuplicates()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MatchBroadcast_TargetsTournamentOrMatchSubscribers_WithoutDuplicates(bool coordination)
     {
         var hub = CreateHub();
         var tournamentSocket = new RecordingWebSocket();
@@ -29,13 +31,15 @@ public class PublicRealtimeHubTests
         hub.SubscribeTournament(bothSocketId, 12);
         hub.SubscribeMatch(bothSocketId, 34);
 
-        await hub.BroadcastMatchScoreUpdatedAsync(12, 34, new
+        var payload = new
         {
             TournamentId = 12,
             MatchId = 34,
             ScoreTeam1 = 11,
             ScoreTeam2 = 7
-        });
+        };
+        if (coordination) await hub.BroadcastMatchCoordinationUpdatedAsync(12, 34, payload);
+        else await hub.BroadcastMatchScoreUpdatedAsync(12, 34, payload);
 
         Assert.Single(tournamentSocket.Messages);
         Assert.Single(matchSocket.Messages);
@@ -43,7 +47,7 @@ public class PublicRealtimeHubTests
         Assert.Empty(unrelatedSocket.Messages);
 
         using var message = JsonDocument.Parse(tournamentSocket.Messages.Single());
-        Assert.Equal("tournament.match.score.updated", message.RootElement.GetProperty("type").GetString());
+        Assert.Equal(coordination ? "tournament.match.coordination.updated" : "tournament.match.score.updated", message.RootElement.GetProperty("type").GetString());
         Assert.False(string.IsNullOrWhiteSpace(message.RootElement.GetProperty("eventId").GetString()));
         Assert.Equal(JsonValueKind.String, message.RootElement.GetProperty("occurredAt").ValueKind);
         Assert.Equal(34, message.RootElement.GetProperty("payload").GetProperty("matchId").GetInt64());

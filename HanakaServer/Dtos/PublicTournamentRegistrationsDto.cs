@@ -4,9 +4,9 @@ namespace HanakaServer.Dtos
 {
     public class PublicPlayerDto
     {
-        public long? UserId { get; set; }        // null => guest
-        public bool IsGuest { get; set; }        // true => guest
-        public bool Verified { get; set; }       // nếu user thì lấy từ Users; nếu guest thì false
+        public long? UserId { get; set; }        // null for guests or a relay team summary
+        public bool IsGuest { get; set; }        // relay team summaries are not guest athletes
+        public bool Verified { get; set; }       // account state, or display-only true for a relay team summary
         public string Name { get; set; } = "";
         public string? Avatar { get; set; }
         public decimal Level { get; set; }

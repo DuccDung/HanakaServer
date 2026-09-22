@@ -121,12 +121,18 @@ namespace HanakaServer.Services
             }
         }
 
-        public async Task BroadcastMatchScoreUpdatedAsync(long tournamentId, long matchId, object payload)
+        public Task BroadcastMatchScoreUpdatedAsync(long tournamentId, long matchId, object payload) =>
+            BroadcastMatchUpdatedAsync(tournamentId, matchId, payload, "tournament.match.score.updated");
+
+        public Task BroadcastMatchCoordinationUpdatedAsync(long tournamentId, long matchId, object payload) =>
+            BroadcastMatchUpdatedAsync(tournamentId, matchId, payload, "tournament.match.coordination.updated");
+
+        private async Task BroadcastMatchUpdatedAsync(long tournamentId, long matchId, object payload, string eventType)
         {
             var eventId = Guid.NewGuid().ToString("N");
             var bytes = Serialize(new
             {
-                type = "tournament.match.score.updated",
+                type = eventType,
                 eventId,
                 occurredAt = DateTime.UtcNow,
                 payload
@@ -155,7 +161,7 @@ namespace HanakaServer.Services
                 targetSocketIds.Add(socketId);
             }
 
-            await SendToSocketsAsync(targetSocketIds, bytes, eventId, "tournament.match.score.updated");
+            await SendToSocketsAsync(targetSocketIds, bytes, eventId, eventType);
         }
 
         public async Task BroadcastBracketUpdatedAsync(long tournamentId, object payload)

@@ -134,15 +134,19 @@ namespace HanakaServer.Controllers
         public async Task<IActionResult> PublicRegistrations(
             long tournamentId,
             [FromQuery] string tab = "ALL",
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            [FromQuery] string? view = null)
         {
             tab = (tab ?? "ALL").Trim().ToUpperInvariant();
             if (tab is not ("SUCCESS" or "WAITING")) tab = "ALL";
+            // Released apps cannot request a new view. Web explicitly opts into the full roster contract.
+            var relayAppSummary = !string.Equals(view?.Trim(), "full", StringComparison.OrdinalIgnoreCase)
+                && _config.GetValue<bool?>("PublicRegistrations:LegacyRelaySummaryEnabled") != false;
             var cacheSeconds = Math.Clamp(
                 _config.GetValue<int?>("PublicRegistrations:CacheSeconds") ?? 5,
                 0,
                 30);
-            var cacheKey = $"public-registrations:{tournamentId}:{tab}";
+            var cacheKey = $"public-registrations:{tournamentId}:{tab}:{(relayAppSummary ? "app-summary" : "full")}";
 
             if (cacheSeconds > 0
                 && _cache?.TryGetValue(cacheKey, out PublicTournamentRegistrationsResponseDto? cached) == true
@@ -155,7 +159,7 @@ namespace HanakaServer.Controllers
             {
                 try
                 {
-                    var result = await LoadPublicRegistrations(tournamentId, tab, cancellationToken);
+                    var result = await LoadPublicRegistrations(tournamentId, tab, relayAppSummary, cancellationToken);
                     if (cacheSeconds > 0
                         && result is OkObjectResult { Value: PublicTournamentRegistrationsResponseDto response })
                     {
@@ -191,6 +195,7 @@ namespace HanakaServer.Controllers
         private async Task<IActionResult> LoadPublicRegistrations(
             long tournamentId,
             string tab,
+            bool relayAppSummary,
             CancellationToken cancellationToken)
         {
             PublicRegistrationsTournamentRow? tournament;
@@ -266,6 +271,11 @@ namespace HanakaServer.Controllers
                 ? await LoadRelayRegistrations(filteredQuery, tournament, cancellationToken)
                 : await LoadStandardRegistrations(filteredQuery, tournamentType.IsDoubleLike, cancellationToken);
 
+            // These DTOs belong to this request and have not entered the cache yet.
+            if (tournament.IsRelay && relayAppSummary)
+                foreach (var item in mapped)
+                    ApplyRelayAppSummary(item);
+
             var successItems = mapped.Where(item => item.Success).ToArray();
             var waitingItems = mapped.Where(item => item.WaitingPair).ToArray();
 
@@ -278,7 +288,9 @@ namespace HanakaServer.Controllers
                     tournament.Status,
                     tournament.GameType,
                     GenderCategory = tournamentType.GenderCategory,
-                    TournamentTypeCode = tournament.IsRelay ? "RELAY_TEAM" : tournamentType.TournamentTypeCode,
+                    TournamentTypeCode = tournament.IsRelay
+                        ? (relayAppSummary ? "SINGLE" : "RELAY_TEAM")
+                        : tournamentType.TournamentTypeCode,
                     TournamentTypeLabel = tournament.IsRelay ? "Đồng đội tiếp sức" : tournamentType.TournamentTypeLabel,
                     tournament.IsRelay,
                     tournament.TeamSize,
@@ -298,6 +310,23 @@ namespace HanakaServer.Controllers
                 SuccessItems = successItems,
                 WaitingItems = waitingItems
             });
+        }
+
+        private static void ApplyRelayAppSummary(PublicRegistrationItemDto item)
+        {
+            // Members contains only the playing roster; reserves never contribute to the team rating.
+            var totalDoubleRating = item.Members.Sum(member => member.Level);
+            item.Player1 = new PublicPlayerDto
+            {
+                Name = string.IsNullOrWhiteSpace(item.TeamName) ? $"Đội {item.RegCode}" : item.TeamName.Trim(),
+                Level = totalDoubleRating,
+                Verified = true,
+                IsGuest = false,
+                UserId = null,
+                Avatar = null
+            };
+            item.Player2 = null;
+            item.Points = totalDoubleRating;
         }
 
         private async Task<List<PublicRegistrationItemDto>> LoadStandardRegistrations(

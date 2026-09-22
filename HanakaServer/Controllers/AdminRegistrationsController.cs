@@ -1176,8 +1176,6 @@ namespace HanakaServer.Controllers
         {
             var teamName = ValidateRelayTeamName(request.RelayTeamName);
             var members = await ResolveRelayMembersAsync(
-                tournament.TournamentId,
-                null,
                 settings.TeamSize,
                 request.RelayCaptainUserId,
                 request.RelayMembers,
@@ -1186,7 +1184,7 @@ namespace HanakaServer.Controllers
             var reserves = await RelayReserveMembers.ResolveAsync(_db,
                 (request.RelayReserveMembers ?? []).Select(x => new RelayReserveMemberInput(x.Position, x.UserId, x.DisplayName)).ToList());
             await RelayReserveMembers.ValidateAssignmentsAsync(_db, tournament.TournamentId, null,
-                members.Select(x => x.UserId), reserves.Select(x => x.UserId));
+                members.Select(x => x.UserId), reserves.Select(x => x.UserId), includeConflictDetails: true);
 
             var registrationCount = await _db.TournamentRegistrations
                 .CountAsync(x => x.TournamentId == tournament.TournamentId && !x.IsVirtualTeam);
@@ -1261,8 +1259,6 @@ namespace HanakaServer.Controllers
 
             var existingMembers = team?.Members.ToDictionary(x => x.Position);
             var members = await ResolveRelayMembersAsync(
-                registration.TournamentId,
-                registration.RegistrationId,
                 settings.TeamSize,
                 request.RelayCaptainUserId,
                 request.RelayMembers,
@@ -1274,7 +1270,7 @@ namespace HanakaServer.Controllers
                     .Select(x => new RelayReserveMemberInput(x.Position, x.UserId, x.DisplayName)).ToList())
                 : team?.ReserveMembers.ToList() ?? [];
             await RelayReserveMembers.ValidateAssignmentsAsync(_db, registration.TournamentId, registration.RegistrationId,
-                members.Select(x => x.UserId), reserves.Select(x => x.UserId));
+                members.Select(x => x.UserId), reserves.Select(x => x.UserId), includeConflictDetails: true);
             if (replaceReserves && team != null)
             {
                 _db.RelayTeamReserveMembers.RemoveRange(team.ReserveMembers);
@@ -1324,8 +1320,6 @@ namespace HanakaServer.Controllers
         }
 
         private async Task<List<ResolvedRelayMember>> ResolveRelayMembersAsync(
-            long tournamentId,
-            long? currentRegistrationId,
             int teamSize,
             long? captainUserId,
             IReadOnlyList<RelayRegistrationMemberForm>? forms,
@@ -1346,24 +1340,6 @@ namespace HanakaServer.Controllers
                 .ToArray();
             if (requestedUserIds.Any(x => x <= 0) || requestedUserIds.Distinct().Count() != requestedUserIds.Length)
                 throw new RelayRuleException("LINEUP_DUPLICATE_USER", "Một tài khoản không được xuất hiện nhiều lần trong cùng đội.");
-
-            if (requestedUserIds.Length > 0)
-            {
-                var duplicateInTournament = await (
-                    from member in _db.RelayTeamMembers.AsNoTracking()
-                    join relayTeam in _db.RelayTeams.AsNoTracking()
-                        on member.RegistrationId equals relayTeam.RegistrationId
-                    where relayTeam.TournamentId == tournamentId
-                          && (!currentRegistrationId.HasValue || relayTeam.RegistrationId != currentRegistrationId.Value)
-                          && member.UserId.HasValue
-                          && requestedUserIds.Contains(member.UserId ?? 0)
-                    select member.UserId ?? 0)
-                    .FirstOrDefaultAsync();
-                if (duplicateInTournament > 0)
-                    throw new RelayRuleException(
-                        "ATHLETE_ALREADY_REGISTERED",
-                        $"Tài khoản {duplicateInTournament} đã thuộc một đội khác trong giải này.");
-            }
 
             if (captainUserId.HasValue && !requestedUserIds.Contains(captainUserId.Value))
                 throw new RelayRuleException("CAPTAIN_INVALID", "Đội trưởng phải là một thành viên có tài khoản trong đội.");

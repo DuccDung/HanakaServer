@@ -1,0 +1,56 @@
+@{
+    Layout = "_CoordinatorLayout";
+    ViewData["Title"] = "Điều phối sân";
+}
+<div id="coordinator-portal">
+    @Html.AntiForgeryToken()
+    <header class="topbar">
+        <a class="brand" href="/CoordinatorPortal/Matches" aria-label="Trang điều phối Hanaka Sport">HANAKA <span>SPORT</span></a>
+        <div class="account-bar"><span id="operator-name"></span><button id="logout" type="button" class="quiet">Đăng xuất</button></div>
+    </header>
+    <main class="workspace">
+        <div class="page-heading">
+            <div><p class="eyebrow">ĐIỀU HÀNH GIẢI ĐẤU</p><h1>Điều phối sân</h1><p class="muted">Chọn sân, gọi các đội chuẩn bị. Lịch đấu trên app sẽ cập nhật theo.</p></div>
+            <button id="refresh" type="button">↻ Làm mới</button>
+        </div>
+        <div id="page-error" class="error banner" role="alert" hidden></div>
+        <div class="tournament-bar">
+            <label for="tournament">Giải được phân công<select id="tournament" disabled><option value="">Đang tải danh sách giải…</option></select></label>
+            <p id="sync-state" class="muted" role="status">Đang kết nối…</p>
+        </div>
+        <section class="status-grid" aria-label="Lọc theo trạng thái trận đấu">
+            <button type="button" class="status-tile" data-status="NOT_STARTED" aria-pressed="false"><span class="dot NOT_STARTED"></span><span>Chưa bắt đầu</span><strong id="count-NOT_STARTED">0</strong></button>
+            <button type="button" class="status-tile" data-status="PREPARING" aria-pressed="false"><span class="dot PREPARING"></span><span>Chuẩn bị đánh</span><strong id="count-PREPARING">0</strong></button>
+            <button type="button" class="status-tile" data-status="IN_PROGRESS" aria-pressed="false"><span class="dot IN_PROGRESS"></span><span>Đang đánh</span><strong id="count-IN_PROGRESS">0</strong></button>
+            <button type="button" class="status-tile" data-status="COMPLETED" aria-pressed="false"><span class="dot COMPLETED"></span><span>Kết thúc</span><strong id="count-COMPLETED">0</strong></button>
+        </section>
+        <section class="filters" aria-label="Bộ lọc lịch đấu">
+            <label for="search">Tìm trận hoặc đội<input id="search" type="search" placeholder="Mã trận, tên đội…" /></label>
+            <label for="court-filter">Sân<select id="court-filter"><option value="">Tất cả sân</option></select></label>
+            <label for="round-filter">Vòng đấu<select id="round-filter"><option value="">Tất cả vòng</option></select></label>
+            <label for="status-filter">Trạng thái<select id="status-filter"><option value="">Tất cả trạng thái</option><option value="NOT_STARTED">Chưa bắt đầu</option><option value="PREPARING">Chuẩn bị đánh</option><option value="IN_PROGRESS">Đang đánh</option><option value="COMPLETED">Kết thúc</option></select></label>
+        </section>
+        <div class="list-heading"><h2>Lịch thi đấu <span id="match-count" class="muted"></span></h2><button id="clear-filters" type="button" class="quiet">Xóa bộ lọc</button></div>
+        <p id="empty-state" class="empty" role="status">Đang tải lịch đấu…</p>
+        <section id="matches" class="match-grid" aria-label="Danh sách trận đấu" aria-busy="true"></section>
+    </main>
+    <dialog id="coordination-dialog" aria-labelledby="edit-title">
+        <form id="coordination-form">
+            <div class="dialog-heading"><h2 id="edit-title">Điều phối trận</h2><button id="close-editor" type="button" class="quiet" aria-label="Đóng điều phối">✕</button></div>
+            <p id="edit-teams" class="muted"></p>
+            <label for="edit-court">Sân thi đấu</label>
+            <input id="edit-court" maxlength="100" autocomplete="off" list="court-suggestions" placeholder="Ví dụ: Sân 1" />
+            <datalist id="court-suggestions"></datalist>
+            <label class="check-label preparing-choice"><input id="edit-preparing" type="checkbox" /> Gọi chuẩn bị đánh</label>
+            <p class="muted small">Bật để gọi các đội vào sân. Tắt để trở về “Chưa bắt đầu”. Trọng tài cập nhật trạng thái khi chấm điểm và kết thúc trận.</p>
+            <p id="edit-error" class="error" role="alert"></p>
+            <p id="edit-warning" class="warning" role="status" hidden></p>
+            <div class="dialog-actions"><button id="reload-editor" type="button" hidden>Tải dữ liệu mới</button><button id="save-coordination" class="primary" type="submit">Lưu điều phối</button></div>
+        </form>
+    </dialog>
+    <p id="toast" class="toast" role="status" hidden></p>
+</div>
+@section Scripts {
+    <script src="~/js/public-realtime.js" asp-append-version="true"></script>
+    <script src="~/js/coordinator-portal.js" asp-append-version="true"></script>
+}

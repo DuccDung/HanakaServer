@@ -1,4 +1,11 @@
 (function () {
+    function navigateWeb(url, replace, reload) {
+        if (window.HanakaWebActivity) return window.HanakaWebActivity.navigate(url, {replace: !!replace, reload: !!reload});
+        if (reload) window.location.reload();
+        else if (replace) window.location.replace(url);
+        else window.location.href = url;
+    }
+
     var COMMUNITY_TERMS_KEY = "communityTermsState_v1";
     var COMMUNITY_TERMS_VERSION = "2026-04-09";
     var popupState = {
@@ -124,7 +131,7 @@
     }
 
     function safeRedirect(url) {
-        window.location.href = isSafeLocalUrl(url) ? url : "/";
+        navigateWeb(isSafeLocalUrl(url) ? url : "/");
     }
 
     function ensurePopup() {
@@ -405,10 +412,10 @@
         var contentType = response.headers.get("content-type") || "";
 
         if (contentType.indexOf("application/json") >= 0) {
-            return response.json().catch(function () { return null; });
+            return response.json().catch(function (error) { if (response.ok || error?.name === "AbortError" || error?.name === "TimeoutError") throw error; return null; });
         }
 
-        return response.text().catch(function () { return ""; });
+        return response.text().catch(function (error) { if (response.ok || error?.name === "AbortError" || error?.name === "TimeoutError") throw error; return ""; });
     }
 
     function getErrorMessage(payload, fallback) {
@@ -468,6 +475,7 @@
     }
 
     function setSubmitState(root, active, loading, idleText, loadingText) {
+        window.HanakaWebActivity?.setRegionBusy(root, qs("form", root) || root, !!loading, loadingText);
         var button = qs("[data-auth-submit]", root);
         var text = qs("[data-auth-submit-text]", root);
 

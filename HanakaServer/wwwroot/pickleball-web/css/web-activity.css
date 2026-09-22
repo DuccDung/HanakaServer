@@ -1,0 +1,40 @@
+.web-activity-notice[hidden] { display: none !important; }
+.web-activity-notice {
+    position: fixed;
+    z-index: 2147483001;
+    left: 50%;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: min(520px, calc(100% - 32px));
+    box-sizing: border-box;
+    padding: 16px;
+    border: 1px solid #dce8f8;
+    border-radius: 12px;
+    background: white;
+    color: #17213a;
+    box-shadow: 0 4px 24px #18233726;
+    font: 14px/1.5 "Be Vietnam Pro", sans-serif;
+}
+.web-activity-notice button { flex: none; color: #2463aa; background: #eff6ff; border: 0; border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+html[data-web-activity] .hanaka-api-overlay { backdrop-filter: none; -webkit-backdrop-filter: none; }
+html[data-web-activity].hanaka-api-busy .hanaka-api-section-overlay { visibility: hidden; }
+html[data-web-activity].hanaka-api-busy .hanaka-api-button-busy::after { visibility: hidden; }
+[data-web-region-busy] { min-height: 96px; }
+html[data-web-activity] .hanaka-api-section-overlay { display: block; }
+html[data-web-activity] .hanaka-api-section-overlay__panel {
+    position: sticky;
+    top: min(40vh, 320px);
+    width: fit-content;
+    margin: 0 auto;
+}
+[data-web-region-busy][aria-busy="true"] > [data-native-page-loading],
+[data-web-region-busy][aria-busy="true"] > [data-native-page-loading-more] { visibility: hidden; }
+html[data-web-activity] .auth-submit-btn,
+html[data-web-activity] [data-auth-submit] { min-height: 48px; }
+@media (prefers-reduced-motion: reduce) {
+    html[data-web-activity] .hanaka-api-overlay__spinner,
+    html[data-web-activity] .hanaka-api-section-overlay__spinner { animation: none; }
+}

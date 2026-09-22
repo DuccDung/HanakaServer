@@ -44,9 +44,16 @@ namespace HanakaServer.Services
             var source = await _db.TournamentGroupMatches.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.MatchId == matchId, ct);
 
-            if (source == null
-                || !source.IsCompleted
-                || !source.WinnerRegistrationId.HasValue)
+            if (source == null)
+                return;
+
+            if (!source.IsCompleted)
+            {
+                await RetractMatchResultsAsync(source, ct);
+                return;
+            }
+
+            if (!source.WinnerRegistrationId.HasValue)
             {
                 return;
             }
@@ -104,6 +111,7 @@ namespace HanakaServer.Services
                     continue;
                 }
 
+                if (await PreserveRelayParticipantsAsync(target, originalTeam1, originalTeam2, ct)) continue;
                 ResetPendingScoreIfParticipantsChanged(target, originalTeam1, originalTeam2);
                 target.UpdatedAt = DateTime.UtcNow;
 
@@ -155,6 +163,63 @@ namespace HanakaServer.Services
             {
                 await PropagateFromMatchAsync(completedByeId, ct);
             }
+        }
+
+        // Reopening a source invalidates only its dependent winner/loser slots and results.
+        // The scoring controller calls this before committing the reopened source.
+        private async Task RetractMatchResultsAsync(TournamentGroupMatch source, CancellationToken ct)
+        {
+            var pending = new Queue<long>();
+            var visited = new HashSet<long>();
+            var affected = new HashSet<long>();
+            pending.Enqueue(source.MatchId);
+
+            while (pending.TryDequeue(out var sourceId))
+            {
+                if (!visited.Add(sourceId)) continue;
+                var targets = await _db.TournamentGroupMatches
+                    .Where(x => x.TournamentId == source.TournamentId && x.MatchId != source.MatchId
+                        && ((x.Team1SourceMatchId == sourceId
+                                && (x.Team1SourceType == MatchSourceTypes.WinnerMatch || x.Team1SourceType == MatchSourceTypes.LoserMatch))
+                            || (x.Team2SourceMatchId == sourceId
+                                && (x.Team2SourceType == MatchSourceTypes.WinnerMatch || x.Team2SourceType == MatchSourceTypes.LoserMatch))))
+                    .ToListAsync(ct);
+
+                foreach (var target in targets)
+                {
+                    if (target.Team1SourceMatchId == sourceId
+                        && target.Team1SourceType is MatchSourceTypes.WinnerMatch or MatchSourceTypes.LoserMatch)
+                        target.Team1RegistrationId = null;
+                    if (target.Team2SourceMatchId == sourceId
+                        && target.Team2SourceType is MatchSourceTypes.WinnerMatch or MatchSourceTypes.LoserMatch)
+                        target.Team2RegistrationId = null;
+
+                    target.IsCompleted = false;
+                    target.WinnerRegistrationId = null;
+                    target.CompletionReason = null;
+                    target.ScoreTeam1 = 0;
+                    target.ScoreTeam2 = 0;
+                    target.UpdatedAt = DateTime.UtcNow;
+                    affected.Add(target.MatchId);
+                    pending.Enqueue(target.MatchId);
+                }
+            }
+
+            if (affected.Count == 0) return;
+
+            // Keep increasing versions so an open scoreboard cannot restore invalidated points.
+            var relayScores = await _db.RelayMatchScores.Where(x => affected.Contains(x.MatchId)).ToListAsync(ct);
+            foreach (var score in relayScores)
+            {
+                score.Part1Team1 = score.Part1Team2 = 0;
+                score.Part2Team1 = score.Part2Team2 = 0;
+                score.Part3Team1 = score.Part3Team2 = 0;
+                score.Version++;
+            }
+            // A replacement matchup needs a fresh lineup; score history remains available.
+            _db.RelayMatchLineupSnapshots.RemoveRange(await _db.RelayMatchLineupSnapshots
+                .Where(x => affected.Contains(x.MatchId)).ToListAsync(ct));
+            await _db.SaveChangesAsync(ct);
         }
 
         public async Task PropagateFromGroupAsync(long groupId, CancellationToken ct = default)
@@ -213,6 +278,7 @@ namespace HanakaServer.Services
                     continue;
                 }
 
+                if (await PreserveRelayParticipantsAsync(target, originalTeam1, originalTeam2, ct)) continue;
                 ResetPendingScoreIfParticipantsChanged(target, originalTeam1, originalTeam2);
                 target.UpdatedAt = DateTime.UtcNow;
             }
@@ -244,6 +310,7 @@ namespace HanakaServer.Services
                 return;
             }
 
+            if (await PreserveRelayParticipantsAsync(target, originalTeam1, originalTeam2, ct)) return;
             ResetPendingScoreIfParticipantsChanged(target, originalTeam1, originalTeam2);
             target.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(ct);
@@ -440,6 +507,23 @@ namespace HanakaServer.Services
                 or MatchSourceTypes.LoserMatch
                 or MatchSourceTypes.GroupRank)
                 && !registrationId.HasValue;
+        }
+
+        private async Task<bool> PreserveRelayParticipantsAsync(TournamentGroupMatch match,
+            long? originalTeam1, long? originalTeam2, CancellationToken ct)
+        {
+            if (match.Team1RegistrationId == originalTeam1 && match.Team2RegistrationId == originalTeam2)
+                return false;
+            if (!await _db.RelayMatchScores.AsNoTracking().AnyAsync(x => x.MatchId == match.MatchId, ct))
+                return false;
+            // Retraction leaves a version marker with zero points and no active lineup.
+            if (match.ScoreTeam1 == 0 && match.ScoreTeam2 == 0
+                && !await _db.RelayMatchLineupSnapshots.AsNoTracking().AnyAsync(x => x.MatchId == match.MatchId, ct))
+                return false;
+            match.Team1RegistrationId = originalTeam1;
+            match.Team2RegistrationId = originalTeam2;
+            _logger.LogWarning("Skip changing participants of relay match {MatchId} because it already has part scores.", match.MatchId);
+            return true;
         }
 
         internal static void ResetPendingScoreIfParticipantsChanged(

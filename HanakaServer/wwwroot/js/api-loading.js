@@ -66,6 +66,7 @@
 
         return {
             mode: mode,
+            immediate: source.immediate === true,
             message: String(source.message || defaultMessage(method)),
             slowMessage: String(source.slowMessage || "Hệ thống đang xử lý lâu hơn dự kiến..."),
             hint: String(source.hint || "Vui lòng chờ trong giây lát"),
@@ -124,6 +125,7 @@
         document.documentElement.classList.add("hanaka-api-busy");
         document.documentElement.setAttribute("aria-busy", "true");
         globalState.shownAt = Date.now();
+        document.dispatchEvent(new CustomEvent("hanaka:api-loading-visibility", { detail: { visible: true } }));
         globalState.slowTimer = window.setTimeout(function () {
             globalState.slowTimer = 0;
             if (globalState.count > 0) renderGlobalMessage(true);
@@ -144,6 +146,7 @@
         }
         document.documentElement.classList.remove("hanaka-api-busy");
         document.documentElement.removeAttribute("aria-busy");
+        document.dispatchEvent(new CustomEvent("hanaka:api-loading-visibility", { detail: { visible: false } }));
     }
 
     function queueGlobalHide() {
@@ -168,6 +171,9 @@
         globalState.messages.set(token.id, options);
         if (globalState.shownAt) {
             renderGlobalMessage(false);
+        } else if (options.immediate) {
+            window.clearTimeout(globalState.showTimer);
+            showGlobal();
         } else if (!globalState.showTimer) {
             globalState.showTimer = window.setTimeout(showGlobal, SHOW_DELAY_MS);
         }

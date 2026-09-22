@@ -6,5 +6,6 @@ namespace HanakaServer.Helpers
         public const string Member = "MEMBER";
         public const string Referee = "REFEREE";
         public const string RatingAssessor = "RATING_ASSESSOR";
+        public const string Coordinator = "COORDINATOR";
     }
 }

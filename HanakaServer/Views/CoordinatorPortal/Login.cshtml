@@ -1,0 +1,26 @@
+@{
+    Layout = "_CoordinatorLayout";
+    ViewData["Title"] = "Đăng nhập điều phối";
+}
+<main class="login-page">
+    <section class="login-card" aria-labelledby="login-title">
+        <p class="brand">HANAKA <span>SPORT</span></p>
+        <p class="eyebrow">DÀNH CHO NGƯỜI ĐIỀU PHỐI</p>
+        <h1 id="login-title">Sẵn sàng cho<br />trận đấu tiếp theo.</h1>
+        <p class="muted">Đăng nhập để điều phối sân và gọi các đội chuẩn bị thi đấu.</p>
+        <form id="coordinator-login">
+            @Html.AntiForgeryToken()
+            <label for="account">Email hoặc số điện thoại</label>
+            <input id="account" name="account" autocomplete="username" required maxlength="256" />
+            <label for="password">Mật khẩu</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256" />
+            <label class="check-label"><input id="remember" type="checkbox" /> Ghi nhớ đăng nhập</label>
+            <p id="login-error" class="error" role="alert"></p>
+            <button type="submit" class="primary">Đăng nhập điều phối</button>
+        </form>
+        <p class="login-note">Sử dụng tài khoản đã được ban tổ chức phân công điều phối giải.</p>
+    </section>
+</main>
+@section Scripts {
+    <script src="~/js/coordinator-login.js" asp-append-version="true"></script>
+}

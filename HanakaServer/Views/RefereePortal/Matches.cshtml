@@ -2838,6 +2838,7 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="~/css/relay-scoreboard.css" asp-append-version="true" />
 </head>
 <body>
     <div class="topbar">
@@ -2925,6 +2926,7 @@
                 <div class="end-match-summary-id" id="endMatchConfirmMatch"></div>
                 <div class="end-match-summary-teams" id="endMatchConfirmTeams"></div>
                 <div class="end-match-summary-score" id="endMatchConfirmScore"></div>
+                <div class="relay-confirm-parts" id="endMatchConfirmParts"></div>
             </div>
             <div class="end-match-actions">
                 <button type="button" class="btn btn-outline-secondary" id="btnEndMatchCancel">Xem lại</button>
@@ -2940,11 +2942,13 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <script src="~/js/api-loading.js" asp-append-version="true"></script>
     <script src="~/js/public-realtime.js" asp-append-version="true"></script>
+    <script src="~/js/relay-scoreboard.js" asp-append-version="true"></script>
 
     <script>
         (() => {
             const $id = (id) => document.getElementById(id);
             const API = `/api/referee/matches`;
+            const relayBoard = window.HanakaRelayScoreboard;
             const SAVE_REQUEST_TIMEOUT_MS = 15000;
             const READ_REQUEST_TIMEOUT_MS = 12000;
             const RESUME_IDLE_THRESHOLD_MS = 30000;
@@ -3117,6 +3121,7 @@
                                     ${esc(h.refereeName || ("User #" + h.refereeUserId))} • ${fmt(h.createdAt)}
                                 </div>
                                 ${h.note ? `<div class="history-note">${esc(h.note)}</div>` : ``}
+                                ${relayBoard?.historyDetail(h) || ""}
                             </div>
                         `).join("")}
                     </div>
@@ -3162,6 +3167,7 @@
 
                                     <fieldset class="score-fieldset">
                                         <legend class="sr-only">Nhập điểm cho hai đội</legend>
+                                        ${m.isRelay ? relayBoard.render(m) : `
                                         <div class="big-score-inputs">
                                             <div class="big-score-box ${t1Winner ? "winner" : ""}">
                                                 <div class="score-team-heading">
@@ -3194,6 +3200,7 @@
                                                 </div>
                                             </div>
                                         </div>
+                                        `}
                                     </fieldset>
 
                                     <div class="score-save-status idle" id="scoreSaveStatus" role="status" aria-live="polite" aria-atomic="true">
@@ -3218,17 +3225,18 @@
                                                 <span>Bật sau khi đã kiểm tra đúng tỷ số.</span>
                                             </div>
                                             <div class="custom-control custom-switch">
-                                                <input type="checkbox" class="custom-control-input" id="inlineIsCompleted" ${completed ? "checked" : ""}>
+                                                <input type="checkbox" class="custom-control-input" id="inlineIsCompleted" ${completed ? "checked" : ""} ${m.relayScores?.requiresAllocation ? 'disabled data-keep-disabled="true"' : ""}>
                                                 <label class="custom-control-label" for="inlineIsCompleted"><span class="sr-only">Kết thúc trận đấu</span></label>
                                             </div>
                                         </div>
                                     </div>
 
                                     <button type="submit" class="btn btn-success btn-block" id="btnInlineSubmit">
-                                        <i class="fas fa-save" aria-hidden="true"></i> Lưu điểm cho trận này
+                                        <i class="fas fa-save" aria-hidden="true"></i> ${m.relayScores?.requiresAllocation ? "Lưu phân bổ" : "Lưu điểm cho trận này"}
                                     </button>
                                 </form>
                             ` : `
+                                ${m.isRelay ? relayBoard.render(m, false) : `
                                 <div class="focus-scoreboard" aria-label="Tỷ số hiện tại ${esc(m.team1Text)} ${Number(m.scoreTeam1 || 0)}, ${esc(m.team2Text)} ${Number(m.scoreTeam2 || 0)}">
                                     <div class="focus-team ${t1Winner ? "winner" : ""}">
                                         <span>${esc(m.team1Text)}</span>
@@ -3240,6 +3248,7 @@
                                         <strong data-live-score="team2">${Number(m.scoreTeam2 || 0)}</strong>
                                     </div>
                                 </div>
+                                `}
                                 <div class="focus-lock" role="status">
                                     <i class="fas fa-lock" aria-hidden="true"></i>
                                     <span>Trận này đang ở chế độ chỉ xem. Trọng tài chỉ có thể chấm khi đáp ứng thời gian thi đấu hiện tại.</span>
@@ -3392,7 +3401,7 @@
                 return JSON.stringify([
                     m.matchId, m.tournamentTitle, m.roundKey, m.roundLabel, m.groupName,
                     m.startAt, m.courtText, m.addressText, m.team1RegistrationId, m.team2RegistrationId,
-                    m.team1Text, m.team2Text, m.canEditScore
+                    m.team1Text, m.team2Text, m.canEditScore, m.isRelay, m.relayScores?.requiresAllocation
                 ]);
             }
 
@@ -3535,6 +3544,12 @@
                 const note = ($id("inlineScoreNote")?.value || "").trim();
                 const isCompleted = !!$id("inlineIsCompleted")?.checked;
 
+                const match = getMatch(ACTIVE_MATCH_ID);
+                if (match?.isRelay) {
+                    const relay = relayBoard.read($id("inlineScoreForm"), match);
+                    return { ...relayBoard.totals(relay.parts), relay,
+                        isCompleted: relay.allocateExisting ? !!match.isCompleted : isCompleted, note: note || null };
+                }
                 return {
                     scoreTeam1: readScoreInput($id("inlineScore1")),
                     scoreTeam2: readScoreInput($id("inlineScore2")),
@@ -3550,7 +3565,8 @@
                     scoreTeam1: payload.scoreTeam1,
                     scoreTeam2: payload.scoreTeam2,
                     isCompleted: payload.isCompleted,
-                    note: payload.note || null
+                    note: payload.note || null,
+                    relayParts: payload.relay ? JSON.stringify(payload.relay.parts) : null
                 };
             }
 
@@ -3560,7 +3576,8 @@
                 return current.scoreTeam1 !== INLINE_SCORE_BASELINE.scoreTeam1
                     || current.scoreTeam2 !== INLINE_SCORE_BASELINE.scoreTeam2
                     || current.isCompleted !== INLINE_SCORE_BASELINE.isCompleted
-                    || current.note !== INLINE_SCORE_BASELINE.note;
+                    || current.note !== INLINE_SCORE_BASELINE.note
+                    || current.relayParts !== INLINE_SCORE_BASELINE.relayParts;
             }
 
             function setInlineScoreSaving(form, isSaving, triggerButton = null, showTriggerSpinner = true, showSubmitSpinner = true) {
@@ -3572,7 +3589,7 @@
                     form.classList.toggle("is-saving", isSaving && !RECOVERY_BUSY);
                     form.setAttribute("aria-busy", controlsBusy ? "true" : "false");
                     form.querySelectorAll("input, select").forEach(control => {
-                        control.disabled = controlsBusy;
+                        control.disabled = controlsBusy || control.dataset.keepDisabled === "true";
                     });
                 }
 
@@ -3584,7 +3601,7 @@
                     } else if (showSubmitSpinner) {
                         submitButton.innerHTML = isSaving
                             ? `<i class="fas fa-spinner fa-spin"></i> Đang lưu...`
-                            : `<i class="fas fa-save"></i> Lưu điểm cho trận này`;
+                            : `<i class="fas fa-save"></i> ${getMatch(ACTIVE_MATCH_ID)?.relayScores?.requiresAllocation ? "Lưu phân bổ" : "Lưu điểm cho trận này"}`;
                     }
                 }
 
@@ -3614,7 +3631,7 @@
                 if (!form) return;
 
                 form.querySelectorAll("input, select").forEach(control => {
-                    control.disabled = isRecovering;
+                    control.disabled = isRecovering || control.dataset.keepDisabled === "true";
                 });
 
                 setInlineScoreSaving(form, SCORE_SAVE_BUSY, null, false, true);
@@ -3633,6 +3650,7 @@
                 CACHE.items[idx].isCompleted = data.isCompleted;
                 CACHE.items[idx].winnerRegistrationId = data.winnerRegistrationId;
                 CACHE.items[idx].winnerTeam = data.winnerTeam;
+                if (data.relayScores) CACHE.items[idx].relayScores = data.relayScores;
 
                 if (!Array.isArray(CACHE.items[idx].scoreHistories)) {
                     CACHE.items[idx].scoreHistories = [];
@@ -3646,6 +3664,12 @@
                 const idx = (CACHE.items || []).findIndex(x => Number(x.matchId) === matchId);
                 if (idx < 0) return false;
 
+                if (CACHE.items[idx].isRelay) {
+                    const scores = payload?.relayScores ?? payload?.RelayScores;
+                    if (!relayBoard.valid(scores) || scores.version < (CACHE.items[idx].relayScores?.version ?? 0)) return false;
+                    CACHE.items[idx].relayScores = scores;
+                }
+
                 CACHE.items[idx].scoreTeam1 = Number(payload?.scoreTeam1 ?? payload?.ScoreTeam1 ?? 0);
                 CACHE.items[idx].scoreTeam2 = Number(payload?.scoreTeam2 ?? payload?.ScoreTeam2 ?? 0);
                 CACHE.items[idx].isCompleted = !!(payload?.isCompleted ?? payload?.IsCompleted);
@@ -3657,6 +3681,7 @@
             }
 
             function syncInlineScoreView(data) {
+                if (data.isRelay) relayBoard.sync($id("overlayContent"), data);
                 const scoreTeam1 = Number(data.scoreTeam1 || 0);
                 const scoreTeam2 = Number(data.scoreTeam2 || 0);
                 const score1Input = $id("inlineScore1");
@@ -3747,6 +3772,7 @@
                     && Number.isFinite(Number(data.scoreTeam1))
                     && Number.isFinite(Number(data.scoreTeam2))
                     && typeof data.isCompleted === "boolean"
+                    && (!getMatch(matchId)?.isRelay || relayBoard.valid(data.relayScores))
                     && data.history != null
                     && typeof data.history === "object";
             }
@@ -3755,7 +3781,8 @@
                 return !isLoginHtmlResponse(response)
                     && response?.data != null
                     && typeof response.data === "object"
-                    && Array.isArray(response.data.items);
+                    && Array.isArray(response.data.items)
+                    && response.data.items.every(m => !m.isRelay || relayBoard.valid(m.relayScores));
             }
 
             function createInvalidApiResponseError(response) {
@@ -3813,6 +3840,10 @@
                         message: "Máy chủ trả về dữ liệu không hợp lệ. Đang đồng bộ lại tỷ số.",
                         shouldResync: true
                     };
+                }
+
+                if (status === 409) {
+                    return { kind: "conflict", message: serverMessage || "Điểm đã thay đổi. Đang đồng bộ lại.", shouldResync: true };
                 }
 
                 if (status >= 500) {
@@ -3881,7 +3912,7 @@
 
                 errBox.textContent = message || "Chấm điểm thất bại.";
                 errBox.classList.remove("d-none");
-                [$id("inlineScore1"), $id("inlineScore2")].filter(Boolean).forEach(input => {
+                document.querySelectorAll("#inlineScore1, #inlineScore2, #overlayContent [data-relay-input]").forEach(input => {
                     input.setAttribute("aria-invalid", "true");
                 });
                 setScoreSaveStatus(message || "Chấm điểm thất bại.", "error");
@@ -3940,6 +3971,7 @@
                 SCORE_DATA_REVISION++;
                 setInlineScoreSaving(form, true, triggerButton, triggerSpinner, submitSpinner);
                 setScoreSaveStatus(`Đang lưu tỷ số ${payload.scoreTeam1}–${payload.scoreTeam2}…`, "saving");
+                if (payload.relay) relayBoard.status(form, payload.relay.changedPart, "Đang lưu…", "saving");
 
                 try {
                     const requestConfig = {
@@ -3985,6 +4017,7 @@
                         INLINE_SCORE_BASELINE = captureInlineScoreState();
                     }
                     setScoreSaveStatus(`Đã lưu tỷ số ${Number(res.data.scoreTeam1 || 0)}–${Number(res.data.scoreTeam2 || 0)}`, "success");
+                    if (payload.relay) relayBoard.status($id("inlineScoreForm"), payload.relay.changedPart, "Đã lưu", "success");
 
                     saved = true;
                 } catch (err) {
@@ -3995,6 +4028,7 @@
                             redirectToRefereeLogin(failure.message);
                         } else {
                             showInlineScoreError(failure.message);
+                            if (payload.relay) relayBoard.status(form, payload.relay.changedPart, failure.message, "error");
                             showScoreToast(failure.message, "error", 3200);
                         }
                     }
@@ -4020,11 +4054,16 @@
                 const match = getMatch(ACTIVE_MATCH_ID);
                 if (!match) return;
 
-                const scoreTeam1 = readScoreInput($id("inlineScore1"));
-                const scoreTeam2 = readScoreInput($id("inlineScore2"));
+                const payload = getInlineScorePayload();
+                const {scoreTeam1, scoreTeam2} = payload;
                 $id("endMatchConfirmMatch").textContent = `Trận #${match.matchId}`;
                 $id("endMatchConfirmTeams").textContent = `${match.team1Text}  —  ${match.team2Text}`;
                 $id("endMatchConfirmScore").textContent = `${scoreTeam1} – ${scoreTeam2}`;
+                $id("endMatchConfirmParts").textContent = payload.relay
+                    ? payload.relay.parts.map(p => `Đội con ${p.partNumber}: ${p.scoreTeam1} – ${p.scoreTeam2}`).join("\n")
+                        + (scoreTeam1 === scoreTeam2 ? "\nTổng điểm đang hòa, chưa thể kết thúc."
+                            : `\nĐội thắng: ${scoreTeam1 > scoreTeam2 ? match.team1Text : match.team2Text}`)
+                    : "";
             }
 
             function setEndMatchConfirmVisible(isVisible) {
@@ -4106,11 +4145,16 @@
             }
 
             function bindScoreInputs(form) {
-                const scoreInputs = [$id("inlineScore1"), $id("inlineScore2")].filter(Boolean);
+                const scoreInputs = Array.from(form.querySelectorAll("#inlineScore1, #inlineScore2, [data-relay-input]"));
 
                 scoreInputs.forEach(input => {
                     input.addEventListener("input", () => {
                         normalizeScoreInput(input);
+                        const match = getMatch(ACTIVE_MATCH_ID);
+                        if (match?.isRelay) {
+                            relayBoard.preview(form, match);
+                            relayBoard.status(form, Number(input.dataset.part), "Chưa lưu", "dirty");
+                        }
                         if (!SCORE_SAVE_BUSY && !RECOVERY_BUSY) {
                             setScoreSaveStatus("Điểm đã thay đổi. Bấm Lưu điểm để cập nhật.", "dirty");
                         }
@@ -4124,8 +4168,11 @@
                 form.querySelectorAll("[data-score-target]").forEach(button => {
                     button.addEventListener("click", async (event) => {
                         event.preventDefault();
+                        if (SCORE_SAVE_BUSY || RECOVERY_BUSY || END_MATCH_CONFIRM_RESOLVE) return;
 
                         const input = $id(button.dataset.scoreTarget);
+                        const match = getMatch(ACTIVE_MATCH_ID);
+                        const previousVersion = match?.relayScores?.version;
                         const step = Number(button.dataset.scoreStep || 1);
                         const currentScore = readScoreInput(input);
                         const nextScore = Math.max(0, currentScore + step);
@@ -4133,6 +4180,7 @@
                         if (nextScore === currentScore && step < 0) return;
 
                         setScoreInput(input, nextScore);
+                        if (match?.relayScores?.requiresAllocation) return;
 
                         if (shouldConfirmEndMatch()) {
                             const confirmed = await confirmEndMatch();
@@ -4152,7 +4200,12 @@
                         });
 
                         if (!saved) {
-                            setScoreInput(input, currentScore);
+                            const currentMatch = getMatch(ACTIVE_MATCH_ID);
+                            if (currentMatch?.isRelay && currentMatch.relayScores?.version !== previousVersion) {
+                                relayBoard.sync(form, currentMatch);
+                            } else {
+                                setScoreInput(input, currentScore);
+                            }
                             const errorMessage = $id("inlineScoreErr")?.textContent;
                             if (errorMessage) {
                                 setScoreSaveStatus(errorMessage, "error");

@@ -430,6 +430,11 @@
                 const m = (CACHE.items || []).find(x => x.matchId === matchId);
                 if (!m) return;
 
+                if (m.isRelay) {
+                    window.location.assign(`/RefereePortal/Matches/${encodeURIComponent(matchId)}`);
+                    return;
+                }
+
                 if (!m.canEditScore) {
                     showErr("Chưa đến giờ thi đấu, bạn chỉ được phép xem trận.");
                     return;

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Security.Claims;
 using HanakaServer.Controllers;
 using HanakaServer.Dtos.Brackets;
+using HanakaServer.Dtos.Relay;
 using HanakaServer.Models;
 using HanakaServer.Options;
 using HanakaServer.Services.Brackets;
@@ -128,7 +129,8 @@ public sealed partial class BracketTemplateWorkflowIntegrationTests
         var deleteBlocked = Assert.IsAssignableFrom<ObjectResult>(await registrationAdmin.Delete(firstId, default));
         Assert.Equal(StatusCodes.Status409Conflict, deleteBlocked.StatusCode);
         var admin = new AdminTournamentGroupMatchesController(db, null!, null!, null!,
-            NullLogger<AdminTournamentGroupMatchesController>.Instance, guard);
+            NullLogger<AdminTournamentGroupMatchesController>.Instance, guard)
+        { ControllerContext = new() { HttpContext = new DefaultHttpContext() } };
         var scorer = new RefereeMatchesApiController(db, null!, null!, null!, NullLogger<RefereeMatchesApiController>.Instance, guard)
         {
             ControllerContext = new() { HttpContext = new DefaultHttpContext
@@ -140,11 +142,15 @@ public sealed partial class BracketTemplateWorkflowIntegrationTests
             .ExecuteUpdateAsync(x => x.SetProperty(m => m.StartAt, DateTime.Today.AddHours(9)));
         db.ChangeTracker.Clear();
 
+        static RelayScoreUpdate Parts(long version, int a, int b) => new()
+        {
+            ExpectedVersion = version, Parts = [new(1, a, b), new(2, 0, 0), new(3, 0, 0)]
+        };
         Assert.IsType<OkObjectResult>(await admin.SetScore(opening.TournamentRoundGroupId, opening.MatchId,
-            new() { ScoreTeam1 = 5, ScoreTeam2 = 3, IsCompleted = false }));
+            new() { Relay = Parts(0, 5, 3), IsCompleted = false }));
 
         var targetReached = Assert.IsType<OkObjectResult>(await scorer.SetScore(opening.MatchId,
-            new() { ScoreTeam1 = 40, ScoreTeam2 = 38, IsCompleted = false }));
+            new() { Relay = Parts(1, 40, 38), IsCompleted = false }));
         using (var targetJson = JsonDocument.Parse(JsonSerializer.Serialize(targetReached.Value)))
         {
             Assert.False(targetJson.RootElement.GetProperty("IsCompleted").GetBoolean());
@@ -155,22 +161,22 @@ public sealed partial class BracketTemplateWorkflowIntegrationTests
             .SingleAsync(x => x.MatchId == opening.MatchId);
         Assert.False(openMatch.IsCompleted);
         Assert.Null(openMatch.WinnerRegistrationId);
-        Assert.Single(await db.TournamentMatchScoreHistories.ToListAsync());
+        Assert.Equal(2, await db.TournamentMatchScoreHistories.CountAsync());
         Assert.Empty(await db.RelayMatchStates.ToListAsync());
         Assert.Empty(await db.RelayLegs.ToListAsync());
         Assert.Empty(await db.RelayMatchCommands.ToListAsync());
 
         Assert.IsType<BadRequestObjectResult>(await scorer.SetScore(opening.MatchId,
-            new() { ScoreTeam1 = 40, ScoreTeam2 = 40, IsCompleted = true }));
+            new() { Relay = Parts(2, 40, 40), IsCompleted = true }));
 
         var completed = Assert.IsType<OkObjectResult>(await scorer.SetScore(opening.MatchId,
-            new() { ScoreTeam1 = 40, ScoreTeam2 = 38, IsCompleted = true }));
+            new() { Relay = Parts(2, 40, 38), IsCompleted = true }));
         using (var completedJson = JsonDocument.Parse(JsonSerializer.Serialize(completed.Value)))
         {
             Assert.True(completedJson.RootElement.GetProperty("IsCompleted").GetBoolean());
             Assert.Equal(opening.Team1RegistrationId, completedJson.RootElement.GetProperty("WinnerRegistrationId").GetInt64());
         }
-        Assert.Equal(2, await db.TournamentMatchScoreHistories.CountAsync());
+        Assert.Equal(3, await db.TournamentMatchScoreHistories.CountAsync());
         Assert.Empty(await db.RelayMatchStates.ToListAsync());
 
         var reset = await service.ResetAsync(tournament.TournamentId, new() { Reason = "Không được xóa trận đã có lịch sử điểm" }, referee.UserId, default);

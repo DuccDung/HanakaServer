@@ -394,7 +394,8 @@ internal sealed class RelaySqlSandbox : IAsyncDisposable
                 CREATE TABLE dbo.TournamentGroupMatches (MatchId bigint PRIMARY KEY, TournamentId bigint NOT NULL,
                     Team1RegistrationId bigint NULL, Team2RegistrationId bigint NULL, RefereeUserId bigint NULL,
                     ScoreTeam1 int NOT NULL DEFAULT 0, ScoreTeam2 int NOT NULL DEFAULT 0, IsCompleted bit NOT NULL DEFAULT 0,
-                    WinnerRegistrationId bigint NULL, CompletionReason varchar(30) NULL, UpdatedAt datetime2 NULL);
+                    WinnerRegistrationId bigint NULL, CompletionReason varchar(30) NULL, UpdatedAt datetime2 NULL,
+                    MatchStatus varchar(20) NOT NULL DEFAULT 'NOT_STARTED', StateVersion bigint NOT NULL DEFAULT 1);
                 CREATE TABLE dbo.TournamentMatchScoreHistories (ScoreHistoryId bigint IDENTITY PRIMARY KEY, MatchId bigint NOT NULL,
                     RefereeUserId bigint NOT NULL, ScoreTeam1 int NOT NULL DEFAULT 0, ScoreTeam2 int NOT NULL DEFAULT 0, IsCompleted bit NOT NULL DEFAULT 0,
                     WinnerRegistrationId bigint NULL, Note nvarchar(max) NULL, CreatedAt datetime2 NOT NULL DEFAULT SYSDATETIME());
@@ -415,7 +416,9 @@ internal sealed class RelaySqlSandbox : IAsyncDisposable
         await SqlAsync(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Sql", "20260906_relay_informational_timer_configurable_target.sql")));
         await SqlAsync(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Sql", "20260908_remove_relay_lineup_lock_and_add_match_snapshots.sql")));
         await MigrateReservesAsync();
+        await MigrateScoresAsync();
     }
+    public Task MigrateScoresAsync() => SqlAsync(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Sql", "20260912_add_relay_three_part_scores.sql")));
     public Task MigrateReservesAsync() => SqlAsync(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Sql", "20260910_add_relay_reserve_members.sql")));
     public Task MigrateBracketAsync() => SqlAsync(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Sql", "20260906_add_relay_bracket_snapshots.sql")));
     public Task MigrateParticipantModeAsync() => SqlAsync(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Sql", "20260906_add_bracket_template_participant_mode.sql")));

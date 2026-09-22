@@ -1,4 +1,11 @@
 (function () {
+    function navigateWeb(url, replace, reload) {
+        if (window.HanakaWebActivity) return window.HanakaWebActivity.navigate(url, {replace: !!replace, reload: !!reload});
+        if (reload) window.location.reload();
+        else if (replace) window.location.replace(url);
+        else window.location.href = url;
+    }
+
     const TAB_OVERVIEW = "overview";
     const TAB_MEMBERS = "members";
     const TAB_PENDING = "pending";
@@ -345,8 +352,9 @@
     }
 
     function setLoadingState(elements, isLoading) {
+        window.HanakaWebActivity?.setRegionBusy(elements, elements.content.parentElement, isLoading);
         elements.loading.hidden = !isLoading;
-        elements.content.hidden = isLoading;
+        if (!elements.content.dataset.loaded) elements.content.hidden = isLoading;
         elements.error.hidden = true;
     }
 
@@ -373,8 +381,11 @@
             elements.loading.hidden = true;
             elements.error.hidden = true;
             elements.content.hidden = false;
+            elements.content.dataset.loaded = "true";
         } catch (error) {
             setErrorState(elements, error.message);
+        } finally {
+            window.HanakaWebActivity?.setRegionBusy(elements, elements.content.parentElement, false);
         }
     }
 
@@ -384,6 +395,7 @@
         }
 
         state.membersLoading = true;
+        window.HanakaWebActivity?.setRegionBusy(elements.membersList, elements.membersList.parentElement, true);
         elements.membersLoading.hidden = false;
 
         try {
@@ -405,6 +417,7 @@
             elements.membersLoading.hidden = true;
         } finally {
             state.membersLoading = false;
+            window.HanakaWebActivity?.setRegionBusy(elements.membersList, elements.membersList.parentElement, false);
         }
     }
 
@@ -427,6 +440,7 @@
         }
 
         state.pendingLoading = true;
+        window.HanakaWebActivity?.setRegionBusy(elements.pendingList, elements.pendingList.parentElement, true);
         elements.pendingLoading.hidden = false;
 
         try {
@@ -460,6 +474,7 @@
             elements.pendingLoading.hidden = true;
         } finally {
             state.pendingLoading = false;
+            window.HanakaWebActivity?.setRegionBusy(elements.pendingList, elements.pendingList.parentElement, false);
         }
     }
 
@@ -645,7 +660,7 @@
                 if (memberButton) {
                     const userId = Number(memberButton.getAttribute("data-club-member-link"));
                     if (Number.isFinite(userId) && userId > 0) {
-                        window.location.href = `/PickleballWeb/Member/${userId}`;
+                        navigateWeb(`/PickleballWeb/Member/${userId}`);
                     }
                 }
             });

@@ -143,7 +143,7 @@ public sealed class TournamentRelayUserRegistrationTests
         }).Build();
         var publicController = new PublicTournamentsController(db, config);
         var result = Assert.IsType<OkObjectResult>(
-            await publicController.PublicRegistrations(tournament.TournamentId));
+            await publicController.PublicRegistrations(tournament.TournamentId, view: "full"));
         using var json = JsonDocument.Parse(JsonSerializer.Serialize(result.Value));
 
         var tournamentJson = json.RootElement.GetProperty("Tournament");

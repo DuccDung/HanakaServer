@@ -22,10 +22,10 @@
     async function parseResponsePayload(response) {
         var contentType = response.headers.get("content-type") || "";
         if (contentType.indexOf("application/json") >= 0) {
-            return response.json().catch(function () { return null; });
+            return response.json().catch(function (error) { if (response.ok || error?.name === "AbortError" || error?.name === "TimeoutError") throw error; return null; });
         }
 
-        return response.text().catch(function () { return ""; });
+        return response.text().catch(function (error) { if (response.ok || error?.name === "AbortError" || error?.name === "TimeoutError") throw error; return ""; });
     }
 
     function responseMessage(payload, fallback) {

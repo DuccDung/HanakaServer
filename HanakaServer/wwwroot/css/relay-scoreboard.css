@@ -1,0 +1,53 @@
+.relay-scoreboard { min-width: 0; --relay-blue: #1855bd; --relay-red: #aa3b17; }
+.relay-scoreboard *, .relay-scoreboard *::before, .relay-scoreboard *::after { box-sizing: border-box; }
+.relay-totals { position: sticky; top: 0; z-index: 3; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 4px 16px; padding: 12px; margin-bottom: 14px; border: 1px solid #ccd9ed; border-radius: 12px; background: #fff; box-shadow: 0 3px 12px #1427460d; }
+.relay-total-label { grid-column: 1 / -1; font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #556479; }
+.relay-total-team { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.relay-total-team span { font-size: 12px; font-weight: 750; overflow-wrap: anywhere; }
+.relay-total-team strong { font-size: clamp(22px, 5vw, 32px); font-weight: 850; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.relay-side-1 { color: var(--relay-blue); }
+.relay-side-2 { color: var(--relay-red); }
+.relay-parts { display: grid; gap: 12px; }
+.relay-part { min-width: 0; padding: 12px; background: #f8fafd; border: 1px solid #d6dfed; border-radius: 12px; }
+.relay-part:focus-within { border-color: #7395cd; }
+.relay-part-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 10px; }
+.relay-part-heading h3 { margin: 0; color: #152439; font-size: 15px; font-weight: 800; }
+.relay-part-heading > span { color: #607089; font-size: 10px; }
+.relay-part-teams { display: grid; gap: 12px; }
+.relay-team-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(160px,52%); align-items: center; gap: 10px; min-width: 0; }
+.relay-team-name { display: block; margin: 0; min-width: 0; font-size: 12px; line-height: 1.4; font-weight: 750; overflow-wrap: anywhere; }
+.relay-team-name small { display: block; font-size: 10px; font-weight: 500; margin-bottom: 2px; }
+.relay-stepper { display: grid; grid-template-columns: 48px minmax(0,1fr) 52px; align-items: center; gap: 4px; min-width: 0; }
+.relay-stepper input { width: 100%; min-width: 0; height: 52px; padding: 2px; border: 1px solid #bdcce0; border-radius: 8px; background: #fff; color: #142137; text-align: center; font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.relay-step { min-height: 52px; padding: 0; border: 1px solid #cad7e9; border-radius: 8px; font: 700 28px/1 system-ui,sans-serif; cursor: pointer; touch-action: manipulation; }
+.relay-step-minus { color: #36455a; background: #edf1f7; }
+.relay-step-plus { color: #fff; background: var(--relay-blue); border-color: var(--relay-blue); }
+.relay-side-2 .relay-step-plus { background: var(--relay-red); border-color: var(--relay-red); }
+.relay-step:active { filter: brightness(.9); }
+.relay-step:disabled, .relay-stepper input:disabled { cursor: wait; opacity: 1; }
+.relay-step:focus-visible, .relay-stepper input:focus-visible { outline: 3px solid #6086c6; outline-offset: 3px; }
+.relay-read-score { text-align: right; font-size: 28px; font-variant-numeric: tabular-nums; }
+.relay-part-status { min-height: 18px; margin-top: 8px; font-size: 11px; color: #596a80; }
+.relay-part-status[data-state="error"] { color: #b33321; }
+.relay-part-status[data-state="success"] { color: #196638; }
+.relay-allocation { margin-bottom: 12px; border: 1px solid #ebc492; border-radius: 8px; padding: 12px; color: #7b4614; background: #fff8ec; font-size: 13px; }
+.relay-allocation span { display: block; margin-top: 4px; }
+.relay-history { color: #52627a; font-size: 12px; margin-top: 4px; overflow-wrap: anywhere; }
+.relay-confirm-parts { margin-top: 10px; font-size: 14px; line-height: 1.8; white-space: pre-line; }
+.relay-scoreboard ~ .score-form-options { margin-top: 24px; }
+@media (max-width: 359px) {
+    .relay-team-row { grid-template-columns: minmax(0,1fr); gap: 5px; }
+    .relay-team-name small { display: inline; margin-right: 5px; }
+    .relay-total-team { align-items: flex-start; flex-direction: column; gap: 0; }
+    .relay-part { padding: 10px; }
+}
+@media (min-width: 640px) {
+    .relay-part-teams { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 24px; }
+    .relay-team-row { grid-template-columns: minmax(0,1fr); gap: 8px; }
+    .relay-stepper { grid-template-columns: 52px minmax(0,1fr) 56px; }
+    .relay-part { padding: 16px; }
+    .relay-team-name { font-size: 14px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+    .relay-totals { position: static; }
+}

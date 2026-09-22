@@ -1,4 +1,11 @@
 (function () {
+    function navigateWeb(url, replace, reload) {
+        if (window.HanakaWebActivity) return window.HanakaWebActivity.navigate(url, {replace: !!replace, reload: !!reload});
+        if (reload) window.location.reload();
+        else if (replace) window.location.replace(url);
+        else window.location.href = url;
+    }
+
     function qs(selector, root) {
         return (root || document).querySelector(selector);
     }
@@ -239,6 +246,11 @@
 
         const fallbackSrc = target.getAttribute("data-fallback-src");
         if (!fallbackSrc || target.getAttribute("src") === fallbackSrc) {
+            const relayAvatar = target.closest(".tournament-registration-page__relay-avatar");
+            if (relayAvatar) {
+                relayAvatar.classList.remove("registration-avatar-sprite");
+                relayAvatar.textContent = initials(target.getAttribute("alt"));
+            }
             return;
         }
 
@@ -301,8 +313,8 @@
 
         const contentType = response.headers.get("content-type") || "";
         const payload = contentType.indexOf("application/json") >= 0
-            ? await response.json().catch(function () { return null; })
-            : await response.text().catch(function () { return ""; });
+            ? await response.json().catch(function (error) { if (response.ok || error?.name === "AbortError" || error?.name === "TimeoutError") throw error; return null; })
+            : await response.text().catch(function (error) { if (response.ok || error?.name === "AbortError" || error?.name === "TimeoutError") throw error; return ""; });
 
         if (!response.ok) {
             const message = typeof payload === "string"
@@ -1309,6 +1321,7 @@
         }
 
         function render() {
+            window.HanakaWebActivity?.setRegionBusy(state, list.parentElement, state.loading);
             if (state.items.length > 0) {
                 list.innerHTML = state.items.map(function (item) {
                     return renderMembersAppItem(item);
@@ -1327,6 +1340,7 @@
 
         async function fetchMembers(reset) {
             if (state.loading) {
+                if (reset) state.reloadRequested = true;
                 return;
             }
 
@@ -1334,6 +1348,7 @@
                 return;
             }
 
+            const queryAtStart = state.query;
             state.loading = true;
             if (reset) {
                 state.errorMessage = "";
@@ -1343,6 +1358,7 @@
             try {
                 const nextPage = reset ? 1 : state.page;
                 const payload = await fetchJson(`/api/users/members?page=${nextPage}&pageSize=${state.pageSize}&query=${encodeURIComponent(state.query)}`);
+                if (state.query !== queryAtStart) { state.reloadRequested = true; return; }
                 const nextItems = Array.isArray(payload?.items) ? payload.items : [];
 
                 state.total = Number(payload?.total) || 0;
@@ -1364,6 +1380,7 @@
             } finally {
                 state.loading = false;
                 render();
+                if (state.reloadRequested) { state.reloadRequested = false; void fetchMembers(true); }
             }
         }
 
@@ -1574,6 +1591,7 @@
             query: "",
             filter: config.defaultFilter || ""
         };
+        let listRequestId = 0;
 
         if (config.staticLoader) {
             try {
@@ -1596,6 +1614,8 @@
             }
 
             const pageToLoad = reset ? 1 : state.page;
+            const requestId = ++listRequestId;
+            window.HanakaWebActivity?.setRegionBusy(state, listNode.parentElement, !loadOptions?.silent);
             moreButton && (moreButton.disabled = true);
 
             try {
@@ -1605,6 +1625,7 @@
                     query: state.query,
                     filter: state.filter
                 }, loadOptions || {});
+                if (requestId !== listRequestId) return;
 
                 const items = config.getItems(payload);
                 const html = items.length > 0
@@ -1639,6 +1660,7 @@
                     loadPage(true);
                 });
             } catch (error) {
+                if (requestId !== listRequestId || window.HanakaWebSession?.isAborted(error)) return;
                 renderPageEmpty(root, "Không thể tải dữ liệu", "Vui lòng kiểm tra lại kết nối hoặc thử lại sau.");
                 if (totalTextNode) {
                     totalTextNode.textContent = "Tải dữ liệu thất bại";
@@ -1647,6 +1669,8 @@
                     moreButton.hidden = true;
                     moreButton.disabled = false;
                 }
+            } finally {
+                if (requestId === listRequestId) window.HanakaWebActivity?.setRegionBusy(state, listNode.parentElement, false);
             }
         }
 
@@ -2413,17 +2437,19 @@
     }
 
     function renderTournamentDetailField(label, value, fullWidth) {
+        const text = trimToEmpty(value);
+        if (!text || /^[-–—]+$/.test(text)) return "";
         return [
             `<div class="tournament-native-detail__field${fullWidth ? " is-full-width" : ""}">`,
             `<dt>${escapeHtml(label)}</dt>`,
-            `<dd>${escapeHtml(value)}</dd>`,
+            `<dd>${escapeHtml(text)}</dd>`,
             "</div>"
         ].join("");
     }
 
-    function renderTournamentActionLink(label, icon, href) {
+    function renderTournamentActionLink(label, icon, href, originalPrimaryAction) {
         return [
-            `<a class="tournament-native-action" href="${escapeHtml(buildSafeHref(href, "#"))}">`,
+            `<a class="tournament-native-action" href="${escapeHtml(buildSafeHref(href, "#"))}"${originalPrimaryAction ? " data-tournament-original-action" : ""}>`,
             `<ion-icon name="${escapeHtml(icon)}" aria-hidden="true"></ion-icon>`,
             `<span>${escapeHtml(label)}</span>`,
             "</a>"
@@ -2781,48 +2807,44 @@
         const detail = data?.detail || {};
         const contentHtml = normalizeRichHtml(detail?.content);
         const bannerUrl = normalizeMediaUrl(detail?.bannerUrl);
-        const status = trimToEmpty(detail?.statusText) || trimToEmpty(detail?.status) || "-";
+        const infoFields = [
+            renderTournamentDetailField("Ngày thi đấu", formatSlashDateTime(detail?.startTime)),
+            renderTournamentDetailField("Hạn đăng ký", formatSlashDateTime(detail?.registerDeadline)),
+            renderTournamentDetailField("Địa điểm", detail?.locationText, true),
+            renderTournamentDetailField("Giải", tournamentGameTypeLabel(detail?.gameType, detail?.genderCategory, detail?.tournamentTypeLabel)),
+            renderTournamentDetailField("Thể thức", detail?.playoffType),
+            Number(detail?.singleLimit) > 0
+                ? renderTournamentDetailField("Giới hạn trình đơn tối đa", formatFlexibleNumber(detail.singleLimit)) : "",
+            Number(detail?.doubleLimit) > 0
+                ? renderTournamentDetailField("Cặp tối đa", formatFlexibleNumber(detail.doubleLimit)) : "",
+            renderTournamentDetailField("Dạng", detail?.formatText),
+            renderTournamentDetailField("Người tạo giải", detail?.creatorName),
+            renderTournamentDetailField("Đơn vị tổ chức", detail?.organizer, true)
+        ].join("");
+        const statsFields = [
+            renderTournamentDetailField("Số đội dự kiến", detail?.expectedTeams),
+            renderTournamentDetailField("Số trận thi đấu", detail?.matchesCount),
+            renderTournamentDetailField("Thành viên đã đăng ký", detail?.registeredCount),
+            renderTournamentDetailField("Thành viên đã ghép cặp", detail?.pairedCount)
+        ].join("");
+        const registrationsHref = `/PickleballWeb/Tournament/${detail?.tournamentId}/Registrations`;
+        const scheduleHref = `/PickleballWeb/Tournament/${detail?.tournamentId}/Schedule`;
 
         return [
             '<div class="tournament-native-detail">',
             bannerUrl
-                ? `<img class="tournament-native-detail__banner" src="${escapeHtml(bannerUrl)}"${mediaFallbackAttrs(detail?.bannerUrl)} alt="${escapeHtml(trimToEmpty(detail?.title) || "Gi\u1ea3i \u0111\u1ea5u")}" loading="lazy">`
+                ? `<img class="tournament-native-detail__banner" src="${escapeHtml(bannerUrl)}"${mediaFallbackAttrs(detail?.bannerUrl)} alt="${escapeHtml(trimToEmpty(detail?.title) || "Gi\u1ea3i \u0111\u1ea5u")}" loading="eager" fetchpriority="high" data-page-critical-image>`
                 : '<div class="tournament-native-detail__banner tournament-native-detail__banner--fallback"><ion-icon name="trophy-outline"></ion-icon></div>',
             '<div class="tournament-native-detail__body">',
             '<header class="tournament-native-detail__heading">',
             `<h2 class="tournament-native-detail__title">${escapeHtml(trimToEmpty(detail?.title) || "Chi ti\u1ebft gi\u1ea3i \u0111\u1ea5u")}</h2>`,
-            `<span class="tournament-native-detail__status" aria-label="Tình trạng: ${escapeHtml(status)}">${escapeHtml(status)}</span>`,
             "</header>",
-            '<section class="tournament-native-detail__section" aria-labelledby="tournament-info-title">',
-            '<h3 class="tournament-native-section-title" id="tournament-info-title">Thông tin giải đấu</h3>',
-            '<dl class="tournament-native-detail__info">',
-            renderTournamentDetailField("Ngày thi đấu", formatSlashDateTime(detail?.startTime)),
-            renderTournamentDetailField("Hạn đăng ký", formatSlashDateTime(detail?.registerDeadline)),
-            renderTournamentDetailField("Địa điểm", trimToEmpty(detail?.locationText) || "-", true),
-            renderTournamentDetailField(
-                "Gi\u1ea3i",
-                tournamentGameTypeLabel(detail?.gameType, detail?.genderCategory, detail?.tournamentTypeLabel)),
-            renderTournamentDetailField("Thể thức", trimToEmpty(detail?.playoffType) || "-"),
-            renderTournamentDetailField("Giới hạn trình đơn tối đa", formatFlexibleNumber(detail?.singleLimit)),
-            renderTournamentDetailField("Cặp tối đa", formatFlexibleNumber(detail?.doubleLimit)),
-            renderTournamentDetailField("Dạng", trimToEmpty(detail?.formatText) || "-"),
-            renderTournamentDetailField("Người tạo giải", trimToEmpty(detail?.creatorName) || "-"),
-            renderTournamentDetailField("Đơn vị tổ chức", trimToEmpty(detail?.organizer) || "-", true),
-            "</dl>",
-            "</section>",
-            '<section class="tournament-native-detail__section" aria-labelledby="tournament-stats-title">',
-            '<h3 class="tournament-native-section-title" id="tournament-stats-title">Quy mô tham gia</h3>',
-            '<dl class="tournament-native-detail__stats">',
-            renderTournamentDetailField("Số đội dự kiến", String(toNumber(detail?.expectedTeams))),
-            renderTournamentDetailField("Số trận thi đấu", String(toNumber(detail?.matchesCount))),
-            detail?.registeredCount != null
-                ? renderTournamentDetailField("Thành viên đã đăng ký", String(detail.registeredCount))
-                : "",
-            detail?.pairedCount != null
-                ? renderTournamentDetailField("Thành viên đã ghép cặp", String(detail.pairedCount))
-                : "",
-            "</dl>",
-            "</section>",
+            infoFields ? '<section class="tournament-native-detail__section" aria-labelledby="tournament-info-title">' +
+                '<h3 class="tournament-native-section-title" id="tournament-info-title">Thông tin giải đấu</h3>' +
+                '<dl class="tournament-native-detail__info">' + infoFields + '</dl></section>' : "",
+            statsFields ? '<section class="tournament-native-detail__section" aria-labelledby="tournament-stats-title">' +
+                '<h3 class="tournament-native-section-title" id="tournament-stats-title">Quy mô tham gia</h3>' +
+                '<dl class="tournament-native-detail__stats">' + statsFields + '</dl></section>' : "",
             '<section id="tournament-content" class="tournament-native-detail__section" aria-labelledby="tournament-content-title">',
             '<h3 class="tournament-native-section-title" id="tournament-content-title">Nội dung</h3>',
             contentHtml
@@ -2832,13 +2854,17 @@
             '<nav class="tournament-native-detail__section" aria-labelledby="tournament-links-title">',
             '<h3 class="tournament-native-section-title" id="tournament-links-title">Theo dõi giải đấu</h3>',
             '<div class="tournament-native-actions">',
-            renderTournamentActionLink("Danh s\u00e1ch \u0111\u0103ng k\u00fd", "list", `/PickleballWeb/Tournament/${detail?.tournamentId}/Registrations`),
+            renderTournamentActionLink("Danh s\u00e1ch \u0111\u0103ng k\u00fd", "list", registrationsHref, true),
             renderTournamentActionLink("Th\u1ec3 l\u1ec7 gi\u1ea3i", "hammer", `/PickleballWeb/Tournament/${detail?.tournamentId}/Rule`),
-            renderTournamentActionLink("L\u1ecbch thi \u0111\u1ea5u", "calendar", `/PickleballWeb/Tournament/${detail?.tournamentId}/Schedule`),
+            renderTournamentActionLink("L\u1ecbch thi \u0111\u1ea5u", "calendar", scheduleHref, true),
             renderTournamentActionLink("B\u1ea3ng x\u1ebfp h\u1ea1ng", "stats-chart", `/PickleballWeb/Tournament/${detail?.tournamentId}/Standings`),
             "</div>",
             "</nav>",
             "</div>",
+            '<nav class="tournament-native-floating-actions" data-tournament-floating-actions aria-label="Theo dõi giải đấu" hidden>',
+            renderTournamentActionLink("Danh sách đăng ký", "list", registrationsHref),
+            renderTournamentActionLink("Lịch thi đấu", "calendar", scheduleHref),
+            "</nav>",
             "</div>"
         ].join("");
     }
@@ -3208,10 +3234,12 @@
             '<div class="tournament-registration-page__relay-member-copy">',
             `<span>${reserve === true ? "Dự bị" : "Vị trí"} ${escapeHtml(position)}${member?.isCaptain ? " · Đội trưởng" : ""}</span>`,
             `<strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong>`,
-            '<em class="tournament-registration-page__relay-member-meta">',
-            `<span class="tournament-registration-page__relay-user-id">User ID #${escapeHtml(userId || "-")}</span>`,
-            `<span>Trình đôi ${escapeHtml(formatFlexibleNumber(member?.level))}</span>`,
-            "</em>",
+            userId > 0 ? [
+                '<em class="tournament-registration-page__relay-member-meta">',
+                `<span class="tournament-registration-page__relay-user-id">User ID #${escapeHtml(userId)}</span>`,
+                `<span>Trình đôi ${escapeHtml(formatFlexibleNumber(member?.level))}</span>`,
+                "</em>"
+            ].join("") : "",
             "</div>",
             member?.verified ? '<ion-icon class="tournament-registration-page__relay-verified" name="checkmark-circle" title="Đã xác thực"></ion-icon>' : "",
             "</div>"
@@ -3257,7 +3285,7 @@
             `<strong class="tournament-registration-page__relay-index">${escapeHtml(String(toNumber(item?.index)))}</strong>`,
             '<div class="tournament-registration-page__relay-title">',
             `<h3>${escapeHtml(trimToEmpty(item?.teamName) || "Đội tiếp sức")}</h3>`,
-            `<p>Mã đăng ký <strong>${escapeHtml(trimToEmpty(item?.regCode) || "-")}</strong> · ${escapeHtml(trimToEmpty(item?.regTime))}</p>`,
+            `<p><span>Mã ĐK <strong>${escapeHtml(trimToEmpty(item?.regCode) || "-")}</strong></span><span>${escapeHtml(trimToEmpty(item?.regTime))}</span></p>`,
             "</div>",
             `<span class="tournament-registration-page__relay-status ${item?.isReady ? "is-ready" : ""}">${item?.isReady ? "Sẵn sàng · " : "Chưa đủ · "}${escapeHtml(members.length)}/${escapeHtml(teamSize)} VĐV · ${escapeHtml(pairCount)} cặp</span>`,
             "</div>",
@@ -3341,7 +3369,7 @@
 
     async function loadTournamentRegistrationsPage(id, loading) {
         const results = await Promise.allSettled([
-            fetchJson(`/api/public/tournaments/${id}/registrations`, loading),
+            fetchJson(`/api/public/tournaments/${id}/registrations?view=full`, loading),
             fetchJson(`/api/links?type=zalo`, loading),
             window.HanakaWebSession.read({ hanakaLoading: loading })
         ]);
@@ -3494,7 +3522,7 @@
         const results = await Promise.allSettled([
             paymentRequest,
             fetchJson(`/api/public/tournaments/${tournamentId}`, loading),
-            fetchJson(`/api/public/tournaments/${tournamentId}/registrations`, loading)
+            fetchJson(`/api/public/tournaments/${tournamentId}/registrations?view=full`, loading)
         ]);
 
         const payment = results[0].status === "fulfilled" ? results[0].value : null;
@@ -4978,7 +5006,7 @@
             load: async function (id, loading) {
                 const results = await Promise.allSettled([
                     fetchJson(`/api/public/tournaments/${id}`, loading),
-                    fetchJson(`/api/public/tournaments/${id}/registrations`, loading),
+                    fetchJson(`/api/public/tournaments/${id}/registrations?view=full`, loading),
                     fetchJson(`/api/tournaments/${id}/rounds-with-matches`, loading),
                     fetchJson(`/api/tournaments/${id}/rule`, loading)
                 ]);
@@ -5669,7 +5697,7 @@
 
             if (!authenticated) {
                 window.alert("Bạn cần đăng nhập để tự chấm trình.");
-                window.location.href = loginUrl();
+                navigateWeb(loginUrl());
                 return;
             }
 
@@ -5989,6 +6017,7 @@
             }
         }
 
+        let registrationRefreshFailures = 0;
         function scheduleRegistrationRefresh(delay) {
             window.clearTimeout(refreshTimer);
             refreshTimer = window.setTimeout(async function () {
@@ -6030,7 +6059,8 @@
                     }
                 } catch (error) {
                     if (window.HanakaWebSession.isAborted(error)) return;
-                    window.location.reload();
+                    if (++registrationRefreshFailures <= 2) scheduleRegistrationRefresh(2500);
+                    else window.HanakaWebActivity?.notice("Chưa cập nhật được danh sách đăng ký. Bạn có thể tải lại trang để kiểm tra trạng thái mới.");
                 } finally {
                     refreshing = false;
                 }
@@ -6049,7 +6079,7 @@
                 if (!viewer.isAuthenticated) {
                     event.preventDefault();
                     window.alert("B\u1ea1n c\u1ea7n \u0111\u0103ng nh\u1eadp \u0111\u1ec3 \u0111\u0103ng k\u00ed gi\u1ea3i \u0111\u1ea5u");
-                    window.location.href = `/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+                    navigateWeb(`/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`);
                     return;
                 }
 
@@ -6086,10 +6116,10 @@
                     throw new Error("Kh\u00f4ng nh\u1eadn \u0111\u01b0\u1ee3c m\u00e3 thanh to\u00e1n.");
                 }
 
-                window.location.href = `/PickleballWeb/Tournament/${tournamentId}/Registration/${registrationId}/Payment?code=${encodeURIComponent(transactionCode)}`;
+                navigateWeb(`/PickleballWeb/Tournament/${tournamentId}/Registration/${registrationId}/Payment?code=${encodeURIComponent(transactionCode)}`);
             } catch (error) {
                 if (error?.status === 401) {
-                    window.location.href = `/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+                    navigateWeb(`/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`);
                     return;
                 }
 
@@ -6105,7 +6135,7 @@
 
             const mode = trimToEmpty(button.getAttribute("data-registration-invite-mode")).toLowerCase();
             if (mode === "login") {
-                window.location.href = `/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+                navigateWeb(`/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`);
                 return;
             }
 
@@ -6133,7 +6163,7 @@
                 setFeedback(trimToEmpty(payload?.message) || "Đã gửi yêu cầu ghép cặp.", false);
             } catch (error) {
                 if (error?.status === 401) {
-                    window.location.href = `/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+                    navigateWeb(`/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`);
                     return;
                 }
 
@@ -6206,7 +6236,7 @@
                 throw new Error("Không nhận được mã thanh toán.");
             }
 
-            window.location.href = `/PickleballWeb/Tournament/${tournamentId}/Registration/${registrationId}/Payment?code=${encodeURIComponent(transactionCode)}`;
+            navigateWeb(`/PickleballWeb/Tournament/${tournamentId}/Registration/${registrationId}/Payment?code=${encodeURIComponent(transactionCode)}`);
         }
 
         function renderSelectedMember(position, item) {
@@ -6332,7 +6362,7 @@
                     await openRelayPayment(registrationId, payButton);
                 } catch (error) {
                     if (error?.status === 401) {
-                        window.location.href = `/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname)}`;
+                        navigateWeb(`/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname)}`);
                         return;
                     }
                     setMessage(error?.message || "Không thể tạo mã thanh toán.", true);
@@ -6435,12 +6465,12 @@
                     } catch (paymentError) {
                         setMessage(`Đội đã được lập thành công. ${paymentError?.message || "Bạn có thể thanh toán lại trên trang này."}`, true);
                         window.setTimeout(function () {
-                            window.location.reload();
+                            navigateWeb(window.location.href, false, true);
                         }, 1600);
                     }
                 } catch (error) {
                     if (error?.status === 401) {
-                        window.location.href = `/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname)}`;
+                        navigateWeb(`/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname)}`);
                         return;
                     }
                     setMessage(error?.message || "Không thể lập đội tiếp sức.", true);
@@ -6480,6 +6510,7 @@
         let selectedPartner = null;
         let removeRealtimeListener = null;
 
+        let registerRefreshFailures = 0;
         function scheduleRegisterPageRefresh(delay) {
             window.clearTimeout(refreshTimer);
             refreshTimer = window.setTimeout(async function () {
@@ -6501,7 +6532,9 @@
                         tournamentId,
                         "tournament-register-page");
                 } catch (_error) {
-                    window.location.reload();
+                    if (window.HanakaWebSession.isAborted(_error)) return;
+                    if (++registerRefreshFailures <= 2) scheduleRegisterPageRefresh(2500);
+                    else window.HanakaWebActivity?.notice("Chưa cập nhật được đăng ký. Vui lòng kiểm tra trạng thái trước khi gửi lại.");
                 }
             }, delay || 250);
         }
@@ -6662,7 +6695,7 @@
                     scheduleRegisterPageRefresh(500);
                 } catch (error) {
                     if (error && error.status === 401) {
-                        window.location.href = `/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname)}`;
+                        navigateWeb(`/PickleballWeb/Login?returnUrl=${encodeURIComponent(window.location.pathname)}`);
                         return;
                     }
 
@@ -6732,6 +6765,68 @@
         }, { once: true });
     }
 
+    function initTournamentFloatingActions(root) {
+        root._tournamentFloatingActionsCleanup?.();
+        const detail = qs(".tournament-native-detail", root);
+        const floating = qs("[data-tournament-floating-actions]", root);
+        const originals = qsa("[data-tournament-original-action]", root);
+        if (!detail || !floating || originals.length !== 2) return;
+
+        let frame = null;
+        let disposed = false;
+        detail.classList.add("has-floating-actions");
+        const update = function () {
+            frame = null;
+            if (disposed || !floating.isConnected) return;
+            const viewport = window.visualViewport;
+            const top = viewport?.offsetTop || 0;
+            const left = viewport?.offsetLeft || 0;
+            const bottom = top + (viewport?.height || window.innerHeight);
+            const right = left + (viewport?.width || window.innerWidth);
+            // Use the viewport independently of the dock's visibility. Subtracting
+            // the dock height here would make it flicker at the intersection edge.
+            floating.hidden = originals.every(function (link) {
+                const rect = link.getBoundingClientRect();
+                return rect.width > 0 && rect.height > 0 && rect.bottom > top && rect.top < bottom
+                    && rect.right > left && rect.left < right;
+            });
+            if (!floating.hidden) {
+                const space = Math.ceil(floating.getBoundingClientRect().height) + 16;
+                detail.style.setProperty("--tournament-floating-space", space + "px");
+            }
+        };
+        const schedule = function () {
+            if (!disposed && frame === null) frame = window.requestAnimationFrame(update);
+        };
+        const observer = "IntersectionObserver" in window ? new IntersectionObserver(schedule) : null;
+        originals.forEach(link => observer?.observe(link));
+        // Scrolling also covers embedded webviews, whose observer intersection can
+        // be clipped by a parent viewport even when both local links are visible.
+        window.addEventListener("scroll", schedule, { passive: true });
+        const resizeObserver = "ResizeObserver" in window ? new ResizeObserver(schedule) : null;
+        resizeObserver?.observe(floating);
+        window.addEventListener("resize", schedule);
+        window.addEventListener("pageshow", schedule);
+        window.visualViewport?.addEventListener("resize", schedule);
+        window.visualViewport?.addEventListener("scroll", schedule);
+        root._tournamentFloatingActionsCleanup = function () {
+            disposed = true;
+            if (frame !== null) window.cancelAnimationFrame(frame);
+            observer?.disconnect();
+            resizeObserver?.disconnect();
+            window.removeEventListener("scroll", schedule);
+            window.removeEventListener("resize", schedule);
+            window.removeEventListener("pageshow", schedule);
+            window.visualViewport?.removeEventListener("resize", schedule);
+            window.visualViewport?.removeEventListener("scroll", schedule);
+            detail.classList.remove("has-floating-actions");
+            detail.style.removeProperty("--tournament-floating-space");
+            floating.hidden = true;
+            delete root._tournamentFloatingActionsCleanup;
+        };
+        update();
+    }
+
     function initTournamentDetailInteractions(root, data, kind) {
         const shareButton = qs("[data-tournament-share]", root);
         const titleText =
@@ -6766,6 +6861,10 @@
             initTournamentPaymentPageInteractions(root, data);
         }
 
+        if (kind === "tournament-detail") {
+            initTournamentFloatingActions(root);
+        }
+
         if (kind === "tournament-schedule-page" || kind === "tournament-standings-page") {
             initTournamentTabGroup(root, "schedule");
             initTournamentTabGroup(root, "standings");
@@ -6783,6 +6882,21 @@
         const body = qs("[data-detail-body]", root);
         let removePublicRealtimeListener = null;
         let publicRefreshTimer = null;
+        let refreshRetries = 0;
+        function retryPublicRefresh(error) {
+            if (window.HanakaWebSession.isAborted(error)) return;
+            if (++refreshRetries > 2) {
+                window.HanakaWebActivity?.notice("Ch?a c?p nh?t ???c d? li?u m?i. N?i dung hi?n t?i v?n ???c gi? l?i; b?n c? th? t?i l?i trang ?? c?p nh?t.");
+                return;
+            }
+            window.clearTimeout(publicRefreshTimer);
+            publicRefreshTimer = window.setTimeout(async function () {
+                try {
+                    await refreshTournamentDetailBody(root, body, config, id, kind);
+                    refreshRetries = 0;
+                } catch (nextError) { retryPublicRefresh(nextError); }
+            }, 2500);
+        }
 
         if (!kind || !Number.isFinite(id) || !body) {
             return;
@@ -6854,9 +6968,7 @@
                 if (eventType === "__public_socket_open__" && event && event.reconnected) {
                     window.clearTimeout(publicRefreshTimer);
                     publicRefreshTimer = window.setTimeout(function () {
-                        refreshTournamentDetailBody(root, body, config, id, kind).catch(function () {
-                            window.location.reload();
-                        });
+                        refreshTournamentDetailBody(root, body, config, id, kind).catch(retryPublicRefresh);
                     }, 180);
                     return;
                 }
@@ -6876,16 +6988,12 @@
                     if (kind === "tournament-schedule-page"
                         && eventType === "tournament.match.score.updated") {
                         if (!patchTournamentScheduleMatchScore(root, payload)) {
-                            refreshTournamentDetailBody(root, body, config, id, kind).catch(function () {
-                                window.location.reload();
-                            });
+                            refreshTournamentDetailBody(root, body, config, id, kind).catch(retryPublicRefresh);
                         }
                         return;
                     }
 
-                    refreshTournamentDetailBody(root, body, config, id, kind).catch(function () {
-                        window.location.reload();
-                    });
+                    refreshTournamentDetailBody(root, body, config, id, kind).catch(retryPublicRefresh);
                 }, 180);
             });
 
@@ -6918,7 +7026,7 @@
                         const data = await config.load(id, "silent");
                         body.innerHTML = config.render(data);
                     } catch (_error) {
-                        window.location.reload();
+                        retryPublicRefresh(_error);
                     }
                 }, 180);
             });
