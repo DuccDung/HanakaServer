@@ -1,0 +1,104 @@
+.tournament-match-card[data-match-status] {
+    --match-background: #fff;
+    --match-border: #e5e7eb;
+    --match-text: #475569;
+    background: var(--match-background);
+    border-color: var(--match-border);
+}
+.tournament-match-card[data-match-status="PREPARING"] {
+    --match-background: #fffbeb;
+    --match-border: #fcd34d;
+    --match-text: #92400e;
+}
+.tournament-match-card[data-match-status="IN_PROGRESS"] {
+    --match-background: #eff6ff;
+    --match-border: #93c5fd;
+    --match-text: #1d4ed8;
+}
+.tournament-match-card[data-match-status="COMPLETED"] {
+    --match-background: #f0fdf4;
+    --match-border: #bbf7d0;
+    --match-text: #166534;
+}
+.tournament-match-card[data-match-status] .tournament-match-card__index {
+    background: var(--match-background);
+    border-color: var(--match-border);
+    color: var(--match-text);
+}
+.tournament-match-card__status {
+    display: inline-block;
+    margin-top: 6px;
+    color: var(--match-text);
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.tournament-match-card__address {
+    margin: 4px 0 0;
+    font-size: 0.75rem;
+    color: #475569;
+    overflow-wrap: anywhere;
+}
+.tournament-match-card__coordinate,
+.schedule-notice button,
+.schedule-coordination button {
+    min-height: 44px;
+    padding: 8px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    background: #fff;
+    color: #1d4ed8;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+.tournament-match-card__coordinate { font-size: 0.75rem; margin: 4px 0; }
+.tournament-match-card [hidden], .schedule-notice[hidden] { display: none; }
+.schedule-notice {
+    padding: 12px;
+    margin: 12px 0;
+    border: 1px solid #fcd34d;
+    border-radius: 8px;
+    background: #fffbeb;
+    color: #92400e;
+    font-size: 0.875rem;
+}
+.schedule-coordination {
+    box-sizing: border-box;
+    width: min(480px, calc(100% - 24px));
+    max-height: calc(100dvh - 24px);
+    margin: auto;
+    padding: 20px;
+    border: 1px solid #cbd5e1;
+    border-radius: 16px;
+    overflow-y: auto;
+    color: #1e293b;
+    background: #fff;
+    font-family: inherit;
+}
+.schedule-coordination::backdrop { background: rgb(15 23 42 / 55%); }
+.schedule-coordination h2 { margin: 0 0 12px; font-size: 1.125rem; }
+.schedule-coordination p { font-size: 0.875rem; line-height: 1.5; overflow-wrap: anywhere; }
+.schedule-coordination label { display: block; font-weight: 600; font-size: 0.875rem; }
+.schedule-coordination input[name="court"] {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    margin: 8px 0 12px;
+    padding: 10px;
+    border: 1px solid #94a3b8;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 16px;
+}
+.schedule-coordination .schedule-coordination__check { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.schedule-coordination__check input { width: 20px; height: 20px; }
+.schedule-coordination__hint { color: #475569; }
+.schedule-coordination [data-form-message] { color: #92400e; }
+.schedule-coordination__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.schedule-coordination [data-save] { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.schedule-coordination :disabled { cursor: not-allowed; opacity: 0.55; }
+.schedule-coordination :focus-visible, .tournament-match-card__coordinate:focus-visible, .schedule-notice button:focus-visible {
+    outline: 3px solid #2563eb;
+    outline-offset: 3px;
+}

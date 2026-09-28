@@ -4,7 +4,7 @@ HanakaServer là backend monolith của hệ thống Hanaka Sport/Pickleball. M�
 
 Tài liệu này hướng dẫn chạy dự án. Ngữ cảnh kỹ thuật và trạng thái chức năng hiện tại được duy trì tại [`HanakaServer/context.md`](HanakaServer/context.md).
 
-> Cập nhật gần nhất: 22/09/2026. Các tài liệu task, handoff và test report cũ đã được hợp nhất vào `context.md` rồi xóa để tránh nhiều nguồn thông tin mâu thuẫn.
+> Cập nhật gần nhất: 27/09/2026. Các tài liệu task, handoff và test report cũ đã được hợp nhất vào `context.md` rồi xóa để tránh nhiều nguồn thông tin mâu thuẫn.
 
 ## Công nghệ
 
@@ -156,7 +156,7 @@ dotnet test HanakaServer.sln --no-restore
 node --test --test-concurrency=1 HanakaServer.Tests/JavaScript/*.test.js
 ```
 
-Test tải HTTP/SQL/WebSocket dùng 10 điều phối, 10 trọng tài, 200 người xem và ba mức 100/500/2.000 trận. Chạy riêng, mặc định đủ 120 phút; log và kết quả ở `artifacts/coordination-stability`. Đặt `HANAKA_COORDINATION_SOAK_MINUTES=1` chỉ để kiểm tra nhanh công cụ, không thay thế lần chạy 2 giờ.
+Test tải HTTP/SQL/WebSocket dùng 10 điều phối qua cookie web client và API `/api/coordination`, 10 trọng tài, 200 người xem và ba mức 100/500/2.000 trận. Quyền và lịch được đọc lại mỗi 30 giây. Chạy riêng, mặc định đủ 120 phút; log và kết quả ở `artifacts/coordination-stability`. Đặt `HANAKA_COORDINATION_SOAK_MINUTES=1` chỉ để kiểm tra nhanh công cụ, không thay thế lần chạy 2 giờ.
 
 ```powershell
 $env:HANAKA_COORDINATION_SOAK = '1'
@@ -175,6 +175,23 @@ node --test HanakaServer.Tests/JavaScript/coordinator-browser-soak.test.js
 ```
 
 Chạy kiểm tra trình duyệt dài khi test HTTP còn đủ thời gian hoạt động. Đo retained heap có gọi GC chủ động mỗi phút để phân biệt đối tượng còn được giữ với rác chưa được thu gom. Đây là kiểm chứng cục bộ; bundle Android/iOS và test module app không thay thế UAT trên điện thoại thật. Xóa các biến opt-in khỏi terminal khi muốn chạy lại bộ hồi quy nhanh.
+
+Kiểm tra **lịch thi đấu web client** mới, dùng host thử nghiệm đang chạy ở trên. Bài browser soak cần host còn hơn 90 phút; nếu đã chạy bài 90 phút của portal, khởi động một đợt host mới cho bài 90 phút của web client. Với đợt kiểm thử web client, bắt đầu các lệnh sau ngay khi host sẵn sàng:
+
+```powershell
+$env:HANAKA_COORDINATION_E2E = '1'
+node --test --test-concurrency=1 HanakaServer.Tests/JavaScript/public-schedule-live.test.js
+$env:HANAKA_PUBLIC_BROWSER_SOAK = '1'
+$env:HANAKA_PUBLIC_BROWSER_SOAK_MINUTES = '90'
+node --test HanakaServer.Tests/JavaScript/public-schedule-soak.test.js
+$env:HANAKA_PUBLIC_POLL_LOAD = '1'
+$env:HANAKA_PUBLIC_POLL_MINUTES = '10'
+node --test HanakaServer.Tests/JavaScript/public-schedule-poll-load.test.js
+```
+
+Test live mở Razor thật, đăng nhập qua `/api/web-auth/login`, đối chiếu SQL/REST/WebSocket với portal, trọng tài và module realtime của app; có mất phản hồi sau commit, lưu không đổi nội dung, đổi tài khoản, mở lại và reconnect. Test chạy dài dùng ba mức lịch, mở/lưu form, polling thực, lỗi mạng và quay lại trang bằng lịch sử trình duyệt. Báo cáo nằm trong `artifacts/public-coordination-stability`. `PublicScheduleStabilityTests` chạy thêm 100 lượt cho từng tình huống hai điều phối cạnh tranh, điều phối/chấm điểm và thu hồi quyền trong lúc chờ khóa SQL. Không tải cấu hình kết nối database thật hoặc gửi OTP trong host thử nghiệm.
+
+Chạy bài `public-schedule-poll-load` khi host tải đang ở mức 2.000 trận và còn tối thiểu 10 phút. Bài này bổ sung 200 người xem ẩn danh đọc quyền/lịch mỗi 30 giây, chia thành các đợt tối đa 10 request đồng thời, kiểm tra phiên bản không lùi và p95 đọc dưới hai giây. Các kết nối realtime và lệnh ghi của host vẫn chạy trong lúc đo.
 
 ## Quy tắc duy trì tài liệu
 

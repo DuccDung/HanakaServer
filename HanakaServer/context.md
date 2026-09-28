@@ -1,6 +1,6 @@
 # HanakaServer — Ngữ cảnh kỹ thuật chuẩn
 
-> Đối chiếu tổng thể: 06/09/2026; phần điều phối cập nhật: 22/09/2026.
+> Đối chiếu tổng thể: 06/09/2026; phần điều phối web client cập nhật: 27/09/2026.
 > Phạm vi: solution `HanakaServer.sln` và các script SQL nằm trong repository này.  
 > Đây là nguồn ngữ cảnh kỹ thuật duy nhất của dự án. Nếu tài liệu mâu thuẫn với code, SQL hoặc test hiện tại thì code/SQL/test là nguồn xác nhận cuối cùng và file này phải được cập nhật ngay.
 
@@ -11,7 +11,7 @@
 - Kiến trúc là modular monolith nhưng boundary chưa đồng đều: phần cũ chứa nhiều nghiệp vụ trong controller; bracket, payment và relay đã có service riêng rõ hơn.
 - Data layer dùng EF Core 10 + SQL Server. Schema được duy trì bằng mapping database-first và script SQL thủ công, không có chuỗi EF Migration chuẩn với model snapshot.
 - Có nhiều thư mục build tạm, `bin`, `obj` và `artifacts`; không dùng chúng làm nguồn đọc code.
-- Git hiện không có trong `PATH` của môi trường đã khảo sát, vì vậy chưa thể xác nhận danh sách thay đổi chưa commit bằng `git status`.
+- Môi trường khảo sát ngày 27/09/2026 có Git trong `PATH`; kiểm tra trạng thái thực tế bằng `git status` trước khi sửa hoặc đồng bộ repository.
 
 ## 2. Luồng ứng dụng
 
@@ -268,6 +268,43 @@ Kiểm chứng ngày 09/09/2026: build Release `net10.0` thành công; 26/26 tes
 - **Triển khai:** sao lưu và chạy `database/updates/20260922_add_match_coordination.sql` trên bản sao để đối chiếu dữ liệu trước; sau đó áp dụng ở môi trường đích **trước khi chạy server mới**. Script chạy lại an toàn, thêm cột/bảng/role, không tự cấp quyền; phân loại dữ liệu cũ theo kết thúc, điểm và lịch sử chấm còn mới hơn lần cập nhật trận. Rà soát riêng dữ liệu cũ 0–0 đã từng reset hoặc chỉnh bằng SQL. Schema mới vẫn bắt buộc khi tắt tính năng vì các query EF có đọc cột mới.
 - Thứ tự phát hành: SQL → server → app mới → admin phân công tài khoản. `Coordination__Enabled=false` tắt quyền/thao tác điều phối; giữ schema và dữ liệu để có thể bật lại. App cũ vẫn đọc API cũ; app mới dùng trạng thái dự phòng khi server chưa có field và ẩn điều phối nếu API quyền chưa có. Không rollback bằng cách xóa cột khi server mới còn chạy.
 - Kiểm chứng: test API HTTP với JWT thật (uid-only, anonymous, sai quyền, thu hồi quyền, 409, DTO public); xUnit vòng đời trạng thái; SQL LocalDB riêng kiểm tra migration lặp, dữ liệu cũ, cập nhật đồng thời và rollback; test Node thực thi component app với native/hooks/API giả lập; test Edge cho trang phân công. `CoordinatorPortalTests` chạy HTTP/Razor thật với cookie riêng, antiforgery, email/phone, thu hồi phân công, khóa tài khoản, chuyển sang trọng tài và logout. `JavaScript/coordinator-portal.test.js` kiểm tra thao tác thực trên Edge với API giả lập, lỗi mạng/409/realtime/REST cũ, lọc trận, chống HTML injection, thu hồi quyền và bố cục 320–1280px. Chưa UAT APK/IPA trên thiết bị và chưa áp dụng migration/deploy vào database/server thật trong thay đổi này.
+
+#### Điều phối trên lịch thi đấu web client — 27/09/2026
+
+- `/PickleballWeb/Tournament/{id}/Schedule` dùng `pickleball-web/js/tournament-schedule.js` và CSS cùng tên, khởi tạo từ `pages.js`. Card có bốn màu kèm nhãn như app; trạng thái đang đánh 0–0 vẫn xanh dương, mở lại trận bỏ tô đội thắng, BYE đã kết thúc vẫn xanh lá. Sân lấy từ `courtText`, địa điểm hiển thị riêng.
+- Người xem công khai vẫn đọc lịch. Người có phiên đăng nhập web và phân công theo giải thấy **Điều phối sân · Chuẩn bị** trên trận chưa bắt đầu/đang chuẩn bị. Form sửa sân, bật/tắt chuẩn bị, yêu cầu đủ hai đội và sân khi chuẩn bị. Không có thao tác ghi điểm/kết quả trong form này.
+- API `GET /api/coordination/tournaments/{id}/permissions` bổ sung `userId`, `requestToken`. Với cookie `Hanaka.Web.AccessToken`, token antiforgery được cấp khi có quyền và phải gửi ở header `RequestVerificationToken` khi PUT. Bearer token thực sự có nội dung được ưu tiên theo `Program.cs`, tiếp tục dùng được từ app mà không cần antiforgery. Header Bearer rỗng không được bỏ qua bảo vệ cookie.
+- Web kiểm tra quyền trước mở/lưu, khi focus/hiện lại/online và định kỳ 30 giây khi trang hiển thị. Thu hồi quyền, 401/403 hoặc lỗi kiểm tra quyền khóa form; đổi tài khoản đóng bản nhập cũ. Backend tiếp tục kiểm tra quyền và phiên bản trong transaction.
+- Nghe sự kiện điều phối/chấm điểm/sơ đồ, so `stateVersion` giữa REST và socket, giữ sự kiện đến trước lần đọc đầu, bỏ phản hồi đọc đã bị thay thế. Cập nhật card tại chỗ; khi cấu trúc vòng/bảng thay đổi, giữ tab, bảng thu gọn và vị trí cuộn. Dialog nằm ngoài vùng lịch nên cập nhật không mất bản nhập. Reconnect và polling đối chiếu lại lịch; trận bị gỡ không được khôi phục bằng sự kiện đến trễ.
+- Dùng lại `coordinator-http.js` với timeout 20 giây. Chặn lưu lặp; 409 giữ bản nhập và đọc lại lịch. Mất phản hồi, timeout, 5xx hoặc JSON thành công không hợp lệ khóa lưu đến khi người dùng **Nạp lại form** để đối chiếu; không tự gửi lại PUT. Nạp lại form thành công thay bản nhập bằng dữ liệu mới nhất.
+- Kiểm chứng ban đầu khi triển khai: 27 test .NET đạt (6 nghiệp vụ/API điều phối, 21 portal/realtime/cookie); lúc đó chưa chạy 2 bài SQL opt-in. 23 test JavaScript web đạt, gồm Edge thực thi trang lịch với API/socket giả lập, form/xung đột/mất phản hồi/thu hồi quyền, trạng thái, portal và phiên web; 11 test app liên quan đạt. Giao diện kiểm tra ở 320/390/768/1280px và chiều cao 400px khi mở form. Ảnh kiểm tra: `artifacts/public-match-coordination/`. Kết quả kiểm thử mở rộng với SQL thật ở mục tiếp theo. Build còn cảnh báo dependency MailKit/MimeKit và cảnh báo C# có sẵn.
+- Không thêm migration, không đổi cấu hình app, chưa UAT trên thiết bị thật và chưa deploy/chạy SQL ở môi trường thật. Cần schema điều phối ngày 22/09/2026 đã mô tả ở trên khi phát hành. Các kết quả soak/SQL ngày 22/09 dưới đây là lịch sử, không phải lần chạy lại cho thay đổi web client này.
+
+#### Kiểm thử ổn định lịch thi đấu web client — 27/09/2026
+
+- Host kiểm thử đã hỗ trợ đăng nhập thực qua `/api/web-auth/login`, cookie `Hanaka.Web.AccessToken`, antiforgery và PUT `/api/coordination/matches/{id}`; tiếp tục dùng Razor/API/SQL/WebSocket thật. Cấu hình được cô lập, database LocalDB có tên GUID riêng, dịch vụ OTP bị vô hiệu hóa; không dùng database hay tài khoản thật của ứng dụng.
+- Phát hiện và sửa lỗi **lưu form không thay đổi nội dung**: backend trả thành công với `stateVersion` giữ nguyên nhưng web từng coi đó là phản hồi không xác định. Web giờ chấp nhận phiên bản không giảm khi sân, trạng thái và mã trận trong snapshot khớp yêu cầu; vẫn chặn phản hồi sai hoặc trận đã kết thúc. Đã kiểm tra lại với API thật và bổ sung hồi quy cho trường hợp này.
+- `PublicScheduleStabilityTests` kiểm tra cookie web, CSRF thiếu/cũ sau đổi tài khoản, phiên hết hạn, tài khoản ngừng hoạt động, thu hồi phân công, feature flag, restart, audit và đọc lịch công khai. Có 300 lượt tranh chấp SQL: 100 lượt hai điều phối cùng phiên bản, 100 lượt điều phối với chấm điểm 0–0, 100 lượt thu hồi quyền khi request đang chờ khóa. Không mất điểm hoặc sinh audit cho lệnh bị từ chối.
+- Bộ hồi quy: 316 test .NET đạt với các bài SQL opt-in được bật và một bài server soak đạt riêng, tổng 317 test. JavaScript có 48 test thường, 4 bài Edge live, một bài browser soak và một bài polling đạt, tổng 54 test khác nhau; 23 test module app đạt. Edge live đối chiếu web/portal/trọng tài/module realtime của app qua API và socket thật, gồm mất phản hồi sau commit, lưu không đổi, đổi tài khoản, khóa form khi bắt đầu trận, kết thúc/mở lại, reconnect và Back. Giao diện kiểm tra ở 320/390/768/1280px. Bài browser soak riêng của portal ngày 22/09 không chạy lại trong đợt này; bài 90 phút mới đo lịch công khai.
+- Trình duyệt lịch công khai đã chạy đủ **90 phút** (5.400,010 giây), 89 mẫu tại các mức 100/500/2.000 trận. Retained JS heap sau GC lần lượt 1.213–1.932 / 3.037–4.071 / 6.799–9.206 KiB; không vượt guard bộ nhớ/DOM/listener của từng mức. Mỗi mẫu xác nhận một timer polling 30 giây và một heartbeat 25 giây, sân/trạng thái khớp REST, không lỗi JavaScript. Có kiểm tra mất mạng, giữ bản nháp, lưu, reconnect và điều hướng Back thực. Số đo gồm tài liệu trong cache điều hướng; đây không phải tổng RAM của Edge hoặc cam kết không có mọi dạng rò rỉ bộ nhớ.
+- Đợt 200 người xem ẩn danh đọc quyền và lịch 2.000 trận mỗi 30 giây đã chạy đủ **10 phút** trong khi host vẫn ghi và phát realtime: 4.000 lượt đọc lịch và 4.000 lượt kiểm tra quyền, không lỗi, phiên bản không lùi. p95/p99 đọc lịch 477/568 ms; request chia thành đợt tối đa 10 đồng thời. Burst 20 cập nhật trên Edge trong lúc có tải này đạt p95 396 ms, cao nhất 431 ms; card không đổi giữ nguyên DOM.
+- Server đã chạy đủ **120 phút** (7.200,084 giây) với 10 điều phối dùng cookie web, 10 trọng tài và 200 kết nối theo dõi; mỗi mức 100/500/2.000 trận chạy khoảng 40 phút. Có 472 chu kỳ, 9.440 lệnh ghi, 3.000 phép đo đọc và 1.908.200 lượt giao sự kiện, không lỗi. p95/p99 ghi 54/84 ms, đọc 491/587 ms, giao sự kiện 18/35 ms. Mỗi chu kỳ đối chiếu phiên bản trên toàn bộ người xem; mỗi phút nối lại năm kết nối và khôi phục bằng REST. Các phép đo đọc gồm bootstrap lịch và luồng điều phối đọc quyền rồi đọc lịch.
+- Working set trung vị theo ba mức dữ liệu là 328/378/587 MiB, đỉnh toàn đợt 796 MiB; managed heap dao động theo GC. Đây là tiến trình gồm Kestrel và client tạo tải, không phải RAM riêng của server production. Kết nối SQL sau khởi động thường là 21, đạt tối đa 29 khi tăng tải và trở về 21 ở mẫu cuối. Kết quả trên Windows/LocalDB không phải cam kết sức chứa production.
+- Báo cáo tổng hợp: `artifacts/public-coordination-stability/summary.json`; bằng chứng gồm `regression-final.trx`, `soak-120-minutes.trx`, `public-browser-soak-2026-09-27T11-55-14-256Z.json`, `public-poll-load-2026-09-27T13-11-19-062Z.json`, `public-live.json`, `public-burst.json` và `artifacts/coordination-stability/soak-20260927-115054/result.json`. Báo cáo kiểm tra hash mã nguồn đã đo và giữ riêng lịch sử pilot/lỗi công cụ; số liệu ở đây lấy từ các lần chạy đầy đủ cuối cùng đã đạt. Host đã dừng và database thử nghiệm được dọn qua lifecycle thành công của test. Hướng dẫn chạy lại ở README.
+- Chưa UAT trên thiết bị Android/iOS thật hoặc Safari/Chrome; phần app tích hợp chạy module thật trong Node, không phải APK/IPA. Không xuất lại bundle app vì đợt này không sửa app. Chưa triển khai production.
+
+| Task | Kết quả đợt web client 27/09 |
+| --- | --- |
+| T01 — Dữ liệu/môi trường | Đạt: LocalDB riêng, dữ liệu và tài khoản giả. |
+| T02 — Build/hồi quy | Đạt: 317 .NET, 54 JavaScript web, 23 module app; không xuất lại bundle app. |
+| T03 — Phân quyền | Đạt: cookie web, CSRF, hết phiên, đổi tài khoản, thu hồi quyền và feature flag. |
+| T04 — Sân/trạng thái | Đạt: lưu không đổi, chuẩn bị, chấm 0–0, kết thúc và mở lại. |
+| T05 — Ghi đồng thời | Đạt: 300 lượt tranh chấp SQL qua API web và kiểm tra audit. |
+| T06 — Phục hồi | Đạt: lỗi mạng, mất phản hồi sau commit, reconnect, Back và restart. |
+| T07 — Tích hợp | Đạt tự động: web/portal/trọng tài và module app dùng API/socket thật. |
+| T08 — Giao diện/thiết bị | Đạt trên Edge 320/390/768/1280px; UAT điện thoại thật và Safari/Chrome chưa chạy. |
+| T09 — Tải/chạy dài | Đạt: server 120 phút, web 90 phút, polling 200 người xem 10 phút, burst 20 cập nhật. |
+| T10 — Migration/tương thích | Đạt trên DB riêng qua bộ SQL hiện có; không thêm migration hoặc deploy production. |
 
 #### Kiểm thử ổn định điều phối — 22/09/2026
 

@@ -2568,32 +2568,36 @@
         const teamB = trimToEmpty(match?.team2?.displayName) || "\u0110\u1ed9i ch\u01b0a x\u00e1c \u0111\u1ecbnh";
         const teamAId = toNumber(match?.team1RegistrationId || match?.team1?.registrationId);
         const teamBId = toNumber(match?.team2RegistrationId || match?.team2?.registrationId);
-        const hasWinner = !!match?.winnerRegistrationId || !!match?.winner || trimToEmpty(match?.winnerTeam);
-        const isWinnerA = hasWinner && match?.winnerRegistrationId === match?.team1RegistrationId;
-        const isWinnerB = hasWinner && match?.winnerRegistrationId === match?.team2RegistrationId;
+        const presentation = window.HanakaTournamentSchedule.presentation(match);
+        const hasWinner = presentation.status === "COMPLETED";
+        const isWinnerA = hasWinner && teamAId > 0 && Number(match?.winnerRegistrationId) === teamAId;
+        const isWinnerB = hasWinner && teamBId > 0 && Number(match?.winnerRegistrationId) === teamBId;
         const videoHref = trimToEmpty(match?.videoUrl) ? buildSafeHref(match.videoUrl, "#") : "";
         const matchHref = buildSafeHref(`/PickleballWeb/Match/${match?.matchId}`, "#");
-        const courtText = trimToEmpty(match?.addressText) || trimToEmpty(match?.courtText) || "Ch\u01b0a c\u1eadp nh\u1eadt";
+        const courtText = trimToEmpty(match?.courtText) || "Ch\u01b0a c\u1eadp nh\u1eadt";
+        const addressText = trimToEmpty(match?.addressText);
 
         return [
-            `<div class="tournament-match-card ${hasWinner ? "is-finished" : ""}" data-schedule-match-id="${escapeHtml(String(match?.matchId || ""))}">`,
+            `<div class="tournament-match-card ${hasWinner ? "is-finished" : ""}" data-match-status="${presentation.status}" data-schedule-match-id="${escapeHtml(String(match?.matchId || ""))}">`,
             '<div class="tournament-match-card__body">',
             '<div class="tournament-match-card__header">',
             '<div class="tournament-match-card__meta">',
             `<div class="tournament-match-card__index ${hasWinner ? "is-finished" : ""}" data-schedule-match-index>${index + 1}</div>`,
             `<span>#${escapeHtml(String(match?.matchId || index + 1))}</span>`,
-            `<time>${escapeHtml(formatClock(match?.startAt))}</time>`,
+            `<time data-schedule-time>${escapeHtml(formatClock(match?.startAt))}</time>`,
             "</div>",
-            `<p class="tournament-match-card__court">S\u00e2n: ${escapeHtml(courtText)}</p>`,
+            `<p class="tournament-match-card__court" data-schedule-court>S\u00e2n: ${escapeHtml(courtText)}</p>`,
             "</div>",
+            `<p class="tournament-match-card__address" data-schedule-address ${addressText ? "" : "hidden"}>${escapeHtml(addressText)}</p>`,
+            `<span class="tournament-match-card__status" data-schedule-status>${presentation.label}</span>`,
             '<div class="tournament-match-card__teams">',
             '<div class="tournament-match-card__team">',
-            `<span class="tournament-match-card__team-id">${teamAId > 0 ? `ID ${escapeHtml(String(teamAId))}` : "Ch\u01b0a c\u00f3 ID"}</span>`,
+            `<span class="tournament-match-card__team-id" data-schedule-team-id="1">${teamAId > 0 ? `ID ${escapeHtml(String(teamAId))}` : "Ch\u01b0a c\u00f3 ID"}</span>`,
             `<strong class="${isWinnerA ? "is-winner" : ""}" data-schedule-team-side="1" title="${escapeHtml(teamA)}">${escapeHtml(teamA)}</strong>`,
             `<span class="tournament-match-card__score ${isWinnerA ? "is-winner" : ""}" data-schedule-score-side="1">${escapeHtml(String(toNumber(match?.scoreTeam1)))}</span>`,
             "</div>",
             '<div class="tournament-match-card__team">',
-            `<span class="tournament-match-card__team-id">${teamBId > 0 ? `ID ${escapeHtml(String(teamBId))}` : "Ch\u01b0a c\u00f3 ID"}</span>`,
+            `<span class="tournament-match-card__team-id" data-schedule-team-id="2">${teamBId > 0 ? `ID ${escapeHtml(String(teamBId))}` : "Ch\u01b0a c\u00f3 ID"}</span>`,
             `<strong class="${isWinnerB ? "is-winner" : ""}" data-schedule-team-side="2" title="${escapeHtml(teamB)}">${escapeHtml(teamB)}</strong>`,
             `<span class="tournament-match-card__score ${isWinnerB ? "is-winner" : ""}" data-schedule-score-side="2">${escapeHtml(String(toNumber(match?.scoreTeam2)))}</span>`,
             "</div>",
@@ -2603,60 +2607,11 @@
                 ? `<a class="tournament-match-card__action is-video" href="${escapeHtml(videoHref)}" target="_blank" rel="noreferrer"><ion-icon name="play-circle-outline"></ion-icon><span>Xem video</span></a>`
                 : '<span class="tournament-match-card__action is-disabled"><ion-icon name="play-circle-outline"></ion-icon><span>Xem video</span></span>',
             `<a class="tournament-match-card__action is-strong" href="${escapeHtml(matchHref)}"><ion-icon name="flag-outline"></ion-icon><span>Di\u1ec5n bi\u1ebfn</span></a>`,
+            `<button type="button" class="tournament-match-card__coordinate" data-coordinate-match="${escapeHtml(String(match?.matchId || ""))}" hidden>Điều phối sân · Chuẩn bị</button>`,
             "</div>",
             "</div>",
             "</div>"
         ].join("");
-    }
-
-    function patchTournamentScheduleMatchScore(root, payload) {
-        const matchId = Number(payload?.matchId || payload?.MatchId);
-        if (!Number.isFinite(matchId) || matchId <= 0) {
-            return false;
-        }
-
-        const card = root.querySelector(`[data-schedule-match-id="${String(matchId)}"]`);
-        if (!card) {
-            return false;
-        }
-
-        const score1 = toNumber(payload?.scoreTeam1 ?? payload?.ScoreTeam1);
-        const score2 = toNumber(payload?.scoreTeam2 ?? payload?.ScoreTeam2);
-        const winnerTeam = trimToEmpty(payload?.winnerTeam || payload?.WinnerTeam || payload?.winnerSide || payload?.WinnerSide);
-        const isWinnerA = winnerTeam === "1" || winnerTeam.toUpperCase() === "TEAM1";
-        const isWinnerB = winnerTeam === "2" || winnerTeam.toUpperCase() === "TEAM2";
-        const isFinished = isWinnerA || isWinnerB || !!(payload?.winnerRegistrationId ?? payload?.WinnerRegistrationId);
-
-        const scoreEl1 = card.querySelector('[data-schedule-score-side="1"]');
-        const scoreEl2 = card.querySelector('[data-schedule-score-side="2"]');
-        const teamEl1 = card.querySelector('[data-schedule-team-side="1"]');
-        const teamEl2 = card.querySelector('[data-schedule-team-side="2"]');
-        const indexEl = card.querySelector('[data-schedule-match-index]');
-
-        if (scoreEl1) {
-            scoreEl1.textContent = String(score1);
-            scoreEl1.classList.toggle("is-winner", isWinnerA);
-        }
-
-        if (scoreEl2) {
-            scoreEl2.textContent = String(score2);
-            scoreEl2.classList.toggle("is-winner", isWinnerB);
-        }
-
-        if (teamEl1) {
-            teamEl1.classList.toggle("is-winner", isWinnerA);
-        }
-
-        if (teamEl2) {
-            teamEl2.classList.toggle("is-winner", isWinnerB);
-        }
-
-        if (indexEl) {
-            indexEl.classList.toggle("is-finished", isFinished);
-        }
-
-        card.classList.toggle("is-finished", isFinished);
-        return true;
     }
 
     function renderTournamentScheduleGroup(roundKey, group, groupIndex) {
@@ -6961,7 +6916,15 @@
             );
         }
 
-        if (kind === "tournament-schedule-page" || kind === "tournament-bracket-page") {
+        if (kind === "tournament-schedule-page") {
+            await window.HanakaTournamentSchedule.mount({
+                root, body, tournamentId: id, render: config.render, renderMatch: renderTournamentScheduleMatch,
+                initialize: data => initTournamentDetailInteractions(root, data, kind)
+            });
+            return;
+        }
+
+        if (kind === "tournament-bracket-page") {
             subscribeTournamentPublicRealtime(id);
             removePublicRealtimeListener = addTournamentPublicRealtimeListener(function (event) {
                 const eventType = trimToEmpty(event && event.type);
@@ -6985,14 +6948,6 @@
 
                 window.clearTimeout(publicRefreshTimer);
                 publicRefreshTimer = window.setTimeout(function () {
-                    if (kind === "tournament-schedule-page"
-                        && eventType === "tournament.match.score.updated") {
-                        if (!patchTournamentScheduleMatchScore(root, payload)) {
-                            refreshTournamentDetailBody(root, body, config, id, kind).catch(retryPublicRefresh);
-                        }
-                        return;
-                    }
-
                     refreshTournamentDetailBody(root, body, config, id, kind).catch(retryPublicRefresh);
                 }, 180);
             });

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using HanakaServer.Controllers;
@@ -10,6 +11,7 @@ using HanakaServer.Options;
 using HanakaServer.Services;
 using HanakaServer.Services.Relay;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -18,6 +20,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
+using mail_service.Internal;
 
 namespace HanakaServer.Tests;
 
@@ -25,6 +29,7 @@ namespace HanakaServer.Tests;
 internal sealed class CoordinatorStabilityHost : IAsyncDisposable
 {
     public const string Password = "Coordinator-stability-test-only!";
+    internal const string JwtKey = "public-web-stability-only-signing-key-20260927";
     public required RelaySqlSandbox Sandbox { get; init; }
     public required WebApplication App { get; set; }
     public required string Root { get; init; }
@@ -106,7 +111,9 @@ internal sealed class CoordinatorStabilityHost : IAsyncDisposable
             EnvironmentName = "Testing", ApplicationName = typeof(CoordinatorPortalController).Assembly.GetName().Name,
             ContentRootPath = AppContext.BaseDirectory, WebRootPath = Path.Combine(root, "HanakaServer", "wwwroot") });
         builder.Configuration.Sources.Clear();
-        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> { ["Coordination:Enabled"] = "true" });
+        builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?> {
+            ["Coordination:Enabled"] = "true", ["Jwt:Key"] = JwtKey,
+            ["Jwt:Issuer"] = "coordination-test", ["Jwt:Audience"] = "coordination-test" });
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Logging.ClearProviders();
         builder.Services.AddDbContext<PickleballDbContext>(o => o.UseSqlServer(connection));
@@ -123,7 +130,25 @@ internal sealed class CoordinatorStabilityHost : IAsyncDisposable
         builder.Services.AddScoped<RelayScoringService>();
         builder.Services.AddScoped<RelayLegacyWriteGuard>();
         builder.Services.AddScoped<RelayTeamReader>();
-        builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie().AddCoordinatorPortal();
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddScoped<IAppAuthService, AppAuthService>();
+        builder.Services.AddScoped<IWebAuthCookieService, WebAuthCookieService>();
+        builder.Services.AddSingleton<IOtpDeliveryService, DisabledOtp>();
+        builder.Services.AddSingleton<IUserOtpService, DisabledOtp>();
+        builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie().AddCoordinatorPortal()
+            .AddJwtBearer(options => {
+                options.TokenValidationParameters = new() { ValidIssuer = "coordination-test", ValidAudience = "coordination-test",
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(JwtKey)), ClockSkew = TimeSpan.Zero };
+                // Use the same bearer/cookie precedence as the production application.
+                options.Events = new JwtBearerEvents { OnMessageReceived = context => {
+                    var header = context.Request.Headers.Authorization.ToString();
+                    if (header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(header[7..]))
+                        context.Token = header[7..].Trim();
+                    else if (context.Request.Cookies.TryGetValue(WebAuthCookieService.AccessTokenCookieName, out var cookie))
+                        context.Token = cookie;
+                    return Task.CompletedTask;
+                } };
+            });
         builder.Services.AddAuthorization();
         builder.Services.AddControllersWithViews().AddApplicationPart(typeof(CoordinatorPortalController).Assembly);
         var app = builder.Build();
@@ -149,6 +174,28 @@ internal sealed class CoordinatorStabilityHost : IAsyncDisposable
     }
 
     public HttpClient Client() => new(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = new Uri(Url), Timeout = TimeSpan.FromSeconds(40) };
+    public async Task<(HttpClient Client, string Token)> LoginWebCoordinator(int index = 0)
+    {
+        var client = Client();
+        try
+        {
+            using var login = await client.PostAsJsonAsync("/api/web-auth/login",
+                new { identifier = $"coordinator{index}@example.test", password = Password });
+            login.EnsureSuccessStatusCode();
+            var permissions = await client.GetFromJsonAsync<JsonElement>($"/api/coordination/tournaments/{Tournaments[0].Id}/permissions");
+            return (client, permissions.GetProperty("requestToken").GetString()!);
+        }
+        catch { client.Dispose(); throw; }
+    }
+
+    // Login/session use the real AppAuthService. OTP must never contact external services in this fixture.
+    private sealed class DisabledOtp : IOtpDeliveryService, IUserOtpService
+    {
+        public Task<OtpDeliveryResult> SendRegistrationOtpAsync(User user, string otp, CancellationToken ct = default) => throw new InvalidOperationException("OTP is disabled in stability tests.");
+        public Task<OtpDeliveryResult> SendPasswordResetOtpAsync(User user, string otp, CancellationToken ct = default) => throw new InvalidOperationException("OTP is disabled in stability tests.");
+        public Task<(string otp, DateTime expiredAtUtc)> CreateOtpAsync(User user, CancellationToken ct = default) => throw new InvalidOperationException("OTP is disabled in stability tests.");
+        public Task InvalidateActiveOtpsAsync(long userId, string email, CancellationToken ct = default) => throw new InvalidOperationException("OTP is disabled in stability tests.");
+    }
     public async Task<(HttpClient Client, string Token)> LoginCoordinator(int index = 0)
     {
         var client = Client();

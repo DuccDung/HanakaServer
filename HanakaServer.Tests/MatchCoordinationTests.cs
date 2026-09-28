@@ -39,9 +39,19 @@ public sealed class MatchCoordinationTests
         builder.Services.AddSingleton<PublicRealtimeHub>();
         builder.Services.AddScoped<MatchCoordinationService>();
         builder.Services.AddScoped<ITournamentStandingsService, TournamentStandingsService>();
-        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
+        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options => {
             options.TokenValidationParameters = new() { ValidateIssuer = false, ValidateAudience = false,
-                IssuerSigningKey = key, ValidateLifetime = true, ClockSkew = TimeSpan.Zero });
+                IssuerSigningKey = key, ValidateLifetime = true, ClockSkew = TimeSpan.Zero };
+            options.Events = new JwtBearerEvents { OnMessageReceived = context => {
+                var header = context.Request.Headers.Authorization.ToString();
+                if (header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(header[7..]))
+                    context.Token = header[7..].Trim();
+                else if (context.Request.Cookies.TryGetValue(WebAuthCookieService.AccessTokenCookieName, out var cookie))
+                    context.Token = cookie;
+                return Task.CompletedTask;
+            } };
+        });
+        builder.Services.AddAntiforgery();
         builder.Services.AddAuthorization();
         builder.Services.AddControllers().AddApplicationPart(typeof(MatchCoordinationController).Assembly);
         await using var app = builder.Build();
@@ -74,11 +84,46 @@ public sealed class MatchCoordinationTests
             var match = schedule.GetProperty("rounds")[0].GetProperty("groups")[0].GetProperty("matches")[0];
             Assert.Equal("PREPARING", match.GetProperty("matchStatus").GetString());
             Assert.Equal(2, match.GetProperty("stateVersion").GetInt64());
+
+            using var handler = new HttpClientHandler { CookieContainer = new CookieContainer() };
+            handler.CookieContainer.Add(client.BaseAddress, new Cookie(WebAuthCookieService.AccessTokenCookieName, operatorToken, "/"));
+            using var web = new HttpClient(handler) { BaseAddress = client.BaseAddress };
+            var webPermissions = await web.GetFromJsonAsync<JsonElement>($"/api/coordination/tournaments/{f.TournamentId}/permissions");
+            Assert.True(webPermissions.GetProperty("canCoordinate").GetBoolean());
+            Assert.Equal(f.UserId, webPermissions.GetProperty("userId").GetInt64());
+            var csrf = webPermissions.GetProperty("requestToken").GetString();
+            Assert.False(string.IsNullOrWhiteSpace(csrf));
+            var update = new { expectedVersion = 2, courtText = "Sân web", preparing = false };
+            Assert.Equal(HttpStatusCode.BadRequest, (await web.PutAsJsonAsync(path, update)).StatusCode);
+            web.DefaultRequestHeaders.TryAddWithoutValidation("Authorization", "Bearer ");
+            Assert.Equal(HttpStatusCode.BadRequest, (await web.PutAsJsonAsync(path, update)).StatusCode);
+            web.DefaultRequestHeaders.Remove("Authorization");
+            web.DefaultRequestHeaders.Add("RequestVerificationToken", "invalid-token");
+            Assert.Equal(HttpStatusCode.BadRequest, (await web.PutAsJsonAsync(path, update)).StatusCode);
+            web.DefaultRequestHeaders.Remove("RequestVerificationToken");
+            web.DefaultRequestHeaders.Add("RequestVerificationToken", csrf);
+            var webResponse = await web.PutAsJsonAsync(path, update);
+            webResponse.EnsureSuccessStatusCode();
+            var webSnapshot = await webResponse.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(3, webSnapshot.GetProperty("stateVersion").GetInt64());
+            Assert.Equal("NOT_STARTED", webSnapshot.GetProperty("matchStatus").GetString());
+            Assert.Equal("Sân web", webSnapshot.GetProperty("courtText").GetString());
+
+            // Bearer callers (including mobile clients with unrelated cookies) do not need a web token.
+            web.DefaultRequestHeaders.Remove("RequestVerificationToken");
+            web.DefaultRequestHeaders.Authorization = new("Bearer", operatorToken);
+            (await web.PutAsJsonAsync(path, new { expectedVersion = 3, courtText = "Sân app", preparing = true })).EnsureSuccessStatusCode();
+            web.DefaultRequestHeaders.Authorization = null;
+            web.DefaultRequestHeaders.Add("RequestVerificationToken", csrf);
+            handler.CookieContainer.Add(client.BaseAddress, new Cookie(WebAuthCookieService.AccessTokenCookieName, Token(f.UserId + 50), "/"));
+            Assert.Equal(HttpStatusCode.BadRequest, (await web.PutAsJsonAsync(path, new { expectedVersion = 4, courtText = "Sân khác", preparing = false })).StatusCode);
+            handler.CookieContainer.Add(client.BaseAddress, new Cookie(WebAuthCookieService.AccessTokenCookieName, operatorToken, "/"));
             client.DefaultRequestHeaders.Authorization = new("Bearer", Token(f.UserId, true));
             (await client.DeleteAsync($"/api/admin/tournaments/{f.TournamentId}/coordinators/{f.UserId}")).EnsureSuccessStatusCode();
             client.DefaultRequestHeaders.Authorization = new("Bearer", operatorToken);
             var permissions = await client.GetFromJsonAsync<JsonElement>($"/api/coordination/tournaments/{f.TournamentId}/permissions");
             Assert.False(permissions.GetProperty("canCoordinate").GetBoolean());
+            Assert.Equal(HttpStatusCode.Forbidden, (await web.PutAsJsonAsync(path, new { expectedVersion = 4, courtText = "Sân 3", preparing = false })).StatusCode);
             Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync(path, new { expectedVersion = 2, courtText = "Sân 3", preparing = false })).StatusCode);
         }
         finally { await app.StopAsync(); }

@@ -32,7 +32,7 @@ public sealed class CoordinatorSoakTests
         var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web) { WriteIndented = true };
         await File.WriteAllTextAsync(Path.Combine(artifact, "host.json"), JsonSerializer.Serialize(manifest, jsonOptions));
         await File.WriteAllTextAsync(Path.Combine(host.Root, "artifacts", "coordination-stability", "active-host.json"), JsonSerializer.Serialize(manifest, jsonOptions));
-        var coordinators = await Task.WhenAll(Enumerable.Range(0, 10).Select(host.LoginCoordinator));
+        var coordinators = await Task.WhenAll(Enumerable.Range(0, 10).Select(host.LoginWebCoordinator));
         var referees = await Task.WhenAll(Enumerable.Range(0, 10).Select(host.LoginReferee));
         using var viewerClient = host.Client();
         Histogram writeLatency = new(), readLatency = new(), deliveryLatency = new();
@@ -41,7 +41,7 @@ public sealed class CoordinatorSoakTests
         var viewers = new List<SoakViewer>();
         var samples = new List<object>();
         var stopwatch = Stopwatch.StartNew();
-        var phase = -1; var cycle = 0; long lastSample = -1;
+        var phase = -1; var cycle = 0; long lastSample = -1, lastPoll = -1;
         try
         {
             while (stopwatch.Elapsed < TimeSpan.FromMinutes(minutes))
@@ -84,7 +84,7 @@ public sealed class CoordinatorSoakTests
                         await using (var db = host.Db()) version = await db.TournamentGroupMatches.Where(m => m.MatchId == matchId).Select(m => m.StateVersion).SingleAsync();
                         var before = Stopwatch.GetTimestamp();
                         using var response = await CoordinatorStabilityHost.Write(coordinators[i].Client, HttpMethod.Put,
-                            $"/api/coordinator-portal/matches/{matchId}", new { expectedVersion = version, courtText = $"Sân {i + 1} / {cycle}", preparing = cycle % 2 == 1 }, coordinators[i].Token);
+                            $"/api/coordination/matches/{matchId}", new { expectedVersion = version, courtText = $"Sân {i + 1} / {cycle}", preparing = cycle % 2 == 1 }, coordinators[i].Token);
                         writeLatency.Record(Stopwatch.GetElapsedTime(before).TotalMilliseconds);
                         response.EnsureSuccessStatusCode();
                         var snapshot = await response.Content.ReadFromJsonAsync<JsonElement>(); expected[matchId] = snapshot.GetProperty("stateVersion").GetInt64();
@@ -104,17 +104,22 @@ public sealed class CoordinatorSoakTests
                 var until = Stopwatch.StartNew();
                 while (until.Elapsed < TimeSpan.FromSeconds(5) && viewers.Any(v => expected.Any(e => v.Versions.GetValueOrDefault(e.Key) < e.Value))) await Task.Delay(50);
                 if (viewers.Any(v => expected.Any(e => v.Versions.GetValueOrDefault(e.Key) < e.Value))) errors.Enqueue("viewer did not converge within 5 seconds");
-                if ((long)stopwatch.Elapsed.TotalMinutes != lastSample)
+                if ((long)(stopwatch.Elapsed.TotalSeconds / 30) != lastPoll)
                 {
-                    lastSample = (long)stopwatch.Elapsed.TotalMinutes;
-                    // Portal operators poll schedule and live permissions, with real cookie validation and SQL queries.
+                    lastPoll = (long)(stopwatch.Elapsed.TotalSeconds / 30);
+                    // Public web operators poll live permissions and schedule every 30 seconds.
                     await Task.WhenAll(coordinators.Select(async operatorClient => {
                         var before = Stopwatch.GetTimestamp();
-                        using var session = await operatorClient.Client.GetAsync("/api/coordinator-portal/session"); session.EnsureSuccessStatusCode();
+                        var permissions = await operatorClient.Client.GetFromJsonAsync<JsonElement>($"/api/coordination/tournaments/{fixture.Id}/permissions");
+                        Assert.True(permissions.GetProperty("canCoordinate").GetBoolean());
                         var schedule = await operatorClient.Client.GetFromJsonAsync<JsonElement>($"/api/tournaments/{fixture.Id}/rounds-with-matches");
                         readLatency.Record(Stopwatch.GetElapsedTime(before).TotalMilliseconds);
                         Assert.Equal(fixture.Matches.Length, CoordinatorStabilityHost.Matches(schedule).Length);
                     }));
+                }
+                if ((long)stopwatch.Elapsed.TotalMinutes != lastSample)
+                {
+                    lastSample = (long)stopwatch.Elapsed.TotalMinutes;
                     for (var i = 0; i < 5; i++)
                     {
                         var index = (cycle + i) % viewers.Count; await viewers[index].DisposeAsync();
@@ -150,6 +155,7 @@ public sealed class CoordinatorSoakTests
         Assert.Empty(errors);
         Assert.True(stopwatch.Elapsed >= TimeSpan.FromMinutes(minutes));
         Assert.True(writeLatency.Percentile(.95) < 1000, $"Write p95 {writeLatency.Percentile(.95)} ms exceeded 1 second.");
+        Assert.True(readLatency.Percentile(.95) < 2000, $"Read p95 {readLatency.Percentile(.95)} ms exceeded 2 seconds.");
         Assert.True(deliveryLatency.Percentile(.95) < 2000, $"Websocket p95 {deliveryLatency.Percentile(.95)} ms exceeded 2 seconds.");
     }
 
